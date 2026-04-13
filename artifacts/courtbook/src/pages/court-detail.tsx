@@ -6,25 +6,14 @@ import { useGetCourt, useGetCourtAvailability, useCreateBooking, useCreateChecko
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
-
-const bookingSchema = z.object({
-  customerName: z.string().min(2, "Vardas per trumpas"),
-  customerEmail: z.string().email("Neteisingas el. paštas"),
-});
-
-type BookingFormValues = z.infer<typeof bookingSchema>;
 
 
 function StarDisplay({ rating, size = "md" }: { rating?: number | null; size?: "sm" | "md" | "lg" }) {
@@ -83,11 +72,8 @@ export default function CourtDetail() {
 
   const createBooking = useCreateBooking();
   const createCheckout = useCreateCheckoutSession();
-
-  const form = useForm<BookingFormValues>({
-    resolver: zodResolver(bookingSchema),
-    defaultValues: { customerName: "", customerEmail: "" },
-  });
+  const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const { openSignIn } = useClerk();
 
   const slots = availability?.slots ?? [];
 
@@ -151,9 +137,21 @@ export default function CourtDetail() {
     }
   };
 
-  const onSubmit = async (data: BookingFormValues) => {
+  const handleReserve = async () => {
     if (!selectedSlotRange) {
       toast({ title: "Pasirinkite laiką", variant: "destructive" });
+      return;
+    }
+    if (!isSignedIn || !user) {
+      openSignIn();
+      return;
+    }
+
+    const customerName = user.fullName ?? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+    const customerEmail = user.primaryEmailAddress?.emailAddress ?? "";
+
+    if (!customerName || !customerEmail) {
+      toast({ title: "Profilio duomenys neišsamūs", description: "Papildykite profilį ir bandykite dar kartą.", variant: "destructive" });
       return;
     }
 
@@ -161,8 +159,8 @@ export default function CourtDetail() {
       const booking = await createBooking.mutateAsync({
         data: {
           courtId,
-          customerName: data.customerName,
-          customerEmail: data.customerEmail,
+          customerName,
+          customerEmail,
           date: dateStr,
           startTime: selectedSlotRange.startTime,
           endTime: selectedSlotRange.endTime,
@@ -188,6 +186,7 @@ export default function CourtDetail() {
   };
 
   const isPending = createBooking.isPending || createCheckout.isPending;
+  const displayName = user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Vartotojas";
 
   const avgRating = useMemo(() => {
     if (!reviews || reviews.length === 0) return null;
@@ -554,38 +553,58 @@ export default function CourtDetail() {
                 </p>
               ) : null}
 
-              {/* Customer details */}
+              {/* Step 3: Reserve */}
               {selectedSlotRange && (
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-                    <p className="text-sm font-semibold flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
-                      Jūsų duomenys
-                    </p>
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
+                    Rezervuoti
+                  </p>
 
-                    <FormField control={form.control} name="customerName" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Vardas Pavardė</FormLabel>
-                        <FormControl><Input placeholder="Jonas Jonaitis" className="h-9" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                  {!clerkLoaded ? (
+                    <Skeleton className="h-16 w-full rounded-xl" />
+                  ) : isSignedIn && user ? (
+                    <>
+                      {/* Signed-in user card */}
+                      <div className="flex items-center gap-3 bg-muted/50 border border-border rounded-xl px-4 py-3">
+                        {user.imageUrl ? (
+                          <img src={user.imageUrl} alt={user.fullName ?? "Profilis"} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary font-bold text-sm">
+                              {(user.firstName?.[0] ?? user.emailAddresses?.[0]?.emailAddress?.[0] ?? "U").toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{displayName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.primaryEmailAddress?.emailAddress}</p>
+                        </div>
+                        <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
+                      </div>
 
-                    <FormField control={form.control} name="customerEmail" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">El. paštas</FormLabel>
-                        <FormControl><Input type="email" placeholder="jonas@example.com" className="h-9" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-
-                    <Button type="submit" className="w-full h-12 text-base font-semibold mt-2" disabled={isPending}>
-                      {isPending ? "Apdorojama..." : `Rezervuoti · ${selectedSlotRange.totalPrice.toFixed(2)}€`}
-                    </Button>
-
-                    <p className="text-xs text-center text-muted-foreground">Mokėjimas saugiai vyksta per Stripe</p>
-                  </form>
-                </Form>
+                      <Button onClick={handleReserve} className="w-full h-12 text-base font-semibold" disabled={isPending}>
+                        {isPending ? "Apdorojama..." : `Rezervuoti · ${selectedSlotRange.totalPrice.toFixed(2)} €`}
+                      </Button>
+                      <p className="text-xs text-center text-muted-foreground">Mokėjimas saugiai vyksta per Stripe</p>
+                    </>
+                  ) : (
+                    /* Not signed in */
+                    <div className="rounded-xl border border-dashed border-border bg-muted/30 p-5 flex flex-col items-center gap-3 text-center">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <LogIn className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">Prisijunkite, kad rezervuotumėte</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Jūsų rezervacijos bus saugomos paskyroje</p>
+                      </div>
+                      <Button onClick={() => openSignIn()} className="w-full gap-2" size="sm">
+                        <LogIn className="w-4 h-4" />
+                        Prisijungti
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {!selectedSlotRange && (
