@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState, useEffect } from "react";
-import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from "@react-google-maps/api";
+import { useCallback, useRef, useState, useEffect, useMemo } from "react";
+import { GoogleMap, useJsApiLoader, InfoWindowF } from "@react-google-maps/api";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
-import { Link } from "wouter";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { Star, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
@@ -32,28 +32,40 @@ const sportLithuanian: Record<string, string> = {
   football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
 };
 
-function createMarkerIcon(
-  color: string,
-  abbr: string,
-  isSelected: boolean
-): google.maps.Icon {
-  const size = isSelected ? 44 : 36;
-  const border = isSelected ? 3 : 2.5;
+/** Build a marker icon URL — cached by sport+selected key, never recreated */
+function buildIconUrl(color: string, abbr: string, isSelected: boolean): string {
+  const size = isSelected ? 44 : 32;
+  const border = isSelected ? 3 : 2;
   const fontSize = isSelected ? 11 : 9;
   const shadow = isSelected
     ? `filter: drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
-    : `filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4))`;
-
+    : `filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4))`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
-  <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - border / 2}" fill="${color}" stroke="white" stroke-width="${border}"/>
-  <text x="${size / 2}" y="${size / 2 + fontSize * 0.4}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-weight="700" font-family="system-ui,sans-serif" fill="white" letter-spacing="0.5">${abbr}</text>
+  <circle cx="${size/2}" cy="${size/2}" r="${size/2-border/2}" fill="${color}" stroke="white" stroke-width="${border}"/>
+  <text x="${size/2}" y="${size/2+fontSize*0.4}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-weight="700" font-family="system-ui,sans-serif" fill="white" letter-spacing="0.5">${abbr}</text>
 </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
 
-  return {
-    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(size / 2, size / 2),
-  };
+/** Pre-compute all icon variants once — 6 sports × 2 states = 12 icons */
+function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: google.maps.Icon }> {
+  const cache: Record<string, { normal: google.maps.Icon; selected: google.maps.Icon }> = {};
+  for (const [sport, color] of Object.entries(SPORT_COLOR)) {
+    const abbr = sportAbbr[sport] ?? sport.slice(0, 2).toUpperCase();
+    cache[sport] = {
+      normal: {
+        url: buildIconUrl(color, abbr, false),
+        scaledSize: new google.maps.Size(32, 32),
+        anchor: new google.maps.Point(16, 16),
+      },
+      selected: {
+        url: buildIconUrl(color, abbr, true),
+        scaledSize: new google.maps.Size(44, 44),
+        anchor: new google.maps.Point(22, 22),
+      },
+    };
+  }
+  return cache;
 }
 
 interface CourtInfoWindowProps {
@@ -64,15 +76,11 @@ interface CourtInfoWindowProps {
 function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
   const color = SPORT_COLOR[court.type] ?? "#84cc16";
   const img = resolveCourtImage(court.imageUrl);
-
   return (
     <InfoWindowF
       position={{ lat: court.latitude, lng: court.longitude }}
       onCloseClick={onClose}
-      options={{
-        pixelOffset: new google.maps.Size(0, -20),
-        disableAutoPan: false,
-      }}
+      options={{ pixelOffset: new google.maps.Size(0, -20), disableAutoPan: false }}
     >
       <div
         className="overflow-hidden rounded-lg"
@@ -80,11 +88,7 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
       >
         {img && (
           <div style={{ width: "100%", height: "100px", overflow: "hidden" }}>
-            <img
-              src={img}
-              alt={court.name}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
+            <img src={img} alt={court.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
         )}
         <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -96,30 +100,18 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
             <span>{court.city}</span>
           </div>
           <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-            <span
-              style={{
-                background: color,
-                color: "white",
-                padding: "2px 8px",
-                borderRadius: "999px",
-                fontSize: "10px",
-                fontWeight: 700,
-                letterSpacing: "0.5px",
-                textTransform: "uppercase",
-              }}
-            >
+            <span style={{
+              background: color, color: "white",
+              padding: "2px 8px", borderRadius: "999px",
+              fontSize: "10px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase",
+            }}>
               {sportAbbr[court.type] ?? "—"} · {sportLithuanian[court.type] ?? court.type}
             </span>
             {court.isIndoor && (
-              <span
-                style={{
-                  background: "#374151",
-                  color: "#d1d5db",
-                  padding: "2px 8px",
-                  borderRadius: "999px",
-                  fontSize: "11px",
-                }}
-              >
+              <span style={{
+                background: "#374151", color: "#d1d5db",
+                padding: "2px 8px", borderRadius: "999px", fontSize: "11px",
+              }}>
                 Indoor
               </span>
             )}
@@ -135,19 +127,11 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
               {court.pricePerHour}€
               <span style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
-            <a
-              href={`/courts/${court.id}`}
-              style={{
-                background: color,
-                color: "black",
-                padding: "5px 12px",
-                borderRadius: "8px",
-                fontSize: "11px",
-                fontWeight: 700,
-                textDecoration: "none",
-                display: "inline-block",
-              }}
-            >
+            <a href={`/courts/${court.id}`} style={{
+              background: color, color: "black",
+              padding: "5px 12px", borderRadius: "8px",
+              fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
+            }}>
               Rezervuoti
             </a>
           </div>
@@ -159,45 +143,22 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
 
 const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
 const LIBRARIES: ("places")[] = [];
-
 const ALL_SPORTS = Object.keys(sportLithuanian);
 
 export function CourtMap({ courts }: { courts: Court[] }) {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+
   const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<number, google.maps.Marker>>(new Map());
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+  const iconCacheRef = useRef<ReturnType<typeof buildIconCache> | null>(null);
 
-  const toggleSport = (sport: string) => {
-    setActiveSports(prev => {
-      const next = new Set(prev);
-      if (next.has(sport)) {
-        // Don't allow deselecting the last one
-        if (next.size === 1) return prev;
-        next.delete(sport);
-      } else {
-        next.add(sport);
-      }
-      // Clear selected court if its sport is toggled off
-      if (selectedCourt && !next.has(selectedCourt.type)) {
-        setSelectedCourt(null);
-      }
-      return next;
-    });
-  };
-
-  const allActive = activeSports.size === ALL_SPORTS.length;
-  const toggleAll = () => {
-    if (allActive) {
-      // keep at least one — just set to first
-      setActiveSports(new Set([ALL_SPORTS[0]]));
-    } else {
-      setActiveSports(new Set(ALL_SPORTS));
-    }
-    setSelectedCourt(null);
-  };
-
-  const visibleCourts = courts.filter(c => activeSports.has(c.type));
+  const visibleCourts = useMemo(
+    () => courts.filter(c => activeSports.has(c.type)),
+    [courts, activeSports]
+  );
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: API_KEY ?? "",
@@ -220,12 +181,124 @@ export function CourtMap({ courts }: { courts: Court[] }) {
 
   const onLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map;
+    // Build icon cache once Google Maps is ready
+    iconCacheRef.current = buildIconCache();
+    // Init clusterer
+    clustererRef.current = new MarkerClusterer({
+      map,
+      markers: [],
+      renderer: {
+        render({ count, position }) {
+          return new google.maps.Marker({
+            position,
+            label: {
+              text: String(count),
+              color: "#000",
+              fontSize: "12px",
+              fontWeight: "700",
+            },
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+                `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 42 42">
+                  <circle cx="21" cy="21" r="19" fill="#adff2f" stroke="white" stroke-width="2.5"/>
+                </svg>`
+              )}`,
+              scaledSize: new google.maps.Size(42, 42),
+              anchor: new google.maps.Point(21, 21),
+            },
+            zIndex: 1000,
+          });
+        },
+      },
+    });
     fitBounds(map, courts);
   }, [courts, fitBounds]);
 
+  // Imperatively manage markers — no React component per marker
   useEffect(() => {
-    if (mapRef.current) fitBounds(mapRef.current, courts);
-  }, [courts, fitBounds]);
+    if (!mapRef.current || !iconCacheRef.current || !clustererRef.current) return;
+
+    const map = mapRef.current;
+    const icons = iconCacheRef.current;
+    const clusterer = clustererRef.current;
+    const visibleIds = new Set(visibleCourts.map(c => c.id));
+    const currentIds = new Set(markersRef.current.keys());
+
+    // Remove markers no longer visible
+    const toRemove: google.maps.Marker[] = [];
+    for (const [id, marker] of markersRef.current.entries()) {
+      if (!visibleIds.has(id)) {
+        marker.setMap(null);
+        toRemove.push(marker);
+        markersRef.current.delete(id);
+      }
+    }
+    if (toRemove.length) clusterer.removeMarkers(toRemove);
+
+    // Add new markers
+    const toAdd: google.maps.Marker[] = [];
+    for (const court of visibleCourts) {
+      if (currentIds.has(court.id)) continue;
+      const sportIcons = icons[court.type] ?? icons["tennis"];
+      const marker = new google.maps.Marker({
+        position: { lat: court.latitude, lng: court.longitude },
+        icon: sportIcons.normal,
+        title: court.name,
+        zIndex: 1,
+      });
+      marker.addListener("click", () => {
+        setSelectedCourt(prev => (prev?.id === court.id ? null : court));
+      });
+      markersRef.current.set(court.id, marker);
+      toAdd.push(marker);
+    }
+    if (toAdd.length) clusterer.addMarkers(toAdd);
+  }, [visibleCourts]);
+
+  // Update selected marker icon when selection changes
+  useEffect(() => {
+    if (!iconCacheRef.current) return;
+    const icons = iconCacheRef.current;
+    for (const [id, marker] of markersRef.current.entries()) {
+      const court = visibleCourts.find(c => c.id === id);
+      if (!court) continue;
+      const sportIcons = icons[court.type] ?? icons["tennis"];
+      const isSelected = selectedCourt?.id === id;
+      marker.setIcon(isSelected ? sportIcons.selected : sportIcons.normal);
+      marker.setZIndex(isSelected ? 999 : 1);
+    }
+  }, [selectedCourt, visibleCourts]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      for (const marker of markersRef.current.values()) {
+        marker.setMap(null);
+      }
+      markersRef.current.clear();
+      clustererRef.current?.clearMarkers();
+    };
+  }, []);
+
+  const toggleSport = (sport: string) => {
+    setActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) {
+        if (next.size === 1) return prev;
+        next.delete(sport);
+      } else {
+        next.add(sport);
+      }
+      if (selectedCourt && !next.has(selectedCourt.type)) setSelectedCourt(null);
+      return next;
+    });
+  };
+
+  const allActive = activeSports.size === ALL_SPORTS.length;
+  const toggleAll = () => {
+    setActiveSports(allActive ? new Set([ALL_SPORTS[0]]) : new Set(ALL_SPORTS));
+    setSelectedCourt(null);
+  };
 
   if (loadError || !API_KEY) {
     return (
@@ -234,9 +307,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
         <div>
           <p className="font-semibold text-foreground mb-1">Google Maps nepasiekiamas</p>
           <p className="text-sm text-muted-foreground">
-            {!API_KEY
-              ? "Reikalingas VITE_GOOGLE_MAPS_API_KEY konfigūracijos raktas."
-              : "Nepavyko įkelti žemėlapio. Patikrinkite API raktą."}
+            {!API_KEY ? "Reikalingas VITE_GOOGLE_MAPS_API_KEY konfigūracijos raktas." : "Nepavyko įkelti žemėlapio."}
           </p>
         </div>
       </div>
@@ -265,75 +336,42 @@ export function CourtMap({ courts }: { courts: Court[] }) {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
-          zoomControlOptions: {
-            position: google.maps.ControlPosition.RIGHT_CENTER,
-          },
+          zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
           gestureHandling: "greedy",
         }}
       >
-        {visibleCourts.map((court) => {
-          const color = SPORT_COLOR[court.type] ?? "#84cc16";
-          const abbr = sportAbbr[court.type] ?? "—";
-          const isSelected = selectedCourt?.id === court.id;
-
-          return (
-            <MarkerF
-              key={court.id}
-              position={{ lat: court.latitude, lng: court.longitude }}
-              icon={createMarkerIcon(color, abbr, isSelected)}
-              onClick={() =>
-                setSelectedCourt(prev => (prev?.id === court.id ? null : court))
-              }
-              zIndex={isSelected ? 999 : 1}
-            />
-          );
-        })}
-
         {selectedCourt && (
-          <CourtInfoWindow
-            court={selectedCourt}
-            onClose={() => setSelectedCourt(null)}
-          />
+          <CourtInfoWindow court={selectedCourt} onClose={() => setSelectedCourt(null)} />
         )}
       </GoogleMap>
 
       {/* Map / Satellite toggle */}
       <div className="absolute top-3 left-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
-        <button
-          onClick={() => setMapType("roadmap")}
-          className={`px-3 py-1.5 transition-colors ${
-            mapType === "roadmap"
-              ? "bg-primary text-primary-foreground"
-              : "bg-background/95 backdrop-blur text-foreground hover:bg-muted"
-          }`}
-        >
-          Žemėlapis
-        </button>
-        <button
-          onClick={() => setMapType("satellite")}
-          className={`px-3 py-1.5 transition-colors ${
-            mapType === "satellite"
-              ? "bg-primary text-primary-foreground"
-              : "bg-background/95 backdrop-blur text-foreground hover:bg-muted"
-          }`}
-        >
-          Palydovas
-        </button>
+        {(["roadmap", "satellite"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setMapType(t)}
+            className={`px-3 py-1.5 transition-colors ${
+              mapType === t
+                ? "bg-primary text-primary-foreground"
+                : "bg-background/95 backdrop-blur text-foreground hover:bg-muted"
+            }`}
+          >
+            {t === "roadmap" ? "Žemėlapis" : "Palydovas"}
+          </button>
+        ))}
       </div>
 
-      {/* Legend / Sport filter */}
+      {/* Sport filter legend */}
       <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl p-3 text-xs shadow-xl min-w-[140px]">
         <div className="flex items-center justify-between mb-2.5">
           <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">Filtras</span>
-          <button
-            onClick={toggleAll}
-            className="text-[10px] font-medium text-primary hover:underline ml-2"
-          >
+          <button onClick={toggleAll} className="text-[10px] font-medium text-primary hover:underline ml-2">
             {allActive ? "Slėpti viską" : "Rodyti viską"}
           </button>
         </div>
         <div className="space-y-1">
-          {ALL_SPORTS.map((sport) => {
+          {ALL_SPORTS.map(sport => {
             const active = activeSports.has(sport);
             const color = SPORT_COLOR[sport];
             const count = courts.filter(c => c.type === sport).length;
@@ -341,25 +379,15 @@ export function CourtMap({ courts }: { courts: Court[] }) {
               <button
                 key={sport}
                 onClick={() => toggleSport(sport)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left group ${
-                  active
-                    ? "bg-muted/60 hover:bg-muted"
-                    : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
+                  active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-70 hover:bg-muted/30"
                 }`}
               >
                 <div
                   className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
-                  style={{
-                    background: active ? color : "transparent",
-                    borderColor: color,
-                  }}
+                  style={{ background: active ? color : "transparent", borderColor: color }}
                 >
-                  <SportIcon
-                    sport={sport}
-                    size={11}
-                    strokeWidth={2}
-                    style={{ color: active ? "white" : color }}
-                  />
+                  <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
                 </div>
                 <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
                   {sportLithuanian[sport]}
