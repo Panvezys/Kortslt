@@ -2,10 +2,12 @@ import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Star } from "lucide-react";
+import { MapPin, Users, Star, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
+import { useUser } from "@clerk/react";
 
 const sportConfig: Record<string, { emoji: string; color: string }> = {
   tennis:     { emoji: "🎾", color: "#84cc16" },
@@ -44,10 +46,13 @@ function StarRating({ rating }: { rating?: number }) {
 
 export function CourtCard({ court }: { court: Court }) {
   const t = useT();
+  const { isSignedIn } = useUser();
+  const { isFavorite, toggleFavorite } = useFavoritesContext();
   const imageSrc = resolveCourtImage(court.imageUrl);
   const sport = sportConfig[court.type] ?? sportConfig.tennis;
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;
+  const favorited = isFavorite(court.id);
 
   return (
     <Card className="h-full flex flex-col hover:border-primary/50 transition-colors group overflow-hidden">
@@ -61,7 +66,7 @@ export function CourtCard({ court }: { court: Court }) {
               (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
             }}
           />
-          <div className="absolute top-2 right-2 flex gap-1">
+          <div className="absolute top-2 right-2 flex gap-1 items-center">
             {court.isIndoor !== undefined && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
                 {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
@@ -72,11 +77,29 @@ export function CourtCard({ court }: { court: Court }) {
                 {surfaceLabel}
               </span>
             )}
+            {isSignedIn && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(court.id); }}
+                aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+                className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center hover:bg-black/80 transition-colors"
+              >
+                <Heart className={`h-3.5 w-3.5 transition-colors ${favorited ? "fill-red-500 text-red-500" : "text-white"}`} />
+              </button>
+            )}
           </div>
         </div>
       ) : (
-        <div className="w-full h-48 bg-muted flex items-center justify-center text-4xl">
+        <div className="w-full h-48 bg-muted flex items-center justify-center text-4xl relative">
           {sport.emoji}
+          {isSignedIn && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(court.id); }}
+              aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/80 backdrop-blur-sm border border-border flex items-center justify-center hover:bg-muted transition-colors"
+            >
+              <Heart className={`h-3.5 w-3.5 transition-colors ${favorited ? "fill-red-500 text-red-500" : "text-muted-foreground"}`} />
+            </button>
+          )}
         </div>
       )}
 

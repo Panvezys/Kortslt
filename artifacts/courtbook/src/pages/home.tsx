@@ -3,13 +3,16 @@ import { useState, useEffect } from "react";
 import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
+import { CourtCard } from "@/components/court-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight } from "lucide-react";
+import { MapPin, ArrowRight, Heart } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
+import { useUser } from "@clerk/react";
 
 const sportEmoji: Record<string, string> = {
   tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽", badminton: "🏸", squash: "🎯",
@@ -30,6 +33,8 @@ const HERO_IMAGES = [
 
 export default function Home() {
   const t = useT();
+  const { isSignedIn } = useUser();
+  const { favorites, loading: favLoading } = useFavoritesContext();
   const [heroIdx, setHeroIdx] = useState(0);
 
   useEffect(() => {
@@ -148,6 +153,42 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Favorite Courts — only shown when signed in and has favorites */}
+      {isSignedIn && (favLoading || favorites.length > 0) && (
+        <section className="py-16 border-t border-border/50">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center">
+                <Heart className="h-5 w-5 fill-red-500 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">Mėgstamiausi kortai</h2>
+                <p className="text-sm text-muted-foreground">Jūsų išsaugoti kortai</p>
+              </div>
+              <Link href="/courts" className="ml-auto">
+                <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
+                  Visi kortai <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            </div>
+
+            {favLoading ? (
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[340px] w-full rounded-xl" />
+                ))}
+              </div>
+            ) : favorites.length > 0 ? (
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                {favorites.map(court => (
+                  <CourtCard key={court.id} court={court} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      )}
 
       {/* Popular Courts */}
       <section className="py-24 bg-muted/30">
