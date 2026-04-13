@@ -315,7 +315,7 @@ export const ListBookingsResponseItem = zod.object({
   endTime: zod.string(),
   totalPrice: zod.number(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
-  stripeSessionId: zod.string().optional(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
@@ -350,7 +350,7 @@ export const GetBookingResponse = zod.object({
   endTime: zod.string(),
   totalPrice: zod.number(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
-  stripeSessionId: zod.string().optional(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -372,7 +372,7 @@ export const CancelBookingResponse = zod.object({
   endTime: zod.string(),
   totalPrice: zod.number(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
-  stripeSessionId: zod.string().optional(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -444,7 +444,7 @@ export const ConfirmPaymentResponse = zod.object({
   endTime: zod.string(),
   totalPrice: zod.number(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
-  stripeSessionId: zod.string().optional(),
+  stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 
