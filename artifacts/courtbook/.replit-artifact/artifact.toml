@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "CourtBook"
+version = "1.0.0"
+id = "artifacts/courtbook"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24213
+
+[services.development]
+run = "pnpm --filter @workspace/courtbook run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/courtbook", "run", "build" ]
+publicDir = "artifacts/courtbook/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24213"
+BASE_PATH = "/"

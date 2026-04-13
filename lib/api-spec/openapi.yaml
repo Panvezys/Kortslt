@@ -3,13 +3,21 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CourtBook API - Court booking platform
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: courts
+    description: Court management
+  - name: bookings
+    description: Booking management
+  - name: payments
+    description: Payment processing
+  - name: stats
+    description: Statistics and summaries
 paths:
   /healthz:
     get:
@@ -24,6 +32,279 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /courts:
+    get:
+      operationId: listCourts
+      tags: [courts]
+      summary: List all courts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [tennis, basketball]
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of courts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Court"
+    post:
+      operationId: createCourt
+      tags: [courts]
+      summary: Create a new court
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourtBody"
+      responses:
+        "201":
+          description: Court created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+
+  /courts/{id}:
+    get:
+      operationId: getCourt
+      tags: [courts]
+      summary: Get court by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Court details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+        "404":
+          description: Court not found
+    put:
+      operationId: updateCourt
+      tags: [courts]
+      summary: Update a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourtBody"
+      responses:
+        "200":
+          description: Court updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+    delete:
+      operationId: deleteCourt
+      tags: [courts]
+      summary: Delete a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Court deleted
+
+  /courts/{id}/availability:
+    get:
+      operationId: getCourtAvailability
+      tags: [courts]
+      summary: Get court availability for a date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Available time slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List all bookings
+      parameters:
+        - name: courtId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled]
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingBody"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}:
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      summary: Get booking by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+    delete:
+      operationId: cancelBooking
+      tags: [bookings]
+      summary: Cancel a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /payments/create-checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [payments]
+      summary: Create a Stripe checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckoutBody"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSessionResponse"
+
+  /payments/confirm:
+    post:
+      operationId: confirmPayment
+      tags: [payments]
+      summary: Confirm payment and finalize booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmPaymentBody"
+      responses:
+        "200":
+          description: Payment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get platform stats summary
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/popular-courts:
+    get:
+      operationId: getPopularCourts
+      tags: [stats]
+      summary: Get most booked courts
+      responses:
+        "200":
+          description: Popular courts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PopularCourt"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +315,279 @@ components:
       required:
         - status
 
+    Court:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [tennis, basketball]
+        description:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        pricePerHour:
+          type: number
+        imageUrl:
+          type: string
+        ownerName:
+          type: string
+        ownerEmail:
+          type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        isIndoor:
+          type: boolean
+        maxPlayers:
+          type: integer
+        rating:
+          type: number
+        totalBookings:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - type
+        - address
+        - city
+        - latitude
+        - longitude
+        - pricePerHour
+        - ownerName
+        - ownerEmail
+        - isIndoor
+        - maxPlayers
+        - createdAt
+
+    CreateCourtBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [tennis, basketball]
+        description:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        pricePerHour:
+          type: number
+        imageUrl:
+          type: string
+        ownerName:
+          type: string
+        ownerEmail:
+          type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        isIndoor:
+          type: boolean
+        maxPlayers:
+          type: integer
+      required:
+        - name
+        - type
+        - address
+        - city
+        - latitude
+        - longitude
+        - pricePerHour
+        - ownerName
+        - ownerEmail
+        - isIndoor
+        - maxPlayers
+
+    AvailabilityResponse:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        date:
+          type: string
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+      required:
+        - courtId
+        - date
+        - slots
+
+    TimeSlot:
+      type: object
+      properties:
+        startTime:
+          type: string
+        endTime:
+          type: string
+        isAvailable:
+          type: boolean
+      required:
+        - startTime
+        - endTime
+        - isAvailable
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        courtId:
+          type: integer
+        courtName:
+          type: string
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        totalPrice:
+          type: number
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled]
+        stripeSessionId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - courtId
+        - customerName
+        - customerEmail
+        - date
+        - startTime
+        - endTime
+        - totalPrice
+        - status
+        - createdAt
+
+    CreateBookingBody:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+      required:
+        - courtId
+        - customerName
+        - customerEmail
+        - date
+        - startTime
+        - endTime
+
+    CreateCheckoutBody:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+      required:
+        - bookingId
+        - successUrl
+        - cancelUrl
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        url:
+          type: string
+      required:
+        - sessionId
+        - url
+
+    ConfirmPaymentBody:
+      type: object
+      properties:
+        sessionId:
+          type: string
+      required:
+        - sessionId
+
+    StatsSummary:
+      type: object
+      properties:
+        totalCourts:
+          type: integer
+        totalBookings:
+          type: integer
+        confirmedBookings:
+          type: integer
+        totalRevenue:
+          type: number
+        tennisCourts:
+          type: integer
+        basketballCourts:
+          type: integer
+      required:
+        - totalCourts
+        - totalBookings
+        - confirmedBookings
+        - totalRevenue
+        - tennisCourts
+        - basketballCourts
+
+    PopularCourt:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        bookingCount:
+          type: integer
+        revenue:
+          type: number
+      required:
+        - id
+        - name
+        - type
+        - bookingCount
+        - revenue
