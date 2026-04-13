@@ -293,13 +293,13 @@ export default function CourtDetail() {
               <div className="rounded-xl overflow-hidden border h-56 w-full relative group">
                 <iframe
                   title="Korto vieta"
-                  src={`https://maps.google.com/maps?q=${court.latitude},${court.longitude}&hl=lt&z=15&output=embed`}
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(`${court.address}, ${court.city}, Lietuva`)}&hl=lt&z=16&output=embed`}
                   className="w-full h-full"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
                 <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${court.latitude},${court.longitude}`}
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${court.address}, ${court.city}, Lietuva`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="absolute bottom-3 right-3 bg-white text-zinc-900 text-xs font-semibold px-3 py-2 rounded-lg shadow-md flex items-center gap-1.5 hover:bg-primary hover:text-white transition-all"
