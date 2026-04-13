@@ -135,8 +135,8 @@ export default function Home() {
       </div>
 
       {/* Map Section */}
-      <section className="py-24 container mx-auto px-4">
-        <div className="flex flex-col md:flex-row gap-8 items-start">
+      <section className="py-12 md:py-24 container mx-auto px-4">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
           <div className="w-full md:w-1/3">
             <h2 className="text-3xl font-bold mb-4 tracking-tight">{t("home.map.title")}</h2>
             <p className="text-muted-foreground mb-6">{t("home.map.description")}</p>
@@ -144,7 +144,7 @@ export default function Home() {
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
-          <div className="w-full md:w-2/3 h-[500px] bg-muted/20 rounded-xl">
+          <div className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl">
             {courtsLoading ? (
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
@@ -191,10 +191,10 @@ export default function Home() {
       )}
 
       {/* Popular Courts */}
-      <section className="py-24 bg-muted/30">
+      <section className="py-12 md:py-24 bg-muted/30">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold mb-12 tracking-tight">{t("home.popular.title")}</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+          <h2 className="text-2xl md:text-3xl font-bold mb-8 md:mb-12 tracking-tight">{t("home.popular.title")}</h2>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {popularLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
             ) : popularCourts ? (
