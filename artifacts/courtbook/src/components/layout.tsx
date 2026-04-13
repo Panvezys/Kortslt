@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ThemeProvider } from "./theme-provider";
+import { ThemeProvider, useTheme } from "./theme-provider";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +11,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon } from "lucide-react";
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex items-center justify-center w-8 h-8 rounded-md border border-border hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      {theme === "dark" ? (
+        <Sun className="h-4 w-4 text-muted-foreground" />
+      ) : (
+        <Moon className="h-4 w-4 text-muted-foreground" />
+      )}
+    </button>
+  );
+}
 
 const LOCALES: { code: Locale; label: string }[] = [
   { code: "lt", label: "LT" },
@@ -135,6 +152,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <LanguageSwitcher />
               <Show when="signed-out">
                 <div className="hidden md:flex items-center gap-2">
