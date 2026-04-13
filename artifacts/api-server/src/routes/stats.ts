@@ -12,6 +12,7 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
   const [totalCourtsRow] = await db.select({ count: sql<number>`count(*)` }).from(courtsTable);
   const [tennisCourtsRow] = await db.select({ count: sql<number>`count(*)` }).from(courtsTable).where(eq(courtsTable.type, "tennis"));
   const [basketballCourtsRow] = await db.select({ count: sql<number>`count(*)` }).from(courtsTable).where(eq(courtsTable.type, "basketball"));
+  const [padelCourtsRow] = await db.select({ count: sql<number>`count(*)` }).from(courtsTable).where(eq(courtsTable.type, "padel"));
   const [totalBookingsRow] = await db.select({ count: sql<number>`count(*)` }).from(bookingsTable);
   const [confirmedBookingsRow] = await db.select({ count: sql<number>`count(*)` }).from(bookingsTable).where(eq(bookingsTable.status, "confirmed"));
   const [revenueRow] = await db.select({ total: sql<number>`coalesce(sum(total_price::numeric), 0)` }).from(bookingsTable).where(eq(bookingsTable.status, "confirmed"));
@@ -23,6 +24,7 @@ router.get("/stats/summary", async (_req, res): Promise<void> => {
     totalRevenue: Number(revenueRow?.total ?? 0),
     tennisCourts: Number(tennisCourtsRow?.count ?? 0),
     basketballCourts: Number(basketballCourtsRow?.count ?? 0),
+    padelCourts: Number(padelCourtsRow?.count ?? 0),
   }));
 });
 

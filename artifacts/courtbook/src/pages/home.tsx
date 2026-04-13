@@ -107,16 +107,17 @@ export default function Home() {
       {/* Stats Bar */}
       <div className="border-b bg-muted/20">
         <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 text-center divide-x divide-border/50">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 text-center divide-x divide-border/50">
             {statsLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
             ) : stats ? (
               <>
                 {[
-                  { count: stats.totalCourts,                                                                          label: t("home.stats.courtsAvailable"), sport: null,           href: "/courts" },
-                  { count: stats.tennisCourts,                                                                         label: t("sports.tennis"),             sport: "tennis",       href: "/courts?type=tennis" },
-                  { count: stats.basketballCourts ?? 0,                                                                label: t("sports.basketball"),         sport: "basketball",   href: "/courts?type=basketball" },
-                  { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0),                     label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
+                  { count: stats.totalCourts,                                                                                                              label: t("home.stats.courtsAvailable"), sport: null,           href: "/courts" },
+                  { count: stats.tennisCourts,                                                                                                             label: t("sports.tennis"),             sport: "tennis",       href: "/courts?type=tennis" },
+                  { count: stats.basketballCourts ?? 0,                                                                                                    label: t("sports.basketball"),         sport: "basketball",   href: "/courts?type=basketball" },
+                  { count: stats.padelCourts ?? 0,                                                                                                         label: t("sports.padel"),              sport: "padel",        href: "/courts?type=padel" },
+                  { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0),                              label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
                 ].map(({ count, label, sport, href }) => (
                   <Link key={label} href={href} className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors">
                     <div className="text-3xl font-bold mb-2 transition-colors group-hover:text-primary">{count}</div>
@@ -125,7 +126,7 @@ export default function Home() {
                         <Landmark className="h-3.5 w-3.5 shrink-0" />
                       ) : sport === "multi" ? (
                         <div className="flex gap-0.5">
-                          {(["padel","football","badminton","squash"] as const).map(s => (
+                          {(["football","badminton","squash"] as const).map(s => (
                             <SportIcon key={s} sport={s} size={12} strokeWidth={2} style={{ color: sportColor[s] }} />
                           ))}
                         </div>

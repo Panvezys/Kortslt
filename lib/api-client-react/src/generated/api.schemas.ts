@@ -180,6 +180,7 @@ export interface StatsSummary {
   totalRevenue: number;
   tennisCourts: number;
   basketballCourts: number;
+  padelCourts: number;
 }
 
 export interface PopularCourt {

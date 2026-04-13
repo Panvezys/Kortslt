@@ -458,6 +458,7 @@ export const GetStatsSummaryResponse = zod.object({
   totalRevenue: zod.number(),
   tennisCourts: zod.number(),
   basketballCourts: zod.number(),
+  padelCourts: zod.number(),
 });
 
 /**
