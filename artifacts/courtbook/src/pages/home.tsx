@@ -8,15 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
-
-const sportEmoji: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽", badminton: "🏸", squash: "🎯",
-};
+import { SportIcon, sportColor } from "@/components/sport-icon";
 
 const HERO_IMAGES = [
   "courts/court_2_bernardinu.png",
@@ -116,15 +113,26 @@ export default function Home() {
             ) : stats ? (
               <>
                 {[
-                  { count: stats.totalCourts, label: t("home.stats.courtsAvailable"), emoji: "🏟", href: "/courts" },
-                  { count: stats.tennisCourts, label: t("sports.tennis"), emoji: "🎾", href: "/courts?type=tennis" },
-                  { count: stats.basketballCourts ?? 0, label: t("sports.basketball"), emoji: "🏀", href: "/courts?type=basketball" },
-                  { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0), label: t("home.stats.otherSports"), emoji: "🏓⚽🏸🎯", href: "/courts" },
-                ].map(({ count, label, emoji, href }) => (
+                  { count: stats.totalCourts,                                                                          label: t("home.stats.courtsAvailable"), sport: null,           href: "/courts" },
+                  { count: stats.tennisCourts,                                                                         label: t("sports.tennis"),             sport: "tennis",       href: "/courts?type=tennis" },
+                  { count: stats.basketballCourts ?? 0,                                                                label: t("sports.basketball"),         sport: "basketball",   href: "/courts?type=basketball" },
+                  { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0),                     label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
+                ].map(({ count, label, sport, href }) => (
                   <Link key={label} href={href} className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors">
-                    <div className="text-3xl font-bold mb-1 transition-colors group-hover:text-green-500">{count}</div>
-                    <div className="text-sm text-muted-foreground uppercase tracking-wider">
-                      {emoji} {label}
+                    <div className="text-3xl font-bold mb-2 transition-colors group-hover:text-primary">{count}</div>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+                      {sport === null ? (
+                        <Landmark className="h-3.5 w-3.5 shrink-0" />
+                      ) : sport === "multi" ? (
+                        <div className="flex gap-0.5">
+                          {(["padel","football","badminton","squash"] as const).map(s => (
+                            <SportIcon key={s} sport={s} size={12} strokeWidth={2} style={{ color: sportColor[s] }} />
+                          ))}
+                        </div>
+                      ) : (
+                        <SportIcon sport={sport} size={14} strokeWidth={2} style={{ color: sportColor[sport] }} />
+                      )}
+                      {label}
                     </div>
                   </Link>
                 ))}
@@ -200,8 +208,8 @@ export default function Home() {
             ) : popularCourts ? (
               popularCourts.map(court => {
                 const imgSrc = resolveCourtImage(court.imageUrl);
-                const emoji = sportEmoji[court.type as string] ?? "🏟";
                 const sportLabel = t(`sports.${court.type as string}` as never) || court.type;
+                const color = sportColor[court.type as string] ?? "#84cc16";
                 return (
                   <Link key={court.id} href={`/courts/${court.id}`}>
                     <Card className="h-full hover:border-primary/50 transition-all group cursor-pointer overflow-hidden hover:shadow-lg">
@@ -216,15 +224,16 @@ export default function Home() {
                             }}
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-4xl bg-muted">
-                            {emoji}
+                          <div className="w-full h-full flex items-center justify-center bg-muted">
+                            <SportIcon sport={court.type as string} size={40} style={{ color }} />
                           </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                         <div className="absolute top-2 left-2">
-                          <Badge variant="default" className="capitalize text-xs">
-                            {emoji} {sportLabel}
-                          </Badge>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white capitalize" style={{ background: color }}>
+                            <SportIcon sport={court.type as string} size={10} strokeWidth={2.2} />
+                            {sportLabel}
+                          </span>
                         </div>
                         <div className="absolute top-2 right-2">
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">

@@ -8,14 +8,15 @@ import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
+import { SportIcon, sportColor } from "@/components/sport-icon";
 
-const sportConfig: Record<string, { emoji: string; color: string }> = {
-  tennis:     { emoji: "🎾", color: "#84cc16" },
-  basketball: { emoji: "🏀", color: "#f97316" },
-  padel:      { emoji: "🏓", color: "#3b82f6" },
-  football:   { emoji: "⚽", color: "#22c55e" },
-  badminton:  { emoji: "🏸", color: "#a855f7" },
-  squash:     { emoji: "🎯", color: "#06b6d4" },
+const sportConfig: Record<string, { color: string }> = {
+  tennis:     { color: sportColor.tennis },
+  basketball: { color: sportColor.basketball },
+  padel:      { color: sportColor.padel },
+  football:   { color: sportColor.football },
+  badminton:  { color: sportColor.badminton },
+  squash:     { color: sportColor.squash },
 };
 
 function StarRating({ rating }: { rating?: number }) {
@@ -49,7 +50,7 @@ export function CourtCard({ court }: { court: Court }) {
   const { isSignedIn } = useUser();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const imageSrc = resolveCourtImage(court.imageUrl);
-  const sport = sportConfig[court.type] ?? sportConfig.tennis;
+  const sport = sportConfig[court.type] ?? { color: "#84cc16" };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;
   const favorited = isFavorite(court.id);
@@ -106,8 +107,9 @@ export function CourtCard({ court }: { court: Court }) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: sport.color }}>
-              {sport.emoji} {sportLabel}
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: sport.color }}>
+              <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
+              {sportLabel}
             </span>
             <StarRating rating={court.rating} />
           </div>

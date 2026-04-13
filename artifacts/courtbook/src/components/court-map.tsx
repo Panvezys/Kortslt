@@ -4,6 +4,7 @@ import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Link } from "wouter";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { Star, MapPin } from "lucide-react";
+import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
@@ -26,20 +27,6 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
 ];
 
-const sportEmoji: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏓",
-  football: "⚽", badminton: "🏸", squash: "🎯",
-};
-
-const sportColor: Record<string, string> = {
-  tennis: "#84cc16",
-  basketball: "#f97316",
-  padel: "#3b82f6",
-  football: "#22c55e",
-  badminton: "#a855f7",
-  squash: "#06b6d4",
-};
-
 const sportLithuanian: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
   football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
@@ -47,19 +34,19 @@ const sportLithuanian: Record<string, string> = {
 
 function createMarkerIcon(
   color: string,
-  emoji: string,
+  abbr: string,
   isSelected: boolean
 ): google.maps.Icon {
   const size = isSelected ? 44 : 36;
   const border = isSelected ? 3 : 2.5;
-  const fontSize = isSelected ? 20 : 16;
+  const fontSize = isSelected ? 11 : 9;
   const shadow = isSelected
     ? `filter: drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
     : `filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4))`;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
   <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - border / 2}" fill="${color}" stroke="white" stroke-width="${border}"/>
-  <text x="${size / 2}" y="${size / 2 + fontSize * 0.35}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}">${emoji}</text>
+  <text x="${size / 2}" y="${size / 2 + fontSize * 0.4}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-weight="700" font-family="system-ui,sans-serif" fill="white" letter-spacing="0.5">${abbr}</text>
 </svg>`;
 
   return {
@@ -75,8 +62,7 @@ interface CourtInfoWindowProps {
 }
 
 function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
-  const color = sportColor[court.type] ?? "#84cc16";
-  const emoji = sportEmoji[court.type] ?? "🏟";
+  const color = SPORT_COLOR[court.type] ?? "#84cc16";
   const img = resolveCourtImage(court.imageUrl);
 
   return (
@@ -106,21 +92,23 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
             {court.name}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#9ca3af" }}>
-            <span>📍</span>
+            <span style={{ fontSize: "10px" }}>▸</span>
             <span>{court.city}</span>
           </div>
           <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
             <span
               style={{
                 background: color,
-                color: "black",
+                color: "white",
                 padding: "2px 8px",
                 borderRadius: "999px",
-                fontSize: "11px",
-                fontWeight: 600,
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
               }}
             >
-              {emoji} {sportLithuanian[court.type] ?? court.type}
+              {sportAbbr[court.type] ?? "—"} · {sportLithuanian[court.type] ?? court.type}
             </span>
             {court.isIndoor && (
               <span
@@ -250,15 +238,15 @@ export function CourtMap({ courts }: { courts: Court[] }) {
         }}
       >
         {courts.map((court) => {
-          const color = sportColor[court.type] ?? "#84cc16";
-          const emoji = sportEmoji[court.type] ?? "🏟";
+          const color = SPORT_COLOR[court.type] ?? "#84cc16";
+          const abbr = sportAbbr[court.type] ?? "—";
           const isSelected = selectedCourt?.id === court.id;
 
           return (
             <MarkerF
               key={court.id}
               position={{ lat: court.latitude, lng: court.longitude }}
-              icon={createMarkerIcon(color, emoji, isSelected)}
+              icon={createMarkerIcon(color, abbr, isSelected)}
               onClick={() =>
                 setSelectedCourt(prev => (prev?.id === court.id ? null : court))
               }
@@ -302,13 +290,13 @@ export function CourtMap({ courts }: { courts: Court[] }) {
       {/* Legend */}
       <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-lg p-3 text-xs shadow-lg space-y-1.5">
         <div className="font-semibold text-xs mb-2 text-muted-foreground uppercase tracking-wide">Sporto aikštelės</div>
-        {Object.entries(sportEmoji).map(([sport, emoji]) => (
+        {Object.keys(sportLithuanian).map((sport) => (
           <div key={sport} className="flex items-center gap-2">
             <div
-              className="w-5 h-5 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-xs"
-              style={{ background: sportColor[sport] }}
+              className="w-5 h-5 rounded-full border-2 border-white/20 shadow-sm flex items-center justify-center"
+              style={{ background: SPORT_COLOR[sport] }}
             >
-              <span style={{ fontSize: "10px" }}>{emoji}</span>
+              <SportIcon sport={sport} size={11} strokeWidth={2} className="text-white" />
             </div>
             <span>{sportLithuanian[sport]}</span>
           </div>

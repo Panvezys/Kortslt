@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { Search, Map, List, SlidersHorizontal, X } from "lucide-react";
 import { ListCourtsCondition, ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useT } from "@/lib/i18n";
+import { SportIcon, sportColor } from "@/components/sport-icon";
 
 type ViewMode = "list" | "map";
 
@@ -82,12 +83,12 @@ export default function Courts() {
   };
 
   const sportItems = [
-    { value: "tennis", emoji: "🎾" },
-    { value: "basketball", emoji: "🏀" },
-    { value: "padel", emoji: "🏓" },
-    { value: "football", emoji: "⚽" },
-    { value: "badminton", emoji: "🏸" },
-    { value: "squash", emoji: "🎯" },
+    { value: "tennis" },
+    { value: "basketball" },
+    { value: "padel" },
+    { value: "football" },
+    { value: "badminton" },
+    { value: "squash" },
   ] as const;
 
   const filterControls = (
@@ -118,7 +119,10 @@ export default function Courts() {
             <SelectItem value="all">{t("courts.filters.allTypes")}</SelectItem>
             {sportItems.map(s => (
               <SelectItem key={s.value} value={s.value}>
-                {s.emoji} {t(`sports.${s.value}`)}
+                <span className="flex items-center gap-2">
+                  <SportIcon sport={s.value} size={14} strokeWidth={1.8} style={{ color: sportColor[s.value] }} />
+                  {t(`sports.${s.value}`)}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
