@@ -73,9 +73,9 @@ export default function Home() {
       <section className="py-24 container mx-auto px-4">
         <div className="flex flex-col md:flex-row gap-8 items-start">
           <div className="w-full md:w-1/3">
-            <h2 className="text-3xl font-bold mb-4 tracking-tight">Courts near you</h2>
+            <h2 className="text-3xl font-bold mb-4 tracking-tight">Kortai visoje Lietuvoje</h2>
             <p className="text-muted-foreground mb-6">
-              Explore our interactive map to find the perfect spot for your next game. Green pins for tennis, orange for basketball.
+              Tyrinėkite interaktyvų žemėlapį ir raskite kortus visoje Lietuvoje — Vilniuje, Kaune, Klaipėdoje ir kituose miestuose. Žalia spalva — teniso kortai, oranžinė — krepšinis.
             </p>
             <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline">
               View all courts <ArrowRight className="ml-2 h-4 w-4" />

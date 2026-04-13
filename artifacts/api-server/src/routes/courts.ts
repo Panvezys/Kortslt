@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { db, courtsTable, bookingsTable } from "@workspace/db";
 import {
   ListCourtsQueryParams,
@@ -18,6 +18,24 @@ import {
 
 const router: IRouter = Router();
 
+function formatCourt(c: typeof courtsTable.$inferSelect) {
+  return {
+    ...c,
+    pricePerHour: Number(c.pricePerHour),
+    rating: c.rating ?? undefined,
+    surface: c.surface ?? undefined,
+    condition: (c.condition ?? "good") as "excellent" | "good" | "fair",
+  };
+}
+
+router.get("/courts/cities", async (_req, res): Promise<void> => {
+  const rows = await db
+    .selectDistinct({ city: courtsTable.city })
+    .from(courtsTable)
+    .orderBy(courtsTable.city);
+  res.json(rows.map(r => r.city));
+});
+
 router.get("/courts", async (req, res): Promise<void> => {
   const params = ListCourtsQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -25,10 +43,21 @@ router.get("/courts", async (req, res): Promise<void> => {
     return;
   }
 
-  let query = db.select().from(courtsTable).$dynamic();
   const conditions = [];
   if (params.data.type) {
     conditions.push(eq(courtsTable.type, params.data.type));
+  }
+  if (params.data.city) {
+    conditions.push(eq(courtsTable.city, params.data.city));
+  }
+  if (params.data.surface) {
+    conditions.push(eq(courtsTable.surface, params.data.surface));
+  }
+  if (params.data.condition) {
+    conditions.push(eq(courtsTable.condition, params.data.condition));
+  }
+  if (params.data.isIndoor != null) {
+    conditions.push(eq(courtsTable.isIndoor, params.data.isIndoor));
   }
   if (params.data.minPrice != null) {
     conditions.push(gte(courtsTable.pricePerHour, String(params.data.minPrice)));
@@ -36,16 +65,14 @@ router.get("/courts", async (req, res): Promise<void> => {
   if (params.data.maxPrice != null) {
     conditions.push(lte(courtsTable.pricePerHour, String(params.data.maxPrice)));
   }
+
+  let query = db.select().from(courtsTable).$dynamic();
   if (conditions.length > 0) {
     query = query.where(and(...conditions));
   }
 
   const courts = await query;
-  res.json(ListCourtsResponse.parse(courts.map(c => ({
-    ...c,
-    pricePerHour: Number(c.pricePerHour),
-    rating: c.rating ?? undefined,
-  }))));
+  res.json(ListCourtsResponse.parse(courts.map(formatCourt)));
 });
 
 router.post("/courts", async (req, res): Promise<void> => {
@@ -61,9 +88,10 @@ router.post("/courts", async (req, res): Promise<void> => {
     amenities: parsed.data.amenities ?? [],
     isIndoor: parsed.data.isIndoor ?? false,
     maxPlayers: parsed.data.maxPlayers ?? 4,
+    condition: (parsed.data.condition ?? "good") as string,
   }).returning();
 
-  res.status(201).json(GetCourtResponse.parse({ ...court, pricePerHour: Number(court.pricePerHour) }));
+  res.status(201).json(GetCourtResponse.parse(formatCourt(court)));
 });
 
 router.get("/courts/:id", async (req, res): Promise<void> => {
@@ -80,7 +108,7 @@ router.get("/courts/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetCourtResponse.parse({ ...court, pricePerHour: Number(court.pricePerHour) }));
+  res.json(GetCourtResponse.parse(formatCourt(court)));
 });
 
 router.put("/courts/:id", async (req, res): Promise<void> => {
@@ -102,6 +130,7 @@ router.put("/courts/:id", async (req, res): Promise<void> => {
       ...body.data,
       pricePerHour: String(body.data.pricePerHour),
       amenities: body.data.amenities ?? [],
+      condition: (body.data.condition ?? "good") as string,
     })
     .where(eq(courtsTable.id, params.data.id))
     .returning();
@@ -111,7 +140,7 @@ router.put("/courts/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateCourtResponse.parse({ ...court, pricePerHour: Number(court.pricePerHour) }));
+  res.json(UpdateCourtResponse.parse(formatCourt(court)));
 });
 
 router.delete("/courts/:id", async (req, res): Promise<void> => {

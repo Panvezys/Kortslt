@@ -18,6 +18,8 @@ export const courtsTable = pgTable("courts", {
   amenities: text("amenities").array().notNull().default([]),
   isIndoor: boolean("is_indoor").notNull().default(false),
   maxPlayers: integer("max_players").notNull().default(4),
+  surface: text("surface"), // 'clay' | 'hard' | 'carpet' | 'synthetic_grass' | 'parquet' | 'rubber'
+  condition: text("condition").notNull().default("good"), // 'excellent' | 'good' | 'fair'
   rating: real("rating"),
   totalBookings: integer("total_bookings").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

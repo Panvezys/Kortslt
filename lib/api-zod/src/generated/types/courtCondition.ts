@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCourtsType =
-  (typeof ListCourtsType)[keyof typeof ListCourtsType];
+export type CourtCondition =
+  (typeof CourtCondition)[keyof typeof CourtCondition];
 
-export const ListCourtsType = {
-  tennis: "tennis",
-  basketball: "basketball",
+export const CourtCondition = {
+  excellent: "excellent",
+  good: "good",
+  fair: "fair",
 } as const;

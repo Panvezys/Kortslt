@@ -35,16 +35,25 @@ A court booking platform for tennis and basketball courts.
 - `artifacts/api-server` — Express 5 API backend (served at `/api`)
 
 ### Features
-- Interactive map (Leaflet + OpenStreetMap) showing court locations
-- Court browsing with filters (type, price)
+- Interactive Leaflet/OpenStreetMap map centered on Lithuania, auto-fits all courts, color-coded by condition
+- 19 real Lithuanian tennis and basketball courts seeded (Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys)
+- Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
+- List view + interactive map view toggle on the courts browse page
 - Court detail page with availability calendar and booking form
 - Owner dashboard to list and manage courts
 - Booking history for customers
-- Payment checkout via Stripe (see note below)
+- Payment checkout (mock mode — auto-confirmed)
 
 ### Database Tables
-- `courts` — tennis/basketball court listings
+- `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
+
+### Court Schema Fields
+- `type`: 'tennis' | 'basketball'
+- `surface`: 'clay' | 'hard' | 'carpet' | 'synthetic_grass' | 'parquet' | 'rubber'
+- `condition`: 'excellent' | 'good' | 'fair'
+- `isIndoor`: boolean
+- Prices in euros (€)
 
 ### Payments (Stripe)
 - The backend supports Stripe Checkout via `STRIPE_SECRET_KEY` environment variable.
@@ -53,8 +62,9 @@ A court booking platform for tennis and basketball courts.
 - To enable real payments: set `STRIPE_SECRET_KEY` as a secret, or connect Stripe via the integrations system.
 
 ### API Routes
-- `GET /api/courts` — list courts (filter by type, price)
+- `GET /api/courts` — list courts (filter by type, city, surface, condition, isIndoor, minPrice, maxPrice)
 - `POST /api/courts` — create court
+- `GET /api/courts/cities` — list all cities with courts
 - `GET /api/courts/:id` — court detail
 - `PUT /api/courts/:id` — update court
 - `DELETE /api/courts/:id` — delete court
