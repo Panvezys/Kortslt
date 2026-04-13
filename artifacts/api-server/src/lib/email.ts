@@ -7,14 +7,28 @@ function getResend(): Resend | null {
   return new Resend(key);
 }
 
+const LT_MONTHS = [
+  "sausio", "vasario", "kovo", "balandžio", "gegužės", "birželio",
+  "liepos", "rugpjūčio", "rugsėjo", "spalio", "lapkričio", "gruodžio",
+];
+const LT_WEEKDAYS = [
+  "sekmadienis", "pirmadienis", "antradienis", "trečiadienis",
+  "ketvirtadienis", "penktadienis", "šeštadienis",
+];
+
 function formatDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date + "T00:00:00") : date;
-  return d.toLocaleDateString("lt-LT", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // Parse YYYY-MM-DD string as local date to avoid timezone shifts
+  let d: Date;
+  if (typeof date === "string") {
+    const [year, month, day] = date.split("-").map(Number);
+    d = new Date(year, month - 1, day);
+  } else {
+    d = date;
+  }
+  if (isNaN(d.getTime())) return String(date);
+  const weekday = LT_WEEKDAYS[d.getDay()];
+  const month = LT_MONTHS[d.getMonth()];
+  return `${d.getFullYear()} m. ${month} ${d.getDate()} d., ${weekday}`;
 }
 
 function formatTime(time: string): string {
