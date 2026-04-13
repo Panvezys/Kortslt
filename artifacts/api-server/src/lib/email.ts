@@ -176,7 +176,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
 
   try {
     const { error } = await resend.emails.send({
-      from: "korts.lt <rezervacijos@korts.lt>",
+      from: "korts.lt <onboarding@resend.dev>",
       to: data.customerEmail,
       subject: `✓ Rezervacija patvirtinta – ${data.courtName}, ${formatDate(data.date)}`,
       html,

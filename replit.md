@@ -75,6 +75,17 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - When `STRIPE_SECRET_KEY` is not set, bookings are auto-confirmed without a real charge.
 - To enable real payments: set `STRIPE_SECRET_KEY` as a secret, or connect Stripe via the integrations system.
 
+### Email (Resend)
+- Confirmation emails sent via Resend after `POST /api/payments/confirm`.
+- `RESEND_API_KEY` is set as a secret.
+- Email logic is in `artifacts/api-server/src/lib/email.ts`.
+- Currently uses `onboarding@resend.dev` as the sender. To send from `@korts.lt`, verify the domain at https://resend.com/domains and update the `from` field in `email.ts`.
+- Email is sent non-blocking (never fails the API response).
+
+### Slot Availability
+- `GET /api/courts/:id/availability` blocks slots with **both** `pending` and `confirmed` bookings.
+- This prevents double-booking — once a user creates a booking (even before payment), the slot is unavailable to others.
+
 ### API Routes
 - `GET /api/courts` — list courts (filter by type, city, surface, condition, isIndoor, minPrice, maxPrice)
 - `POST /api/courts` — create court
