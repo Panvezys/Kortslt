@@ -239,7 +239,6 @@ export default function CourtDetail() {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       </div>
-
       <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24">
         <div className="grid md:grid-cols-3 gap-8">
 
@@ -433,7 +432,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative">
-            <div className="sticky top-24 bg-card border rounded-2xl p-6 shadow-xl space-y-5">
+            <div className="sticky top-24 bg-card border rounded-2xl p-6 shadow-xl space-y-5 border-t-[0.889px] border-r-[0.889px] border-b-[0.889px] border-l-[0.889px]">
 
               {/* Price header */}
               <div className="flex justify-between items-baseline">
@@ -594,7 +593,7 @@ export default function CourtDetail() {
                     </>
                   ) : (
                     /* Not signed in */
-                    <div className="rounded-xl border border-dashed border-border bg-muted/30 p-5 flex flex-col items-center gap-3 text-center">
+                    (<div className="rounded-xl border border-dashed border-border bg-muted/30 p-5 flex flex-col items-center gap-3 text-center">
                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                         <LogIn className="w-5 h-5 text-primary" />
                       </div>
@@ -606,7 +605,7 @@ export default function CourtDetail() {
                         <LogIn className="w-4 h-4" />
                         Prisijungti
                       </Button>
-                    </div>
+                    </div>)
                   )}
                 </div>
               )}
