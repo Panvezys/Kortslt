@@ -138,4 +138,47 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   }));
 });
 
+router.post("/payments/confirm-free", async (req, res): Promise<void> => {
+  const bookingId = Number(req.body?.bookingId);
+  if (!bookingId || isNaN(bookingId)) {
+    res.status(400).json({ error: "bookingId required" });
+    return;
+  }
+
+  const rows = await db
+    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const [booking] = await db
+    .update(bookingsTable)
+    .set({ status: "confirmed" })
+    .where(eq(bookingsTable.id, bookingId))
+    .returning();
+
+  await db
+    .update(courtsTable)
+    .set({ totalBookings: sql`total_bookings + 1` })
+    .where(eq(courtsTable.id, rows[0].booking.courtId));
+
+  sendBookingConfirmationEmail({
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    courtName: rows[0].courtName ?? "Kortas",
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    bookingId: booking.id,
+  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+
+  res.json({ ...booking, totalPrice: Number(booking.totalPrice), courtName: rows[0].courtName });
+});
+
 export default router;

@@ -13,6 +13,7 @@ import CourtDetail from "@/pages/court-detail";
 import Bookings from "@/pages/bookings";
 import PaymentSuccess from "@/pages/payment-success";
 import PaymentCancel from "@/pages/payment-cancel";
+import BookingConfirmed from "@/pages/booking-confirmed";
 import OwnerDashboard from "@/pages/owner";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
@@ -109,6 +110,7 @@ function Router() {
       <Route path="/bookings" component={BookingsRoute} />
       <Route path="/owner" component={OwnerRoute} />
       <Route path="/payment-success" component={PaymentSuccess} />
+      <Route path="/booking-confirmed" component={BookingConfirmed} />
       <Route path="/payment-cancel" component={PaymentCancel} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />

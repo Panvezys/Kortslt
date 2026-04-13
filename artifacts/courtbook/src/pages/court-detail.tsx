@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { useGetCourt, useGetCourtAvailability, useCreateBooking, useCreateCheckoutSession, useListCourtReviews } from "@workspace/api-client-react";
+import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListCourtReviews } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
 
 
 function StarDisplay({ rating, size = "md" }: { rating?: number | null; size?: "sm" | "md" | "lg" }) {
@@ -71,9 +74,9 @@ export default function CourtDetail() {
   });
 
   const createBooking = useCreateBooking();
-  const createCheckout = useCreateCheckoutSession();
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
   const { openSignIn } = useClerk();
+  const [, navigate] = useLocation();
 
   const slots = availability?.slots ?? [];
 
@@ -167,15 +170,16 @@ export default function CourtDetail() {
         }
       });
 
-      const checkout = await createCheckout.mutateAsync({
-        data: {
-          bookingId: booking.id,
-          successUrl: `${window.location.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-          cancelUrl: `${window.location.origin}/payment-cancel`,
-        }
+      // Free reservation — confirm immediately and send email, no payment required
+      const resp = await fetch(`${API}/payments/confirm-free`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: booking.id }),
       });
 
-      window.location.href = checkout.url;
+      if (!resp.ok) throw new Error("Confirm failed");
+
+      navigate(`/booking-confirmed?id=${booking.id}`);
     } catch {
       toast({
         title: "Rezervacija nepavyko",
@@ -185,7 +189,7 @@ export default function CourtDetail() {
     }
   };
 
-  const isPending = createBooking.isPending || createCheckout.isPending;
+  const isPending = createBooking.isPending;
   const displayName = user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Vartotojas";
 
   const avgRating = useMemo(() => {
@@ -583,10 +587,10 @@ export default function CourtDetail() {
                         <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
                       </div>
 
-                      <Button onClick={handleReserve} className="w-full h-12 text-base font-semibold" disabled={isPending}>
-                        {isPending ? "Apdorojama..." : `Rezervuoti · ${selectedSlotRange.totalPrice.toFixed(2)} €`}
+                      <Button onClick={handleReserve} className="w-full h-12 text-base font-semibold gap-2" disabled={isPending}>
+                        {isPending ? "Apdorojama..." : "Rezervuoti nemokamai"}
                       </Button>
-                      <p className="text-xs text-center text-muted-foreground">Mokėjimas saugiai vyksta per Stripe</p>
+                      <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
                     </>
                   ) : (
                     /* Not signed in */
