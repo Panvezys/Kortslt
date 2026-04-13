@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, courtPricingTable } from "@workspace/db";
 import {
   ListCourtsQueryParams,
@@ -208,7 +208,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
 
-  // Get confirmed bookings for this date
+  // Get confirmed and pending bookings for this date (both block the slot)
   const existingBookings = await db
     .select()
     .from(bookingsTable)
@@ -216,7 +216,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
       and(
         eq(bookingsTable.courtId, params.data.id),
         eq(bookingsTable.date, date),
-        eq(bookingsTable.status, "confirmed")
+        inArray(bookingsTable.status, ["confirmed", "pending"])
       )
     );
 

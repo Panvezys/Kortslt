@@ -9,6 +9,7 @@ import {
   ConfirmPaymentResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { sendBookingConfirmationEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -117,6 +118,18 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     .update(courtsTable)
     .set({ totalBookings: sql`total_bookings + 1` })
     .where(eq(courtsTable.id, rows[0].booking.courtId));
+
+  // Send confirmation email (non-blocking — don't fail the response if email fails)
+  sendBookingConfirmationEmail({
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    courtName: rows[0].courtName ?? "Kortas",
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    bookingId: booking.id,
+  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
 
   res.json(ConfirmPaymentResponse.parse({
     ...booking,
