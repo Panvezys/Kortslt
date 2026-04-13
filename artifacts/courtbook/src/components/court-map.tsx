@@ -226,6 +226,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+  const [mapReady, setMapReady] = useState(false);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map());
@@ -289,6 +290,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
       },
     });
     fitBounds(map, courts);
+    setMapReady(true);
   }, [courts, fitBounds]);
 
   // Imperatively manage markers — no React component per marker
@@ -330,7 +332,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
       toAdd.push(marker);
     }
     if (toAdd.length) clusterer.addMarkers(toAdd);
-  }, [visibleCourts]);
+  }, [visibleCourts, mapReady]);
 
   // Update selected marker icon when selection changes
   useEffect(() => {
