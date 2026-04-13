@@ -476,5 +476,6 @@ export const GetPopularCourtsResponseItem = zod.object({
   condition: zod.string().optional(),
   bookingCount: zod.number(),
   revenue: zod.number(),
+  rating: zod.number().optional(),
 });
 export const GetPopularCourtsResponse = zod.array(GetPopularCourtsResponseItem);

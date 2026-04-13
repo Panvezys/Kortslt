@@ -236,11 +236,14 @@ export default function Home() {
                             {sportLabel}
                           </span>
                         </div>
-                        <div className="absolute top-2 right-2">
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
-                            {court.bookingCount} {t("home.popular.bookings")}
-                          </span>
-                        </div>
+                        {court.rating ? (
+                          <div className="absolute top-2 right-2">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm flex items-center gap-1">
+                              <span className="text-yellow-400">★</span>
+                              {court.rating.toFixed(1)}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                       <CardHeader className="pb-2">
                         <CardTitle className="group-hover:text-primary transition-colors text-base line-clamp-1">{court.name}</CardTitle>

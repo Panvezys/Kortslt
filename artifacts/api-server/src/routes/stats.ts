@@ -40,6 +40,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       pricePerHour: courtsTable.pricePerHour,
       isIndoor: courtsTable.isIndoor,
       condition: courtsTable.condition,
+      rating: courtsTable.rating,
       bookingCount: sql<number>`count(${bookingsTable.id})`,
       revenue: sql<number>`coalesce(sum(${bookingsTable.totalPrice}::numeric), 0)`,
     })
@@ -55,6 +56,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       courtsTable.pricePerHour,
       courtsTable.isIndoor,
       courtsTable.condition,
+      courtsTable.rating,
     )
     .orderBy(desc(sql`count(${bookingsTable.id})`))
     .limit(6);
@@ -71,6 +73,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
     condition: r.condition ?? "good",
     bookingCount: Number(r.bookingCount),
     revenue: Number(r.revenue),
+    rating: r.rating ? Number(r.rating) : undefined,
   }))));
 });
 

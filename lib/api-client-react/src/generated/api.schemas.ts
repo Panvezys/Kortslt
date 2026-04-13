@@ -195,6 +195,7 @@ export interface PopularCourt {
   condition?: string;
   bookingCount: number;
   revenue: number;
+  rating?: number;
 }
 
 export interface Review {
