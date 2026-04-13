@@ -160,10 +160,44 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
 const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
 const LIBRARIES: ("places")[] = [];
 
+const ALL_SPORTS = Object.keys(sportLithuanian);
+
 export function CourtMap({ courts }: { courts: Court[] }) {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
+  const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
   const mapRef = useRef<google.maps.Map | null>(null);
+
+  const toggleSport = (sport: string) => {
+    setActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) {
+        // Don't allow deselecting the last one
+        if (next.size === 1) return prev;
+        next.delete(sport);
+      } else {
+        next.add(sport);
+      }
+      // Clear selected court if its sport is toggled off
+      if (selectedCourt && !next.has(selectedCourt.type)) {
+        setSelectedCourt(null);
+      }
+      return next;
+    });
+  };
+
+  const allActive = activeSports.size === ALL_SPORTS.length;
+  const toggleAll = () => {
+    if (allActive) {
+      // keep at least one — just set to first
+      setActiveSports(new Set([ALL_SPORTS[0]]));
+    } else {
+      setActiveSports(new Set(ALL_SPORTS));
+    }
+    setSelectedCourt(null);
+  };
+
+  const visibleCourts = courts.filter(c => activeSports.has(c.type));
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: API_KEY ?? "",
@@ -237,7 +271,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
           gestureHandling: "greedy",
         }}
       >
-        {courts.map((court) => {
+        {visibleCourts.map((court) => {
           const color = SPORT_COLOR[court.type] ?? "#84cc16";
           const abbr = sportAbbr[court.type] ?? "—";
           const isSelected = selectedCourt?.id === court.id;
@@ -287,20 +321,61 @@ export function CourtMap({ courts }: { courts: Court[] }) {
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-lg p-3 text-xs shadow-lg space-y-1.5">
-        <div className="font-semibold text-xs mb-2 text-muted-foreground uppercase tracking-wide">Sporto aikštelės</div>
-        {Object.keys(sportLithuanian).map((sport) => (
-          <div key={sport} className="flex items-center gap-2">
-            <div
-              className="w-5 h-5 rounded-full border-2 border-white/20 shadow-sm flex items-center justify-center"
-              style={{ background: SPORT_COLOR[sport] }}
-            >
-              <SportIcon sport={sport} size={11} strokeWidth={2} className="text-white" />
-            </div>
-            <span>{sportLithuanian[sport]}</span>
+      {/* Legend / Sport filter */}
+      <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl p-3 text-xs shadow-xl min-w-[140px]">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">Filtras</span>
+          <button
+            onClick={toggleAll}
+            className="text-[10px] font-medium text-primary hover:underline ml-2"
+          >
+            {allActive ? "Slėpti viską" : "Rodyti viską"}
+          </button>
+        </div>
+        <div className="space-y-1">
+          {ALL_SPORTS.map((sport) => {
+            const active = activeSports.has(sport);
+            const color = SPORT_COLOR[sport];
+            const count = courts.filter(c => c.type === sport).length;
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left group ${
+                  active
+                    ? "bg-muted/60 hover:bg-muted"
+                    : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+                }`}
+              >
+                <div
+                  className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    background: active ? color : "transparent",
+                    borderColor: color,
+                  }}
+                >
+                  <SportIcon
+                    sport={sport}
+                    size={11}
+                    strokeWidth={2}
+                    style={{ color: active ? "white" : color }}
+                  />
+                </div>
+                <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                  {sportLithuanian[sport]}
+                </span>
+                <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {activeSports.size < ALL_SPORTS.length && (
+          <div className="mt-2 pt-2 border-t border-border/50 text-[10px] text-muted-foreground text-center">
+            {visibleCourts.length} iš {courts.length} kortų
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
