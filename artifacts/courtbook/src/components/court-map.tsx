@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Link } from "wouter";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -85,36 +86,47 @@ export function CourtMap({ courts }: { courts: Court[] }) {
             position={[court.latitude, court.longitude]}
             icon={createCourtIcon(court)}
           >
-            <Popup minWidth={200}>
-              <div className="flex flex-col gap-2 min-w-[180px] p-1">
-                <div className="font-bold text-sm leading-tight">{court.name}</div>
-                <div className="text-xs text-gray-500">{court.city}</div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: court.type === "tennis" ? "#84cc16" : "#f97316", color: "white" }}>
-                    {court.type === "tennis" ? "Tenisas" : "Krepšinis"}
-                  </span>
-                  {court.isIndoor && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-700">Vidaus</span>
-                  )}
-                  {court.surface && (
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                      {surfaceLabels[court.surface] ?? court.surface}
+            <Popup minWidth={220}>
+              <div style={{ margin: "-12px -20px -12px -20px", overflow: "hidden", borderRadius: "8px", minWidth: "200px" }}>
+                {resolveCourtImage(court.imageUrl) ? (
+                  <div style={{ width: "100%", height: "120px", overflow: "hidden" }}>
+                    <img
+                      src={resolveCourtImage(court.imageUrl)!}
+                      alt={court.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  </div>
+                ) : null}
+                <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div className="font-bold text-sm leading-tight">{court.name}</div>
+                  <div className="text-xs text-gray-500">{court.city}</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: court.type === "tennis" ? "#84cc16" : "#f97316", color: "white" }}>
+                      {court.type === "tennis" ? "Tenisas" : "Krepšinis"}
                     </span>
+                    {court.isIndoor && (
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-700">Vidaus</span>
+                    )}
+                    {court.surface && (
+                      <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
+                        {surfaceLabels[court.surface] ?? court.surface}
+                      </span>
+                    )}
+                  </div>
+                  {court.condition && (
+                    <div className="text-xs text-gray-600">
+                      Bukle: <span style={{ color: conditionColors[court.condition] }} className="font-semibold">{conditionLabels[court.condition]}</span>
+                    </div>
                   )}
-                </div>
-                {court.condition && (
-                  <div className="text-xs text-gray-600">
-                    Bukle: <span style={{ color: conditionColors[court.condition] }} className="font-semibold">{conditionLabels[court.condition]}</span>
+                  <div className="font-bold text-base" style={{ color: "#84cc16" }}>
+                    {court.pricePerHour}€/val
                   </div>
-                )}
-                <div className="font-bold text-base" style={{ color: "#84cc16" }}>
-                  {court.pricePerHour}€/val
+                  <Link href={`/courts/${court.id}`}>
+                    <div className="mt-1 text-xs font-semibold text-center py-1.5 px-3 rounded-md cursor-pointer" style={{ background: "#84cc16", color: "black" }}>
+                      Rezervuoti
+                    </div>
+                  </Link>
                 </div>
-                <Link href={`/courts/${court.id}`}>
-                  <div className="mt-1 text-xs font-semibold text-center py-1.5 px-3 rounded-md cursor-pointer" style={{ background: "#84cc16", color: "black" }}>
-                    Rezervuoti
-                  </div>
-                </Link>
               </div>
             </Popup>
           </Marker>

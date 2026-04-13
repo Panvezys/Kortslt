@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 const surfaceLabels: Record<string, string> = {
   clay: "Gruntas",
@@ -22,13 +23,14 @@ const conditionStyles: Record<string, { label: string; className: string }> = {
 
 export function CourtCard({ court }: { court: Court }) {
   const condStyle = conditionStyles[court.condition] ?? conditionStyles.good;
+  const imageSrc = resolveCourtImage(court.imageUrl);
 
   return (
     <Card className="h-full flex flex-col hover:border-primary/50 transition-colors group overflow-hidden">
-      {court.imageUrl ? (
+      {imageSrc ? (
         <div className="w-full h-48 overflow-hidden bg-muted relative">
           <img
-            src={court.imageUrl}
+            src={imageSrc}
             alt={court.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {

@@ -1,0 +1,116 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "wjkAKZwiUlPF9YL-Mz-eG"
+uri = "file://attached_assets/courts/court_1_seb_arena.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "OMHvxqY9pvqZ-JeD-ZbTw"
+uri = "file://attached_assets/courts/court_2_bernardinu.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "P02j_EkioRQK2GG0GFD8-"
+uri = "file://attached_assets/courts/court_3_lsc_vingis.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "zhbA_NrwatZWILU8pOPBE"
+uri = "file://attached_assets/courts/court_4_verkiai.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "k287ASeO1ZeZPmHFGUhF6"
+uri = "file://attached_assets/courts/court_5_pilaite.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "t2DDSgM7CrlXzTNxDU8mv"
+uri = "file://attached_assets/courts/court_6_tennis_space_kaunas.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "vnHVKZPitwYU6dZvv08eV"
+uri = "file://attached_assets/courts/court_7_azuolynas.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "1FHIw1Bw7e0SiZ4vc-waH"
+uri = "file://attached_assets/courts/court_8_megatenis.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "ZFOtdSwsJlQ0ga8YtJOwh"
+uri = "file://attached_assets/courts/court_9_balzekas.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "PUpFix92BHOCoS90bqSKQ"
+uri = "file://attached_assets/courts/court_10_kogas.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "tEXd5jur_p-3_I_eTMGQE"
+uri = "file://attached_assets/courts/court_11_druskininkai.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "RuJUKGMTytajorJdIYDLw"
+uri = "file://attached_assets/courts/court_12_siauliai.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "0lo1orykJMQ1avO1IHn-1"
+uri = "file://attached_assets/courts/court_13_panevezys.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "WcKYAYQnR-PadPL7t37kU"
+uri = "file://attached_assets/courts/court_14_nba_vilnius.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Nohmf6KvRXxKNb6RTUorb"
+uri = "file://attached_assets/courts/court_15_krasevskio.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "kqcbB1jiG8BTCCDHdUhAE"
+uri = "file://attached_assets/courts/court_16_zemynos.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "zLTJoExqI63jOf6FiuzjP"
+uri = "file://attached_assets/courts/court_17_zalgiris.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "8qSG-yWtfq39zdBMZAtdy"
+uri = "file://attached_assets/courts/court_18_nemuno_sala.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "R5SgWjDdkUiPYS2wQScDx"
+uri = "file://attached_assets/courts/court_19_santaka.png"
+type = "image"
+title = "generated_image"

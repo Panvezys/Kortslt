@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
+import { resolveCourtImage } from "@/lib/imageUrl";
 import { useGetCourt, useGetCourtAvailability, useCreateBooking, useCreateCheckoutSession } from "@workspace/api-client-react";
 import { format, addDays } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -143,8 +144,8 @@ export default function CourtDetail() {
     <Layout>
       {/* Header Image */}
       <div className="w-full h-[40vh] min-h-[300px] bg-muted relative">
-        {court.imageUrl ? (
-          <img src={court.imageUrl} alt={court.name} className="w-full h-full object-cover" />
+        {resolveCourtImage(court.imageUrl) ? (
+          <img src={resolveCourtImage(court.imageUrl)!} alt={court.name} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white">
             <span className="text-6xl font-bold opacity-20">{court.name.charAt(0)}</span>

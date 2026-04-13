@@ -2,11 +2,12 @@ import { Link } from "wouter";
 import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, ArrowRight } from "lucide-react";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 export default function Home() {
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary();
@@ -97,34 +98,61 @@ export default function Home() {
           <h2 className="text-3xl font-bold mb-12 tracking-tight">Most Popular</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {popularLoading ? (
-              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[200px] w-full" />)
+              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
             ) : popularCourts ? (
-              popularCourts.map(court => (
-                <Link key={court.id} href={`/courts/${court.id}`}>
-                  <Card className="h-full hover:border-primary/50 transition-colors group cursor-pointer">
-                    <CardHeader>
-                      <div className="flex justify-between items-start mb-2">
-                        <Badge variant={court.type === "tennis" ? "default" : "secondary"} className="capitalize">
-                          {court.type}
-                        </Badge>
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {court.bookingCount} bookings
-                        </span>
+              popularCourts.map(court => {
+                const imgSrc = resolveCourtImage(court.imageUrl);
+                return (
+                  <Link key={court.id} href={`/courts/${court.id}`}>
+                    <Card className="h-full hover:border-primary/50 transition-all group cursor-pointer overflow-hidden hover:shadow-lg">
+                      <div className="w-full h-44 overflow-hidden bg-muted relative">
+                        {imgSrc ? (
+                          <img
+                            src={imgSrc}
+                            alt={court.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-4xl bg-muted">
+                            {court.type === "tennis" ? "🎾" : "🏀"}
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                        <div className="absolute top-2 left-2">
+                          <Badge variant={court.type === "tennis" ? "default" : "secondary"} className="capitalize text-xs">
+                            {court.type === "tennis" ? "🎾 Tennis" : "🏀 Basketball"}
+                          </Badge>
+                        </div>
+                        <div className="absolute top-2 right-2">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
+                            {court.bookingCount} bookings
+                          </span>
+                        </div>
                       </div>
-                      <CardTitle className="group-hover:text-primary transition-colors">{court.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center text-sm text-muted-foreground mb-4">
-                        <MapPin className="h-4 w-4 mr-1 shrink-0" />
-                        <span className="truncate">View on map</span>
-                      </div>
-                      <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground">
-                        Book Now
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))
+                      <CardHeader className="pb-2">
+                        <CardTitle className="group-hover:text-primary transition-colors text-base line-clamp-1">{court.name}</CardTitle>
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 mr-1 shrink-0" />
+                          <span className="truncate">{court.city}</span>
+                          {court.pricePerHour && (
+                            <span className="ml-auto font-semibold text-foreground">
+                              {court.pricePerHour}€<span className="font-normal text-muted-foreground">/hr</span>
+                            </span>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <Button variant="outline" size="sm" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          Book Now
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })
             ) : null}
           </div>
         </div>
