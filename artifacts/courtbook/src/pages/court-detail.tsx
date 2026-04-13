@@ -26,14 +26,6 @@ const bookingSchema = z.object({
 
 type BookingFormValues = z.infer<typeof bookingSchema>;
 
-const DURATION_OPTIONS = [
-  { label: "30 min", slots: 1 },
-  { label: "1 val", slots: 2 },
-  { label: "1.5 val", slots: 3 },
-  { label: "2 val", slots: 4 },
-  { label: "2.5 val", slots: 5 },
-  { label: "3 val", slots: 6 },
-];
 
 function StarDisplay({ rating, size = "md" }: { rating?: number | null; size?: "sm" | "md" | "lg" }) {
   const sizes = { sm: "h-3 w-3", md: "h-4 w-4", lg: "h-5 w-5" };
@@ -63,7 +55,7 @@ export default function CourtDetail() {
 
   const [date, setDate] = useState<Date>(new Date());
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
-  const [duration, setDuration] = useState(2); // number of 30-min slots
+  const [selectedEnd, setSelectedEnd] = useState<number | null>(null);
 
   const dateStr = format(date, "yyyy-MM-dd");
 
@@ -99,25 +91,64 @@ export default function CourtDetail() {
 
   const slots = availability?.slots ?? [];
 
-  // Selected slot range
+  // Selected slot range (selectedStart..selectedEnd inclusive)
   const selectedSlotRange = useMemo(() => {
     if (selectedStart === null || !slots.length) return null;
-    const range = slots.slice(selectedStart, selectedStart + duration);
-    if (range.length < duration) return null;
-    const canBook = range.every(s => s.isAvailable);
-    if (!canBook) return null;
+    const end = selectedEnd ?? selectedStart;
+    const rangeStart = Math.min(selectedStart, end);
+    const rangeEnd = Math.max(selectedStart, end);
+    const range = slots.slice(rangeStart, rangeEnd + 1);
+    if (!range.length || !range.every(s => s.isAvailable)) return null;
+    const totalMinutes = range.length * 30;
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    const durationLabel = hours > 0
+      ? mins > 0 ? `${hours} val ${mins} min` : `${hours} val`
+      : `${mins} min`;
     return {
       startTime: range[0].startTime,
       endTime: range[range.length - 1].endTime,
       totalPrice: range.reduce((sum, s) => sum + s.price, 0),
       slotCount: range.length,
+      durationLabel,
+      rangeStart,
+      rangeEnd,
     };
-  }, [selectedStart, duration, slots]);
+  }, [selectedStart, selectedEnd, slots]);
 
-  // Check if a start index is valid (all slots in range are available)
-  const isRangeValid = (startIdx: number) => {
-    const range = slots.slice(startIdx, startIdx + duration);
-    return range.length === duration && range.every(s => s.isAvailable);
+  // Handle slot click: select, extend, or deselect
+  const handleSlotClick = (idx: number) => {
+    if (!slots[idx]?.isAvailable) return;
+
+    if (selectedStart === null) {
+      setSelectedStart(idx);
+      setSelectedEnd(null);
+      return;
+    }
+
+    const end = selectedEnd ?? selectedStart;
+    const rangeStart = Math.min(selectedStart, end);
+    const rangeEnd = Math.max(selectedStart, end);
+
+    // Clicked within selection → deselect all
+    if (idx >= rangeStart && idx <= rangeEnd) {
+      setSelectedStart(null);
+      setSelectedEnd(null);
+      return;
+    }
+
+    // Try to extend the range; check all slots in new range are available
+    const newStart = idx < rangeStart ? idx : rangeStart;
+    const newEnd = idx > rangeEnd ? idx : rangeEnd;
+    const allAvailable = slots.slice(newStart, newEnd + 1).every(s => s.isAvailable);
+    if (allAvailable) {
+      setSelectedStart(newStart);
+      setSelectedEnd(newEnd);
+    } else {
+      // Can't extend (unavailable slot in path) → start fresh
+      setSelectedStart(idx);
+      setSelectedEnd(null);
+    }
   };
 
   const onSubmit = async (data: BookingFormValues) => {
@@ -428,7 +459,7 @@ export default function CourtDetail() {
                     mode="single"
                     selected={date}
                     onSelect={(d) => {
-                      if (d) { setDate(d); setSelectedStart(null); }
+                      if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
                     className="rounded-md"
@@ -436,36 +467,13 @@ export default function CourtDetail() {
                 </div>
               </div>
 
-              {/* Step 2: Duration */}
+              {/* Step 2: Time slot selection */}
               <div>
-                <p className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <p className="text-sm font-semibold mb-1 flex items-center gap-2">
                   <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">2</span>
-                  <Clock className="w-4 h-4" /> Trukmė
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {DURATION_OPTIONS.map(opt => (
-                    <button
-                      key={opt.slots}
-                      type="button"
-                      onClick={() => { setDuration(opt.slots); setSelectedStart(null); }}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
-                        duration === opt.slots
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background text-foreground border-border hover:border-primary/50"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Step 3: Time slot */}
-              <div>
-                <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
                   Pasirinkite laiką
                 </p>
+                <p className="text-xs text-muted-foreground mb-2">Spustelėkite vieną ar kelis 30 min laikotarpius</p>
 
                 {/* Legend */}
                 <div className="flex gap-3 text-xs text-muted-foreground mb-2">
@@ -480,37 +488,33 @@ export default function CourtDetail() {
                     ))}
                   </div>
                 ) : slots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-3 gap-1.5 max-h-72 overflow-y-auto pr-1">
                     {slots.map((slot, idx) => {
-                      const isInSelectedRange =
-                        selectedStart !== null &&
-                        idx >= selectedStart &&
-                        idx < selectedStart + duration;
-                      const isStart = selectedStart === idx;
-                      const valid = isRangeValid(idx);
+                      const rangeStart = selectedSlotRange?.rangeStart ?? null;
+                      const rangeEnd = selectedSlotRange?.rangeEnd ?? null;
+                      const isSelected = rangeStart !== null && rangeEnd !== null
+                        ? idx >= rangeStart && idx <= rangeEnd
+                        : selectedStart === idx && selectedEnd === null;
+                      const isRangeStart = idx === rangeStart;
+                      const isRangeEnd = idx === rangeEnd;
 
                       return (
                         <button
                           key={idx}
                           type="button"
                           disabled={!slot.isAvailable}
-                          onClick={() => {
-                            if (!valid) return;
-                            setSelectedStart(idx);
-                          }}
-                          className={`relative rounded-lg border px-1 py-2 text-xs font-medium transition-all focus:outline-none ${
+                          onClick={() => handleSlotClick(idx)}
+                          className={`relative rounded-lg border px-1 py-2.5 text-xs font-medium transition-all focus:outline-none ${
                             !slot.isAvailable
                               ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
-                              : isInSelectedRange
-                                ? "bg-primary text-primary-foreground border-primary shadow-md"
-                                : valid
-                                  ? "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer"
-                                  : "bg-background text-muted-foreground border-border/50 cursor-pointer"
+                              : isSelected
+                                ? "bg-primary text-primary-foreground border-primary shadow-md scale-[0.97]"
+                                : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer"
                           }`}
                         >
                           <div className="text-center leading-tight">
-                            <div className={isStart && isInSelectedRange ? "font-bold" : ""}>{slot.startTime}</div>
-                            <div className={`mt-0.5 flex items-center justify-center gap-0.5 ${isInSelectedRange ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                            <div className={`${isRangeStart || isRangeEnd ? "font-bold" : ""}`}>{slot.startTime}</div>
+                            <div className={`mt-0.5 flex items-center justify-center gap-0.5 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                               <Euro className="w-2.5 h-2.5" />
                               <span>{slot.price.toFixed(0)}</span>
                             </div>
@@ -527,32 +531,35 @@ export default function CourtDetail() {
                 )}
               </div>
 
-              {/* Booking summary */}
-              {selectedSlotRange && (
+              {/* Booking summary — shown inline below slot grid once something is selected */}
+              {selectedSlotRange ? (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
-                  <p className="font-semibold text-sm">Rezervacijos suvestinė</p>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Laikas</span>
-                    <span className="font-medium">{selectedSlotRange.startTime} – {selectedSlotRange.endTime}</span>
+                    <span className="text-muted-foreground flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Laikas</span>
+                    <span className="font-semibold">{selectedSlotRange.startTime} – {selectedSlotRange.endTime}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Trukmė</span>
-                    <span className="font-medium">{selectedSlotRange.slotCount * 30} min</span>
+                    <span className="font-medium">{selectedSlotRange.durationLabel}</span>
                   </div>
                   <Separator className="my-1" />
-                  <div className="flex justify-between font-bold">
+                  <div className="flex justify-between font-bold text-base">
                     <span>Iš viso</span>
-                    <span className="text-primary">{selectedSlotRange.totalPrice.toFixed(2)}€</span>
+                    <span className="text-primary">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
                   </div>
                 </div>
-              )}
+              ) : selectedStart !== null ? (
+                <p className="text-xs text-center text-muted-foreground py-1">
+                  Spustelėkite dar vieną laikotarpį, kad prailgintumėte rezervaciją, arba tą patį – kad atšauktumėte
+                </p>
+              ) : null}
 
               {/* Customer details */}
               {selectedSlotRange && (
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                     <p className="text-sm font-semibold flex items-center gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">4</span>
+                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
                       Jūsų duomenys
                     </p>
 
