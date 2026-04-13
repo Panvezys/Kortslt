@@ -204,7 +204,7 @@ export const GetCourtAvailabilityParams = zod.object({
 });
 
 export const GetCourtAvailabilityQueryParams = zod.object({
-  date: zod.date(),
+  date: zod.coerce.string(),
 });
 
 export const GetCourtAvailabilityResponse = zod.object({
@@ -215,6 +215,71 @@ export const GetCourtAvailabilityResponse = zod.object({
       startTime: zod.string(),
       endTime: zod.string(),
       isAvailable: zod.boolean(),
+      price: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get pricing schedule for a court
+ */
+export const GetCourtPricingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const getCourtPricingResponseEntriesItemDayOfWeekMin = 0;
+export const getCourtPricingResponseEntriesItemDayOfWeekMax = 6;
+
+export const GetCourtPricingResponse = zod.object({
+  courtId: zod.number(),
+  entries: zod.array(
+    zod.object({
+      dayOfWeek: zod
+        .number()
+        .min(getCourtPricingResponseEntriesItemDayOfWeekMin)
+        .max(getCourtPricingResponseEntriesItemDayOfWeekMax),
+      startTime: zod.string(),
+      price: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Set pricing schedule for a court (owner only)
+ */
+export const SetCourtPricingParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const setCourtPricingBodyEntriesItemDayOfWeekMin = 0;
+export const setCourtPricingBodyEntriesItemDayOfWeekMax = 6;
+
+export const SetCourtPricingBody = zod.object({
+  entries: zod.array(
+    zod.object({
+      dayOfWeek: zod
+        .number()
+        .min(setCourtPricingBodyEntriesItemDayOfWeekMin)
+        .max(setCourtPricingBodyEntriesItemDayOfWeekMax),
+      startTime: zod.string(),
+      price: zod.number(),
+    }),
+  ),
+});
+
+export const setCourtPricingResponseEntriesItemDayOfWeekMin = 0;
+export const setCourtPricingResponseEntriesItemDayOfWeekMax = 6;
+
+export const SetCourtPricingResponse = zod.object({
+  courtId: zod.number(),
+  entries: zod.array(
+    zod.object({
+      dayOfWeek: zod
+        .number()
+        .min(setCourtPricingResponseEntriesItemDayOfWeekMin)
+        .max(setCourtPricingResponseEntriesItemDayOfWeekMax),
+      startTime: zod.string(),
+      price: zod.number(),
     }),
   ),
 });

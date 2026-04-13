@@ -5,7 +5,9 @@
  * CourtBook API - Court booking platform for Lithuania
  * OpenAPI spec version: 0.1.0
  */
+import type { PricingEntry } from "./pricingEntry";
 
-export type GetCourtAvailabilityParams = {
-  date: string;
-};
+export interface PricingSchedule {
+  courtId: number;
+  entries: PricingEntry[];
+}

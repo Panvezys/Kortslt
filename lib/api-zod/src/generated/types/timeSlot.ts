@@ -10,4 +10,5 @@ export interface TimeSlot {
   startTime: string;
   endTime: string;
   isAvailable: boolean;
+  price: number;
 }

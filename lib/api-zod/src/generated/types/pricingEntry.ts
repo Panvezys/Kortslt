@@ -6,6 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetCourtAvailabilityParams = {
-  date: string;
-};
+export interface PricingEntry {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  dayOfWeek: number;
+  startTime: string;
+  price: number;
+}

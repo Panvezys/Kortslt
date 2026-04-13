@@ -33,7 +33,9 @@ import type {
   ListBookingsParams,
   ListCourtsParams,
   PopularCourt,
+  PricingSchedule,
   Review,
+  SetPricingBody,
   StatsSummary,
 } from "./api.schemas";
 
@@ -672,6 +674,180 @@ export function useGetCourtAvailability<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get pricing schedule for a court
+ */
+export const getGetCourtPricingUrl = (id: number) => {
+  return `/api/courts/${id}/pricing`;
+};
+
+export const getCourtPricing = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PricingSchedule> => {
+  return customFetch<PricingSchedule>(getGetCourtPricingUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCourtPricingQueryKey = (id: number) => {
+  return [`/api/courts/${id}/pricing`] as const;
+};
+
+export const getGetCourtPricingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCourtPricing>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPricing>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCourtPricingQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCourtPricing>>> = ({
+    signal,
+  }) => getCourtPricing(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCourtPricing>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCourtPricingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCourtPricing>>
+>;
+export type GetCourtPricingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get pricing schedule for a court
+ */
+
+export function useGetCourtPricing<
+  TData = Awaited<ReturnType<typeof getCourtPricing>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPricing>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCourtPricingQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set pricing schedule for a court (owner only)
+ */
+export const getSetCourtPricingUrl = (id: number) => {
+  return `/api/courts/${id}/pricing`;
+};
+
+export const setCourtPricing = async (
+  id: number,
+  setPricingBody: SetPricingBody,
+  options?: RequestInit,
+): Promise<PricingSchedule> => {
+  return customFetch<PricingSchedule>(getSetCourtPricingUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setPricingBody),
+  });
+};
+
+export const getSetCourtPricingMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCourtPricing>>,
+    TError,
+    { id: number; data: BodyType<SetPricingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCourtPricing>>,
+  TError,
+  { id: number; data: BodyType<SetPricingBody> },
+  TContext
+> => {
+  const mutationKey = ["setCourtPricing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCourtPricing>>,
+    { id: number; data: BodyType<SetPricingBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setCourtPricing(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCourtPricingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCourtPricing>>
+>;
+export type SetCourtPricingMutationBody = BodyType<SetPricingBody>;
+export type SetCourtPricingMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set pricing schedule for a court (owner only)
+ */
+export const useSetCourtPricing = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCourtPricing>>,
+    TError,
+    { id: number; data: BodyType<SetPricingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setCourtPricing>>,
+  TError,
+  { id: number; data: BodyType<SetPricingBody> },
+  TContext
+> => {
+  return useMutation(getSetCourtPricingMutationOptions(options));
+};
 
 /**
  * @summary List all cities that have courts

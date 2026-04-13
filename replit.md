@@ -41,8 +41,8 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
   - Cities: Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
 - List view + interactive map view toggle; map legend shows sport emojis + rating color tiers
-- Court detail page with availability calendar and booking form
-- Owner dashboard to list and manage courts (all 6 sport types supported)
+- Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
+- Owner dashboard to list and manage courts (all 6 sport types supported) with per-slot pricing editor (day-of-week × 30-min grid)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
 - Reviews section on court detail page showing all reviews with star display
@@ -57,6 +57,7 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
 - `reviews` — court reviews linked to bookings: rating (1–5), optional text, reviewer name; auto-updates `courts.rating` on insert
+- `court_pricing` — per-slot dynamic pricing: courtId, dayOfWeek (0=Sun), startTime (30-min slot), price (€); overrides default price per slot
 
 ### Court Schema Fields
 - `type`: 'tennis' | 'basketball'

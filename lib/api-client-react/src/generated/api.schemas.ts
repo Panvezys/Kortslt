@@ -96,12 +96,32 @@ export interface TimeSlot {
   startTime: string;
   endTime: string;
   isAvailable: boolean;
+  price: number;
 }
 
 export interface AvailabilityResponse {
   courtId: number;
   date: string;
   slots: TimeSlot[];
+}
+
+export interface PricingEntry {
+  /**
+   * @minimum 0
+   * @maximum 6
+   */
+  dayOfWeek: number;
+  startTime: string;
+  price: number;
+}
+
+export interface PricingSchedule {
+  courtId: number;
+  entries: PricingEntry[];
+}
+
+export interface SetPricingBody {
+  entries: PricingEntry[];
 }
 
 export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];

@@ -170,7 +170,6 @@ paths:
           required: true
           schema:
             type: string
-            format: date
       responses:
         "200":
           description: Available time slots
@@ -178,6 +177,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailabilityResponse"
+
+  /courts/{id}/pricing:
+    get:
+      operationId: getCourtPricing
+      tags: [courts]
+      summary: Get pricing schedule for a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pricing schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingSchedule"
+    put:
+      operationId: setCourtPricing
+      tags: [courts]
+      summary: Set pricing schedule for a court (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPricingBody"
+      responses:
+        "200":
+          description: Pricing updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingSchedule"
 
   /courts/cities:
     get:
@@ -555,10 +596,52 @@ components:
           type: string
         isAvailable:
           type: boolean
+        price:
+          type: number
       required:
         - startTime
         - endTime
         - isAvailable
+        - price
+
+    PricingEntry:
+      type: object
+      properties:
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTime:
+          type: string
+        price:
+          type: number
+      required:
+        - dayOfWeek
+        - startTime
+        - price
+
+    PricingSchedule:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingEntry"
+      required:
+        - courtId
+        - entries
+
+    SetPricingBody:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingEntry"
+      required:
+        - entries
 
     Booking:
       type: object
