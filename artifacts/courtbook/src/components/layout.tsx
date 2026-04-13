@@ -11,13 +11,47 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, User, CalendarDays, LayoutDashboard, Menu, X } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe } from "lucide-react";
 import { useState } from "react";
+import { useI18n, useT, type Locale } from "@/lib/i18n";
+
+const LOCALES: { code: Locale; label: string }[] = [
+  { code: "lt", label: "LT" },
+  { code: "en", label: "EN" },
+  { code: "ru", label: "RU" },
+];
+
+function LanguageSwitcher() {
+  const { locale, setLocale } = useI18n();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold border border-border hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+          {locale.toUpperCase()}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-28 min-w-0">
+        {LOCALES.map(({ code, label }) => (
+          <DropdownMenuItem
+            key={code}
+            onClick={() => setLocale(code)}
+            className={`text-sm font-medium ${locale === code ? "text-primary font-bold" : ""}`}
+          >
+            {label}
+            {locale === code && <span className="ml-auto text-primary">✓</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function UserMenu() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
+  const t = useT();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -41,7 +75,7 @@ function UserMenu() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {user?.fullName || "Account"}
+              {user?.fullName || t("nav.account")}
             </p>
             <p className="text-xs leading-none text-muted-foreground truncate">
               {user?.emailAddresses[0]?.emailAddress}
@@ -51,11 +85,11 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => setLocation("/bookings")}>
           <CalendarDays className="mr-2 h-4 w-4" />
-          My Bookings
+          {t("nav.myBookings")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/owner")}>
           <LayoutDashboard className="mr-2 h-4 w-4" />
-          Owner Dashboard
+          {t("nav.ownerDashboard")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -63,7 +97,7 @@ function UserMenu() {
           className="text-destructive focus:text-destructive"
         >
           <LogOut className="mr-2 h-4 w-4" />
-          Sign out
+          {t("nav.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -72,6 +106,7 @@ function UserMenu() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const t = useT();
 
   return (
     <ThemeProvider>
@@ -87,26 +122,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
               <Link href="/courts" className="transition-colors hover:text-primary">
-                Find Courts
+                {t("nav.findCourts")}
               </Link>
               <Show when="signed-in">
                 <Link href="/bookings" className="transition-colors hover:text-primary">
-                  My Bookings
+                  {t("nav.myBookings")}
                 </Link>
                 <Link href="/owner" className="transition-colors hover:text-primary">
-                  Owner Dashboard
+                  {t("nav.ownerDashboard")}
                 </Link>
               </Show>
             </nav>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
               <Show when="signed-out">
                 <div className="hidden md:flex items-center gap-2">
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href="/sign-in">Sign in</Link>
+                    <Link href="/sign-in">{t("nav.signIn")}</Link>
                   </Button>
                   <Button size="sm" asChild>
-                    <Link href="/sign-up">Register</Link>
+                    <Link href="/sign-up">{t("nav.register")}</Link>
                   </Button>
                 </div>
               </Show>
@@ -116,7 +152,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </Show>
 
-              {/* Mobile menu toggle */}
               <button
                 className="md:hidden p-2 rounded-md hover:bg-accent"
                 onClick={() => setMobileMenuOpen((v) => !v)}
@@ -127,7 +162,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Mobile nav */}
           {mobileMenuOpen && (
             <div className="md:hidden border-t bg-background px-4 py-4 flex flex-col gap-3 text-sm font-medium">
               <Link
@@ -135,7 +169,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="transition-colors hover:text-primary"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Find Courts
+                {t("nav.findCourts")}
               </Link>
               <Show when="signed-in">
                 <Link
@@ -143,14 +177,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   className="transition-colors hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  My Bookings
+                  {t("nav.myBookings")}
                 </Link>
                 <Link
                   href="/owner"
                   className="transition-colors hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Owner Dashboard
+                  {t("nav.ownerDashboard")}
                 </Link>
                 <UserMenu />
               </Show>
@@ -160,14 +194,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   className="transition-colors hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Sign in
+                  {t("nav.signIn")}
                 </Link>
                 <Link
                   href="/sign-up"
                   className="transition-colors hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Register
+                  {t("nav.register")}
                 </Link>
               </Show>
             </div>
@@ -178,13 +212,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <footer className="border-t py-6 md:py-0 bg-muted/30 mt-auto">
           <div className="container mx-auto flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row px-4 text-sm text-muted-foreground">
-            <p>Built for athletes. Find your court anywhere.</p>
+            <p>{t("footer.tagline")}</p>
             <div className="flex gap-4">
               <Link href="/courts" className="hover:text-primary transition-colors">
-                Courts
+                {t("footer.courts")}
               </Link>
               <Link href="/bookings" className="hover:text-primary transition-colors">
-                Bookings
+                {t("footer.bookings")}
               </Link>
             </div>
           </div>

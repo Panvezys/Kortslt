@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/lib/i18n";
 
 function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0);
@@ -48,8 +49,6 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   );
 }
 
-const ratingLabels = ["", "Bloga", "Patenkinama", "Gera", "Puiki", "Nuostabi"];
-
 interface RateDialogProps {
   open: boolean;
   onClose: () => void;
@@ -57,10 +56,13 @@ interface RateDialogProps {
 }
 
 function RateDialog({ open, onClose, booking }: RateDialogProps) {
+  const t = useT();
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const createReview = useCreateReview();
   const { toast } = useToast();
+
+  const ratingLabels = ["", t("rating.1"), t("rating.2"), t("rating.3"), t("rating.4"), t("rating.5")];
 
   const handleSubmit = async () => {
     if (!booking || rating === 0) return;
@@ -88,9 +90,9 @@ function RateDialog({ open, onClose, booking }: RateDialogProps) {
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Įvertinkite kortą</DialogTitle>
+          <DialogTitle>{t("bookings.rateDialog.title")}</DialogTitle>
           <DialogDescription>
-            {booking?.courtName || `Kortas #${booking?.courtId}`}
+            {booking?.courtName || `#${booking?.courtId}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -100,15 +102,12 @@ function RateDialog({ open, onClose, booking }: RateDialogProps) {
             {rating > 0 && (
               <p className="text-sm font-medium mt-2 text-primary">{ratingLabels[rating]}</p>
             )}
-            {rating === 0 && (
-              <p className="text-xs text-muted-foreground mt-2">Spustelėkite žvaigždutę norėdami įvertinti</p>
-            )}
           </div>
 
           <div className="space-y-2">
-            <Label>Atsiliepimas (neprivaloma)</Label>
+            <Label>{t("bookings.rateDialog.commentLabel")}</Label>
             <Textarea
-              placeholder="Papasakokite apie savo patirtį..."
+              placeholder={t("bookings.rateDialog.commentPlaceholder")}
               value={reviewText}
               onChange={(e) => setReviewText(e.target.value)}
               rows={3}
@@ -117,12 +116,12 @@ function RateDialog({ open, onClose, booking }: RateDialogProps) {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Atšaukti</Button>
+          <Button variant="outline" onClick={onClose}>{t("bookings.cancel")}</Button>
           <Button
             onClick={handleSubmit}
             disabled={rating === 0 || createReview.isPending}
           >
-            {createReview.isPending ? "Saugoma..." : "Išsaugoti"}
+            {createReview.isPending ? "..." : t("bookings.rateDialog.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -131,6 +130,7 @@ function RateDialog({ open, onClose, booking }: RateDialogProps) {
 }
 
 export default function Bookings() {
+  const t = useT();
   const [statusFilter, setStatusFilter] = useState<ListBookingsStatus | "all">("all");
   const [ratingBooking, setRatingBooking] = useState<{
     id: number;
@@ -148,24 +148,24 @@ export default function Bookings() {
   const { toast } = useToast();
 
   const handleCancel = async (id: number) => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
+    if (!confirm(t("owner.confirmDelete"))) return;
     try {
       await cancelBooking.mutateAsync({ id });
-      toast({ title: "Rezervacija atšaukta" });
+      toast({ title: t("bookings.status.cancelled") });
       queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey() });
     } catch {
-      toast({ title: "Nepavyko atšaukti rezervacijos", variant: "destructive" });
+      toast({ title: "Klaida", variant: "destructive" });
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "confirmed":
-        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1" />Patvirtinta</Badge>;
+        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle2 className="w-3 h-3 mr-1" />{t("bookings.status.confirmed")}</Badge>;
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30"><Clock className="w-3 h-3 mr-1" />Laukiama</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30"><Clock className="w-3 h-3 mr-1" />{t("bookings.status.pending")}</Badge>;
       case "cancelled":
-        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Atšaukta</Badge>;
+        return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />{t("bookings.status.cancelled")}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -176,8 +176,8 @@ export default function Bookings() {
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Mano rezervacijos</h1>
-            <p className="text-muted-foreground mt-1">Valdykite savo kortų rezervacijas.</p>
+            <h1 className="text-3xl font-bold tracking-tight">{t("bookings.title")}</h1>
+            <p className="text-muted-foreground mt-1">{t("bookings.subtitle")}</p>
           </div>
 
           <div className="flex bg-muted p-1 rounded-lg">
@@ -189,7 +189,7 @@ export default function Bookings() {
                   statusFilter === f ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {f === "all" ? "Visos" : f === "confirmed" ? "Patvirtintos" : "Laukiančios"}
+                {f === "all" ? t("courts.filters.all") : f === "confirmed" ? t("bookings.status.confirmed") : t("bookings.status.pending")}
               </button>
             ))}
           </div>
@@ -199,12 +199,12 @@ export default function Bookings() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead>Kortas</TableHead>
-                <TableHead>Data ir laikas</TableHead>
-                <TableHead>Klientas</TableHead>
-                <TableHead>Kaina</TableHead>
-                <TableHead>Statusas</TableHead>
-                <TableHead className="text-right">Veiksmai</TableHead>
+                <TableHead>{t("bookings.court")}</TableHead>
+                <TableHead>{t("bookings.date")} / {t("bookings.time")}</TableHead>
+                <TableHead>{t("bookings.court")}</TableHead>
+                <TableHead>{t("bookings.total")}</TableHead>
+                <TableHead>{t("bookings.status")}</TableHead>
+                <TableHead className="text-right">{t("bookings.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -224,13 +224,13 @@ export default function Bookings() {
                   <TableRow key={booking.id}>
                     <TableCell className="font-medium">
                       <Link href={`/courts/${booking.courtId}`} className="hover:text-primary hover:underline">
-                        {booking.courtName || `Kortas #${booking.courtId}`}
+                        {booking.courtName || `#${booking.courtId}`}
                       </Link>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span>{format(parseISO(booking.date), "yyyy MMMM d")}</span>
-                        <span className="text-xs text-muted-foreground">{booking.startTime} - {booking.endTime}</span>
+                        <span>{format(parseISO(booking.date), "yyyy-MM-dd")}</span>
+                        <span className="text-xs text-muted-foreground">{booking.startTime} – {booking.endTime}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -258,7 +258,7 @@ export default function Bookings() {
                             }
                           >
                             <Star className="h-3 w-3" />
-                            Vertinti
+                            {t("bookings.rate")}
                           </Button>
                         )}
                         {booking.status !== "cancelled" && (
@@ -269,7 +269,7 @@ export default function Bookings() {
                             onClick={() => handleCancel(booking.id)}
                             disabled={cancelBooking.isPending}
                           >
-                            Atšaukti
+                            {t("bookings.cancel")}
                           </Button>
                         )}
                       </div>
@@ -279,7 +279,7 @@ export default function Bookings() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    Rezervacijų nerasta.
+                    {t("bookings.noBookings")}
                   </TableCell>
                 </TableRow>
               )}

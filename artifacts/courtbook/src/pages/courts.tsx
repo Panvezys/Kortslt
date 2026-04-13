@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { useListCourts, useListCities } from "@workspace/api-client-react";
 import { CourtCard } from "@/components/court-card";
@@ -12,29 +13,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Search, Map, List, SlidersHorizontal, X } from "lucide-react";
 import { ListCourtsCondition, ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useT } from "@/lib/i18n";
 
 type ViewMode = "list" | "map";
 
-const surfaceOptions = [
-  { value: "clay", label: "Gruntas" },
-  { value: "hard", label: "Kieta danga" },
-  { value: "carpet", label: "Kilimas" },
-  { value: "synthetic_grass", label: "Sintetinė žolė" },
-  { value: "artificial_grass", label: "Dirbtinė žolė" },
-  { value: "natural_grass", label: "Natūrali žolė" },
-  { value: "parquet", label: "Parketas" },
-  { value: "rubber", label: "Guma" },
-];
+const surfaceKeys = [
+  "clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber",
+] as const;
 
-const conditionOptions: { value: ListCourtsCondition; label: string }[] = [
-  { value: "excellent", label: "Puiki" },
-  { value: "good", label: "Gera" },
-  { value: "fair", label: "Patenkinama" },
-];
+const conditionKeys: ListCourtsCondition[] = ["excellent", "good", "fair"];
 
 export default function Courts() {
+  const t = useT();
+  const searchStr = useSearch();
+  const initialType = (new URLSearchParams(searchStr.replace(/^\?/, "")).get("type") as ListCourtsType | null) ?? "all";
+
   const [search, setSearch] = useState("");
-  const [type, setType] = useState<ListCourtsType | "all">("all");
+  const [type, setType] = useState<ListCourtsType | "all">(initialType);
   const [city, setCity] = useState<string>("all");
   const [surface, setSurface] = useState<string>("all");
   const [condition, setCondition] = useState<ListCourtsCondition | "all">("all");
@@ -84,14 +79,21 @@ export default function Courts() {
     setSearch("");
   };
 
+  const sportItems = [
+    { value: "tennis", emoji: "🎾" },
+    { value: "basketball", emoji: "🏀" },
+    { value: "padel", emoji: "🏓" },
+    { value: "football", emoji: "⚽" },
+    { value: "badminton", emoji: "🏸" },
+    { value: "squash", emoji: "🎯" },
+  ] as const;
+
   return (
     <Layout>
       <div className="bg-muted/30 border-b">
         <div className="container mx-auto px-4 py-12">
-          <h1 className="text-4xl font-bold tracking-tight mb-2">Rasti kortą</h1>
-          <p className="text-muted-foreground max-w-2xl">
-            Raskite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus visoje Lietuvoje. Filtruokite pagal miestą, dangą ir kainą.
-          </p>
+          <h1 className="text-4xl font-bold tracking-tight mb-2">{t("courts.title")}</h1>
+          <p className="text-muted-foreground max-w-2xl">{t("courts.subtitle")}</p>
         </div>
       </div>
 
@@ -102,26 +104,26 @@ export default function Courts() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <SlidersHorizontal className="h-4 w-4" />
-                Filtrai
+                {t("courts.filters.title")}
                 {activeFilterCount > 0 && (
                   <Badge className="ml-1 h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
                 )}
               </div>
               {activeFilterCount > 0 && (
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}>
-                  <X className="h-3 w-3 mr-1" /> Išvalyti
+                  <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
                 </Button>
               )}
             </div>
 
             {/* Search */}
             <div>
-              <Label htmlFor="search" className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Paieška</Label>
+              <Label htmlFor="search" className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.search")}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Korto pavadinimas ar miestas..."
+                  placeholder={t("courts.filters.searchPlaceholder")}
                   className="pl-9"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -131,32 +133,31 @@ export default function Courts() {
 
             {/* Sport Type */}
             <div>
-              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šaka</Label>
+              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.sportType")}</Label>
               <Select value={type} onValueChange={(v: ListCourtsType | "all") => setType(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Visi tipai" />
+                  <SelectValue placeholder={t("courts.filters.allTypes")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visi tipai</SelectItem>
-                  <SelectItem value="tennis">🎾 Tenisas</SelectItem>
-                  <SelectItem value="basketball">🏀 Krepšinis</SelectItem>
-                  <SelectItem value="padel">🏓 Padelis</SelectItem>
-                  <SelectItem value="football">⚽ Futbolas</SelectItem>
-                  <SelectItem value="badminton">🏸 Badmintonas</SelectItem>
-                  <SelectItem value="squash">🎯 Squash</SelectItem>
+                  <SelectItem value="all">{t("courts.filters.allTypes")}</SelectItem>
+                  {sportItems.map(s => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.emoji} {t(`sports.${s.value}`)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* City */}
             <div>
-              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Miestas</Label>
+              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
               <Select value={city} onValueChange={setCity}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Visi miestai" />
+                  <SelectValue placeholder={t("courts.filters.allCities")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visi miestai</SelectItem>
+                  <SelectItem value="all">{t("courts.filters.allCities")}</SelectItem>
                   {cities?.map(c => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
@@ -166,7 +167,7 @@ export default function Courts() {
 
             {/* Indoor / Outdoor */}
             <div>
-              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Vieta</Label>
+              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.location")}</Label>
               <div className="flex rounded-md border overflow-hidden">
                 {(["all", "indoor", "outdoor"] as const).map(opt => (
                   <button
@@ -174,7 +175,7 @@ export default function Courts() {
                     onClick={() => setIsIndoorFilter(opt)}
                     className={`flex-1 text-xs py-2 font-medium transition-colors ${isIndoorFilter === opt ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted text-muted-foreground"}`}
                   >
-                    {opt === "all" ? "Visi" : opt === "indoor" ? "Vidaus" : "Lauko"}
+                    {opt === "all" ? t("courts.filters.all") : opt === "indoor" ? t("courts.filters.indoor") : t("courts.filters.outdoor")}
                   </button>
                 ))}
               </div>
@@ -182,15 +183,15 @@ export default function Courts() {
 
             {/* Surface */}
             <div>
-              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Dangos tipas</Label>
+              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.surface")}</Label>
               <Select value={surface} onValueChange={setSurface}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Visos dangos" />
+                  <SelectValue placeholder={t("courts.filters.allSurfaces")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Visos dangos</SelectItem>
-                  {surfaceOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem value="all">{t("courts.filters.allSurfaces")}</SelectItem>
+                  {surfaceKeys.map(key => (
+                    <SelectItem key={key} value={key}>{t(`surfaces.${key}`)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -198,15 +199,15 @@ export default function Courts() {
 
             {/* Condition */}
             <div>
-              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Korto bukle</Label>
+              <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.condition")}</Label>
               <Select value={condition} onValueChange={(v: ListCourtsCondition | "all") => setCondition(v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Bet kokia bukle" />
+                  <SelectValue placeholder={t("courts.filters.anyCondition")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Bet kokia bukle</SelectItem>
-                  {conditionOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem value="all">{t("courts.filters.anyCondition")}</SelectItem>
+                  {conditionKeys.map(key => (
+                    <SelectItem key={key} value={key}>{t(`conditions.${key}`)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -215,7 +216,7 @@ export default function Courts() {
             {/* Max Price */}
             <div>
               <Label className="mb-1.5 flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                <span>Maks. kaina / val.</span>
+                <span>{t("courts.filters.maxPrice")}</span>
                 <span className="text-primary font-bold normal-case text-sm">{maxPrice}€</span>
               </Label>
               <Slider
@@ -236,20 +237,20 @@ export default function Courts() {
           <main className="flex-1 w-full min-w-0">
             <div className="mb-6 flex justify-between items-center">
               <h2 className="text-base font-semibold text-muted-foreground">
-                {isLoading ? "Kraunama..." : `Rasta ${filteredCourts?.length ?? 0} kortų`}
+                {isLoading ? "..." : t("courts.found", { n: filteredCourts?.length ?? 0 })}
               </h2>
               <div className="flex gap-1 rounded-md border p-0.5">
                 <button
                   onClick={() => setViewMode("list")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
                 >
-                  <List className="h-3.5 w-3.5" /> Sarašas
+                  <List className="h-3.5 w-3.5" /> {t("courts.listView")}
                 </button>
                 <button
                   onClick={() => setViewMode("map")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
                 >
-                  <Map className="h-3.5 w-3.5" /> Zemelapis
+                  <Map className="h-3.5 w-3.5" /> {t("courts.mapView")}
                 </button>
               </div>
             </div>
@@ -281,11 +282,9 @@ export default function Courts() {
             ) : (
               <div className="text-center py-20 border rounded-xl bg-muted/10 border-dashed">
                 <div className="text-4xl mb-4">🎾</div>
-                <h3 className="text-xl font-bold mb-2">Kortų nerasta</h3>
-                <p className="text-muted-foreground mb-4">
-                  Pabandykite pakeisti filtrus arba ieskokite kitame mieste.
-                </p>
-                <Button variant="outline" onClick={resetFilters}>Išvalyti filtrus</Button>
+                <h3 className="text-xl font-bold mb-2">{t("courts.noResults").split(".")[0]}</h3>
+                <p className="text-muted-foreground mb-4">{t("courts.noResults").split(".").slice(1).join(".").trim()}</p>
+                <Button variant="outline" onClick={resetFilters}>{t("courts.filters.reset")}</Button>
               </div>
             )}
           </main>
