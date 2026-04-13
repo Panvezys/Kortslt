@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "wjkAKZwiUlPF9YL-Mz-eG"
@@ -114,3 +113,63 @@ id = "R5SgWjDdkUiPYS2wQScDx"
 uri = "file://attached_assets/courts/court_19_santaka.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "JDsh2ehVV4F624Q5PqerW"
+uri = "file://attached_assets/stock_images/padel_court_indoor_1.jpg"
+type = "image"
+title = "modern indoor padel court glass walls professional lighting blue court"
+
+[[outputs]]
+id = "Kz1rtvXyFvYG0rdeCLXRZ"
+uri = "file://attached_assets/stock_images/padel_court_indoor_2.jpg"
+type = "image"
+title = "modern indoor padel court glass walls professional lighting blue court"
+
+[[outputs]]
+id = "mkbiXetu-6s3kXAPL9VAO"
+uri = "file://attached_assets/stock_images/padel_court_indoor_3.jpg"
+type = "image"
+title = "modern indoor padel court glass walls professional lighting blue court"
+
+[[outputs]]
+id = "uM10F3lFAoUreuFeAAqbt"
+uri = "file://attached_assets/stock_images/football_futsal_court_1.jpg"
+type = "image"
+title = "indoor futsal court artificial turf professional lighting football hall"
+
+[[outputs]]
+id = "CzTG8RSjWhN5h9Kkv_UaD"
+uri = "file://attached_assets/stock_images/football_futsal_court_2.jpg"
+type = "image"
+title = "indoor futsal court artificial turf professional lighting football hall"
+
+[[outputs]]
+id = "D8OYsGT-FVn9hMFNmHGaJ"
+uri = "file://attached_assets/stock_images/football_futsal_court_3.jpg"
+type = "image"
+title = "indoor futsal court artificial turf professional lighting football hall"
+
+[[outputs]]
+id = "h3_eCPbbD7vC_X1cqgdBQ"
+uri = "file://attached_assets/stock_images/badminton_court_indoor_1.jpg"
+type = "image"
+title = "indoor badminton court wooden floor professional sports hall shuttlecock"
+
+[[outputs]]
+id = "YVkNiJLyOkL14bhAoi_3o"
+uri = "file://attached_assets/stock_images/badminton_court_indoor_2.jpg"
+type = "image"
+title = "indoor badminton court wooden floor professional sports hall shuttlecock"
+
+[[outputs]]
+id = "LlXJRUPqsk7sP2dGZ-VLC"
+uri = "file://attached_assets/stock_images/squash_court_1.jpg"
+type = "image"
+title = "professional squash court glass walls interior sports center"
+
+[[outputs]]
+id = "xVROmBEjobYsj8xe---e3"
+uri = "file://attached_assets/stock_images/squash_court_2.jpg"
+type = "image"
+title = "professional squash court glass walls interior sports center"

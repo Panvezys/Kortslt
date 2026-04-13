@@ -11,4 +11,8 @@ export type CourtType = (typeof CourtType)[keyof typeof CourtType];
 export const CourtType = {
   tennis: "tennis",
   basketball: "basketball",
+  padel: "padel",
+  football: "football",
+  badminton: "badminton",
+  squash: "squash",
 } as const;

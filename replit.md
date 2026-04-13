@@ -28,23 +28,30 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## CourtBook App
 
-A court booking platform for tennis and basketball courts.
+A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 
 ### Artifacts
 - `artifacts/courtbook` — React + Vite frontend (served at `/`)
 - `artifacts/api-server` — Express 5 API backend (served at `/api`)
 
 ### Features
-- Interactive Leaflet/OpenStreetMap map centered on Lithuania, auto-fits all courts, color-coded by type
-- 19 real Lithuanian tennis and basketball courts seeded (Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys)
+- Interactive Leaflet/OpenStreetMap map centered on Lithuania, satellite/street view toggle, courts color-coded by rating (5 tiers: lime→green→yellow→orange→gray)
+- 40 real Lithuanian courts across 6 sport types and 6 cities seeded in DB
+  - Tennis 🎾 (#84cc16), Basketball 🏀 (#f97316), Padel 🏓 (#3b82f6), Football ⚽ (#22c55e), Badminton 🏸 (#a855f7), Squash 🎯 (#06b6d4)
+  - Cities: Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
-- List view + interactive map view toggle on the courts browse page
+- List view + interactive map view toggle; map legend shows sport emojis + rating color tiers
 - Court detail page with availability calendar and booking form
-- Owner dashboard to list and manage courts
+- Owner dashboard to list and manage courts (all 6 sport types supported)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
 - Reviews section on court detail page showing all reviews with star display
 - Payment checkout (mock mode — auto-confirmed)
+- Clerk authentication (sign in / register)
+
+### Court images
+- Existing tennis/basketball courts: `artifacts/courtbook/public/courts/*.png` (AI generated)
+- New sport courts: `artifacts/courtbook/public/courts/{padel,football,badminton,squash}/*.jpg` (stock photos)
 
 ### Database Tables
 - `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating

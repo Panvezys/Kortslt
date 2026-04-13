@@ -14,6 +14,10 @@ export type CourtType = (typeof CourtType)[keyof typeof CourtType];
 export const CourtType = {
   tennis: "tennis",
   basketball: "basketball",
+  padel: "padel",
+  football: "football",
+  badminton: "badminton",
+  squash: "squash",
 } as const;
 
 export type CourtCondition =
@@ -54,6 +58,10 @@ export type CreateCourtBodyType =
 export const CreateCourtBodyType = {
   tennis: "tennis",
   basketball: "basketball",
+  padel: "padel",
+  football: "football",
+  badminton: "badminton",
+  squash: "squash",
 } as const;
 
 export type CreateCourtBodyCondition =
@@ -207,6 +215,10 @@ export type ListCourtsType =
 export const ListCourtsType = {
   tennis: "tennis",
   basketball: "basketball",
+  padel: "padel",
+  football: "football",
+  badminton: "badminton",
+  squash: "squash",
 } as const;
 
 export type ListCourtsCondition =

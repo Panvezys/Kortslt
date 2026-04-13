@@ -12,4 +12,8 @@ export type CreateCourtBodyType =
 export const CreateCourtBodyType = {
   tennis: "tennis",
   basketball: "basketball",
+  padel: "padel",
+  football: "football",
+  badminton: "badminton",
+  squash: "squash",
 } as const;

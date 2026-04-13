@@ -90,7 +90,7 @@ export default function Courts() {
         <div className="container mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold tracking-tight mb-2">Rasti kortą</h1>
           <p className="text-muted-foreground max-w-2xl">
-            Visi teniso ir krepšinio kortai Lietuvoje. Filtruokite pagal miestą, dangos tipą, buklę ir kainą.
+            Raskite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus visoje Lietuvoje. Filtruokite pagal miestą, dangą ir kainą.
           </p>
         </div>
       </div>

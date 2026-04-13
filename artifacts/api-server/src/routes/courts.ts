@@ -22,6 +22,7 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
   return {
     ...c,
     pricePerHour: Number(c.pricePerHour),
+    imageUrl: c.imageUrl ?? undefined,
     rating: c.rating ?? undefined,
     surface: c.surface ?? undefined,
     condition: (c.condition ?? "good") as "excellent" | "good" | "fair",

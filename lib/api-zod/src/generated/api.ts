@@ -18,7 +18,9 @@ export const HealthCheckResponse = zod.object({
  * @summary List all courts
  */
 export const ListCourtsQueryParams = zod.object({
-  type: zod.enum(["tennis", "basketball"]).optional(),
+  type: zod
+    .enum(["tennis", "basketball", "padel", "football", "badminton", "squash"])
+    .optional(),
   city: zod.coerce.string().optional(),
   surface: zod.coerce.string().optional(),
   condition: zod.enum(["excellent", "good", "fair"]).optional(),
@@ -30,7 +32,14 @@ export const ListCourtsQueryParams = zod.object({
 export const ListCourtsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
-  type: zod.enum(["tennis", "basketball"]),
+  type: zod.enum([
+    "tennis",
+    "basketball",
+    "padel",
+    "football",
+    "badminton",
+    "squash",
+  ]),
   description: zod.string().optional(),
   address: zod.string(),
   city: zod.string(),
@@ -56,7 +65,14 @@ export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
  */
 export const CreateCourtBody = zod.object({
   name: zod.string(),
-  type: zod.enum(["tennis", "basketball"]),
+  type: zod.enum([
+    "tennis",
+    "basketball",
+    "padel",
+    "football",
+    "badminton",
+    "squash",
+  ]),
   description: zod.string().optional(),
   address: zod.string(),
   city: zod.string(),
@@ -83,7 +99,14 @@ export const GetCourtParams = zod.object({
 export const GetCourtResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
-  type: zod.enum(["tennis", "basketball"]),
+  type: zod.enum([
+    "tennis",
+    "basketball",
+    "padel",
+    "football",
+    "badminton",
+    "squash",
+  ]),
   description: zod.string().optional(),
   address: zod.string(),
   city: zod.string(),
@@ -112,7 +135,14 @@ export const UpdateCourtParams = zod.object({
 
 export const UpdateCourtBody = zod.object({
   name: zod.string(),
-  type: zod.enum(["tennis", "basketball"]),
+  type: zod.enum([
+    "tennis",
+    "basketball",
+    "padel",
+    "football",
+    "badminton",
+    "squash",
+  ]),
   description: zod.string().optional(),
   address: zod.string(),
   city: zod.string(),
@@ -132,7 +162,14 @@ export const UpdateCourtBody = zod.object({
 export const UpdateCourtResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
-  type: zod.enum(["tennis", "basketball"]),
+  type: zod.enum([
+    "tennis",
+    "basketball",
+    "padel",
+    "football",
+    "badminton",
+    "squash",
+  ]),
   description: zod.string().optional(),
   address: zod.string(),
   city: zod.string(),
