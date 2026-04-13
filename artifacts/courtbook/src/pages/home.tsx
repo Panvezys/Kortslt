@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
@@ -14,8 +15,32 @@ const sportEmoji: Record<string, string> = {
   tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽", badminton: "🏸", squash: "🎯",
 };
 
+const HERO_IMAGES = [
+  "courts/court_2_bernardinu.png",
+  "courts/padel/padel_court_indoor_1.jpg",
+  "courts/court_1_seb_arena.png",
+  "courts/football/football_futsal_court_2.jpg",
+  "courts/court_4_verkiai.png",
+  "courts/badminton/badminton_court_indoor_1.jpg",
+  "courts/court_17_zalgiris.png",
+  "courts/squash/squash_court_1.jpg",
+  "courts/padel/padel_court_indoor_3.jpg",
+  "courts/court_3_lsc_vingis.png",
+];
+
 export default function Home() {
   const t = useT();
+  const [heroIdx, setHeroIdx] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroIdx((i) => (i + 1) % HERO_IMAGES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary();
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts();
   const { data: courts, isLoading: courtsLoading } = useListCourts();
@@ -26,7 +51,27 @@ export default function Home() {
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-zinc-950 text-white pt-24 pb-32">
-        <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-background to-background"></div>
+        {/* Slideshow background */}
+        <div className="absolute inset-0 z-0">
+          {HERO_IMAGES.map((img, i) => (
+            <img
+              key={img}
+              src={`${base}/${img}`}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                opacity: i === heroIdx ? 1 : 0,
+                transition: "opacity 1.6s ease-in-out",
+                zIndex: i === heroIdx ? 1 : 0,
+              }}
+              aria-hidden
+            />
+          ))}
+          {/* Dark overlay — keeps text readable without being too heavy */}
+          <div className="absolute inset-0 bg-zinc-950/68 z-10" />
+          {/* Left-side vignette for extra text legibility */}
+          <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/75 via-zinc-950/20 to-transparent z-10" />
+        </div>
+        <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent z-[1]"></div>
         <div className="container px-4 mx-auto relative z-10">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance">
