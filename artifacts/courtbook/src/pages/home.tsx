@@ -26,7 +26,7 @@ export default function Home() {
               Play your game.
             </h1>
             <p className="text-lg md:text-xl text-zinc-400 mb-8 max-w-xl">
-              Book premium tennis and basketball courts instantly. No phone calls, no waiting. Just pick a time and show up.
+              Rezervuokite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus akimirksniu. Jokių skambučių, jokio laukimo.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link href="/courts" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 py-2">
@@ -57,12 +57,12 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground uppercase tracking-wider">Total Bookings</div>
                 </div>
                 <div className="px-4">
-                  <div className="text-3xl font-bold mb-1">{stats.tennisCourts}</div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider">Tennis</div>
+                  <div className="text-3xl font-bold mb-1">{stats.tennisCourts + (stats.basketballCourts ?? 0)}</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider">🎾🏀 Tenisas / Krepšinis</div>
                 </div>
                 <div className="px-4">
-                  <div className="text-3xl font-bold mb-1">{stats.basketballCourts}</div>
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider">Basketball</div>
+                  <div className="text-3xl font-bold mb-1">{stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0)}</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider">🏓⚽🏸🎯 Kiti sportai</div>
                 </div>
               </>
             ) : null}
@@ -76,7 +76,7 @@ export default function Home() {
           <div className="w-full md:w-1/3">
             <h2 className="text-3xl font-bold mb-4 tracking-tight">Kortai visoje Lietuvoje</h2>
             <p className="text-muted-foreground mb-6">
-              Tyrinėkite interaktyvų žemėlapį ir raskite kortus visoje Lietuvoje — Vilniuje, Kaune, Klaipėdoje ir kituose miestuose. Žalia spalva — teniso kortai, oranžinė — krepšinis.
+              Tyrinėkite interaktyvų žemėlapį ir raskite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus visoje Lietuvoje. Spalva rodo įvertinimą.
             </p>
             <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline">
               View all courts <ArrowRight className="ml-2 h-4 w-4" />
@@ -117,13 +117,13 @@ export default function Home() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-4xl bg-muted">
-                            {court.type === "tennis" ? "🎾" : "🏀"}
+                            {{"tennis":"🎾","basketball":"🏀","padel":"🏓","football":"⚽","badminton":"🏸","squash":"🎯"}[court.type as string] ?? "🏟"}
                           </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                         <div className="absolute top-2 left-2">
-                          <Badge variant={court.type === "tennis" ? "default" : "secondary"} className="capitalize text-xs">
-                            {court.type === "tennis" ? "🎾 Tennis" : "🏀 Basketball"}
+                          <Badge variant="default" className="capitalize text-xs">
+                            {{"tennis":"🎾 Tenisas","basketball":"🏀 Krepšinis","padel":"🏓 Padelis","football":"⚽ Futbolas","badminton":"🏸 Badmintonas","squash":"🎯 Squash"}[court.type as string] ?? court.type}
                           </Badge>
                         </div>
                         <div className="absolute top-2 right-2">

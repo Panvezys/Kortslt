@@ -20,6 +20,8 @@ const surfaceOptions = [
   { value: "hard", label: "Kieta danga" },
   { value: "carpet", label: "Kilimas" },
   { value: "synthetic_grass", label: "Sintetinė žolė" },
+  { value: "artificial_grass", label: "Dirbtinė žolė" },
+  { value: "natural_grass", label: "Natūrali žolė" },
   { value: "parquet", label: "Parketas" },
   { value: "rubber", label: "Guma" },
 ];
@@ -138,6 +140,10 @@ export default function Courts() {
                   <SelectItem value="all">Visi tipai</SelectItem>
                   <SelectItem value="tennis">🎾 Tenisas</SelectItem>
                   <SelectItem value="basketball">🏀 Krepšinis</SelectItem>
+                  <SelectItem value="padel">🏓 Padelis</SelectItem>
+                  <SelectItem value="football">⚽ Futbolas</SelectItem>
+                  <SelectItem value="badminton">🏸 Badmintonas</SelectItem>
+                  <SelectItem value="squash">🎯 Squash</SelectItem>
                 </SelectContent>
               </Select>
             </div>

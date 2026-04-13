@@ -44,7 +44,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [tennis, basketball]
+            enum: [tennis, basketball, padel, football, badminton, squash]
         - name: city
           in: query
           schema:
@@ -423,7 +423,7 @@ components:
           type: string
         type:
           type: string
-          enum: [tennis, basketball]
+          enum: [tennis, basketball, padel, football, badminton, squash]
         description:
           type: string
         address:
@@ -485,7 +485,7 @@ components:
           type: string
         type:
           type: string
-          enum: [tennis, basketball]
+          enum: [tennis, basketball, padel, football, badminton, squash]
         description:
           type: string
         address:

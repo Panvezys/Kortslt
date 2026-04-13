@@ -11,8 +11,19 @@ const surfaceLabels: Record<string, string> = {
   hard: "Kieta danga",
   carpet: "Kilimas",
   synthetic_grass: "Sint. žolė",
+  artificial_grass: "Dirbt. žolė",
+  natural_grass: "Natūr. žolė",
   parquet: "Parketas",
   rubber: "Guma",
+};
+
+const sportConfig: Record<string, { emoji: string; label: string; color: string }> = {
+  tennis:     { emoji: "🎾", label: "Tenisas",     color: "#84cc16" },
+  basketball: { emoji: "🏀", label: "Krepšinis",   color: "#f97316" },
+  padel:      { emoji: "🏓", label: "Padelis",     color: "#3b82f6" },
+  football:   { emoji: "⚽", label: "Futbolas",    color: "#22c55e" },
+  badminton:  { emoji: "🏸", label: "Badmintonas", color: "#a855f7" },
+  squash:     { emoji: "🎯", label: "Squash",      color: "#06b6d4" },
 };
 
 function StarRating({ rating, size = "sm" }: { rating?: number; size?: "sm" | "md" }) {
@@ -78,9 +89,14 @@ export function CourtCard({ court }: { court: Court }) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
-            <Badge variant={court.type === "tennis" ? "default" : "secondary"} className="capitalize text-xs">
-              {court.type === "tennis" ? "🎾 Tenisas" : "🏀 Krepšinis"}
-            </Badge>
+            {(() => {
+              const s = sportConfig[court.type] ?? sportConfig.tennis;
+              return (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: s.color }}>
+                  {s.emoji} {s.label}
+                </span>
+              );
+            })()}
             <StarRating rating={court.rating} />
           </div>
           <span className="font-bold text-lg text-primary shrink-0">{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span></span>

@@ -20,7 +20,7 @@ import { CreateCourtBodyType } from "@workspace/api-client-react/src/generated/a
 
 const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
-  type: z.enum(["tennis", "basketball"]),
+  type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash"]),
   description: z.string().optional(),
   address: z.string().min(5, "Address required"),
   city: z.string().min(2, "City required"),
@@ -87,7 +87,7 @@ export default function OwnerDashboard() {
     setEditingId(court.id);
     form.reset({
       name: court.name,
-      type: court.type as "tennis" | "basketball",
+      type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash",
       description: court.description || "",
       address: court.address,
       city: court.city,
@@ -159,8 +159,12 @@ export default function OwnerDashboard() {
                             <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="tennis">Tennis</SelectItem>
-                            <SelectItem value="basketball">Basketball</SelectItem>
+                            <SelectItem value="tennis">🎾 Tenisas</SelectItem>
+                            <SelectItem value="basketball">🏀 Krepšinis</SelectItem>
+                            <SelectItem value="padel">🏓 Padelis</SelectItem>
+                            <SelectItem value="football">⚽ Futbolas</SelectItem>
+                            <SelectItem value="badminton">🏸 Badmintonas</SelectItem>
+                            <SelectItem value="squash">🎯 Squash</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

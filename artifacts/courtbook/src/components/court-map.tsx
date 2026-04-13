@@ -29,8 +29,13 @@ function renderStars(rating: number): string {
   return "★".repeat(full) + (half ? "½" : "") + "☆".repeat(empty);
 }
 
+const sportEmoji: Record<string, string> = {
+  tennis: "🎾", basketball: "🏀", padel: "🏓",
+  football: "⚽", badminton: "🏸", squash: "🎯",
+};
+
 const createCourtIcon = (court: Court) => {
-  const base = court.type === "tennis" ? "🎾" : "🏀";
+  const base = sportEmoji[court.type] ?? "🏟";
   const color = getRatingColor(court.rating);
   return new L.DivIcon({
     className: "custom-court-icon",
@@ -202,6 +207,10 @@ export function CourtMap({ courts }: { courts: Court[] }) {
         <div className="border-t border-border pt-2 mt-1 space-y-1">
           <div className="flex items-center gap-1.5">🎾 <span>Tenisas</span></div>
           <div className="flex items-center gap-1.5">🏀 <span>Krepšinis</span></div>
+          <div className="flex items-center gap-1.5">🏓 <span>Padelis</span></div>
+          <div className="flex items-center gap-1.5">⚽ <span>Futbolas</span></div>
+          <div className="flex items-center gap-1.5">🏸 <span>Badmintonas</span></div>
+          <div className="flex items-center gap-1.5">🎯 <span>Squash</span></div>
         </div>
       </div>
     </div>
