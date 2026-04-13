@@ -63,10 +63,6 @@ const sportIconPaths: Record<string, string> = {
     <line x1="10" y1="22" x2="14" y2="22"/>`,
 };
 
-/** Visual center Y of each sport icon in the 24×24 viewBox — used to vertically center the recognizable part */
-const sportIconCenterY: Record<string, number> = {
-  tennis: 9.5, basketball: 12, padel: 9.5, football: 12, badminton: 13, squash: 9,
-};
 
 const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
@@ -91,35 +87,35 @@ const sportLithuanian: Record<string, string> = {
   football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
 };
 
-/** Build a marker icon URL with embedded SVG sport icon — cached by sport+selected */
+/**
+ * Build a marker icon that matches the filter legend exactly:
+ * colored circle + white sport icon centered at the natural (12,12) origin,
+ * same strokeWidth=2 as the SportIcon components in the filter.
+ */
 function buildIconUrl(color: string, sport: string, isSelected: boolean): string {
-  const size = isSelected ? 44 : 32;
+  const size = isSelected ? 44 : 34;
   const border = isSelected ? 3 : 2;
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - border / 2;
 
-  // Scale the 24×24 icon paths to fill ~70% of the circle diameter,
-  // vertically centered on the sport's visual focal point
-  const iconDiam = r * 2 * 0.70;
-  const iconScale = iconDiam / 24;
+  // Scale icon to occupy ~58% of the total marker diameter (matches filter proportions)
+  const iconPx = size * 0.58;
+  const iconScale = iconPx / 24;
   const tx = (cx - 12 * iconScale).toFixed(3);
-  const centerY = sportIconCenterY[sport] ?? 12;
-  const ty = (cy - centerY * iconScale).toFixed(3);
-  // stroke-width on <g> that results in ~1.5px after the scale transform
-  const sw = (1.5 / iconScale).toFixed(2);
+  const ty = (cy - 12 * iconScale).toFixed(3);
+  // Pre-scale strokeWidth=2 so after the transform it renders as ~2px (matching filter)
+  const sw = (2 / iconScale).toFixed(2);
 
   const paths = sportIconPaths[sport] ?? sportIconPaths["tennis"];
-  const clipId = `mc_${sport}_${isSelected ? "s" : "n"}`;
 
   const shadow = isSelected
-    ? `filter:drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
-    : `filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))`;
+    ? `filter:drop-shadow(0 0 6px ${color}80) drop-shadow(0 4px 10px rgba(0,0,0,0.6))`
+    : `filter:drop-shadow(0 2px 5px rgba(0,0,0,0.45))`;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
-  <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r - 0.5}"/></clipPath></defs>
   <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
-  <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#${clipId})">${paths}</g>
+  <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
 </svg>`;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -132,8 +128,8 @@ function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: 
     cache[sport] = {
       normal: {
         url: buildIconUrl(color, sport, false),
-        scaledSize: new google.maps.Size(32, 32),
-        anchor: new google.maps.Point(16, 16),
+        scaledSize: new google.maps.Size(34, 34),
+        anchor: new google.maps.Point(17, 17),
       },
       selected: {
         url: buildIconUrl(color, sport, true),
