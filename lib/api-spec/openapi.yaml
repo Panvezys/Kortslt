@@ -14,6 +14,8 @@ tags:
     description: Court management
   - name: bookings
     description: Booking management
+  - name: reviews
+    description: Court reviews and ratings
   - name: payments
     description: Payment processing
   - name: stats
@@ -269,6 +271,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+
+  /courts/{id}/reviews:
+    get:
+      operationId: listCourtReviews
+      tags: [reviews]
+      summary: List reviews for a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: createReview
+      tags: [reviews]
+      summary: Submit a review for a court after a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReviewBody"
+      responses:
+        "201":
+          description: Review created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "400":
+          description: Validation error or booking already reviewed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                  - error
+        "404":
+          description: Booking not found or does not match court
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                required:
+                  - error
 
   /payments/create-checkout:
     post:
@@ -646,3 +714,49 @@ components:
         - city
         - bookingCount
         - revenue
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: integer
+        courtId:
+          type: integer
+        bookingId:
+          type: integer
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        reviewText:
+          type: string
+        reviewerName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - courtId
+        - bookingId
+        - rating
+        - reviewerName
+        - createdAt
+
+    CreateReviewBody:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        reviewText:
+          type: string
+        reviewerName:
+          type: string
+      required:
+        - bookingId
+        - rating
+        - reviewerName

@@ -166,6 +166,31 @@ export interface PopularCourt {
   revenue: number;
 }
 
+export interface Review {
+  id: number;
+  courtId: number;
+  bookingId: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  reviewText?: string;
+  reviewerName: string;
+  createdAt: string;
+}
+
+export interface CreateReviewBody {
+  bookingId: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  reviewText?: string;
+  reviewerName: string;
+}
+
 export type ListCourtsParams = {
   type?: ListCourtsType;
   city?: string;
@@ -210,3 +235,11 @@ export const ListBookingsStatus = {
   confirmed: "confirmed",
   cancelled: "cancelled",
 } as const;
+
+export type CreateReview400 = {
+  error: string;
+};
+
+export type CreateReview404 = {
+  error: string;
+};

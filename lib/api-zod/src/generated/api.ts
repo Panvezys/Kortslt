@@ -269,6 +269,42 @@ export const CancelBookingResponse = zod.object({
 });
 
 /**
+ * @summary List reviews for a court
+ */
+export const ListCourtReviewsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const listCourtReviewsResponseRatingMax = 5;
+
+export const ListCourtReviewsResponseItem = zod.object({
+  id: zod.number(),
+  courtId: zod.number(),
+  bookingId: zod.number(),
+  rating: zod.number().min(1).max(listCourtReviewsResponseRatingMax),
+  reviewText: zod.string().optional(),
+  reviewerName: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListCourtReviewsResponse = zod.array(ListCourtReviewsResponseItem);
+
+/**
+ * @summary Submit a review for a court after a booking
+ */
+export const CreateReviewParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createReviewBodyRatingMax = 5;
+
+export const CreateReviewBody = zod.object({
+  bookingId: zod.number(),
+  rating: zod.number().min(1).max(createReviewBodyRatingMax),
+  reviewText: zod.string().optional(),
+  reviewerName: zod.string(),
+});
+
+/**
  * @summary Create a Stripe checkout session
  */
 export const CreateCheckoutSessionBody = zod.object({

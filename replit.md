@@ -35,18 +35,21 @@ A court booking platform for tennis and basketball courts.
 - `artifacts/api-server` — Express 5 API backend (served at `/api`)
 
 ### Features
-- Interactive Leaflet/OpenStreetMap map centered on Lithuania, auto-fits all courts, color-coded by condition
+- Interactive Leaflet/OpenStreetMap map centered on Lithuania, auto-fits all courts, color-coded by type
 - 19 real Lithuanian tennis and basketball courts seeded (Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys)
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
 - List view + interactive map view toggle on the courts browse page
 - Court detail page with availability calendar and booking form
 - Owner dashboard to list and manage courts
-- Booking history for customers
+- Booking history for customers with "Rate" button for confirmed bookings
+- Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
+- Reviews section on court detail page showing all reviews with star display
 - Payment checkout (mock mode — auto-confirmed)
 
 ### Database Tables
 - `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
+- `reviews` — court reviews linked to bookings: rating (1–5), optional text, reviewer name; auto-updates `courts.rating` on insert
 
 ### Court Schema Fields
 - `type`: 'tennis' | 'basketball'

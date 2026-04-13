@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users } from "lucide-react";
+import { MapPin, Users, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
@@ -15,14 +15,35 @@ const surfaceLabels: Record<string, string> = {
   rubber: "Guma",
 };
 
-const conditionStyles: Record<string, { label: string; className: string }> = {
-  excellent: { label: "Puiki", className: "bg-green-100 text-green-700 border-green-200" },
-  good: { label: "Gera", className: "bg-orange-100 text-orange-700 border-orange-200" },
-  fair: { label: "Patenkinama", className: "bg-red-100 text-red-700 border-red-200" },
-};
+function StarRating({ rating, size = "sm" }: { rating?: number; size?: "sm" | "md" }) {
+  const iconSize = size === "sm" ? "h-3 w-3" : "h-4 w-4";
+  if (!rating) {
+    return (
+      <span className="text-[10px] text-muted-foreground italic">Nėra įvertinimų</span>
+    );
+  }
+  const full = Math.floor(rating);
+  const hasHalf = rating - full >= 0.25 && rating - full < 0.75;
+  const empty = 5 - full - (hasHalf ? 1 : 0);
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex">
+        {Array.from({ length: full }).map((_, i) => (
+          <Star key={`f${i}`} className={`${iconSize} fill-yellow-400 text-yellow-400`} />
+        ))}
+        {hasHalf && (
+          <Star key="half" className={`${iconSize} fill-yellow-200 text-yellow-400`} />
+        )}
+        {Array.from({ length: empty }).map((_, i) => (
+          <Star key={`e${i}`} className={`${iconSize} text-muted-foreground/30`} />
+        ))}
+      </div>
+      <span className="text-xs font-semibold text-foreground">{rating.toFixed(1)}</span>
+    </div>
+  );
+}
 
 export function CourtCard({ court }: { court: Court }) {
-  const condStyle = conditionStyles[court.condition] ?? conditionStyles.good;
   const imageSrc = resolveCourtImage(court.imageUrl);
 
   return (
@@ -56,13 +77,11 @@ export function CourtCard({ court }: { court: Court }) {
 
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2 gap-2">
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap items-center">
             <Badge variant={court.type === "tennis" ? "default" : "secondary"} className="capitalize text-xs">
               {court.type === "tennis" ? "🎾 Tenisas" : "🏀 Krepšinis"}
             </Badge>
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${condStyle.className}`}>
-              {condStyle.label}
-            </span>
+            <StarRating rating={court.rating} />
           </div>
           <span className="font-bold text-lg text-primary shrink-0">{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span></span>
         </div>
@@ -79,12 +98,6 @@ export function CourtCard({ court }: { court: Court }) {
             <Users className="h-3 w-3" />
             <span>iki {court.maxPlayers} žaidėjų</span>
           </div>
-          {court.rating && (
-            <div className="flex items-center gap-1">
-              <span>⭐</span>
-              <span>{court.rating.toFixed(1)}</span>
-            </div>
-          )}
         </div>
         {court.amenities && court.amenities.length > 0 && (
           <div className="flex flex-wrap gap-1">
