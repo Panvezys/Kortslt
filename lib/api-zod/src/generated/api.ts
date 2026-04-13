@@ -323,6 +323,12 @@ export const GetPopularCourtsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
   type: zod.string(),
+  city: zod.string(),
+  address: zod.string().optional(),
+  imageUrl: zod.string().optional(),
+  pricePerHour: zod.number().optional(),
+  isIndoor: zod.boolean().optional(),
+  condition: zod.string().optional(),
   bookingCount: zod.number(),
   revenue: zod.number(),
 });

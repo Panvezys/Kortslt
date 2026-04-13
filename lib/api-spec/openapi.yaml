@@ -623,6 +623,18 @@ components:
           type: string
         type:
           type: string
+        city:
+          type: string
+        address:
+          type: string
+        imageUrl:
+          type: string
+        pricePerHour:
+          type: number
+        isIndoor:
+          type: boolean
+        condition:
+          type: string
         bookingCount:
           type: integer
         revenue:
@@ -631,5 +643,6 @@ components:
         - id
         - name
         - type
+        - city
         - bookingCount
         - revenue

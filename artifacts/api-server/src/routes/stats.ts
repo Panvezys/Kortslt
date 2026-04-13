@@ -32,19 +32,41 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       id: courtsTable.id,
       name: courtsTable.name,
       type: courtsTable.type,
+      city: courtsTable.city,
+      address: courtsTable.address,
+      imageUrl: courtsTable.imageUrl,
+      pricePerHour: courtsTable.pricePerHour,
+      isIndoor: courtsTable.isIndoor,
+      condition: courtsTable.condition,
       bookingCount: sql<number>`count(${bookingsTable.id})`,
       revenue: sql<number>`coalesce(sum(${bookingsTable.totalPrice}::numeric), 0)`,
     })
     .from(courtsTable)
     .leftJoin(bookingsTable, eq(courtsTable.id, bookingsTable.courtId))
-    .groupBy(courtsTable.id, courtsTable.name, courtsTable.type)
+    .groupBy(
+      courtsTable.id,
+      courtsTable.name,
+      courtsTable.type,
+      courtsTable.city,
+      courtsTable.address,
+      courtsTable.imageUrl,
+      courtsTable.pricePerHour,
+      courtsTable.isIndoor,
+      courtsTable.condition,
+    )
     .orderBy(desc(sql`count(${bookingsTable.id})`))
-    .limit(5);
+    .limit(6);
 
   res.json(GetPopularCourtsResponse.parse(rows.map(r => ({
     id: r.id,
     name: r.name,
     type: r.type,
+    city: r.city,
+    address: r.address,
+    imageUrl: r.imageUrl ?? undefined,
+    pricePerHour: Number(r.pricePerHour),
+    isIndoor: r.isIndoor,
+    condition: r.condition ?? "good",
     bookingCount: Number(r.bookingCount),
     revenue: Number(r.revenue),
   }))));

@@ -156,6 +156,12 @@ export interface PopularCourt {
   id: number;
   name: string;
   type: string;
+  city: string;
+  address?: string;
+  imageUrl?: string;
+  pricePerHour?: number;
+  isIndoor?: boolean;
+  condition?: string;
   bookingCount: number;
   revenue: number;
 }
