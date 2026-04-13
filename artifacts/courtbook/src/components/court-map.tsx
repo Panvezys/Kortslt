@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from "react";
-import { GoogleMap, useJsApiLoader, OverlayView } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from "@react-google-maps/api";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Link } from "wouter";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -26,8 +26,6 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
 ];
 
-const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [];
-
 const sportEmoji: Record<string, string> = {
   tennis: "🎾", basketball: "🏀", padel: "🏓",
   football: "⚽", badminton: "🏸", squash: "🎯",
@@ -42,171 +40,132 @@ const sportColor: Record<string, string> = {
   squash: "#06b6d4",
 };
 
-function getRatingColor(rating?: number | null): string {
-  if (!rating) return "#94a3b8";
-  if (rating >= 4.5) return "#84cc16";
-  if (rating >= 3.5) return "#22c55e";
-  if (rating >= 2.5) return "#eab308";
-  if (rating >= 1.5) return "#f97316";
-  return "#ef4444";
+const sportLithuanian: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
+};
+
+function createMarkerIcon(
+  color: string,
+  emoji: string,
+  isSelected: boolean
+): google.maps.Icon {
+  const size = isSelected ? 44 : 36;
+  const border = isSelected ? 3 : 2.5;
+  const fontSize = isSelected ? 20 : 16;
+  const shadow = isSelected
+    ? `filter: drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
+    : `filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4))`;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
+  <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - border / 2}" fill="${color}" stroke="white" stroke-width="${border}"/>
+  <text x="${size / 2}" y="${size / 2 + fontSize * 0.35}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}">${emoji}</text>
+</svg>`;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(size, size),
+    anchor: new google.maps.Point(size / 2, size / 2),
+  };
 }
 
-interface CourtMarkerProps {
-  court: Court;
-  isSelected: boolean;
-  onClick: (court: Court) => void;
-}
-
-function CourtMarker({ court, isSelected, onClick }: CourtMarkerProps) {
-  const color = sportColor[court.type] ?? "#84cc16";
-  const emoji = sportEmoji[court.type] ?? "🏟";
-
-  return (
-    <OverlayView
-      position={{ lat: court.latitude, lng: court.longitude }}
-      mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-    >
-      <div
-        onClick={() => onClick(court)}
-        className="cursor-pointer select-none"
-        style={{ transform: "translate(-50%, -50%)" }}
-      >
-        <div
-          style={{
-            background: color,
-            width: isSelected ? "42px" : "34px",
-            height: isSelected ? "42px" : "34px",
-            borderRadius: "50%",
-            border: isSelected ? "3px solid white" : "2.5px solid white",
-            boxShadow: isSelected
-              ? `0 0 0 3px ${color}60, 0 4px 16px rgba(0,0,0,0.5)`
-              : "0 2px 8px rgba(0,0,0,0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: isSelected ? "18px" : "14px",
-            transition: "all 0.18s ease",
-          }}
-        >
-          {emoji}
-        </div>
-        {isSelected && (
-          <div
-            style={{
-              width: "10px",
-              height: "10px",
-              background: color,
-              borderRadius: "50%",
-              margin: "2px auto 0",
-              opacity: 0.6,
-            }}
-          />
-        )}
-      </div>
-    </OverlayView>
-  );
-}
-
-interface CourtPopupProps {
+interface CourtInfoWindowProps {
   court: Court;
   onClose: () => void;
 }
 
-function CourtPopup({ court, onClose }: CourtPopupProps) {
+function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
   const color = sportColor[court.type] ?? "#84cc16";
+  const emoji = sportEmoji[court.type] ?? "🏟";
   const img = resolveCourtImage(court.imageUrl);
 
   return (
-    <OverlayView
+    <InfoWindowF
       position={{ lat: court.latitude, lng: court.longitude }}
-      mapPaneName={OverlayView.FLOAT_PANE}
+      onCloseClick={onClose}
+      options={{
+        pixelOffset: new google.maps.Size(0, -20),
+        disableAutoPan: false,
+      }}
     >
       <div
-        style={{ transform: "translate(-50%, -110%)", marginTop: "-14px" }}
-        className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden w-52 z-50"
-        onClick={(e) => e.stopPropagation()}
+        className="overflow-hidden rounded-lg"
+        style={{ width: "200px", fontFamily: "inherit", background: "hsl(224 71% 4%)", color: "white" }}
       >
         {img && (
-          <div className="w-full h-28 overflow-hidden">
-            <img src={img} alt={court.name} className="w-full h-full object-cover" />
+          <div style={{ width: "100%", height: "100px", overflow: "hidden" }}>
+            <img
+              src={img}
+              alt={court.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
           </div>
         )}
-        <div className="p-3 space-y-2">
-          <div className="flex items-start justify-between gap-1">
-            <div className="font-bold text-sm leading-tight">{court.name}</div>
-            <button
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground text-lg leading-none ml-1 shrink-0"
-            >
-              ×
-            </button>
+        <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          <div style={{ fontWeight: 700, fontSize: "13px", lineHeight: "1.3", color: "white" }}>
+            {court.name}
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="w-3 h-3" />
-            {court.city}
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#9ca3af" }}>
+            <span>📍</span>
+            <span>{court.city}</span>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
             <span
-              className="px-2 py-0.5 rounded-full text-xs font-semibold text-white"
-              style={{ background: color }}
+              style={{
+                background: color,
+                color: "black",
+                padding: "2px 8px",
+                borderRadius: "999px",
+                fontSize: "11px",
+                fontWeight: 600,
+              }}
             >
-              {sportEmoji[court.type]} {court.type}
+              {emoji} {sportLithuanian[court.type] ?? court.type}
             </span>
             {court.isIndoor && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-secondary text-secondary-foreground">
+              <span
+                style={{
+                  background: "#374151",
+                  color: "#d1d5db",
+                  padding: "2px 8px",
+                  borderRadius: "999px",
+                  fontSize: "11px",
+                }}
+              >
                 Indoor
               </span>
             )}
           </div>
           {court.rating ? (
-            <div className="flex items-center gap-1 text-xs">
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              <span className="font-bold">{court.rating.toFixed(1)}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px" }}>
+              <span style={{ color: "#facc15" }}>★</span>
+              <span style={{ fontWeight: 700, color: "white" }}>{court.rating.toFixed(1)}</span>
             </div>
           ) : null}
-          <div className="flex items-center justify-between pt-1">
-            <span className="font-bold" style={{ color }}>
-              {court.pricePerHour}€<span className="text-muted-foreground text-xs font-normal">/val</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "2px" }}>
+            <span style={{ fontWeight: 700, color, fontSize: "14px" }}>
+              {court.pricePerHour}€
+              <span style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
-            <Link href={`/courts/${court.id}`}>
-              <span
-                className="text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer text-black"
-                style={{ background: color }}
-              >
-                Rezervuoti
-              </span>
-            </Link>
+            <a
+              href={`/courts/${court.id}`}
+              style={{
+                background: color,
+                color: "black",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "11px",
+                fontWeight: 700,
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              Rezervuoti
+            </a>
           </div>
         </div>
-        {/* Arrow */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-7px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 0,
-            height: 0,
-            borderLeft: "8px solid transparent",
-            borderRight: "8px solid transparent",
-            borderTop: "8px solid var(--border)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-5px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 0,
-            height: 0,
-            borderLeft: "7px solid transparent",
-            borderRight: "7px solid transparent",
-            borderTop: "7px solid hsl(var(--card))",
-          }}
-        />
       </div>
-    </OverlayView>
+    </InfoWindowF>
   );
 }
 
@@ -223,35 +182,28 @@ export function CourtMap({ courts }: { courts: Court[] }) {
     libraries: LIBRARIES,
   });
 
-  const onLoad = useCallback((map: google.maps.Map) => {
-    mapRef.current = map;
-
-    if (courts.length === 0) {
+  const fitBounds = useCallback((map: google.maps.Map, list: Court[]) => {
+    if (list.length === 0) {
       map.setCenter(LITHUANIA_CENTER);
       map.setZoom(7);
-      return;
-    }
-    if (courts.length === 1) {
-      map.setCenter({ lat: courts[0].latitude, lng: courts[0].longitude });
+    } else if (list.length === 1) {
+      map.setCenter({ lat: list[0].latitude, lng: list[0].longitude });
       map.setZoom(13);
-      return;
+    } else {
+      const bounds = new google.maps.LatLngBounds();
+      list.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
+      map.fitBounds(bounds, 60);
     }
-    const bounds = new google.maps.LatLngBounds();
-    courts.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
-    map.fitBounds(bounds, 60);
-  }, [courts]);
+  }, []);
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+    fitBounds(map, courts);
+  }, [courts, fitBounds]);
 
   useEffect(() => {
-    if (!mapRef.current || courts.length === 0) return;
-    if (courts.length === 1) {
-      mapRef.current.setCenter({ lat: courts[0].latitude, lng: courts[0].longitude });
-      mapRef.current.setZoom(13);
-      return;
-    }
-    const bounds = new google.maps.LatLngBounds();
-    courts.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
-    mapRef.current.fitBounds(bounds, 60);
-  }, [courts]);
+    if (mapRef.current) fitBounds(mapRef.current, courts);
+  }, [courts, fitBounds]);
 
   if (loadError || !API_KEY) {
     return (
@@ -297,23 +249,33 @@ export function CourtMap({ courts }: { courts: Court[] }) {
           gestureHandling: "greedy",
         }}
       >
-        {courts.map((court) => (
-          <CourtMarker
-            key={court.id}
-            court={court}
-            isSelected={selectedCourt?.id === court.id}
-            onClick={(c) => setSelectedCourt(prev => prev?.id === c.id ? null : c)}
-          />
-        ))}
+        {courts.map((court) => {
+          const color = sportColor[court.type] ?? "#84cc16";
+          const emoji = sportEmoji[court.type] ?? "🏟";
+          const isSelected = selectedCourt?.id === court.id;
+
+          return (
+            <MarkerF
+              key={court.id}
+              position={{ lat: court.latitude, lng: court.longitude }}
+              icon={createMarkerIcon(color, emoji, isSelected)}
+              onClick={() =>
+                setSelectedCourt(prev => (prev?.id === court.id ? null : court))
+              }
+              zIndex={isSelected ? 999 : 1}
+            />
+          );
+        })}
+
         {selectedCourt && (
-          <CourtPopup
+          <CourtInfoWindow
             court={selectedCourt}
             onClose={() => setSelectedCourt(null)}
           />
         )}
       </GoogleMap>
 
-      {/* Map/Satellite toggle */}
+      {/* Map / Satellite toggle */}
       <div className="absolute top-3 left-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
         <button
           onClick={() => setMapType("roadmap")}
@@ -339,26 +301,18 @@ export function CourtMap({ courts }: { courts: Court[] }) {
 
       {/* Legend */}
       <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-lg p-3 text-xs shadow-lg space-y-1.5">
-        <div className="font-semibold text-xs mb-2 text-muted-foreground uppercase tracking-wide">Įvertinimas</div>
-        {[
-          { color: "#84cc16", label: "4.5 – 5.0 ★★★★★" },
-          { color: "#22c55e", label: "3.5 – 4.4 ★★★★" },
-          { color: "#eab308", label: "2.5 – 3.4 ★★★" },
-          { color: "#f97316", label: "1.5 – 2.4 ★★" },
-          { color: "#94a3b8", label: "Nėra įvertinimų" },
-        ].map(({ color, label }) => (
-          <div key={label} className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: color }} />
-            <span>{label}</span>
+        <div className="font-semibold text-xs mb-2 text-muted-foreground uppercase tracking-wide">Sporto aikštelės</div>
+        {Object.entries(sportEmoji).map(([sport, emoji]) => (
+          <div key={sport} className="flex items-center gap-2">
+            <div
+              className="w-5 h-5 rounded-full border-2 border-white shadow-sm flex items-center justify-center text-xs"
+              style={{ background: sportColor[sport] }}
+            >
+              <span style={{ fontSize: "10px" }}>{emoji}</span>
+            </div>
+            <span>{sportLithuanian[sport]}</span>
           </div>
         ))}
-        <div className="border-t border-border pt-2 mt-1 space-y-1">
-          {Object.entries(sportEmoji).map(([sport, emoji]) => (
-            <div key={sport} className="flex items-center gap-1.5">
-              {emoji} <span className="capitalize">{sport === "football" ? "Futbolas" : sport === "tennis" ? "Tenisas" : sport === "basketball" ? "Krepšinis" : sport === "padel" ? "Padelis" : sport === "badminton" ? "Badmintonas" : "Squash"}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
