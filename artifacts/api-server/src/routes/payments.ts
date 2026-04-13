@@ -146,7 +146,15 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
   }
 
   const rows = await db
-    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: courtsTable.address,
+      courtCity: courtsTable.city,
+      courtPhone: courtsTable.phone,
+      courtImageUrl: courtsTable.imageUrl,
+    })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .where(eq(bookingsTable.id, bookingId));
@@ -171,6 +179,11 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     customerName: booking.customerName,
     customerEmail: booking.customerEmail,
     courtName: rows[0].courtName ?? "Kortas",
+    courtId: rows[0].courtId ?? 0,
+    courtAddress: rows[0].courtAddress ?? "",
+    courtCity: rows[0].courtCity ?? "",
+    courtPhone: rows[0].courtPhone ?? undefined,
+    courtImageUrl: rows[0].courtImageUrl ?? undefined,
     date: booking.date,
     startTime: booking.startTime,
     endTime: booking.endTime,

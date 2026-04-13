@@ -122,4 +122,62 @@ router.delete("/bookings/:id", async (req, res): Promise<void> => {
   res.json(CancelBookingResponse.parse(formatBooking(booking)));
 });
 
+router.get("/bookings/:id/ics", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).send("Invalid booking id");
+    return;
+  }
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: courtsTable.address,
+      courtCity: courtsTable.city,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(eq(bookingsTable.id, id));
+
+  if (!rows[0]) {
+    res.status(404).send("Booking not found");
+    return;
+  }
+
+  const { booking, courtName, courtId, courtAddress, courtCity } = rows[0];
+  const siteUrl = process.env.SITE_URL || "https://korts.lt";
+
+  function icsDateTime(date: string, time: string): string {
+    return date.replace(/-/g, "") + "T" + time.slice(0, 5).replace(":", "") + "00";
+  }
+
+  const now = new Date();
+  const dtstamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//korts.lt//Court Booking//LT",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:booking-${booking.id}@korts.lt`,
+    `DTSTAMP:${dtstamp}`,
+    `DTSTART;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.startTime)}`,
+    `DTEND;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.endTime)}`,
+    `SUMMARY:Korto rezervacija – ${courtName ?? "Kortas"}`,
+    `DESCRIPTION:Rezervacija #${booking.id} per korts.lt\\n${siteUrl}/courts/${courtId}`,
+    `LOCATION:${courtAddress ?? ""}, ${courtCity ?? ""}, Lietuva`,
+    `URL:${siteUrl}/courts/${courtId}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="booking-${booking.id}.ics"`);
+  res.send(ics);
+});
+
 export default router;
