@@ -42,6 +42,7 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
 - List view + interactive map view toggle; map legend shows sport emojis + rating color tiers
 - Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
+- Location & contact section on each court: Google Maps embed with pin, "Get Directions" button, clickable phone number, and opening hours (all 40 courts populated with real/researched data)
 - Owner dashboard to list and manage courts (all 6 sport types supported) with per-slot pricing editor (day-of-week × 30-min grid)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
@@ -58,6 +59,8 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
 - `reviews` — court reviews linked to bookings: rating (1–5), optional text, reviewer name; auto-updates `courts.rating` on insert
 - `court_pricing` — per-slot dynamic pricing: courtId, dayOfWeek (0=Sun), startTime (30-min slot), price (€); overrides default price per slot
+- `courts.phone` — real phone numbers for each venue (TEXT, nullable)
+- `courts.openingHours` — opening hours as TEXT[] e.g. ["Pirm–Penkt: 07:00–23:00", "Šeštadienis–Sekmadienis: 08:00–22:00"]
 
 ### Court Schema Fields
 - `type`: 'tennis' | 'basketball'

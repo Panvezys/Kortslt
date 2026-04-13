@@ -56,6 +56,8 @@ export const ListCourtsResponseItem = zod.object({
   condition: zod.enum(["excellent", "good", "fair"]),
   rating: zod.number().optional(),
   totalBookings: zod.number().optional(),
+  phone: zod.string().optional(),
+  openingHours: zod.array(zod.string()).optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -123,6 +125,8 @@ export const GetCourtResponse = zod.object({
   condition: zod.enum(["excellent", "good", "fair"]),
   rating: zod.number().optional(),
   totalBookings: zod.number().optional(),
+  phone: zod.string().optional(),
+  openingHours: zod.array(zod.string()).optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -186,6 +190,8 @@ export const UpdateCourtResponse = zod.object({
   condition: zod.enum(["excellent", "good", "fair"]),
   rating: zod.number().optional(),
   totalBookings: zod.number().optional(),
+  phone: zod.string().optional(),
+  openingHours: zod.array(zod.string()).optional(),
   createdAt: zod.coerce.date(),
 });
 

@@ -22,6 +22,8 @@ export const courtsTable = pgTable("courts", {
   condition: text("condition").notNull().default("good"), // 'excellent' | 'good' | 'fair'
   rating: real("rating"),
   totalBookings: integer("total_bookings").notNull().default(0),
+  phone: text("phone"),
+  openingHours: text("opening_hours").array(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

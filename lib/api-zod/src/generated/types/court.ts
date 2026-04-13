@@ -28,5 +28,7 @@ export interface Court {
   condition: CourtCondition;
   rating?: number;
   totalBookings?: number;
+  phone?: string;
+  openingHours?: string[];
   createdAt: Date;
 }

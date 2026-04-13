@@ -500,6 +500,12 @@ components:
           type: number
         totalBookings:
           type: integer
+        phone:
+          type: string
+        openingHours:
+          type: array
+          items:
+            type: string
         createdAt:
           type: string
           format: date-time

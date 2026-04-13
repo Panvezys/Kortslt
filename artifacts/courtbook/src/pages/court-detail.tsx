@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { z } from "zod";
@@ -252,6 +252,94 @@ export default function CourtDetail() {
                 </div>
               </div>
             )}
+
+            <Separator />
+
+            {/* Location & Contact */}
+            <div className="space-y-5">
+              <h2 className="text-2xl font-semibold">Vieta ir kontaktai</h2>
+
+              {/* Map embed */}
+              <div className="rounded-xl overflow-hidden border h-56 w-full relative group">
+                <iframe
+                  title="Korto vieta"
+                  src={`https://maps.google.com/maps?q=${court.latitude},${court.longitude}&hl=lt&z=15&output=embed`}
+                  className="w-full h-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${court.latitude},${court.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-3 right-3 bg-white text-zinc-900 text-xs font-semibold px-3 py-2 rounded-lg shadow-md flex items-center gap-1.5 hover:bg-primary hover:text-white transition-all"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Gauti kryptis
+                </a>
+              </div>
+
+              {/* Contact info grid */}
+              <div className="grid sm:grid-cols-2 gap-4">
+
+                {/* Address card */}
+                <div className="flex gap-3 p-4 bg-muted/30 rounded-xl border">
+                  <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium mb-0.5">Adresas</p>
+                    <p className="font-semibold text-sm">{court.address}</p>
+                    <p className="text-sm text-muted-foreground">{court.city}, Lietuva</p>
+                    <a
+                      href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                    >
+                      Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Phone card */}
+                {court.phone && (
+                  <div className="flex gap-3 p-4 bg-muted/30 rounded-xl border">
+                    <Phone className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium mb-0.5">Telefonas</p>
+                      <a
+                        href={`tel:${court.phone}`}
+                        className="font-semibold text-sm hover:text-primary transition-colors"
+                      >
+                        {court.phone}
+                      </a>
+                      <p className="text-xs text-muted-foreground mt-0.5">Spustelėkite, kad paskambintumėte</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Opening hours card */}
+                {court.openingHours && court.openingHours.length > 0 && (
+                  <div className={`flex gap-3 p-4 bg-muted/30 rounded-xl border ${!court.phone ? "sm:col-span-2" : ""}`}>
+                    <Clock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground font-medium mb-2">Darbo laikas</p>
+                      <div className="space-y-1">
+                        {court.openingHours.map((line, i) => {
+                          const [days, hours] = line.split(": ");
+                          return (
+                            <div key={i} className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">{days}</span>
+                              <span className="font-semibold tabular-nums">{hours}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </div>
 
             <Separator />
 
