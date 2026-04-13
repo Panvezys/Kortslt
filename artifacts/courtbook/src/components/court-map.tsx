@@ -5,9 +5,68 @@ import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { MapPin } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
+// sportAbbr kept for InfoWindow display
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+
+/** SVG inner paths for each sport (24×24 viewBox, matching sport-icon.tsx) */
+const sportIconPaths: Record<string, string> = {
+  tennis: `
+    <ellipse cx="11.5" cy="9.5" rx="7" ry="7.5"/>
+    <line x1="11.5" y1="2" x2="11.5" y2="17" stroke-width="1.6"/>
+    <line x1="4.5" y1="9.5" x2="18.5" y2="9.5" stroke-width="1.6"/>
+    <line x1="5.5" y1="6" x2="17.5" y2="6" stroke-width="0.9"/>
+    <line x1="5.5" y1="13" x2="17.5" y2="13" stroke-width="0.9"/>
+    <line x1="8" y1="2.5" x2="8" y2="16.5" stroke-width="0.9"/>
+    <line x1="15" y1="2.5" x2="15" y2="16.5" stroke-width="0.9"/>
+    <line x1="11.5" y1="17" x2="14" y2="23"/>`,
+  basketball: `
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M12 2 C9 6 9 18 12 22"/>
+    <path d="M12 2 C15 6 15 18 12 22"/>
+    <path d="M2 11.5 Q7 9.5 12 11.5 Q17 9.5 22 11.5"/>`,
+  padel: `
+    <rect x="5" y="2" width="14" height="15" rx="3.5"/>
+    <line x1="5" y1="7.5" x2="19" y2="7.5" stroke-width="0.9"/>
+    <line x1="5" y1="11.5" x2="19" y2="11.5" stroke-width="0.9"/>
+    <line x1="5" y1="14" x2="19" y2="14" stroke-width="0.9"/>
+    <line x1="9.5" y1="2" x2="9.5" y2="17" stroke-width="0.9"/>
+    <line x1="14.5" y1="2" x2="14.5" y2="17" stroke-width="0.9"/>
+    <line x1="12" y1="17" x2="12" y2="23"/>
+    <line x1="10" y1="23" x2="14" y2="23"/>`,
+  football: `
+    <circle cx="12" cy="12" r="10"/>
+    <polygon points="12,7.5 15,10 14,13.5 10,13.5 9,10" fill="rgba(255,255,255,0.25)" stroke="white" stroke-width="1.6"/>
+    <line x1="12" y1="2" x2="12" y2="7.5"/>
+    <line x1="15" y1="10" x2="20.5" y2="8.5"/>
+    <line x1="14" y1="13.5" x2="18" y2="17.5"/>
+    <line x1="10" y1="13.5" x2="6" y2="17.5"/>
+    <line x1="9" y1="10" x2="3.5" y2="8.5"/>`,
+  badminton: `
+    <circle cx="12" cy="20.5" r="1.8"/>
+    <line x1="12" y1="18.7" x2="5" y2="8"/>
+    <line x1="12" y1="18.7" x2="12" y2="5"/>
+    <line x1="12" y1="18.7" x2="19" y2="8"/>
+    <line x1="12" y1="18.7" x2="7.5" y2="6"/>
+    <line x1="12" y1="18.7" x2="16.5" y2="6"/>
+    <path d="M5 8 Q8.5 4.5 12 5 Q15.5 4.5 19 8"/>`,
+  squash: `
+    <circle cx="12" cy="9" r="6.5"/>
+    <line x1="12" y1="2.5" x2="12" y2="15.5"/>
+    <line x1="5.5" y1="9" x2="18.5" y2="9"/>
+    <line x1="7.5" y1="4.5" x2="7.5" y2="13.5" stroke-width="0.9"/>
+    <line x1="16.5" y1="4.5" x2="16.5" y2="13.5" stroke-width="0.9"/>
+    <line x1="6.5" y1="6.5" x2="17.5" y2="6.5" stroke-width="0.9"/>
+    <line x1="6.5" y1="11.5" x2="17.5" y2="11.5" stroke-width="0.9"/>
+    <line x1="12" y1="15.5" x2="12" y2="22"/>
+    <line x1="10" y1="22" x2="14" y2="22"/>`,
+};
+
+/** Visual center Y of each sport icon in the 24×24 viewBox — used to vertically center the recognizable part */
+const sportIconCenterY: Record<string, number> = {
+  tennis: 9.5, basketball: 12, padel: 9.5, football: 12, badminton: 13, squash: 9,
+};
 
 const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
@@ -32,18 +91,37 @@ const sportLithuanian: Record<string, string> = {
   football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
 };
 
-/** Build a marker icon URL — cached by sport+selected key, never recreated */
-function buildIconUrl(color: string, abbr: string, isSelected: boolean): string {
+/** Build a marker icon URL with embedded SVG sport icon — cached by sport+selected */
+function buildIconUrl(color: string, sport: string, isSelected: boolean): string {
   const size = isSelected ? 44 : 32;
   const border = isSelected ? 3 : 2;
-  const fontSize = isSelected ? 11 : 9;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - border / 2;
+
+  // Scale the 24×24 icon paths to fill ~70% of the circle diameter,
+  // vertically centered on the sport's visual focal point
+  const iconDiam = r * 2 * 0.70;
+  const iconScale = iconDiam / 24;
+  const tx = (cx - 12 * iconScale).toFixed(3);
+  const centerY = sportIconCenterY[sport] ?? 12;
+  const ty = (cy - centerY * iconScale).toFixed(3);
+  // stroke-width on <g> that results in ~1.5px after the scale transform
+  const sw = (1.5 / iconScale).toFixed(2);
+
+  const paths = sportIconPaths[sport] ?? sportIconPaths["tennis"];
+  const clipId = `mc_${sport}_${isSelected ? "s" : "n"}`;
+
   const shadow = isSelected
-    ? `filter: drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
-    : `filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4))`;
+    ? `filter:drop-shadow(0 0 6px ${color}80) drop-shadow(0 3px 8px rgba(0,0,0,0.5))`
+    : `filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))`;
+
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
-  <circle cx="${size/2}" cy="${size/2}" r="${size/2-border/2}" fill="${color}" stroke="white" stroke-width="${border}"/>
-  <text x="${size/2}" y="${size/2+fontSize*0.4}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}" font-weight="700" font-family="system-ui,sans-serif" fill="white" letter-spacing="0.5">${abbr}</text>
+  <defs><clipPath id="${clipId}"><circle cx="${cx}" cy="${cy}" r="${r - 0.5}"/></clipPath></defs>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
+  <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#${clipId})">${paths}</g>
 </svg>`;
+
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -51,15 +129,14 @@ function buildIconUrl(color: string, abbr: string, isSelected: boolean): string 
 function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: google.maps.Icon }> {
   const cache: Record<string, { normal: google.maps.Icon; selected: google.maps.Icon }> = {};
   for (const [sport, color] of Object.entries(SPORT_COLOR)) {
-    const abbr = sportAbbr[sport] ?? sport.slice(0, 2).toUpperCase();
     cache[sport] = {
       normal: {
-        url: buildIconUrl(color, abbr, false),
+        url: buildIconUrl(color, sport, false),
         scaledSize: new google.maps.Size(32, 32),
         anchor: new google.maps.Point(16, 16),
       },
       selected: {
-        url: buildIconUrl(color, abbr, true),
+        url: buildIconUrl(color, sport, true),
         scaledSize: new google.maps.Size(44, 44),
         anchor: new google.maps.Point(22, 22),
       },
