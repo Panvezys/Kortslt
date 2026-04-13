@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { CreateCourtBodyType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { LocationPicker } from "@/components/location-picker";
+import { CourtImageUpload } from "@/components/court-image-upload";
 
 const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
@@ -244,8 +245,14 @@ export default function OwnerDashboard() {
 
                   <FormField control={form.control} name="imageUrl" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Image URL (Optional)</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormLabel>Korto nuotrauka</FormLabel>
+                      <FormControl>
+                        <CourtImageUpload
+                          value={field.value}
+                          onChange={(path) => form.setValue("imageUrl", path)}
+                          onClear={() => form.setValue("imageUrl", "")}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
