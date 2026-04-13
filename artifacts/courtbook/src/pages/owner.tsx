@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { CreateCourtBodyType } from "@workspace/api-client-react/src/generated/api.schemas";
+import { LocationPicker } from "@/components/location-picker";
 
 const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
@@ -39,6 +40,7 @@ type CourtFormValues = z.infer<typeof courtSchema>;
 export default function OwnerDashboard() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [mapKey, setMapKey] = useState(0);
 
   const { data: courts, isLoading } = useListCourts();
   const createCourt = useCreateCourt();
@@ -67,6 +69,9 @@ export default function OwnerDashboard() {
     }
   });
 
+  const watchedLat = form.watch("latitude") ?? 0;
+  const watchedLng = form.watch("longitude") ?? 0;
+
   const onSubmit = async (data: CourtFormValues) => {
     try {
       if (editingId) {
@@ -85,6 +90,7 @@ export default function OwnerDashboard() {
 
   const handleEdit = (court: any) => {
     setEditingId(court.id);
+    setMapKey(k => k + 1);
     form.reset({
       name: court.name,
       type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash",
@@ -125,12 +131,13 @@ export default function OwnerDashboard() {
           
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
-            if (!open) setEditingId(null);
+            if (!open) { setEditingId(null); setMapKey(k => k + 1); }
           }}>
             <DialogTrigger asChild>
               <Button onClick={() => {
                 setEditingId(null);
                 form.reset();
+                setMapKey(k => k + 1);
               }}>
                 <Plus className="w-4 h-4 mr-2" /> Add Court
               </Button>
@@ -172,33 +179,47 @@ export default function OwnerDashboard() {
                     )} />
                   </div>
 
-                  <FormField control={form.control} name="address" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <FormField control={form.control} name="city" render={({ field }) => (
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="address" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>City</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormLabel>Adresas</FormLabel>
+                        <FormControl><Input placeholder="Gatvė, nr." {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
+                    <FormField control={form.control} name="city" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Miestas</FormLabel>
+                        <FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <LocationPicker
+                    key={mapKey}
+                    latitude={Number(watchedLat) || 0}
+                    longitude={Number(watchedLng) || 0}
+                    onChange={(lat, lng, city, address) => {
+                      form.setValue("latitude", lat, { shouldValidate: true });
+                      form.setValue("longitude", lng, { shouldValidate: true });
+                      if (city) form.setValue("city", city, { shouldValidate: true });
+                      if (address) form.setValue("address", address, { shouldValidate: true });
+                    }}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="latitude" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                        <FormLabel className="text-xs text-muted-foreground">Platuma (auto)</FormLabel>
+                        <FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="longitude" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl><Input type="number" step="any" {...field} /></FormControl>
+                        <FormLabel className="text-xs text-muted-foreground">Ilguma (auto)</FormLabel>
+                        <FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
