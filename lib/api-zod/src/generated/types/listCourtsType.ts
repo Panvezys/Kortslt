@@ -16,4 +16,8 @@ export const ListCourtsType = {
   football: "football",
   badminton: "badminton",
   squash: "squash",
+  table_tennis: "table_tennis",
+  golf: "golf",
+  snooker: "snooker",
+  bowling: "bowling",
 } as const;

@@ -11,6 +11,7 @@ export type CreateCourtBodyCondition =
 
 export const CreateCourtBodyCondition = {
   excellent: "excellent",
+  very_good: "very_good",
   good: "good",
   fair: "fair",
 } as const;
