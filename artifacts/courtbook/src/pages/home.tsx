@@ -30,6 +30,28 @@ const HERO_IMAGES = [
 
 type PopularCourt = { id: number; name: string; type: string; city: string; imageUrl?: string | null; rating?: number | null; pricePerHour?: number | string | null };
 
+function StarRatingSmall({ rating }: { rating?: number | null }) {
+  const t = useT();
+  if (!rating) return <span className="text-[10px] text-muted-foreground italic">{t("detail.noReviews")}</span>;
+  const full = Math.floor(rating);
+  const hasHalf = rating - full >= 0.25 && rating - full < 0.75;
+  const empty = 5 - full - (hasHalf ? 1 : 0);
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex">
+        {Array.from({ length: full }).map((_, i) => (
+          <span key={`f${i}`} className="text-yellow-400 text-[11px] leading-none">★</span>
+        ))}
+        {hasHalf && <span className="text-yellow-300 text-[11px] leading-none">★</span>}
+        {Array.from({ length: empty }).map((_, i) => (
+          <span key={`e${i}`} className="text-muted-foreground/30 text-[11px] leading-none">★</span>
+        ))}
+      </div>
+      <span className="text-xs font-semibold text-foreground">{rating.toFixed(1)}</span>
+    </div>
+  );
+}
+
 function PopularCourtCard({ court }: { court: PopularCourt }) {
   const t = useT();
   const [hovered, setHovered] = useState(false);
@@ -43,12 +65,13 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
   return (
     <Link href={`/courts/${court.id}`}>
       <Card
-        className="h-full transition-all duration-200 group cursor-pointer overflow-hidden hover:shadow-lg"
+        className="h-full flex flex-col transition-colors duration-200 group cursor-pointer overflow-hidden"
         style={{ borderColor: hovered ? color : undefined }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <div className="w-full h-44 overflow-hidden bg-muted relative">
+        {/* Image area */}
+        <div className="w-full h-48 overflow-hidden bg-muted relative shrink-0">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -63,50 +86,51 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
               <SportIcon sport={court.type} size={40} style={{ color }} />
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          <div className="absolute top-2 left-2">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white capitalize" style={{ background: color }}>
-              <SportIcon sport={court.type} size={10} strokeWidth={2.2} />
-              {sportLabel}
-            </span>
-          </div>
-          {court.rating ? (
-            <div className="absolute top-2 right-2">
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm flex items-center gap-1">
-                <span className="text-yellow-400">★</span>
-                {court.rating.toFixed(1)}
-              </span>
-            </div>
-          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
         </div>
+
+        {/* Header — badge + stars + price */}
         <CardHeader className="pb-2">
+          <div className="flex justify-between items-start mb-2 gap-2">
+            <div className="flex gap-1.5 flex-wrap items-center">
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
+                style={{ background: color }}
+              >
+                <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
+                {sportLabel}
+              </span>
+              <StarRatingSmall rating={court.rating} />
+            </div>
+            {court.pricePerHour && (
+              <span
+                className="font-bold text-lg shrink-0 transition-colors duration-200"
+                style={{ color: hovered ? color : undefined }}
+              >
+                {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
+              </span>
+            )}
+          </div>
           <CardTitle
-            className="transition-colors duration-200 text-base line-clamp-1"
+            className="transition-colors duration-200 line-clamp-1 text-base"
             style={{ color: hovered ? color : undefined }}
           >
             {court.name}
           </CardTitle>
-          <div className="flex items-center text-xs text-muted-foreground">
+          <div className="flex items-center text-xs text-muted-foreground mt-0.5">
             <MapPin className="h-3 w-3 mr-1 shrink-0" />
             <span className="truncate">{court.city}</span>
-            {court.pricePerHour && (
-              <span
-                className="ml-auto font-semibold transition-colors duration-200"
-                style={{ color: hovered ? color : undefined }}
-              >
-                {court.pricePerHour}€<span className="font-normal text-muted-foreground">{t("card.perHour")}</span>
-              </span>
-            )}
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
+
+        {/* Footer button */}
+        <CardContent className="pt-0 mt-auto">
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
             className="w-full transition-colors duration-200"
             style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff" } : undefined}
           >
-            {t("home.popular.bookNow")}
+            {t("card.viewBook")}
           </Button>
         </CardContent>
       </Card>
@@ -389,7 +413,9 @@ export default function Home() {
             {popularLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
             ) : Array.isArray(popularCourts) ? (
-              popularCourts.map(court => (
+              [...popularCourts]
+                .sort((a, b) => (b.imageUrl ? 1 : 0) - (a.imageUrl ? 1 : 0))
+                .map(court => (
                 <PopularCourtCard key={court.id} court={court} />
               ))
             ) : null}
