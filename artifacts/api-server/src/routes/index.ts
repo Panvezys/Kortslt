@@ -14,6 +14,8 @@ import coachesRouter from "./coaches";
 import messagesRouter from "./messages";
 import notificationsRouter from "./notifications";
 import courtPhotosRouter from "./court-photos";
+import trainersRouter from "./trainers";
+import tournamentsRouter from "./tournaments";
 
 const router: IRouter = Router();
 
@@ -32,5 +34,7 @@ router.use(coachesRouter);
 router.use(messagesRouter);
 router.use(notificationsRouter);
 router.use(courtPhotosRouter);
+router.use(trainersRouter);
+router.use(tournamentsRouter);
 
 export default router;

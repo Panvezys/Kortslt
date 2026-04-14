@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell } from "lucide-react";
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
@@ -240,6 +240,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link href="/courts" className="transition-colors hover:text-primary">
                 {t("nav.findCourts")}
               </Link>
+              <Link href="/trainers" className="transition-colors hover:text-primary flex items-center gap-1.5">
+                <Dumbbell className="w-3.5 h-3.5" />
+                Treneriai
+              </Link>
+              <Link href="/tournaments" className="transition-colors hover:text-primary flex items-center gap-1.5">
+                <Trophy className="w-3.5 h-3.5" />
+                Turnyrai
+              </Link>
               <Show when="signed-in">
                 <NavRoleLinks />
               </Show>
@@ -284,6 +292,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {t("nav.findCourts")}
+              </Link>
+              <Link href="/trainers" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
+                <Dumbbell className="w-3.5 h-3.5" />
+                Treneriai
+              </Link>
+              <Link href="/tournaments" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
+                <Trophy className="w-3.5 h-3.5" />
+                Turnyrai
               </Link>
               <Show when="signed-in">
                 <NavRoleLinks onClick={() => setMobileMenuOpen(false)} />

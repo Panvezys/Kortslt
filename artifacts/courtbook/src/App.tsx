@@ -21,6 +21,10 @@ import AdminDashboard from "@/pages/admin";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import CoachPage from "@/pages/coach";
+import TrainersPage from "@/pages/trainers";
+import TrainerDetail from "@/pages/trainer-detail";
+import TournamentsPage from "@/pages/tournaments";
+import TournamentDetail from "@/pages/tournament-detail";
 
 const queryClient = new QueryClient();
 
@@ -140,6 +144,10 @@ function Router() {
       <Route path="/payment-cancel" component={PaymentCancel} />
       <Route path="/coach/me" component={CoachPage} />
       <Route path="/coach/:id" component={CoachPage} />
+      <Route path="/trainers" component={TrainersPage} />
+      <Route path="/trainers/:id" component={TrainerDetail} />
+      <Route path="/tournaments" component={TournamentsPage} />
+      <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

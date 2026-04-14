@@ -9,3 +9,5 @@ export * from "./coaches";
 export * from "./messages";
 export * from "./notifications";
 export * from "./court-photos";
+export * from "./trainers";
+export * from "./tournaments";
