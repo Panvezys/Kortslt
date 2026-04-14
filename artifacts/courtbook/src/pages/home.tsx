@@ -219,9 +219,11 @@ export default function Home() {
                   { count: stats.basketballCourts ?? 0,                                                                                                    label: t("sports.basketball"),         sport: "basketball",   href: "/courts?type=basketball" },
                   { count: stats.padelCourts ?? 0,                                                                                                         label: t("sports.padel"),              sport: "padel",        href: "/courts?type=padel" },
                   { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0),                              label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
-                ].map(({ count, label, sport, href }) => (
+                ].sort((a, b) => b.count - a.count).map(({ count, label, sport, href }) => {
+                  const numColor = sport === null ? undefined : sport === "multi" ? sportColor["football"] : sportColor[sport];
+                  return (
                   <Link key={label} href={href} className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors">
-                    <div className="text-3xl font-bold mb-2 transition-colors group-hover:text-primary">{count}</div>
+                    <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: numColor }}>{count}</div>
                     <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
                       {sport === null ? (
                         <Landmark className="h-3.5 w-3.5 shrink-0" />
@@ -237,7 +239,8 @@ export default function Home() {
                       {label}
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
               </>
             ) : null}
           </div>
