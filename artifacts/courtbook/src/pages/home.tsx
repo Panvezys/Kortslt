@@ -162,17 +162,19 @@ export default function Home() {
         <div className="container px-4 mx-auto relative z-10">
           <div className="max-w-3xl">
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance">
-              {heroLines[0]?.includes("court") || heroLines[0]?.includes("корт") || heroLines[0]?.includes("kortą") ? (
-                <>
-                  {heroLines[0]} <br />
-                  <span className="text-primary">{heroLines[1]}</span>
-                </>
-              ) : (
-                <>
-                  {heroLines[0]}<br />
-                  <span className="text-primary">{heroLines[1]}</span>
-                </>
-              )}
+              {(() => {
+                const [line1, line2] = heroLines;
+                const isEnglishTop = line1?.toLowerCase().includes("find your court");
+                const top = isEnglishTop ? line2 : line1;
+                const bottom = isEnglishTop ? line1 : line2;
+                return (
+                  <>
+                    {top}
+                    <br />
+                    <span className="text-primary">{bottom}</span>
+                  </>
+                );
+              })()}
             </h1>
             <p className="text-lg md:text-xl text-zinc-400 mb-8 max-w-xl">
               {t("home.hero.subtitle")}
