@@ -309,9 +309,6 @@ export default function Home() {
           <div className="grid gap-8 md:grid-cols-3">
             <div>
               <h3 className="text-lg font-semibold mb-3">korts.lt</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Lithuanian court booking platform for tennis, basketball, padel, football, badminton, and squash.
-              </p>
             </div>
             <div>
               <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 text-muted-foreground">Contact</h4>
