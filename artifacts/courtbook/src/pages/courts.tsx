@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { Layout } from "@/components/layout";
 import { useListCourts, useListCities } from "@workspace/api-client-react";
@@ -12,12 +12,14 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, Map, List, SlidersHorizontal, X } from "lucide-react";
+import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { ListCourtsCondition, ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 
 type ViewMode = "list" | "map";
+
+const PAGE_SIZE = 12;
 
 const surfaceKeys = [
   "clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber",
@@ -39,6 +41,11 @@ export default function Courts() {
   const [maxPrice, setMaxPrice] = useState<number>(100);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, type, city, surface, condition, isIndoorFilter, maxPrice]);
 
   const { data: cities } = useListCities();
 
@@ -62,6 +69,10 @@ export default function Courts() {
     c.city.toLowerCase().includes(search.toLowerCase()) ||
     c.address.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalCourts = filteredCourts?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCourts / PAGE_SIZE));
+  const pagedCourts = filteredCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
     type !== "all",
@@ -312,7 +323,9 @@ export default function Courts() {
             {/* Desktop view toggle + count */}
             <div className="hidden md:flex mb-6 justify-between items-center">
               <h2 className="text-base font-semibold text-muted-foreground">
-                {isLoading ? "..." : t("courts.found", { n: filteredCourts?.length ?? 0 })}
+                {isLoading ? "..." : viewMode === "list" && totalPages > 1
+                  ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCourts)} / ${totalCourts}`
+                  : t("courts.found", { n: totalCourts })}
               </h2>
               <div className="flex gap-1 rounded-md border p-0.5">
                 <button
@@ -332,7 +345,9 @@ export default function Courts() {
 
             {/* Mobile result count */}
             <div className="md:hidden mb-4 text-sm font-medium text-muted-foreground">
-              {isLoading ? "..." : t("courts.found", { n: filteredCourts?.length ?? 0 })}
+              {isLoading ? "..." : viewMode === "list" && totalPages > 1
+                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCourts)} / ${totalCourts}`
+                : t("courts.found", { n: totalCourts })}
             </div>
 
             {isLoading ? (
@@ -353,12 +368,58 @@ export default function Courts() {
               <div className="h-[400px] md:h-[600px]">
                 <CourtMap courts={filteredCourts ?? []} />
               </div>
-            ) : filteredCourts && filteredCourts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {filteredCourts.map(court => (
-                  <CourtCard key={court.id} court={court} />
-                ))}
-              </div>
+            ) : pagedCourts && pagedCourts.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  {pagedCourts.map(court => (
+                    <CourtCard key={court.id} court={court} />
+                  ))}
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-1 mt-8">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="h-9 w-9 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                      .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === "…" ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">…</span>
+                        ) : (
+                          <Button
+                            key={p}
+                            variant={page === p ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPage(p as number)}
+                            className="h-9 w-9 p-0 text-sm"
+                          >
+                            {p}
+                          </Button>
+                        )
+                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="h-9 w-9 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-16 border rounded-xl bg-muted/10 border-dashed">
                 <div className="text-4xl mb-4">🎾</div>
