@@ -115,6 +115,9 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
           >
             {court.name}
           </CardTitle>
+          <div className="mt-1">
+            <StarRatingSmall rating={court.rating} />
+          </div>
           <div className="flex items-center text-xs text-muted-foreground mt-0.5">
             <MapPin className="h-3 w-3 mr-1 shrink-0" />
             <span className="truncate">{court.city}</span>
