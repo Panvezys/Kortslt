@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 export const courtsTable = pgTable("courts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  type: text("type").notNull(), // 'tennis' | 'basketball'
+  type: text("type").notNull(), // 'tennis' | 'basketball' | ...
   description: text("description"),
   address: text("address").notNull(),
   city: text("city").notNull(),
@@ -15,15 +15,20 @@ export const courtsTable = pgTable("courts", {
   imageUrl: text("image_url"),
   ownerName: text("owner_name").notNull(),
   ownerEmail: text("owner_email").notNull(),
+  ownerUserId: text("owner_user_id"),           // Clerk userId of the owner
   amenities: text("amenities").array().notNull().default([]),
   isIndoor: boolean("is_indoor").notNull().default(false),
   maxPlayers: integer("max_players").notNull().default(4),
-  surface: text("surface"), // 'clay' | 'hard' | 'carpet' | 'synthetic_grass' | 'parquet' | 'rubber'
-  condition: text("condition").notNull().default("good"), // 'excellent' | 'good' | 'fair'
+  surface: text("surface"),
+  condition: text("condition").notNull().default("good"),
   rating: real("rating"),
   totalBookings: integer("total_bookings").notNull().default(0),
   phone: text("phone"),
   openingHours: text("opening_hours").array(),
+  // Multi-tenant approval workflow
+  status: text("status").notNull().default("approved"), // pending | approved | rejected
+  ownershipDocUrl: text("ownership_doc_url"),            // uploaded proof of ownership
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

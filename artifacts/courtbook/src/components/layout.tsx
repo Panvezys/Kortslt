@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 
@@ -65,6 +65,11 @@ function LanguageSwitcher() {
   );
 }
 
+const ADMIN_USER_IDS = (import.meta.env.VITE_ADMIN_USER_IDS ?? "")
+  .split(",")
+  .map((s: string) => s.trim())
+  .filter(Boolean);
+
 function UserMenu() {
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -76,6 +81,8 @@ function UserMenu() {
       user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
       "U"
     : "U";
+
+  const isAdmin = user && ADMIN_USER_IDS.includes(user.id);
 
   return (
     <DropdownMenu>
@@ -113,6 +120,12 @@ function UserMenu() {
           <LayoutDashboard className="mr-2 h-4 w-4" />
           {t("nav.ownerDashboard")}
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Administravimas
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}

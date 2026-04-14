@@ -29,6 +29,8 @@ export const CourtCondition = {
   fair: "fair",
 } as const;
 
+export type CourtStatus = "pending" | "approved" | "rejected";
+
 export interface Court {
   id: number;
   name: string;
@@ -42,6 +44,7 @@ export interface Court {
   imageUrl?: string;
   ownerName: string;
   ownerEmail: string;
+  ownerUserId?: string;
   amenities?: string[];
   isIndoor: boolean;
   maxPlayers: number;
@@ -51,6 +54,9 @@ export interface Court {
   totalBookings?: number;
   phone?: string;
   openingHours?: string[];
+  status?: CourtStatus;
+  ownershipDocUrl?: string;
+  rejectionReason?: string;
   createdAt: string;
 }
 
@@ -92,6 +98,7 @@ export interface CreateCourtBody {
   maxPlayers: number;
   surface?: string;
   condition?: CreateCourtBodyCondition;
+  ownershipDocUrl?: string;
 }
 
 export interface TimeSlot {
@@ -232,6 +239,7 @@ export type ListCourtsParams = {
   minPrice?: number;
   maxPrice?: number;
   ownerEmail?: string;
+  ownerUserId?: string;
 };
 
 export type ListCourtsType =

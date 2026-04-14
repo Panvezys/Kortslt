@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtPricingTable } from "@workspace/db";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
 import {
   ListCourtsQueryParams,
   CreateCourtBody,
@@ -20,6 +20,7 @@ import {
   SetCourtPricingBody,
   SetCourtPricingResponse,
 } from "@workspace/api-zod";
+import { requireAuth, isOwner, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -34,15 +35,18 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     condition: (c.condition ?? "good") as "excellent" | "good" | "fair",
     phone: c.phone ?? undefined,
     openingHours: c.openingHours ?? undefined,
+    ownerUserId: c.ownerUserId ?? undefined,
+    ownershipDocUrl: c.ownershipDocUrl ?? undefined,
+    rejectionReason: c.rejectionReason ?? undefined,
   };
 }
 
-/** Generate all 30-min slots for a day: 07:00 – 21:30 (inclusive, ends 22:00) */
+/** Generate all 30-min slots for a day: 07:00 – 21:30 */
 function generateSlots(): { startTime: string; endTime: string }[] {
   const slots = [];
   for (let h = 7; h < 22; h++) {
     for (const m of [0, 30]) {
-      if (h === 21 && m === 30) break; // last slot is 21:30-22:00
+      if (h === 21 && m === 30) break;
       const start = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
       const endH = m === 30 ? h + 1 : h;
       const endM = m === 30 ? 0 : 30;
@@ -57,6 +61,7 @@ router.get("/courts/cities", async (_req, res): Promise<void> => {
   const rows = await db
     .selectDistinct({ city: courtsTable.city })
     .from(courtsTable)
+    .where(eq(courtsTable.status, "approved"))
     .orderBy(courtsTable.city);
   res.json(rows.map(r => r.city));
 });
@@ -68,7 +73,16 @@ router.get("/courts", async (req, res): Promise<void> => {
     return;
   }
 
-  const conditions = [];
+  const conditions: ReturnType<typeof eq>[] = [];
+
+  // If ownerUserId filter is supplied, return all statuses for that owner (their dashboard view).
+  // Otherwise, public callers only see approved courts.
+  if (params.data.ownerUserId) {
+    conditions.push(eq(courtsTable.ownerUserId, params.data.ownerUserId));
+  } else {
+    conditions.push(eq(courtsTable.status, "approved"));
+  }
+
   if (params.data.type) conditions.push(eq(courtsTable.type, params.data.type));
   if (params.data.city) conditions.push(eq(courtsTable.city, params.data.city));
   if (params.data.surface) conditions.push(eq(courtsTable.surface, params.data.surface));
@@ -85,12 +99,14 @@ router.get("/courts", async (req, res): Promise<void> => {
   res.json(ListCourtsResponse.parse(courts.map(formatCourt)));
 });
 
-router.post("/courts", async (req, res): Promise<void> => {
+router.post("/courts", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateCourtBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const userId = getCurrentUserId(req);
 
   const [court] = await db
     .insert(courtsTable)
@@ -99,6 +115,9 @@ router.post("/courts", async (req, res): Promise<void> => {
       pricePerHour: String(parsed.data.pricePerHour),
       amenities: parsed.data.amenities ?? [],
       condition: (parsed.data.condition ?? "good") as string,
+      ownerUserId: userId,
+      status: "pending",         // New courts start pending
+      ownershipDocUrl: (parsed.data as any).ownershipDocUrl ?? null,
     })
     .returning();
 
@@ -122,7 +141,7 @@ router.get("/courts/:id", async (req, res): Promise<void> => {
   res.json(GetCourtResponse.parse(formatCourt(court)));
 });
 
-router.put("/courts/:id", async (req, res): Promise<void> => {
+router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   const params = UpdateCourtParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -132,6 +151,17 @@ router.put("/courts/:id", async (req, res): Promise<void> => {
   const body = UpdateCourtBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  // Ownership check
+  const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+  if (existing.ownerUserId && !isOwner(req, existing.ownerUserId)) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
 
@@ -154,10 +184,21 @@ router.put("/courts/:id", async (req, res): Promise<void> => {
   res.json(UpdateCourtResponse.parse(formatCourt(court)));
 });
 
-router.delete("/courts/:id", async (req, res): Promise<void> => {
+router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   const params = DeleteCourtParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Ownership check
+  const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+  if (existing.ownerUserId && !isOwner(req, existing.ownerUserId)) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
 
@@ -186,48 +227,57 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
 
   const { date } = query.data;
 
-  // Get court for default price
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
   if (!court) {
     res.status(404).json({ error: "Court not found" });
     return;
   }
 
-  // Day of week for pricing lookup (JS: 0=Sun)
   const dayOfWeek = new Date(date + "T00:00:00").getDay();
 
-  // Load pricing entries for this court + day
-  const pricingEntries = await db
-    .select()
-    .from(courtPricingTable)
-    .where(
-      and(
-        eq(courtPricingTable.courtId, params.data.id),
-        eq(courtPricingTable.dayOfWeek, dayOfWeek)
-      )
-    );
+  const [pricingEntries, existingBookings, blockedSlots] = await Promise.all([
+    db
+      .select()
+      .from(courtPricingTable)
+      .where(
+        and(
+          eq(courtPricingTable.courtId, params.data.id),
+          eq(courtPricingTable.dayOfWeek, dayOfWeek)
+        )
+      ),
+    db
+      .select()
+      .from(bookingsTable)
+      .where(
+        and(
+          eq(bookingsTable.courtId, params.data.id),
+          eq(bookingsTable.date, date),
+          inArray(bookingsTable.status, ["confirmed", "pending"])
+        )
+      ),
+    db
+      .select()
+      .from(courtBlockedSlotsTable)
+      .where(
+        and(
+          eq(courtBlockedSlotsTable.courtId, params.data.id),
+          eq(courtBlockedSlotsTable.date, date)
+        )
+      ),
+  ]);
 
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
-
-  // Get confirmed and pending bookings for this date (both block the slot)
-  const existingBookings = await db
-    .select()
-    .from(bookingsTable)
-    .where(
-      and(
-        eq(bookingsTable.courtId, params.data.id),
-        eq(bookingsTable.date, date),
-        inArray(bookingsTable.status, ["confirmed", "pending"])
-      )
-    );
 
   const allSlots = generateSlots().map(({ startTime, endTime }) => {
     const isBooked = existingBookings.some(
       b => b.startTime <= startTime && b.endTime > startTime
     );
+    const isBlocked = blockedSlots.some(
+      b => b.startTime <= startTime && b.endTime > startTime
+    );
     const price = pricingMap.has(startTime) ? pricingMap.get(startTime)! : defaultSlotPrice;
-    return { startTime, endTime, isAvailable: !isBooked, price };
+    return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
   });
 
   res.json(GetCourtAvailabilityResponse.parse({
@@ -237,7 +287,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   }));
 });
 
-// GET /courts/:id/pricing
 router.get("/courts/:id/pricing", async (req, res): Promise<void> => {
   const params = GetCourtPricingParams.safeParse(req.params);
   if (!params.success) {
@@ -260,7 +309,6 @@ router.get("/courts/:id/pricing", async (req, res): Promise<void> => {
   }));
 });
 
-// PUT /courts/:id/pricing — replaces all pricing for this court
 router.put("/courts/:id/pricing", async (req, res): Promise<void> => {
   const params = SetCourtPricingParams.safeParse(req.params);
   if (!params.success) {
@@ -274,10 +322,8 @@ router.put("/courts/:id/pricing", async (req, res): Promise<void> => {
     return;
   }
 
-  // Delete all existing pricing for this court
   await db.delete(courtPricingTable).where(eq(courtPricingTable.courtId, params.data.id));
 
-  // Insert new entries (if any)
   if (body.data.entries.length > 0) {
     await db.insert(courtPricingTable).values(
       body.data.entries.map(e => ({

@@ -16,6 +16,7 @@ import PaymentCancel from "@/pages/payment-cancel";
 import BookingConfirmed from "@/pages/booking-confirmed";
 import OwnerDashboard from "@/pages/owner";
 import Profile from "@/pages/profile";
+import AdminDashboard from "@/pages/admin";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 
@@ -92,6 +93,19 @@ function ProfileRoute() {
   );
 }
 
+function AdminRoute() {
+  return (
+    <>
+      <Show when="signed-in">
+        <AdminDashboard />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
 // Invalidates React Query cache when the signed-in user changes
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -124,6 +138,7 @@ function Router() {
       <Route path="/bookings" component={BookingsRoute} />
       <Route path="/owner" component={OwnerRoute} />
       <Route path="/profile" component={ProfileRoute} />
+      <Route path="/admin" component={AdminRoute} />
       <Route path="/payment-success" component={PaymentSuccess} />
       <Route path="/booking-confirmed" component={BookingConfirmed} />
       <Route path="/payment-cancel" component={PaymentCancel} />

@@ -4,12 +4,13 @@ import path from "path";
 import fs from "fs";
 
 const uploadDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
+const docsDir = path.resolve(process.cwd(), "../courtbook/public/courts/docs");
 
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+for (const dir of [uploadDir, docsDir]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
+const imageStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -18,8 +19,17 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
+const docStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, docsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueName = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const uploadImage = multer({
+  storage: imageStorage,
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
@@ -31,14 +41,39 @@ const upload = multer({
   },
 });
 
+const uploadDoc = multer({
+  storage: docStorage,
+  limits: { fileSize: 16 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "image/jpeg", "image/jpg", "image/png", "image/webp",
+      "application/pdf",
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only images or PDF files are allowed"));
+    }
+  },
+});
+
 const router: IRouter = Router();
 
-router.post("/upload/court-image", upload.single("image"), (req, res): void => {
+router.post("/upload/court-image", uploadImage.single("image"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No image file provided" });
     return;
   }
   const relativePath = `courts/uploads/${req.file.filename}`;
+  res.json({ path: relativePath, url: relativePath });
+});
+
+router.post("/upload/ownership-doc", uploadDoc.single("doc"), (req, res): void => {
+  if (!req.file) {
+    res.status(400).json({ error: "No document file provided" });
+    return;
+  }
+  const relativePath = `courts/docs/${req.file.filename}`;
   res.json({ path: relativePath, url: relativePath });
 });
 

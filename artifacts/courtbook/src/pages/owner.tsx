@@ -1,24 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
-  useGetCourtPricing, useSetCourtPricing,
+  useGetCourtPricing, useSetCourtPricing, customFetch,
 } from "@workspace/api-client-react";
+import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Edit2, Trash2, Euro, RotateCcw } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LocationPicker } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
 
@@ -218,6 +220,156 @@ function PricingEditor({ courtId, defaultPrice, onClose }: PricingEditorProps) {
   );
 }
 
+// ──────────────────────────────────────────────
+// BlockedSlotsModal
+// ──────────────────────────────────────────────
+interface CourtBlockedSlot {
+  id: number;
+  courtId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason?: string;
+}
+
+function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("10:00");
+  const [reason, setReason] = useState("");
+
+  const qk = ["blocked-slots", courtId, date];
+
+  const { data: slots = [], isLoading } = useQuery<CourtBlockedSlot[]>({
+    queryKey: qk,
+    queryFn: () =>
+      customFetch<CourtBlockedSlot[]>(`/api/courts/${courtId}/blocked-slots?date=${date}`, { method: "GET" }),
+  });
+
+  const qc = useQueryClient();
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/courts/${courtId}/blocked-slots`, {
+        method: "POST",
+        body: JSON.stringify({ date, startTime, endTime, reason: reason || undefined }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk });
+      toast({ title: "Laiko tarpas užblokuotas" });
+    },
+    onError: () => toast({ title: "Klaida", variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (slotId: number) =>
+      customFetch(`/api/courts/${courtId}/blocked-slots/${slotId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk });
+      toast({ title: "Blokavimas pašalintas" });
+    },
+    onError: () => toast({ title: "Klaida", variant: "destructive" }),
+  });
+
+  function generateTimeOptions() {
+    const opts: string[] = [];
+    for (let h = 7; h <= 22; h++) {
+      for (const m of [0, 30]) {
+        opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
+      }
+    }
+    return opts;
+  }
+
+  const timeOptions = generateTimeOptions();
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">
+        Blokuokite laiko tarpus, kurie nebus prieinami rezervuoti (pvz., techninis aptarnavimas).
+      </p>
+
+      {/* Date picker */}
+      <div className="space-y-1">
+        <Label>Data</Label>
+        <Input type="date" value={date} min={new Date().toISOString().split("T")[0]} onChange={e => setDate(e.target.value)} />
+      </div>
+
+      {/* Time range */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Nuo</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+            value={startTime}
+            onChange={e => setStartTime(e.target.value)}
+          >
+            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Iki</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+            value={endTime}
+            onChange={e => setEndTime(e.target.value)}
+          >
+            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Priežastis (neprivaloma)</Label>
+        <Input placeholder="pvz. Techninis aptarnavimas" value={reason} onChange={e => setReason(e.target.value)} />
+      </div>
+
+      <Button
+        onClick={() => addMutation.mutate()}
+        disabled={addMutation.isPending || startTime >= endTime}
+        className="w-full"
+      >
+        {addMutation.isPending ? "Blokuojama..." : "Užblokuoti"}
+      </Button>
+
+      {/* List of blocked slots */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Blokuoti laikai {date}</p>
+        {isLoading && <Skeleton className="h-10 w-full" />}
+        {!isLoading && slots.length === 0 && (
+          <p className="text-sm text-muted-foreground">Blokuotų laikų nėra</p>
+        )}
+        {slots.map(s => (
+          <div key={s.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div>
+              <span className="text-sm font-medium">{s.startTime} – {s.endTime}</span>
+              {s.reason && <span className="ml-2 text-xs text-muted-foreground">{s.reason}</span>}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => removeMutation.mutate(s.id)}
+              disabled={removeMutation.isPending}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <Button variant="outline" onClick={onClose}>Uždaryti</Button>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Court form schema
+// ──────────────────────────────────────────────
 const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash"]),
@@ -227,6 +379,7 @@ const courtSchema = z.object({
   latitude: z.coerce.number(),
   longitude: z.coerce.number(),
   pricePerHour: z.coerce.number().min(1),
+  ownershipDocUrl: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerName: z.string().min(2, "Owner name required"),
   ownerEmail: z.string().email("Invalid email"),
@@ -236,14 +389,35 @@ const courtSchema = z.object({
 
 type CourtFormValues = z.infer<typeof courtSchema>;
 
+function StatusBadge({ status }: { status?: string }) {
+  if (!status || status === "approved") return null;
+  if (status === "pending")
+    return (
+      <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30 ml-2">
+        Laukiama
+      </Badge>
+    );
+  return (
+    <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/30 ml-2">
+      Atmesta
+    </Badge>
+  );
+}
+
 export default function OwnerDashboard() {
+  const { user } = useUser();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
+  const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
+  const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: courts, isLoading } = useListCourts();
+  const { data: courts, isLoading } = useListCourts(
+    user?.id ? { ownerUserId: user.id } : undefined
+  );
   const createCourt = useCreateCourt();
   const updateCourt = useUpdateCourt();
   const deleteCourt = useDeleteCourt();
@@ -263,8 +437,9 @@ export default function OwnerDashboard() {
       longitude: 0,
       pricePerHour: 20,
       imageUrl: "",
-      ownerName: "Owner",
-      ownerEmail: "owner@example.com",
+      ownershipDocUrl: "",
+      ownerName: user?.fullName ?? "Owner",
+      ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
       isIndoor: false,
       maxPlayers: 4,
     }
@@ -302,12 +477,31 @@ export default function OwnerDashboard() {
       longitude: court.longitude,
       pricePerHour: court.pricePerHour,
       imageUrl: court.imageUrl || "",
+      ownershipDocUrl: court.ownershipDocUrl || "",
       ownerName: court.ownerName,
       ownerEmail: court.ownerEmail,
       isIndoor: court.isIndoor,
       maxPlayers: court.maxPlayers,
     });
     setIsDialogOpen(true);
+  };
+
+  const handleDocUpload = async (file: File) => {
+    setOwnershipDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("doc", file);
+      const baseUrl = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const resp = await fetch(`${baseUrl}/api/upload/ownership-doc`, { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      form.setValue("ownershipDocUrl", url);
+      toast({ title: "Dokumentas įkeltas" });
+    } catch {
+      toast({ title: "Klaida įkeliant dokumentą", variant: "destructive" });
+    } finally {
+      setOwnershipDocUploading(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -457,6 +651,41 @@ export default function OwnerDashboard() {
                     </FormItem>
                   )} />
 
+                  {/* Ownership document upload — only shown for new courts */}
+                  {!editingId && (
+                    <div className="space-y-2">
+                      <Label>Nuosavybės dokumentas</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Įkelkite dokumentą, patvirtinantį, kad esate korto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins kortą.
+                      </p>
+                      <input
+                        ref={docInputRef}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
+                      />
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => docInputRef.current?.click()}
+                          disabled={ownershipDocUploading}
+                          className="gap-2"
+                        >
+                          <FileUp className="w-4 h-4" />
+                          {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
+                        </Button>
+                        {form.watch("ownershipDocUrl") && (
+                          <span className="text-xs text-green-400 flex items-center gap-1">
+                            ✓ Dokumentas įkeltas
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <FormField control={form.control} name="isIndoor" render={({ field }) => (
                     <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                       <FormControl>
@@ -500,9 +729,9 @@ export default function OwnerDashboard() {
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead>Pavadinimas</TableHead>
-                <TableHead>Tipas</TableHead>
-                <TableHead>Miestas</TableHead>
-                <TableHead>Kaina/val</TableHead>
+                <TableHead className="hidden md:table-cell">Tipas</TableHead>
+                <TableHead className="hidden md:table-cell">Miestas</TableHead>
+                <TableHead className="hidden sm:table-cell">Kaina/val</TableHead>
                 <TableHead className="text-right">Veiksmai</TableHead>
               </TableRow>
             </TableHeader>
@@ -520,35 +749,63 @@ export default function OwnerDashboard() {
               ) : courts && courts.length > 0 ? (
                 courts.map((court) => (
                   <TableRow key={court.id}>
-                    <TableCell className="font-medium">{court.name}</TableCell>
-                    <TableCell className="capitalize">{court.type}</TableCell>
-                    <TableCell>{court.city}</TableCell>
-                    <TableCell>{court.pricePerHour}€/val</TableCell>
-                    <TableCell className="text-right flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-xs"
-                        onClick={() => {
-                          setPricingCourtId(court.id);
-                          setPricingDefaultPrice(court.pricePerHour);
-                        }}
-                      >
-                        <Euro className="w-3.5 h-3.5" /> Kainos
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
-                        <Edit2 className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(court.id)} disabled={deleteCourt.isPending}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center flex-wrap gap-1">
+                          {court.name}
+                          <StatusBadge status={court.status} />
+                        </div>
+                        {court.status === "rejected" && court.rejectionReason && (
+                          <div className="flex items-center gap-1 text-xs text-red-400 mt-0.5">
+                            <AlertTriangle className="w-3 h-3" />
+                            {court.rejectionReason}
+                          </div>
+                        )}
+                        {court.status === "pending" && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Laukiama administratoriaus patvirtinimo
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="capitalize hidden md:table-cell">{court.type}</TableCell>
+                    <TableCell className="hidden md:table-cell">{court.city}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{court.pricePerHour}€/val</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs hidden sm:flex"
+                          onClick={() => {
+                            setPricingCourtId(court.id);
+                            setPricingDefaultPrice(court.pricePerHour);
+                          }}
+                        >
+                          <Euro className="w-3.5 h-3.5" /> Kainos
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs hidden sm:flex"
+                          onClick={() => setBlockedSlotsCourtId(court.id)}
+                        >
+                          <CalendarClock className="w-3.5 h-3.5" /> Blokai
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
+                          <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(court.id)} disabled={deleteCourt.isPending}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                    Kortų nerasta. Sukurkite pirmąjį kortą.
+                    {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
                   </TableCell>
                 </TableRow>
               )}
@@ -570,6 +827,24 @@ export default function OwnerDashboard() {
                 courtId={pricingCourtId}
                 defaultPrice={pricingDefaultPrice}
                 onClose={() => setPricingCourtId(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Blocked Slots Dialog */}
+        <Dialog open={blockedSlotsCourtId !== null} onOpenChange={(open) => { if (!open) setBlockedSlotsCourtId(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-primary" />
+                Blokuoti laiko tarpai
+              </DialogTitle>
+            </DialogHeader>
+            {blockedSlotsCourtId !== null && (
+              <BlockedSlotsModal
+                courtId={blockedSlotsCourtId}
+                onClose={() => setBlockedSlotsCourtId(null)}
               />
             )}
           </DialogContent>

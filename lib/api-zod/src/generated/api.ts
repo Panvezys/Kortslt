@@ -28,6 +28,7 @@ export const ListCourtsQueryParams = zod.object({
   minPrice: zod.coerce.number().optional(),
   maxPrice: zod.coerce.number().optional(),
   ownerEmail: zod.coerce.string().optional(),
+  ownerUserId: zod.coerce.string().optional(),
 });
 
 export const ListCourtsResponseItem = zod.object({
@@ -50,6 +51,7 @@ export const ListCourtsResponseItem = zod.object({
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().optional(),
   amenities: zod.array(zod.string()).optional(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
@@ -59,6 +61,9 @@ export const ListCourtsResponseItem = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["pending", "approved", "rejected"]).optional(),
+  ownershipDocUrl: zod.string().optional(),
+  rejectionReason: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -90,6 +95,7 @@ export const CreateCourtBody = zod.object({
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "good", "fair"]).optional(),
+  ownershipDocUrl: zod.string().optional(),
 });
 
 /**
@@ -119,6 +125,7 @@ export const GetCourtResponse = zod.object({
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().optional(),
   amenities: zod.array(zod.string()).optional(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
@@ -128,6 +135,9 @@ export const GetCourtResponse = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["pending", "approved", "rejected"]).optional(),
+  ownershipDocUrl: zod.string().optional(),
+  rejectionReason: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -184,6 +194,7 @@ export const UpdateCourtResponse = zod.object({
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().optional(),
   amenities: zod.array(zod.string()).optional(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
@@ -193,6 +204,9 @@ export const UpdateCourtResponse = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["pending", "approved", "rejected"]).optional(),
+  ownershipDocUrl: zod.string().optional(),
+  rejectionReason: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
