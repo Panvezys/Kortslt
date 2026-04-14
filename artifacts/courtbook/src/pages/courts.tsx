@@ -323,7 +323,7 @@ export default function Courts() {
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Filters Sidebar — desktop only */}
-          <aside className="hidden md:block w-64 shrink-0 space-y-6 sticky top-24">
+          <aside className="hidden md:block w-64 shrink-0 space-y-6 sticky top-24 overflow-y-auto max-h-[calc(100vh-7rem)] pr-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <SlidersHorizontal className="h-4 w-4" />
