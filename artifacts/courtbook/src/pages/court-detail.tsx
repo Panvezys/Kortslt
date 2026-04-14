@@ -303,8 +303,8 @@ export default function CourtDetail() {
       customerPhone = overrideData.customerPhone;
     } else {
       if (!isSignedIn || !user) { openSignIn(); return; }
-      customerName = user.fullName ?? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-      customerEmail = user.primaryEmailAddress?.emailAddress ?? "";
+      customerName = user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.emailAddresses?.[0]?.emailAddress?.split("@")?.[0] || "";
+      customerEmail = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "";
     }
 
     if (!customerName || !customerEmail) {

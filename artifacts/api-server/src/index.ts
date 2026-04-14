@@ -13,18 +13,22 @@ async function initStripe() {
     logger.info("Initializing Stripe schema...");
     await runMigrations({ databaseUrl, schema: "stripe" });
     logger.info("Stripe schema ready");
+  } catch (err) {
+    logger.warn({ err }, "Stripe schema migration failed — skipping webhook sync");
+    return;
+  }
 
+  try {
     const stripeSync = await getStripeSync();
-
     const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
     await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
     logger.info("Stripe webhook configured");
 
     stripeSync.syncBackfill()
       .then(() => logger.info("Stripe data backfill complete"))
-      .catch((err: any) => logger.error({ err }, "Stripe backfill error"));
+      .catch((err: any) => logger.warn({ err }, "Stripe backfill warning"));
   } catch (err) {
-    logger.error({ err }, "Failed to initialize Stripe — payments disabled");
+    logger.warn({ err }, "Stripe webhook/sync setup skipped — direct payments still active");
   }
 }
 
