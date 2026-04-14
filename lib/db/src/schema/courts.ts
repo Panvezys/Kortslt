@@ -32,6 +32,8 @@ export const courtsTable = pgTable("courts", {
   status: text("status").notNull().default("approved"),
   ownershipDocUrl: text("ownership_doc_url"),
   rejectionReason: text("rejection_reason"),
+  stripeConnectAccountId: text("stripe_connect_account_id"),
+  stripeConnectStatus: text("stripe_connect_status").default("not_connected"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

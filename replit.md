@@ -100,10 +100,17 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Prices in euros (€)
 
 ### Payments (Stripe)
-- The backend supports Stripe Checkout via `STRIPE_SECRET_KEY` environment variable.
-- **Currently running in mock mode** — the user dismissed the Stripe integration setup.
-- When `STRIPE_SECRET_KEY` is not set, bookings are auto-confirmed without a real charge.
-- To enable real payments: set `STRIPE_SECRET_KEY` as a secret, or connect Stripe via the integrations system.
+- **Stripe Sandbox connected** via Replit Stripe integration (connector ID: `ccfg_stripe_01K611P4YQR0SZM11XFRQJC44Y`).
+- Keys fetched at runtime via `getUncachableStripeClient()` in `artifacts/api-server/src/stripeClient.ts`.
+- `stripe` and `stripe-replit-sync` packages installed at workspace root (`-w`).
+- **Player booking flow**: slot selection → `POST /payments/create-checkout` → Stripe Checkout → redirect back → `POST /payments/confirm` → booking confirmed. Uses `{CHECKOUT_SESSION_ID}` template in success_url.
+- **Free bookings**: `POST /payments/confirm-free` (price = 0).
+- **Stripe Connect (owner payouts)**: Express Connect accounts. `POST /payments/connect/onboard` → Stripe onboarding URL. `GET /payments/connect/status/:courtId` checks account status. Owner dashboard has "Prijungti" badge per court (hidden lg column).
+- When a court has a `stripeConnectAccountId`, checkout session applies a 5% platform fee via `transfer_data.destination`.
+- **Test card**: `4242 4242 4242 4242`, any future expiry, any CVC.
+- `stripeConnectAccountId` and `stripeConnectStatus` columns added to `courts` table.
+- `stripe.accounts` table (from stripe-replit-sync webhook sync) creation is non-critical for sandbox testing — webhook sync may fail on first start but all checkout/connect flows work independently.
+- `GET /payments/config` — returns publishable key for frontend (currently unused in UI; key is Stripe test key starting with `pk_test_`).
 
 ### Email (Resend)
 - Confirmation emails sent via Resend after `POST /api/payments/confirm`.

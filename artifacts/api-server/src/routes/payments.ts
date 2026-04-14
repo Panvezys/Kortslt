@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, bookingsTable, courtsTable } from "@workspace/db";
-import Stripe from "stripe";
 import {
   CreateCheckoutSessionBody,
   CreateCheckoutSessionResponse,
@@ -10,15 +9,22 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail } from "../lib/email";
+import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 
 const router: IRouter = Router();
 
-function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  return new Stripe(key);
-}
+// ─── Publishable key (safe for frontend) ─────────────────────────────────────
+router.get("/payments/config", async (_req, res) => {
+  try {
+    const publishableKey = await getStripePublishableKey();
+    res.json({ publishableKey });
+  } catch (err) {
+    logger.error({ err }, "Failed to get Stripe publishable key");
+    res.status(500).json({ error: "Stripe not configured" });
+  }
+});
 
+// ─── Create Checkout Session (player booking) ─────────────────────────────────
 router.post("/payments/create-checkout", async (req, res): Promise<void> => {
   const parsed = CreateCheckoutSessionBody.safeParse(req.body);
   if (!parsed.success) {
@@ -41,9 +47,11 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
 
   const { booking, court } = rows[0];
 
-  const stripe = getStripe();
-  if (!stripe) {
-    logger.warn("Stripe not configured, using mock checkout");
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch (err) {
+    logger.warn("Stripe not configured — using mock checkout");
     const mockSessionId = `mock_session_${bookingId}_${Date.now()}`;
     await db.update(bookingsTable).set({ stripeSessionId: mockSessionId }).where(eq(bookingsTable.id, bookingId));
     const mockSuccessUrl = `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id=${mockSessionId}`;
@@ -51,17 +59,20 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
     return;
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const amountCents = Math.round(Number(booking.totalPrice) * 100);
+  const connectAccountId = court?.stripeConnectAccountId;
+
+  const sessionParams: any = {
     payment_method_types: ["card"],
     line_items: [
       {
         price_data: {
-          currency: "usd",
+          currency: "eur",
           product_data: {
-            name: `${court?.name ?? "Court"} booking`,
-            description: `${booking.date} ${booking.startTime} - ${booking.endTime}`,
+            name: `${court?.name ?? "Kortas"} – rezervacija`,
+            description: `${booking.date} · ${booking.startTime}–${booking.endTime}`,
           },
-          unit_amount: Math.round(Number(booking.totalPrice) * 100),
+          unit_amount: amountCents,
         },
         quantity: 1,
       },
@@ -69,16 +80,28 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
     mode: "payment",
     success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: cancelUrl,
-    metadata: {
-      bookingId: String(bookingId),
-    },
-  });
+    metadata: { bookingId: String(bookingId) },
+    customer_email: booking.customerEmail,
+    locale: "lt",
+  };
 
+  // If court owner has Stripe Connect, route payment through their account
+  if (connectAccountId) {
+    const platformFeePercent = 5; // 5% platform fee
+    const applicationFeeAmount = Math.round(amountCents * platformFeePercent / 100);
+    sessionParams.payment_intent_data = {
+      application_fee_amount: applicationFeeAmount,
+      transfer_data: { destination: connectAccountId },
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
   await db.update(bookingsTable).set({ stripeSessionId: session.id }).where(eq(bookingsTable.id, bookingId));
 
   res.json(CreateCheckoutSessionResponse.parse({ sessionId: session.id, url: session.url! }));
 });
 
+// ─── Confirm payment after redirect ──────────────────────────────────────────
 router.post("/payments/confirm", async (req, res): Promise<void> => {
   const parsed = ConfirmPaymentBody.safeParse(req.body);
   if (!parsed.success) {
@@ -99,12 +122,16 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     return;
   }
 
-  const stripe = getStripe();
-  if (stripe && !sessionId.startsWith("mock_")) {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    if (session.payment_status !== "paid") {
-      res.status(402).json({ error: "Payment not completed" });
-      return;
+  if (!sessionId.startsWith("mock_")) {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        res.status(402).json({ error: "Payment not completed" });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "Stripe retrieve session error");
     }
   }
 
@@ -119,7 +146,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     .set({ totalBookings: sql`total_bookings + 1` })
     .where(eq(courtsTable.id, rows[0].booking.courtId));
 
-  // Send confirmation email (non-blocking — don't fail the response if email fails)
   sendBookingConfirmationEmail({
     customerName: booking.customerName,
     customerEmail: booking.customerEmail,
@@ -138,6 +164,7 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   }));
 });
 
+// ─── Free booking confirm ─────────────────────────────────────────────────────
 router.post("/payments/confirm-free", async (req, res): Promise<void> => {
   const bookingId = Number(req.body?.bookingId);
   if (!bookingId || isNaN(bookingId)) {
@@ -192,6 +219,90 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
   }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
 
   res.json({ ...booking, totalPrice: Number(booking.totalPrice), courtName: rows[0].courtName });
+});
+
+// ─── Stripe Connect: create/get onboarding link for owner ────────────────────
+router.post("/payments/connect/onboard", async (req, res): Promise<void> => {
+  const { courtId, returnUrl, refreshUrl } = req.body;
+  if (!courtId) {
+    res.status(400).json({ error: "courtId required" });
+    return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, Number(courtId)));
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch (err) {
+    res.status(503).json({ error: "Stripe not configured" });
+    return;
+  }
+
+  let accountId = court.stripeConnectAccountId;
+
+  if (!accountId) {
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: "LT",
+      email: court.ownerEmail,
+      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      business_profile: { name: court.name, url: `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}/courts/${court.id}` },
+      metadata: { courtId: String(court.id), ownerUserId: court.ownerUserId ?? "" },
+    });
+    accountId = account.id;
+    await db.update(courtsTable)
+      .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
+      .where(eq(courtsTable.id, Number(courtId)));
+  }
+
+  const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+  const accountLink = await stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: refreshUrl ?? `${base}/owner?connect_refresh=1&courtId=${courtId}`,
+    return_url: returnUrl ?? `${base}/owner?connect_success=1&courtId=${courtId}`,
+    type: "account_onboarding",
+  });
+
+  res.json({ url: accountLink.url });
+});
+
+// ─── Stripe Connect: check account status ────────────────────────────────────
+router.get("/payments/connect/status/:courtId", async (req, res): Promise<void> => {
+  const courtId = Number(req.params.courtId);
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  if (!court.stripeConnectAccountId) {
+    res.json({ status: "not_connected", accountId: null });
+    return;
+  }
+
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch {
+    res.json({ status: court.stripeConnectStatus ?? "not_connected", accountId: court.stripeConnectAccountId });
+    return;
+  }
+
+  const account = await stripe.accounts.retrieve(court.stripeConnectAccountId);
+  const newStatus = account.details_submitted ? "active" : "pending";
+
+  if (newStatus !== court.stripeConnectStatus) {
+    await db.update(courtsTable)
+      .set({ stripeConnectStatus: newStatus })
+      .where(eq(courtsTable.id, courtId));
+  }
+
+  res.json({ status: newStatus, accountId: court.stripeConnectAccountId, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled });
 });
 
 export default router;

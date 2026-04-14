@@ -325,15 +325,34 @@ export default function CourtDetail() {
         }
       });
 
-      const resp = await fetch(`${API}/payments/confirm-free`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: booking.id }),
-      });
+      const totalPrice = Number(booking.totalPrice ?? 0);
 
-      if (!resp.ok) throw new Error("Confirm failed");
-
-      navigate(`/booking-confirmed?id=${booking.id}`);
+      if (totalPrice > 0) {
+        // Paid booking — go through Stripe Checkout
+        const origin = window.location.origin;
+        const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+        const checkoutResp = await fetch(`${API}/payments/create-checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookingId: booking.id,
+            successUrl: `${origin}${base}/booking-confirmed?id=${booking.id}`,
+            cancelUrl: `${origin}${base}/courts/${courtId}?booking_cancelled=1`,
+          }),
+        });
+        if (!checkoutResp.ok) throw new Error("Checkout session failed");
+        const { url } = await checkoutResp.json();
+        window.location.href = url;
+      } else {
+        // Free booking — confirm immediately
+        const resp = await fetch(`${API}/payments/confirm-free`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        if (!resp.ok) throw new Error("Confirm failed");
+        navigate(`/booking-confirmed?id=${booking.id}`);
+      }
     } catch {
       toast({
         title: "Rezervacija nepavyko",

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { format, parseISO } from "date-fns";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1592,6 +1592,40 @@ export default function OwnerDashboard() {
     }
   };
 
+  const handleConnectStripe = async (courtId: number) => {
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const origin = window.location.origin;
+      const r = await fetch(`${base}/api/payments/connect/onboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtId,
+          returnUrl: `${origin}${base}/owner?connect_success=1&courtId=${courtId}`,
+          refreshUrl: `${origin}${base}/owner?connect_refresh=1&courtId=${courtId}`,
+        }),
+      });
+      if (!r.ok) throw new Error("Klaida");
+      const { url } = await r.json();
+      window.location.href = url;
+    } catch {
+      toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" });
+    }
+  };
+
+  // Handle Stripe Connect return from onboarding
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connect_success") === "1") {
+      toast({ title: "✅ Stripe Connect prijungtas!", description: "Dabar galite priimti mokėjimus." });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("connect_refresh") === "1") {
+      toast({ title: "Stripe Connect neužbaigtas", description: "Bandykite dar kartą." });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-12">
@@ -2019,6 +2053,7 @@ export default function OwnerDashboard() {
                 <TableHead className="hidden md:table-cell">Tipas</TableHead>
                 <TableHead className="hidden md:table-cell">Miestas</TableHead>
                 <TableHead className="hidden sm:table-cell">Kaina/val</TableHead>
+                <TableHead className="hidden lg:table-cell">Stripe</TableHead>
                 <TableHead className="text-right">Veiksmai</TableHead>
               </TableRow>
             </TableHeader>
@@ -2058,6 +2093,24 @@ export default function OwnerDashboard() {
                     <TableCell className="capitalize hidden md:table-cell">{court.type}</TableCell>
                     <TableCell className="hidden md:table-cell">{court.city}</TableCell>
                     <TableCell className="hidden sm:table-cell">{court.pricePerHour}€/val</TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {(court as any).stripeConnectStatus === "active" ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-3 h-3" /> Aktyvus
+                        </span>
+                      ) : (court as any).stripeConnectStatus === "pending" ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-full">
+                          <CreditCard className="w-3 h-3" /> Laukiama
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleConnectStripe(court.id)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded-full transition-colors"
+                        >
+                          <CreditCard className="w-3 h-3" /> Prijungti
+                        </button>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button
@@ -2099,7 +2152,7 @@ export default function OwnerDashboard() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                     {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
                   </TableCell>
                 </TableRow>
