@@ -75,6 +75,7 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
   const [mapZoom, setMapZoom] = useState(hasCoords ? 15 : 7);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   useEffect(() => {
@@ -133,7 +134,13 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
       {!isLoaded ? (
         <Skeleton className="h-10 w-full rounded-md" />
       ) : (
-        <div className="relative">
+        <div
+          ref={wrapperRef}
+          className="relative"
+          onPointerDownCapture={e => e.stopPropagation()}
+          onMouseDownCapture={e => e.stopPropagation()}
+          onClickCapture={e => e.stopPropagation()}
+        >
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
           <input
             ref={inputRef}
