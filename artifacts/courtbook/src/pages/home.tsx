@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -855,56 +855,159 @@ export default function Home() {
       </section>
 
       {/* Become a Partner Section */}
-      <section className="py-24 bg-zinc-950 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/15 via-transparent to-transparent pointer-events-none" />
+      <section className="py-20 bg-zinc-950 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,_rgba(132,204,22,0.08)_0%,_transparent_60%)] pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-widest mb-6">
-              <Building2 className="h-3.5 w-3.5" />
-              Tapkite partneriu
-            </div>
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-5">
-              Turite sportinį kortą?
-              <br />
-              <span className="text-primary">Uždirbkite daugiau.</span>
-            </h2>
-            <p className="text-zinc-400 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-              Prisijunkite prie korts.lt partnerių tinklo ir leiskite mūsų platformai pripildyti jūsų kortus klientais — jokių komisinių mokesčių per pirmus 3 mėnesius.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/owner"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
-              >
-                Registruoti kortą
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <a
-                href="mailto:hello@korts.lt"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors"
-              >
-                <Mail className="h-4 w-4" />
-                Susisiekti su mumis
-              </a>
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+
+            {/* Left: pitch */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-widest mb-6">
+                <Building2 className="h-3.5 w-3.5" />
+                Tapkite partneriu
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
+                Turite sportinį kortą?
+                <br />
+                <span className="text-primary">Uždirbkite daugiau.</span>
+              </h2>
+              <p className="text-zinc-400 text-base mb-8 leading-relaxed">
+                Prisijunkite prie korts.lt partnerių tinklo. Mūsų skydelis rodo viską — nuo rezervacijų su klientų vardais iki „Stripe" mokėjimų ir biudžeto analizės.
+              </p>
+
+              {/* Feature list */}
+              <ul className="space-y-3.5 mb-9">
+                {[
+                  { icon: CalendarDays, text: "Rezervacijų tvarkaraštis su klientų vardais realiuoju laiku" },
+                  { icon: CreditCard, text: "Stripe mokėjimai — transakcijų istorija ir automatiniai išmokėjimai" },
+                  { icon: BarChart3, text: "Biudžeto ir pajamų valdymas su augimu po mėnesio" },
+                  { icon: Bell, text: "Momentiniai pranešimai apie naują rezervaciją ar atšaukimą" },
+                ].map(({ icon: Icon, text }) => (
+                  <li key={text} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center">
+                      <Icon className="h-3.5 w-3.5 text-primary" />
+                    </span>
+                    <span className="text-sm text-zinc-300 leading-relaxed">{text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/owner" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
+                  Registruoti kortą <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a href="mailto:hello@korts.lt" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors">
+                  <Mail className="h-4 w-4" /> Susisiekti su mumis
+                </a>
+              </div>
             </div>
 
-            {/* Quick benefit pills */}
-            <div className="flex flex-wrap gap-3 justify-center mt-10">
-              {[
-                "📅 Online rezervacijos 24/7",
-                "💬 Tiesioginis ryšys su klientais",
-                "📊 Statistikos skydelis",
-                "🔔 Realaus laiko pranešimai",
-                "🏷️ Lanksti kainodara",
-              ].map(text => (
-                <span
-                  key={text}
-                  className="px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 text-sm text-zinc-300"
-                >
-                  {text}
-                </span>
-              ))}
+            {/* Right: mock dashboard cards */}
+            <div className="flex flex-col gap-3 lg:pl-4">
+
+              {/* Booking schedule card */}
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-white">Šiandienės rezervacijos</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500">2025-04-14</span>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {[
+                    { time: "09:00–10:00", name: "Tomas K.", done: true },
+                    { time: "11:00–13:00", name: "Laura M.", done: true },
+                    { time: "14:00–15:00", name: "Andrius P.", done: true },
+                    { time: "17:00–19:00", name: "Viktorija S.", done: false, highlight: true },
+                    { time: "19:00–21:00", name: "Mindaugas J.", done: false },
+                  ].map(({ time, name, done, highlight }) => (
+                    <div key={time} className={`flex items-center gap-3 px-4 py-2.5 ${highlight ? "bg-primary/8" : ""}`}>
+                      <span className={`text-xs tabular-nums font-mono w-24 shrink-0 ${highlight ? "text-primary font-semibold" : "text-zinc-400"}`}>{time}</span>
+                      <span className={`text-sm flex-1 ${highlight ? "text-white font-medium" : "text-zinc-300"}`}>{name}</span>
+                      {done
+                        ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                        : <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${highlight ? "bg-primary/20 text-primary" : "bg-zinc-800 text-zinc-400"}`}>{highlight ? "Dabar" : "Laukia"}</span>
+                      }
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom two cards */}
+              <div className="grid grid-cols-2 gap-3">
+
+                {/* Stripe transactions */}
+                <div className="bg-zinc-900 border border-white/8 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="flex items-center gap-2 px-3.5 py-3 border-b border-white/8">
+                    <CreditCard className="h-3.5 w-3.5 text-violet-400" />
+                    <span className="text-xs font-semibold text-white">Stripe mokėjimai</span>
+                  </div>
+                  <div className="divide-y divide-white/5">
+                    {[
+                      { name: "Viktorija S.", amount: "€36.00", pending: true },
+                      { name: "Tomas K.", amount: "€18.00", pending: false },
+                      { name: "Laura M.", amount: "€36.00", pending: false },
+                      { name: "Andrius P.", amount: "€18.00", pending: false },
+                    ].map(({ name, amount, pending }) => (
+                      <div key={name} className="flex items-center justify-between px-3.5 py-2">
+                        <span className="text-[11px] text-zinc-400 truncate">{name}</span>
+                        <span className={`text-[11px] font-semibold tabular-nums ml-2 shrink-0 ${pending ? "text-amber-400" : "text-emerald-400"}`}>{amount}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-3.5 py-2.5 border-t border-white/8 flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-500">Iš viso šiandien</span>
+                    <span className="text-sm font-bold text-white">€108.00</span>
+                  </div>
+                </div>
+
+                {/* Revenue / budget card */}
+                <div className="bg-zinc-900 border border-white/8 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="flex items-center gap-2 px-3.5 py-3 border-b border-white/8">
+                    <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-semibold text-white">Biudžetas</span>
+                  </div>
+                  <div className="px-3.5 py-3">
+                    <p className="text-2xl font-bold text-white tabular-nums leading-none">€1 842</p>
+                    <div className="flex items-center gap-1 mt-1 mb-3">
+                      <TrendingUp className="h-3 w-3 text-emerald-400" />
+                      <span className="text-[10px] text-emerald-400 font-semibold">+23%</span>
+                      <span className="text-[10px] text-zinc-500 ml-0.5">vs. praėjęs mėn.</span>
+                    </div>
+                    {/* Mini bar chart */}
+                    <div className="flex items-end gap-1 h-10">
+                      {[45, 62, 38, 70, 55, 80, 74].map((h, i) => (
+                        <div key={i} className="flex-1 rounded-sm" style={{ height: `${h}%`, background: i === 6 ? "#84cc16" : "rgba(255,255,255,0.12)" }} />
+                      ))}
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      {["P","A","T","K","Pn","Š","S"].map((d, i) => (
+                        <span key={i} className="flex-1 text-center text-[8px] text-zinc-600">{d}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-white/8">
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-white">47</p>
+                        <p className="text-[9px] text-zinc-500">Rezervacijos</p>
+                      </div>
+                      <div className="w-px h-6 bg-white/10" />
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-white">3.2h</p>
+                        <p className="text-[9px] text-zinc-500">Vid. trukmė</p>
+                      </div>
+                      <div className="w-px h-6 bg-white/10" />
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-primary">74%</p>
+                        <p className="text-[9px] text-zinc-500">Užimtumas</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
+
           </div>
         </div>
       </section>
