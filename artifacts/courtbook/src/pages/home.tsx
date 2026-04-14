@@ -270,10 +270,12 @@ export default function Home() {
                     onMouseEnter={() => setHoveredStat(label)}
                     onMouseLeave={() => setHoveredStat(null)}
                     onTouchStart={() => setTappedStat(label)}
-                    onTouchEnd={() => setTimeout(() => setTappedStat(null), 250)}
                   >
                     {/* Background content — fades out on hover */}
-                    <div className="transition-opacity duration-200 group-hover:opacity-20" style={{ opacity: tappedStat === label ? 0.2 : undefined }}>
+                    <div
+                      className="transition-opacity duration-200 group-hover:opacity-20"
+                      style={{ opacity: tappedStat === label ? 0.2 : undefined }}
+                    >
                       <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
                       <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
                         {sport === null ? (
@@ -292,9 +294,8 @@ export default function Home() {
                     </div>
                     {/* Hover overlay with sport-specific court photo */}
                     <div
-                      className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      className={`absolute inset-0 flex flex-col items-center justify-center gap-1.5 transition-opacity duration-200 ${tappedStat === label ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                       style={{
-                        opacity: tappedStat === label ? 1 : undefined,
                         backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(${bgImage})`,
                         backgroundSize: "cover",
                         backgroundPosition: "center",
