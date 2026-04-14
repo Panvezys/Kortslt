@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { customFetch, type Court } from "@workspace/api-client-react";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
-  Users, Building2, ShieldCheck, User, Gavel,
+  Users, Building2, ShieldCheck, User, Gavel, Database,
 } from "lucide-react";
 import { useRole } from "@/lib/useRole";
 
@@ -116,6 +116,15 @@ function useSetUserRole() {
   });
 }
 
+function useSeedCourts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      customFetch<{ message: string; inserted: number }>("/api/admin/seed-courts", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-courts"] }),
+  });
+}
+
 // ─── Courts panel ────────────────────────────────────────────────────────────
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
@@ -130,6 +139,7 @@ function CourtsPanel() {
   const { data: courts, isLoading, isError } = useAdminCourts();
   const approveMutation = useApproveCourt();
   const rejectMutation = useRejectCourt();
+  const seedMutation = useSeedCourts();
 
   const filtered = (courts ?? []).filter(c =>
     filterStatus === "all" ? true : c.status === filterStatus
@@ -185,9 +195,29 @@ function CourtsPanel() {
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-courts"] })}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
-        </Button>
+        <div className="flex gap-2">
+          {counts.all === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const result = await seedMutation.mutateAsync();
+                  toast({ title: result.message });
+                } catch {
+                  toast({ title: "Klaida seeding duomenų", variant: "destructive" });
+                }
+              }}
+              disabled={seedMutation.isPending}
+            >
+              <Database className="w-4 h-4 mr-2" />
+              {seedMutation.isPending ? "Seeding..." : "Seed duomenų bazę"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-courts"] })}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+          </Button>
+        </div>
       </div>
 
       {isLoading && (

@@ -36,7 +36,7 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 
 ### Features
 - Interactive Leaflet/OpenStreetMap map centered on Lithuania, satellite/street view toggle, courts color-coded by rating (5 tiers: lime→green→yellow→orange→gray)
-- 40 real Lithuanian courts across 6 sport types and 6 cities seeded in DB
+- 385 real Lithuanian sports courts across 24+ Lithuanian cities seeded in DB
   - Tennis 🎾 (#84cc16), Basketball 🏀 (#f97316), Padel 🏓 (#3b82f6), Football ⚽ (#22c55e), Badminton 🏸 (#a855f7), Squash 🎯 (#06b6d4)
   - Cities: Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
@@ -98,6 +98,13 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 ### Slot Availability
 - `GET /api/courts/:id/availability` blocks slots with **both** `pending` and `confirmed` bookings.
 - This prevents double-booking — once a user creates a booking (even before payment), the slot is unavailable to others.
+
+### Production Database Seeding
+- Production DB is separate from dev and starts empty after first publish.
+- Court seed data: `artifacts/api-server/src/data/courts-seed.json` (385 courts, ~362KB).
+- Build script (`build.mjs`) copies `src/data/` → `dist/data/` automatically.
+- Admin endpoint: `POST /api/admin/seed-courts` — inserts seed courts if DB is empty; protected by `requireAdmin`.
+- **One-time setup**: After deploying, log in as admin → Admin Dashboard → click "Seed duomenų bazę" button (only visible when 0 courts).
 
 ### API Routes
 - `GET /api/courts` — list courts (filter by type, city, surface, condition, isIndoor, minPrice, maxPrice)

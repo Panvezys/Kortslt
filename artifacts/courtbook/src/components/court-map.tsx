@@ -449,7 +449,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
           {ALL_SPORTS.map(sport => {
             const active = activeSports.has(sport);
             const color = SPORT_COLOR[sport];
-            const count = courts.filter(c => c.type === sport).length;
+            const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
             return (
               <button
                 key={sport}
