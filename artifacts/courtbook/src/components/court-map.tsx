@@ -231,6 +231,7 @@ export function CourtMap({
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [mapReady, setMapReady] = useState(false);
   const [internalActiveSports, setInternalActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+  const [filterPanelOpen, setFilterPanelOpen] = useState(true);
 
   const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
 
@@ -446,44 +447,61 @@ export function CourtMap({
       {/* Sport filter panel — shown when showFilterPanel is true */}
       {showFilterPanel && (
         <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl text-xs min-w-[130px]">
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 border-b border-border/50">
-            <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">Sportas</span>
+          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
             <button
-              onClick={() => setInternalActiveSports(allInternalActive ? new Set(ALL_SPORTS.slice(0, 1)) : new Set(ALL_SPORTS))}
-              className="text-[9px] font-medium text-primary hover:underline ml-2"
+              onClick={() => setFilterPanelOpen(o => !o)}
+              className="flex items-center gap-1.5 group"
             >
-              {allInternalActive ? "Slėpti" : "Visi"}
+              <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition-colors">Sportas</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="10" height="10" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                className={`text-muted-foreground transition-transform duration-200 ${filterPanelOpen ? "rotate-0" : "-rotate-90"}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
+            {filterPanelOpen && (
+              <button
+                onClick={() => setInternalActiveSports(allInternalActive ? new Set(["tennis"]) : new Set(ALL_SPORTS))}
+                className="text-[9px] font-medium text-primary hover:underline ml-2"
+              >
+                {allInternalActive ? "Slėpti" : "Visi"}
+              </button>
+            )}
           </div>
-          <div className="px-2 py-2 space-y-0.5">
-            {ALL_SPORTS.map(sport => {
-              const active = internalActiveSports.has(sport);
-              const color = SPORT_COLOR[sport];
-              const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
-              return (
-                <button
-                  key={sport}
-                  onClick={() => toggleSportInternal(sport)}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
-                    active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-60 hover:bg-muted/30"
-                  }`}
-                >
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
-                    style={{ background: active ? color : "transparent", borderColor: color }}
+          {filterPanelOpen && (
+            <div className="px-2 pb-2 space-y-0.5 border-t border-border/50 pt-1.5">
+              {ALL_SPORTS.map(sport => {
+                const active = internalActiveSports.has(sport);
+                const color = SPORT_COLOR[sport];
+                const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
+                return (
+                  <button
+                    key={sport}
+                    onClick={() => toggleSportInternal(sport)}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
+                      active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-60 hover:bg-muted/30"
+                    }`}
                   >
-                    <SportIcon sport={sport} size={9} strokeWidth={2} style={{ color: active ? "white" : color }} />
-                  </div>
-                  <span className={`flex-1 font-medium transition-colors text-[11px] ${active ? "text-foreground" : "text-muted-foreground"}`}>
-                    {sportLithuanian[sport]}
-                  </span>
-                  <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/40"}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <div
+                      className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                      style={{ background: active ? color : "transparent", borderColor: color }}
+                    >
+                      <SportIcon sport={sport} size={9} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                    </div>
+                    <span className={`flex-1 font-medium transition-colors text-[11px] ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                      {sportLithuanian[sport]}
+                    </span>
+                    <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/40"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
