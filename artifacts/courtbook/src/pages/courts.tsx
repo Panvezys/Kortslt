@@ -23,6 +23,19 @@ const PAGE_SIZE = 12;
 
 const surfaceKeys = ["clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber"] as const;
 
+const HERO_IMAGES = [
+  "courts/court_2_bernardinu.png",
+  "courts/padel/padel_court_indoor_1.jpg",
+  "courts/court_17_zalgiris.png",
+  "courts/football/football_futsal_court_2.jpg",
+  "courts/badminton/badminton_court_indoor_1.jpg",
+  "courts/squash/squash_court_1.jpg",
+  "courts/court_4_verkiai.png",
+  "courts/padel/padel_court_indoor_3.jpg",
+  "courts/court_3_lsc_vingis.png",
+  "courts/court_1_seb_arena.png",
+];
+
 export default function Courts() {
   const t = useT();
   const searchStr = useSearch();
@@ -42,6 +55,14 @@ export default function Courts() {
   const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [bgIdx, setBgIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setBgIdx(i => (i + 1) % HERO_IMAGES.length), 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const [page, setPage] = useState(1);
   const [activeSports, setActiveSports] = useState<Set<string>>(
     initialType && ALL_SPORTS.includes(initialType) ? new Set([initialType]) : new Set(ALL_SPORTS)
@@ -296,10 +317,28 @@ export default function Courts() {
 
   return (
     <Layout>
-      <div className="bg-muted/30 border-b">
-        <div className="container mx-auto px-4 py-8 md:py-12">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">{t("courts.title")}</h1>
-          <p className="text-muted-foreground max-w-2xl text-sm md:text-base">{t("courts.subtitle")}</p>
+      {/* Hero banner with rotating court photos */}
+      <div className="relative overflow-hidden border-b" style={{ minHeight: "180px" }}>
+        {HERO_IMAGES.map((img, i) => (
+          <div
+            key={img}
+            className="absolute inset-0 transition-opacity duration-1000"
+            style={{
+              backgroundImage: `url(${base}/${img})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              opacity: i === bgIdx ? 1 : 0,
+            }}
+          />
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/30" />
+        <div className="relative z-10 container mx-auto px-4 py-10 md:py-16">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-white drop-shadow-md">
+            {t("courts.title")}
+          </h1>
+          <p className="text-white/80 max-w-2xl text-sm md:text-base leading-relaxed drop-shadow">
+            {t("courts.subtitle")}
+          </p>
         </div>
       </div>
 
