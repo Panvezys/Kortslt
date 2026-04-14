@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { useT } from "@/lib/i18n";
 import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -134,6 +135,7 @@ export default function CourtDetail() {
   const courtId = parseInt(id || "0", 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const t = useT();
 
   const [date, setDate] = useState<Date>(new Date());
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
@@ -348,13 +350,13 @@ export default function CourtDetail() {
     const phone = guestPhone.trim();
 
     if (!firstName || !lastName) {
-      toast({ title: "Įveskite vardą ir pavardę", variant: "destructive" }); return;
+      toast({ title: t("guest.errorName"), variant: "destructive" }); return;
     }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast({ title: "Įveskite teisingą el. paštą", variant: "destructive" }); return;
+      toast({ title: t("guest.errorEmail"), variant: "destructive" }); return;
     }
     if (!phone || phone.length < 6) {
-      toast({ title: "Įveskite telefono numerį", variant: "destructive" }); return;
+      toast({ title: t("guest.errorPhone"), variant: "destructive" }); return;
     }
 
     await handleReserve({ customerName: `${firstName} ${lastName}`, customerEmail: email, customerPhone: phone });
@@ -1070,20 +1072,20 @@ export default function CourtDetail() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <Label htmlFor="guestFirstName" className="text-xs text-muted-foreground">Vardas *</Label>
+                          <Label htmlFor="guestFirstName" className="text-xs text-muted-foreground">{t("guest.firstName")} *</Label>
                           <Input
                             id="guestFirstName"
-                            placeholder="Vardas"
+                            placeholder={t("guest.firstName")}
                             value={guestFirstName}
                             onChange={e => setGuestFirstName(e.target.value)}
                             className="h-9 text-sm"
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label htmlFor="guestLastName" className="text-xs text-muted-foreground">Pavardė *</Label>
+                          <Label htmlFor="guestLastName" className="text-xs text-muted-foreground">{t("guest.lastName")} *</Label>
                           <Input
                             id="guestLastName"
-                            placeholder="Pavardė"
+                            placeholder={t("guest.lastName")}
                             value={guestLastName}
                             onChange={e => setGuestLastName(e.target.value)}
                             className="h-9 text-sm"
@@ -1091,22 +1093,22 @@ export default function CourtDetail() {
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="guestEmail" className="text-xs text-muted-foreground">El. paštas *</Label>
+                        <Label htmlFor="guestEmail" className="text-xs text-muted-foreground">{t("guest.email")} *</Label>
                         <Input
                           id="guestEmail"
                           type="email"
-                          placeholder="jusu@el.pastas.lt"
+                          placeholder={t("guest.emailPlaceholder")}
                           value={guestEmail}
                           onChange={e => setGuestEmail(e.target.value)}
                           className="h-9 text-sm"
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="guestPhone" className="text-xs text-muted-foreground">Telefono numeris *</Label>
+                        <Label htmlFor="guestPhone" className="text-xs text-muted-foreground">{t("guest.phone")} *</Label>
                         <Input
                           id="guestPhone"
                           type="tel"
-                          placeholder="+370 600 00000"
+                          placeholder={t("guest.phonePlaceholder")}
                           value={guestPhone}
                           onChange={e => setGuestPhone(e.target.value)}
                           className="h-9 text-sm"
@@ -1115,16 +1117,16 @@ export default function CourtDetail() {
 
                       <Button
                         onClick={handleGuestReserve}
-                        className="w-full h-12 text-base font-semibold gap-2"
+                        className="w-full min-h-[48px] h-auto py-3 px-4 text-sm font-semibold gap-2 leading-tight"
                         disabled={isPending}
                       >
-                        {isPending ? "Apdorojama..." : "Rezervuoti be registracijos"}
+                        {isPending ? t("guest.processing") : t("guest.bookBtn")}
                       </Button>
 
                       {/* Account creation CTA */}
                       <div className="rounded-xl border border-border bg-muted/40 p-3 flex flex-col gap-2">
                         <p className="text-xs text-muted-foreground text-center">
-                          Norite sekti visas savo rezervacijas vienoje vietoje?
+                          {t("guest.ctaTitle")}
                         </p>
                         <div className="flex gap-2">
                           <Button
@@ -1134,7 +1136,7 @@ export default function CourtDetail() {
                             onClick={() => openSignIn()}
                           >
                             <LogIn className="w-3 h-3" />
-                            Prisijungti
+                            {t("guest.signIn")}
                           </Button>
                           <Button
                             variant="default"
@@ -1149,7 +1151,7 @@ export default function CourtDetail() {
                             })}
                           >
                             <UserPlus className="w-3 h-3" />
-                            Registruotis
+                            {t("guest.register")}
                           </Button>
                         </div>
                       </div>
