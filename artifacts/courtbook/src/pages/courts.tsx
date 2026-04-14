@@ -56,6 +56,7 @@ export default function Courts() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [bgIdx, setBgIdx] = useState(0);
+  const [cityExpanded, setCityExpanded] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setBgIdx(i => (i + 1) % HERO_IMAGES.length), 5000);
@@ -213,7 +214,7 @@ export default function Courts() {
           )}
         </div>
         <div className="space-y-1">
-          {sortedCities.map(c => {
+          {(cityExpanded ? sortedCities : sortedCities.filter((c, i) => i < 5 || selectedCities.has(c))).map(c => {
             const active = selectedCities.has(c);
             const count = cityCounts[c] ?? 0;
             return (
@@ -245,6 +246,16 @@ export default function Courts() {
             );
           })}
         </div>
+        {sortedCities.length > 5 && (
+          <button
+            onClick={() => setCityExpanded(v => !v)}
+            className="mt-1 text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
+          >
+            {cityExpanded
+              ? "Rodyti mažiau ↑"
+              : `Rodyti daugiau (${sortedCities.length - 5}) ↓`}
+          </button>
+        )}
       </div>
 
       {/* Search */}
