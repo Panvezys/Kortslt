@@ -230,7 +230,11 @@ export default function Home() {
                   { count: stats.basketballCourts ?? 0,                                                                                                    label: t("sports.basketball"),         sport: "basketball",   href: "/courts?type=basketball" },
                   { count: stats.padelCourts ?? 0,                                                                                                         label: t("sports.padel"),              sport: "padel",        href: "/courts?type=padel" },
                   { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0),                              label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
-                ].sort((a, b) => b.count - a.count).map(({ count, label, sport, href }) => {
+                ].sort((a, b) => {
+                  if (a.sport === "multi") return 1;
+                  if (b.sport === "multi") return -1;
+                  return b.count - a.count;
+                }).map(({ count, label, sport, href }) => {
                   const numColor = sport === null ? undefined : sport === "multi" ? sportColor["football"] : sportColor[sport];
                   const isHovered = hoveredStat === label;
                   const imgKey = sport === null ? "total" : sport === "multi" ? "football" : sport;
