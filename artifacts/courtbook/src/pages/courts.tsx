@@ -35,7 +35,7 @@ export default function Courts() {
   };
 
   const [search, setSearch] = useState("");
-  const [city, setCity] = useState<string>("all");
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set());
   const [surface, setSurface] = useState<string>("all");
   const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
   const [maxPrice, setMaxPrice] = useState<number>(100);
@@ -61,18 +61,24 @@ export default function Courts() {
   };
   const allSportsActive = activeSports.size === ALL_SPORTS.length;
 
+  const toggleCity = (c: string) => {
+    setSelectedCities(prev => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  };
+
   useEffect(() => {
     setPage(1);
-  }, [search, city, surface, isIndoorFilter, maxPrice, sortBy, activeSports]);
+  }, [search, selectedCities, surface, isIndoorFilter, maxPrice, sortBy, activeSports]);
 
   const { data: cities } = useListCities();
 
-  const queryCity = city === "all" ? undefined : city;
   const querySurface = surface === "all" ? undefined : surface;
   const queryIsIndoor = isIndoorFilter === "all" ? undefined : isIndoorFilter === "indoor";
 
   const { data: courts, isLoading } = useListCourts({
-    city: queryCity,
     surface: querySurface,
     isIndoor: queryIsIndoor,
     maxPrice,
@@ -85,11 +91,14 @@ export default function Courts() {
   }, {});
   const sortedCities = (cities ?? []).slice().sort((a, b) => (cityCounts[b] ?? 0) - (cityCounts[a] ?? 0));
 
-  const filteredCourts = courts?.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.city.toLowerCase().includes(search.toLowerCase()) ||
-    c.address.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCourts = courts?.filter(c => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.city.toLowerCase().includes(search.toLowerCase()) ||
+      c.address.toLowerCase().includes(search.toLowerCase());
+    const matchesCity = selectedCities.size === 0 || selectedCities.has(c.city);
+    return matchesSearch && matchesCity;
+  });
 
   const sortedCourts = filteredCourts ? [...filteredCourts]
     .filter(c => activeSports.has(c.type))
@@ -104,7 +113,7 @@ export default function Courts() {
   const pagedCourts = sortedCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
-    city !== "all",
+    selectedCities.size > 0,
     surface !== "all",
     isIndoorFilter !== "all",
     maxPrice < 100,
@@ -112,7 +121,7 @@ export default function Courts() {
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setCity("all");
+    setSelectedCities(new Set());
     setSurface("all");
     setIsIndoorFilter("all");
     setMaxPrice(100);
@@ -169,25 +178,52 @@ export default function Courts() {
       {/* Sport filter (icon buttons) */}
       {sportFilterControls}
 
-      {/* City — sorted by court count */}
+      {/* City — multi-select, sorted by court count */}
       <div>
-        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
-        <Select value={city} onValueChange={setCity}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("courts.filters.allCities")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("courts.filters.allCities")}</SelectItem>
-            {sortedCities.map(c => (
-              <SelectItem key={c} value={c}>
-                <span className="flex items-center justify-between w-full gap-3">
-                  <span>{c}</span>
-                  {cityCounts[c] && <span className="text-muted-foreground text-xs tabular-nums">{cityCounts[c]}</span>}
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
+          {selectedCities.size > 0 && (
+            <button
+              onClick={() => setSelectedCities(new Set())}
+              className="text-[10px] font-medium text-primary hover:underline"
+            >
+              Valyti ({selectedCities.size})
+            </button>
+          )}
+        </div>
+        <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+          {sortedCities.map(c => {
+            const active = selectedCities.has(c);
+            const count = cityCounts[c] ?? 0;
+            return (
+              <button
+                key={c}
+                onClick={() => toggleCity(c)}
+                className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                  active ? "bg-primary/10 hover:bg-primary/15" : "opacity-60 hover:opacity-90 hover:bg-muted/40"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                    active ? "bg-primary border-primary" : "border-muted-foreground/40 bg-transparent"
+                  }`}
+                >
+                  {active && (
+                    <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                      <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+                <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                  {c}
                 </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+                <span className={`text-xs tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Search */}
