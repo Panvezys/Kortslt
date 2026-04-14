@@ -127,21 +127,6 @@ export default function Courts() {
         </div>
       </div>
 
-      {/* Sort */}
-      <div>
-        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.sort")}</Label>
-        <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc") => setSortBy(v)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
-            <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
-            <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Sport Type */}
       <div>
         <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.sportType")}</Label>
@@ -344,25 +329,37 @@ export default function Courts() {
           {/* Main Content */}
           <main className="flex-1 w-full min-w-0">
             {/* Desktop view toggle + count */}
-            <div className="hidden md:flex mb-6 justify-between items-center">
-              <h2 className="text-base font-semibold text-muted-foreground">
+            <div className="hidden md:flex mb-6 justify-between items-center gap-3">
+              <h2 className="text-base font-semibold text-muted-foreground shrink-0">
                 {isLoading ? "..." : viewMode === "list" && totalPages > 1
                   ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCourts)} / ${totalCourts}`
                   : t("courts.found", { n: totalCourts })}
               </h2>
-              <div className="flex gap-1 rounded-md border p-0.5">
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
-                >
-                  <List className="h-3.5 w-3.5" /> {t("courts.listView")}
-                </button>
-                <button
-                  onClick={() => setViewMode("map")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
-                >
-                  <Map className="h-3.5 w-3.5" /> {t("courts.mapView")}
-                </button>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc") => setSortBy(v)}>
+                  <SelectTrigger className="h-8 text-xs w-44 gap-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+                    <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
+                    <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-1 rounded-md border p-0.5">
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                  >
+                    <List className="h-3.5 w-3.5" /> {t("courts.listView")}
+                  </button>
+                  <button
+                    onClick={() => setViewMode("map")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                  >
+                    <Map className="h-3.5 w-3.5" /> {t("courts.mapView")}
+                  </button>
+                </div>
               </div>
             </div>
 
