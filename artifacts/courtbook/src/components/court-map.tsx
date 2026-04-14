@@ -82,7 +82,7 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
 ];
 
-const sportLithuanian: Record<string, string> = {
+export const sportLithuanian: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
   football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
 };
@@ -428,7 +428,7 @@ export function CourtMap({
       </GoogleMap>
 
       {/* Map / Satellite toggle */}
-      <div className="absolute top-3 right-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
+      <div className="absolute top-3 left-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
         {(["roadmap", "satellite"] as const).map(t => (
           <button
             key={t}

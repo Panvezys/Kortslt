@@ -13,6 +13,7 @@ import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
+import { sportLithuanian } from "@/components/court-map";
 
 const HERO_IMAGES = [
   "courts/court_2_bernardinu.png",
@@ -118,6 +119,17 @@ export default function Home() {
   const { isSignedIn } = useUser();
   const { favorites, loading: favLoading } = useFavoritesContext();
   const [heroIdx, setHeroIdx] = useState(0);
+  const ALL_SPORTS = Object.keys(sportLithuanian);
+  const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+
+  const toggleSport = (sport: string) => {
+    setActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) { next.delete(sport); } else { next.add(sport); }
+      return next;
+    });
+  };
+  const allActive = activeSports.size === ALL_SPORTS.length;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -235,10 +247,51 @@ export default function Home() {
       {/* Map Section */}
       <section className="py-12 md:py-24 container mx-auto px-4">
         <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-          <div className="w-full md:w-1/3">
+          <div className="w-full md:w-1/3 flex flex-col">
             <h2 className="text-3xl font-bold mb-4 tracking-tight">{t("home.map.title")}</h2>
             <p className="text-muted-foreground mb-6">{t("home.map.description")}</p>
-            <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline">
+
+            {/* Sport filter */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Sporto šaka</span>
+                <button
+                  onClick={() => setActiveSports(allActive ? new Set() : new Set(ALL_SPORTS))}
+                  className="text-[10px] font-medium text-primary hover:underline"
+                >
+                  {allActive ? "Slėpti visus" : "Visi"}
+                </button>
+              </div>
+              <div className="space-y-1">
+                {ALL_SPORTS.map(sport => {
+                  const active = activeSports.has(sport);
+                  const color = sportColor[sport] ?? "#84cc16";
+                  const count = (courts ?? []).filter(c => c.type === sport).length;
+                  return (
+                    <button
+                      key={sport}
+                      onClick={() => toggleSport(sport)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-left ${
+                        active ? "bg-muted/50 hover:bg-muted" : "opacity-40 hover:opacity-60 hover:bg-muted/30"
+                      }`}
+                    >
+                      <div
+                        className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                        style={{ background: active ? color : "transparent", borderColor: color }}
+                      >
+                        <SportIcon sport={sport} size={10} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                      </div>
+                      <span className={`flex-1 text-sm font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                        {sportLithuanian[sport]}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline mt-auto">
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
@@ -246,7 +299,7 @@ export default function Home() {
             {courtsLoading ? (
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
-              <CourtMap courts={courts} showFilterPanel={true} />
+              <CourtMap courts={courts} activeSports={activeSports} />
             ) : null}
           </div>
         </div>
