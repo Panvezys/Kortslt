@@ -249,8 +249,8 @@ export default function Home() {
                     </div>
                     {/* Hover overlay */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-muted/60 backdrop-blur-sm">
-                      <Search className="h-5 w-5 text-primary" />
-                      <span className="text-sm font-semibold text-foreground tracking-wide">Ieškoti</span>
+                      <Search className="h-5 w-5" style={{ color: numColor ?? "currentColor" }} />
+                      <span className="text-sm font-semibold tracking-wide" style={{ color: numColor ?? "currentColor" }}>Ieškoti</span>
                     </div>
                   </Link>
                   );
