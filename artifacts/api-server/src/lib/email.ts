@@ -62,7 +62,7 @@ function googleCalendarUrl(data: {
 
 function googleMapsUrl(address: string, city: string): string {
   const query = encodeURIComponent(`${address}, ${city}, Lietuva`);
-  return `https://www.google.com/maps/dir/?api=1&destination=${query}`;
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
 export interface BookingEmailData {
@@ -158,7 +158,8 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
                     </a>
                   </td>
                   <td align="right">
-                    <span style="color:#6b7280;font-size:13px;">Rezervacija #${data.bookingId}</span>
+                    <span style="color:#6b7280;font-size:13px;display:block;">Rezervacijos numeris</span>
+                    <span style="color:#ffffff;font-size:14px;font-weight:700;display:block;margin-top:2px;">#${data.bookingId}</span>
                   </td>
                 </tr>
               </table>
