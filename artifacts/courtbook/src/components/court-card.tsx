@@ -51,7 +51,7 @@ export function CourtCard({ court }: { court: Court }) {
   const { isSignedIn } = useUser();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const [hovered, setHovered] = useState(false);
-  const imageSrc = resolveCourtImage(court.imageUrl);
+  const imageSrc = resolveCourtImage(court.imageUrl, court.type);
   const sport = sportConfig[court.type] ?? { color: "#84cc16" };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;

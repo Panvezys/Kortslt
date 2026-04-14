@@ -14,6 +14,7 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 const HERO_IMAGES = [
   "courts/court_2_bernardinu.png",
@@ -55,10 +56,7 @@ function StarRatingSmall({ rating }: { rating?: number | null }) {
 function PopularCourtCard({ court }: { court: PopularCourt }) {
   const t = useT();
   const [hovered, setHovered] = useState(false);
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const imgSrc = court.imageUrl
-    ? court.imageUrl.startsWith("http") ? court.imageUrl : `${base}/${court.imageUrl}`
-    : null;
+  const imgSrc = resolveCourtImage(court.imageUrl, court.type);
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const color = sportColor[court.type] ?? "#84cc16";
 
