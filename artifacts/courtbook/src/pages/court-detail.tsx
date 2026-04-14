@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
@@ -9,11 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+
+const SPORT_LABELS: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+};
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -35,6 +42,84 @@ function StarDisplay({ rating, size = "md" }: { rating?: number | null; size?: "
       {Array.from({ length: empty }).map((_, i) => (
         <Star key={`e${i}`} className={`${cls} text-muted-foreground/30`} />
       ))}
+    </div>
+  );
+}
+
+interface Coach {
+  id: number;
+  userId: string;
+  name: string;
+  email: string;
+  bio?: string;
+  photoUrl?: string;
+  pricePerHour?: number;
+  sports: string[];
+  availabilityDescription?: string;
+  phone?: string;
+}
+
+function CoachesSectionForCourt({ courtId }: { courtId: number }) {
+  const { data: coaches, isLoading } = useQuery<Coach[]>({
+    queryKey: ["court-coaches", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/courts/${courtId}/coaches`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!courtId && !isNaN(courtId),
+  });
+
+  if (isLoading) return null;
+  if (!coaches || coaches.length === 0) return null;
+
+  return (
+    <div className="space-y-5">
+      <h2 className="text-2xl font-semibold flex items-center gap-2">
+        <Trophy className="w-6 h-6 text-primary" />
+        Treneriai
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {coaches.map(coach => (
+          <a
+            key={coach.id}
+            href={`/coach/${coach.id}`}
+            className="flex gap-4 p-4 bg-card border rounded-2xl hover:border-primary/50 hover:shadow-md transition-all group"
+          >
+            {coach.photoUrl ? (
+              <img src={coach.photoUrl} alt={coach.name} className="w-14 h-14 rounded-full object-cover border-2 border-muted shrink-0" />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Trophy className="w-7 h-7 text-primary/50" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold group-hover:text-primary transition-colors truncate">{coach.name}</p>
+              {coach.sports.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {coach.sports.slice(0, 3).map(s => (
+                    <span key={s} className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">
+                      {SPORT_LABELS[s] ?? s}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                {coach.pricePerHour != null && (
+                  <span className="flex items-center gap-0.5 font-semibold text-foreground">
+                    <Euro className="w-3 h-3" />{coach.pricePerHour}/val
+                  </span>
+                )}
+                {coach.availabilityDescription && (
+                  <span className="flex items-center gap-0.5">
+                    <Clock className="w-3 h-3" />{coach.availabilityDescription}
+                  </span>
+                )}
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
@@ -494,6 +579,12 @@ export default function CourtDetail() {
                 ir šalia patvirtintos rezervacijos spustelėkite „Vertinti".
               </div>
             </div>
+
+            <Separator />
+
+            {/* Coaches Section */}
+            <CoachesSectionForCourt courtId={courtId} />
+
           </div>
 
           {/* Booking Widget */}

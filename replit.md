@@ -66,6 +66,13 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Nav links (Owner Dashboard, Administravimas) only shown to users with the correct role
 - **Admin user**: seeded in `user_roles` table; `ADMIN_USER_IDS` env var no longer needed for auth (kept for legacy, but DB role is the source of truth)
 
+### Coaches System
+- **Coach profile** (`/coach/me`): any signed-in user can create/edit a coach profile (name, email, phone, bio, photo, YouTube video, price/hour, sports, availability description)
+- **Coach public page** (`/coach/:id`): publicly visible coach profile with YouTube embed
+- **Court coaches section**: court detail page shows coaches assigned to that court (sport badges, price, availability) — only renders if coaches are assigned
+- **Owner assignment**: owner dashboard → "Treneriai" button per court → dialog to assign/unassign coaches; lists all registered coaches with option to add
+- **Nav link**: "Trenerio profilis" in the signed-in user dropdown menu
+
 ### Database Tables
 - `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
@@ -73,6 +80,8 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - `court_pricing` — per-slot dynamic pricing: courtId, dayOfWeek (0=Sun), startTime (30-min slot), price (€); overrides default price per slot
 - `court_blocked_slots` — owner-blocked time ranges per court (date, startTime, endTime, reason)
 - `user_roles` — maps Clerk userId → role ('admin'|'owner'|'player'); auto-upserts on first login
+- `coaches` — coach profiles: userId, name, email, bio, photoUrl, videoUrl, pricePerHour, sports[], availabilityDescription, phone
+- `court_coaches` — junction table: courtId ↔ coachId (many-to-many assignment)
 - `courts.phone` — real phone numbers for each venue (TEXT, nullable)
 - `courts.openingHours` — opening hours as TEXT[] e.g. ["Pirm–Penkt: 07:00–23:00", "Šeštadienis–Sekmadienis: 08:00–22:00"]
 

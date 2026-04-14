@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -420,6 +420,181 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+const SPORT_LABELS: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+};
+
+interface CoachItem {
+  id: number;
+  name: string;
+  email: string;
+  sports: string[];
+  pricePerHour?: number;
+  photoUrl?: string;
+}
+
+function CoachAssignModal({ courtId, onClose }: { courtId: number; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: assigned = [], isLoading: assignedLoading } = useQuery<CoachItem[]>({
+    queryKey: ["court-coaches-assigned", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${API_URL}/courts/${courtId}/coaches`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const { data: allCoaches = [], isLoading: allLoading } = useQuery<CoachItem[]>({
+    queryKey: ["all-coaches"],
+    queryFn: async () => {
+      const r = await fetch(`${API_URL}/coaches`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const assignedIds = new Set(assigned.map(c => c.id));
+  const availableToAssign = allCoaches.filter(c => !assignedIds.has(c.id));
+
+  const assignMutation = useMutation({
+    mutationFn: async (coachId: number) => {
+      const r = await fetch(`${API_URL}/courts/${courtId}/coaches`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ coachId }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error ?? "Klaida priskiriant trenerį");
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["court-coaches-assigned", courtId] });
+      qc.invalidateQueries({ queryKey: ["court-coaches", courtId] });
+      toast({ title: "Treneris priskirtas" });
+    },
+    onError: (e: Error) => toast({ title: "Klaida", description: e.message, variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (coachId: number) => {
+      const r = await fetch(`${API_URL}/courts/${courtId}/coaches/${coachId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("Klaida šalinant trenerį");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["court-coaches-assigned", courtId] });
+      qc.invalidateQueries({ queryKey: ["court-coaches", courtId] });
+      toast({ title: "Treneris pašalintas" });
+    },
+    onError: (e: Error) => toast({ title: "Klaida", description: e.message, variant: "destructive" }),
+  });
+
+  if (assignedLoading || allLoading) {
+    return <div className="py-8 text-center text-muted-foreground">Kraunama...</div>;
+  }
+
+  return (
+    <div className="space-y-5 py-2">
+      {/* Assigned coaches */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Priskirti treneriai</h3>
+        {assigned.length === 0 ? (
+          <div className="text-sm text-muted-foreground bg-muted/30 rounded-xl px-4 py-3 border border-dashed">
+            Nėra priskirtų trenerių.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assigned.map(coach => (
+              <div key={coach.id} className="flex items-center justify-between gap-3 border rounded-xl px-4 py-3 bg-card">
+                <div className="flex items-center gap-3 min-w-0">
+                  {coach.photoUrl ? (
+                    <img src={coach.photoUrl} alt={coach.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Trophy className="w-4 h-4 text-primary/60" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{coach.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {coach.sports.map(s => SPORT_LABELS[s] ?? s).join(", ")}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => removeMutation.mutate(coach.id)}
+                  disabled={removeMutation.isPending}
+                >
+                  <UserMinus className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Available to assign */}
+      {availableToAssign.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Pridėti trenerį</h3>
+          <div className="space-y-2">
+            {availableToAssign.map(coach => (
+              <div key={coach.id} className="flex items-center justify-between gap-3 border rounded-xl px-4 py-3 bg-muted/20">
+                <div className="flex items-center gap-3 min-w-0">
+                  {coach.photoUrl ? (
+                    <img src={coach.photoUrl} alt={coach.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <Trophy className="w-4 h-4 text-muted-foreground/50" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{coach.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{coach.sports.map(s => SPORT_LABELS[s] ?? s).join(", ")}</span>
+                      {coach.pricePerHour != null && <span>· {coach.pricePerHour}€/val</span>}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5 text-xs"
+                  onClick={() => assignMutation.mutate(coach.id)}
+                  disabled={assignMutation.isPending}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Priskirti
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {allCoaches.length === 0 && (
+        <div className="text-sm text-center py-4 text-muted-foreground">
+          Sistemoje dar nėra trenerių.{" "}
+          <a href="/coach/me" className="text-primary hover:underline">Sukurti profilį</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OwnerDashboard() {
   const { user } = useUser();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -428,6 +603,7 @@ export default function OwnerDashboard() {
   const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
+  const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
   const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
@@ -985,6 +1161,14 @@ export default function OwnerDashboard() {
                         >
                           <CalendarClock className="w-3.5 h-3.5" /> Blokai
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs hidden sm:flex"
+                          onClick={() => setCoachesCourtId(court.id)}
+                        >
+                          <Trophy className="w-3.5 h-3.5" /> Treneriai
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
                           <Edit2 className="w-4 h-4 text-muted-foreground" />
                         </Button>
@@ -1038,6 +1222,24 @@ export default function OwnerDashboard() {
               <BlockedSlotsModal
                 courtId={blockedSlotsCourtId}
                 onClose={() => setBlockedSlotsCourtId(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Coaches Dialog */}
+        <Dialog open={coachesCourtId !== null} onOpenChange={(open) => { if (!open) setCoachesCourtId(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                Korto treneriai
+              </DialogTitle>
+            </DialogHeader>
+            {coachesCourtId !== null && (
+              <CoachAssignModal
+                courtId={coachesCourtId}
+                onClose={() => setCoachesCourtId(null)}
               />
             )}
           </DialogContent>
