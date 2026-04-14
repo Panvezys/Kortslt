@@ -3,7 +3,7 @@ import { GoogleMap, useJsApiLoader, InfoWindowF } from "@react-google-maps/api";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { MapPin } from "lucide-react";
+import { MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
 // sportAbbr kept for InfoWindow display
 
@@ -223,6 +223,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
   const [mapReady, setMapReady] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(true);
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map());
@@ -370,8 +371,9 @@ export function CourtMap({ courts }: { courts: Court[] }) {
   };
 
   const allActive = activeSports.size === ALL_SPORTS.length;
+  const noneActive = activeSports.size === 0;
   const toggleAll = () => {
-    setActiveSports(allActive ? new Set([ALL_SPORTS[0]]) : new Set(ALL_SPORTS));
+    setActiveSports(allActive ? new Set() : new Set(ALL_SPORTS));
     setSelectedCourt(null);
   };
 
@@ -438,45 +440,74 @@ export function CourtMap({ courts }: { courts: Court[] }) {
       </div>
 
       {/* Sport filter legend */}
-      <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl p-3 text-xs shadow-xl min-w-[140px]">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">Filtras</span>
-          <button onClick={toggleAll} className="text-[10px] font-medium text-primary hover:underline ml-2">
-            {allActive ? "Slėpti viską" : "Rodyti viską"}
-          </button>
+      <div className="absolute bottom-4 right-4 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl text-xs shadow-xl min-w-[140px]">
+        {/* Header — always visible */}
+        <div
+          className="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none"
+          onClick={() => setFilterOpen(v => !v)}
+        >
+          <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">
+            Filtras
+            {!allActive && !noneActive && (
+              <span className="ml-1.5 text-primary normal-case tracking-normal font-bold">
+                ({activeSports.size}/{ALL_SPORTS.length})
+              </span>
+            )}
+            {noneActive && (
+              <span className="ml-1.5 text-destructive normal-case tracking-normal font-bold">
+                (0)
+              </span>
+            )}
+          </span>
+          {filterOpen ? (
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground ml-2" />
+          ) : (
+            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground ml-2" />
+          )}
         </div>
-        <div className="space-y-1">
-          {ALL_SPORTS.map(sport => {
-            const active = activeSports.has(sport);
-            const color = SPORT_COLOR[sport];
-            const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
-            return (
-              <button
-                key={sport}
-                onClick={() => toggleSport(sport)}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
-                  active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-70 hover:bg-muted/30"
-                }`}
-              >
-                <div
-                  className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
-                  style={{ background: active ? color : "transparent", borderColor: color }}
-                >
-                  <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
-                </div>
-                <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
-                  {sportLithuanian[sport]}
-                </span>
-                <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
-                  {count}
-                </span>
+
+        {/* Collapsible body */}
+        {filterOpen && (
+          <div className="px-3 pb-3">
+            <div className="flex items-center justify-end mb-2">
+              <button onClick={toggleAll} className="text-[10px] font-medium text-primary hover:underline">
+                {allActive ? "Slėpti viską" : "Rodyti viską"}
               </button>
-            );
-          })}
-        </div>
-        {activeSports.size < ALL_SPORTS.length && (
-          <div className="mt-2 pt-2 border-t border-border/50 text-[10px] text-muted-foreground text-center">
-            {visibleCourts.length} iš {courts.length} kortų
+            </div>
+            <div className="space-y-1">
+              {ALL_SPORTS.map(sport => {
+                const active = activeSports.has(sport);
+                const color = SPORT_COLOR[sport];
+                const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
+                return (
+                  <button
+                    key={sport}
+                    onClick={() => toggleSport(sport)}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
+                      active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+                    }`}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                      style={{ background: active ? color : "transparent", borderColor: color }}
+                    >
+                      <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                    </div>
+                    <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                      {sportLithuanian[sport]}
+                    </span>
+                    <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {activeSports.size < ALL_SPORTS.length && (
+              <div className="mt-2 pt-2 border-t border-border/50 text-[10px] text-muted-foreground text-center">
+                {visibleCourts.length} iš {courts.length} kortų
+              </div>
+            )}
           </div>
         )}
       </div>
