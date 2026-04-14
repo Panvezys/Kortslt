@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { ListCourtsCondition, ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
+import { ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 
@@ -21,16 +21,12 @@ type ViewMode = "list" | "map";
 
 const PAGE_SIZE = 12;
 
-const surfaceKeys = [
-  "clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber",
-] as const;
-
-const conditionKeys: ListCourtsCondition[] = ["excellent", "good", "fair"];
+const surfaceKeys = ["clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber"] as const;
 
 export default function Courts() {
   const t = useT();
   const searchStr = useSearch();
-  const initialType = (new URLSearchParams(searchStr.replace(/^\?/, "")).get("type") as ListCourtsType | null) ?? "all";
+  const initialType = (new URLSearchParams(searchStr.replace(/^\?/, "")).get("type") as ListCourtsType | null) ?? null;
 
   const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash"];
   const sportLT: Record<string, string> = {
@@ -39,17 +35,17 @@ export default function Courts() {
   };
 
   const [search, setSearch] = useState("");
-  const [type, setType] = useState<ListCourtsType | "all">(initialType);
   const [city, setCity] = useState<string>("all");
   const [surface, setSurface] = useState<string>("all");
-  const [condition, setCondition] = useState<ListCourtsCondition | "all">("all");
   const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
   const [maxPrice, setMaxPrice] = useState<number>(100);
   const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+  const [activeSports, setActiveSports] = useState<Set<string>>(
+    initialType && ALL_SPORTS.includes(initialType) ? new Set([initialType]) : new Set(ALL_SPORTS)
+  );
 
   const toggleSport = (sport: string) => {
     setActiveSports(prev => {
@@ -67,24 +63,27 @@ export default function Courts() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, type, city, surface, condition, isIndoorFilter, maxPrice, sortBy]);
+  }, [search, city, surface, isIndoorFilter, maxPrice, sortBy, activeSports]);
 
   const { data: cities } = useListCities();
 
-  const queryType = type === "all" ? undefined : type;
   const queryCity = city === "all" ? undefined : city;
   const querySurface = surface === "all" ? undefined : surface;
-  const queryCondition = condition === "all" ? undefined : condition;
   const queryIsIndoor = isIndoorFilter === "all" ? undefined : isIndoorFilter === "indoor";
 
   const { data: courts, isLoading } = useListCourts({
-    type: queryType,
     city: queryCity,
     surface: querySurface,
-    condition: queryCondition,
     isIndoor: queryIsIndoor,
     maxPrice,
   });
+
+  // Sort cities by court count descending
+  const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
+    acc[c.city] = (acc[c.city] ?? 0) + 1;
+    return acc;
+  }, {});
+  const sortedCities = (cities ?? []).slice().sort((a, b) => (cityCounts[b] ?? 0) - (cityCounts[a] ?? 0));
 
   const filteredCourts = courts?.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -105,33 +104,22 @@ export default function Courts() {
   const pagedCourts = sortedCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
-    type !== "all",
     city !== "all",
     surface !== "all",
-    condition !== "all",
     isIndoorFilter !== "all",
     maxPrice < 100,
+    activeSports.size < ALL_SPORTS.length,
   ].filter(Boolean).length;
 
   const resetFilters = () => {
-    setType("all");
     setCity("all");
     setSurface("all");
-    setCondition("all");
     setIsIndoorFilter("all");
     setMaxPrice(100);
     setSearch("");
     setSortBy("default");
+    setActiveSports(new Set(ALL_SPORTS));
   };
-
-  const sportItems = [
-    { value: "tennis" },
-    { value: "basketball" },
-    { value: "padel" },
-    { value: "football" },
-    { value: "badminton" },
-    { value: "squash" },
-  ] as const;
 
   const sportFilterControls = (
     <div>
@@ -178,8 +166,29 @@ export default function Courts() {
 
   const filterControls = (
     <div className="space-y-6">
-      {/* Sport filter */}
+      {/* Sport filter (icon buttons) */}
       {sportFilterControls}
+
+      {/* City — sorted by court count */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
+        <Select value={city} onValueChange={setCity}>
+          <SelectTrigger>
+            <SelectValue placeholder={t("courts.filters.allCities")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("courts.filters.allCities")}</SelectItem>
+            {sortedCities.map(c => (
+              <SelectItem key={c} value={c}>
+                <span className="flex items-center justify-between w-full gap-3">
+                  <span>{c}</span>
+                  {cityCounts[c] && <span className="text-muted-foreground text-xs tabular-nums">{cityCounts[c]}</span>}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Search */}
       <div>
@@ -194,43 +203,6 @@ export default function Courts() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-      </div>
-
-      {/* Sport Type */}
-      <div>
-        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.sportType")}</Label>
-        <Select value={type} onValueChange={(v: ListCourtsType | "all") => setType(v)}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("courts.filters.allTypes")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("courts.filters.allTypes")}</SelectItem>
-            {sportItems.map(s => (
-              <SelectItem key={s.value} value={s.value}>
-                <span className="flex items-center gap-2">
-                  <SportIcon sport={s.value} size={14} strokeWidth={1.8} style={{ color: sportColor[s.value] }} />
-                  {t(`sports.${s.value}`)}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* City */}
-      <div>
-        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
-        <Select value={city} onValueChange={setCity}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("courts.filters.allCities")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("courts.filters.allCities")}</SelectItem>
-            {cities?.map(c => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Indoor / Outdoor */}
@@ -260,22 +232,6 @@ export default function Courts() {
             <SelectItem value="all">{t("courts.filters.allSurfaces")}</SelectItem>
             {surfaceKeys.map(key => (
               <SelectItem key={key} value={key}>{t(`surfaces.${key}`)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Condition */}
-      <div>
-        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.condition")}</Label>
-        <Select value={condition} onValueChange={(v: ListCourtsCondition | "all") => setCondition(v)}>
-          <SelectTrigger>
-            <SelectValue placeholder={t("courts.filters.anyCondition")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("courts.filters.anyCondition")}</SelectItem>
-            {conditionKeys.map(key => (
-              <SelectItem key={key} value={key}>{t(`conditions.${key}`)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
