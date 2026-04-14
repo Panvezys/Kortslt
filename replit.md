@@ -51,9 +51,15 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Payment checkout (mock mode — auto-confirmed)
 - Clerk authentication (sign in / register)
 
-### Court images
+### Court images & photo gallery
 - Existing tennis/basketball courts: `artifacts/courtbook/public/courts/*.png` (AI generated)
 - New sport courts: `artifacts/courtbook/public/courts/{padel,football,badminton,squash}/*.jpg` (stock photos)
+- **Photo gallery system**: `court_photos` DB table (`id`, `court_id`, `url`, `caption`, `display_order`, `uploaded_by`)
+  - `GET/POST /api/courts/:id/photos` — list & upload gallery photos
+  - `PATCH /api/courts/:id/photos/:photoId` — update caption/order (owner only)
+  - `DELETE /api/courts/:id/photos/:photoId` — delete photo + file (owner only)
+  - Owner dashboard: "Galerijos nuotraukos" section in court editor (3-column grid, multi-select upload, hover-to-delete)
+  - Court detail page: full-width gallery carousel with left/right arrows, thumbnail strip, "N/M" counter; single photo shows normally; falls back to empty state with sport initial
 
 ### Role-Based Access Control (RBAC)
 - **Three roles**: `admin`, `owner`, `player` (stored in `user_roles` table, keyed by Clerk userId)

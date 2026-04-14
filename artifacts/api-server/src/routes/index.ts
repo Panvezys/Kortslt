@@ -13,6 +13,7 @@ import rolesRouter from "./roles";
 import coachesRouter from "./coaches";
 import messagesRouter from "./messages";
 import notificationsRouter from "./notifications";
+import courtPhotosRouter from "./court-photos";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(rolesRouter);
 router.use(coachesRouter);
 router.use(messagesRouter);
 router.use(notificationsRouter);
+router.use(courtPhotosRouter);
 
 export default router;

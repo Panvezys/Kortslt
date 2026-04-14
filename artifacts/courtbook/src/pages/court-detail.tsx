@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send, ChevronLeft, ChevronRight, Images } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -140,6 +140,7 @@ export default function CourtDetail() {
   const [chatText, setChatText] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
+  const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLDivElement>(null);
 
@@ -176,6 +177,23 @@ export default function CourtDetail() {
   const createBooking = useCreateBooking();
   const { openSignIn } = useClerk();
   const [, navigate] = useLocation();
+
+  interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
+  const { data: extraPhotos = [] } = useQuery<CourtPhoto[]>({
+    queryKey: ["court-photos", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/courts/${courtId}/photos`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!courtId && !isNaN(courtId),
+  });
+  const allPhotos = useMemo(() => {
+    const urls: string[] = [];
+    if (court?.imageUrl) urls.push(court.imageUrl);
+    for (const p of extraPhotos) urls.push(p.url);
+    return urls;
+  }, [court?.imageUrl, extraPhotos]);
   const favorited = court ? isFavorite(court.id) : false;
 
   const handleShare = async () => {
@@ -390,16 +408,74 @@ export default function CourtDetail() {
 
   return (
     <Layout>
-      {/* Header Image */}
-      <div className="w-full h-[40vh] min-h-[300px] bg-muted relative">
-        {resolveCourtImage(court.imageUrl) ? (
-          <img src={resolveCourtImage(court.imageUrl)!} alt={court.name} className="w-full h-full object-cover" />
+      {/* Photo Gallery */}
+      <div className="w-full h-[45vh] min-h-[320px] bg-zinc-900 relative overflow-hidden">
+        {allPhotos.length > 0 ? (
+          <img
+            key={activePhotoIdx}
+            src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
+            alt={court.name}
+            className="w-full h-full object-cover transition-opacity duration-300"
+          />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-white">
-            <span className="text-6xl font-bold opacity-20">{court.name.charAt(0)}</span>
+          <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+            <Images className="h-16 w-16" />
+            <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent pointer-events-none" />
+
+        {/* Navigation arrows — only if multiple photos */}
+        {allPhotos.length > 1 && (
+          <>
+            <button
+              onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+
+            {/* Photo counter badge */}
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              <Images className="h-3 w-3" />
+              {activePhotoIdx + 1} / {allPhotos.length}
+            </div>
+
+            {/* Thumbnail strip */}
+            <div className="absolute bottom-6 left-4 flex gap-1.5 max-w-[55%] overflow-x-auto pb-0.5 scrollbar-hide">
+              {allPhotos.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActivePhotoIdx(i)}
+                  className={`shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/30 hover:border-white/60"}`}
+                >
+                  <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+
+            {/* Dot indicators (compact, below thumbnails) */}
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+              {allPhotos.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActivePhotoIdx(i)}
+                  className={`rounded-full transition-all ${i === activePhotoIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
       <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24">
         <div className="grid md:grid-cols-3 gap-8">

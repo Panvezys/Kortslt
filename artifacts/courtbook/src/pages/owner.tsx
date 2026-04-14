@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { format, parseISO } from "date-fns";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 const STANDARD_AMENITIES = [
   { id: "floodlights",     label: "Prožektoriai",       icon: Lightbulb },
@@ -812,6 +813,137 @@ function CoachAssignModal({ courtId, onClose }: { courtId: number; onClose: () =
   );
 }
 
+const BASE_API = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
+
+interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
+
+function CourtPhotosSection({ courtId }: { courtId: number }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const { data: photos = [], isLoading } = useQuery<CourtPhoto[]>({
+    queryKey: ["court-photos", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${BASE_API}/courts/${courtId}/photos`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("image", file);
+        const r = await fetch(`${BASE_API}/courts/${courtId}/photos`, {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+        });
+        if (!r.ok) throw new Error("Upload failed");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
+      toast({ title: `${files.length === 1 ? "Nuotrauka įkelta" : `${files.length} nuotraukos įkeltos`}` });
+    } catch {
+      toast({ title: "Įkėlimo klaida", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(photoId: number) {
+    await fetch(`${BASE_API}/courts/${courtId}/photos/${photoId}`, {
+      method: "DELETE", credentials: "include",
+    });
+    await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-2 text-sm font-medium">
+          <Images className="h-4 w-4 text-muted-foreground" />
+          Galerijos nuotraukos
+          {photos.length > 0 && (
+            <span className="text-xs text-muted-foreground font-normal">({photos.length})</span>
+          )}
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={uploading}
+          className="gap-2 h-8 text-xs"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {uploading ? "Įkeliama..." : "Pridėti"}
+        </Button>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={e => { handleFiles(e.target.files); e.target.value = ""; }}
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-3 gap-2">
+          {[0,1,2].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
+        </div>
+      ) : photos.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          className="w-full border border-dashed rounded-xl py-6 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex flex-col items-center gap-2"
+        >
+          <Images className="h-6 w-6 opacity-40" />
+          Nėra papildomų nuotraukų. Spauskite, kad pridėtumėte.
+        </button>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {photos.map(photo => (
+            <div key={photo.id} className="relative group aspect-video rounded-lg overflow-hidden border border-border">
+              <img
+                src={resolveCourtImage(photo.url) ?? ""}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => handleDelete(photo.id)}
+                className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all"
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+            </div>
+          ))}
+          {uploading && (
+            <div className="aspect-video rounded-lg border border-dashed border-primary/40 flex items-center justify-center bg-primary/5">
+              <span className="text-xs text-primary animate-pulse">Įkeliama...</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="aspect-video rounded-lg border border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            <span className="text-[10px]">Pridėti</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OwnerDashboard() {
   const { user } = useUser();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -1138,7 +1270,7 @@ export default function OwnerDashboard() {
 
                   <FormField control={form.control} name="imageUrl" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Korto nuotrauka</FormLabel>
+                      <FormLabel>Pagrindinė nuotrauka</FormLabel>
                       <FormControl>
                         <CourtImageUpload
                           value={field.value}
@@ -1149,6 +1281,10 @@ export default function OwnerDashboard() {
                       <FormMessage />
                     </FormItem>
                   )} />
+
+                  {editingId && (
+                    <CourtPhotosSection courtId={editingId} />
+                  )}
 
                   {/* Ownership document upload — only shown for new courts */}
                   {!editingId && (
