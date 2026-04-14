@@ -140,6 +140,34 @@ function UserMenu() {
   );
 }
 
+function MobileUserAvatar() {
+  const { user } = useUser();
+  const [, setLocation] = useLocation();
+
+  const initials = user
+    ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+      user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
+  if (!user) return null;
+
+  return (
+    <button
+      onClick={() => setLocation("/profile")}
+      className="md:hidden flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      aria-label="Open profile"
+    >
+      <Avatar className="h-8 w-8">
+        <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
+        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+    </button>
+  );
+}
+
 function NavRoleLinks({ onClick }: { onClick?: () => void }) {
   const t = useT();
   const { isOwner, isAdmin } = useRole();
@@ -205,6 +233,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="hidden md:block">
                   <UserMenu />
                 </div>
+                <MobileUserAvatar />
               </Show>
 
               <button
@@ -228,7 +257,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               <Show when="signed-in">
                 <NavRoleLinks onClick={() => setMobileMenuOpen(false)} />
-                <UserMenu />
               </Show>
               <Show when="signed-out">
                 <Link
