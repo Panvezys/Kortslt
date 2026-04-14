@@ -1,10 +1,14 @@
 import { useLocation } from "wouter";
+import { format, parseISO } from "date-fns";
 import { Layout } from "@/components/layout";
 import { CheckCircle2, Calendar, Clock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function BookingConfirmed() {
   const [, setLocation] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const dateValue = searchParams.get("date");
+  const formattedDate = dateValue ? format(parseISO(dateValue), "yyyy-MM-dd") : null;
 
   return (
     <Layout>
@@ -25,6 +29,12 @@ export default function BookingConfirmed() {
           </div>
 
           <div className="bg-muted/40 rounded-xl p-4 flex flex-col gap-2 text-sm text-left">
+            {formattedDate && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="w-4 h-4 flex-shrink-0" />
+                <span>Data {formattedDate}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-muted-foreground">
               <Calendar className="w-4 h-4 flex-shrink-0" />
               <span>Patikrinkite savo el. paštą dėl detalių</span>
