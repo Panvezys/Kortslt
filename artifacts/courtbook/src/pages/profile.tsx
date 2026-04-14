@@ -1,0 +1,443 @@
+import { useState } from "react";
+import { Layout } from "@/components/layout";
+import { useUser, useClerk } from "@clerk/react";
+import { useListBookings, useListCourts } from "@workspace/api-client-react";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
+import { format, parseISO, isAfter } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
+import { useT } from "@/lib/i18n";
+import { SportIcon } from "@/components/sport-icon";
+import {
+  CalendarDays,
+  Star,
+  Heart,
+  LayoutDashboard,
+  MapPin,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Pencil,
+  Euro,
+  Building2,
+} from "lucide-react";
+
+const SPORT_COLOR: Record<string, string> = {
+  tennis: "#84cc16",
+  basketball: "#f97316",
+  padel: "#3b82f6",
+  football: "#22c55e",
+  badminton: "#a855f7",
+  squash: "#06b6d4",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const t = useT();
+  if (status === "confirmed")
+    return (
+      <Badge className="bg-green-500/15 text-green-600 border-green-200 dark:border-green-800 dark:text-green-400 gap-1">
+        <CheckCircle2 className="w-3 h-3" />
+        {t("bookings.status.confirmed")}
+      </Badge>
+    );
+  if (status === "pending")
+    return (
+      <Badge variant="secondary" className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 gap-1">
+        <Clock className="w-3 h-3" />
+        {t("bookings.status.pending")}
+      </Badge>
+    );
+  return (
+    <Badge variant="destructive" className="gap-1">
+      <XCircle className="w-3 h-3" />
+      {t("bookings.status.cancelled")}
+    </Badge>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  color = "text-primary",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  color?: string;
+}) {
+  return (
+    <div className="bg-card border rounded-xl p-5 flex flex-col gap-2 shadow-sm">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center bg-muted ${color}`}>
+        {icon}
+      </div>
+      <p className="text-2xl font-bold tracking-tight">{value}</p>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+    </div>
+  );
+}
+
+type Tab = "bookings" | "favorites" | "courts";
+
+export default function Profile() {
+  const { user } = useUser();
+  const { openUserProfile } = useClerk();
+  const t = useT();
+  const [activeTab, setActiveTab] = useState<Tab>("bookings");
+
+  const email = user?.emailAddresses[0]?.emailAddress ?? "";
+  const userId = user?.id ?? "";
+
+  const { data: bookings, isLoading: bookingsLoading } = useListBookings(
+    { customerEmail: email },
+    { query: { enabled: !!email } }
+  );
+
+  const { data: ownerCourts, isLoading: courtsLoading } = useListCourts(
+    { ownerEmail: email },
+    { query: { enabled: !!email } }
+  );
+
+  const { favorites, loading: favoritesLoading } = useFavoritesContext();
+
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingBookings = (bookings ?? []).filter(
+    (b) => b.status !== "cancelled" && b.date >= today
+  );
+  const isOwner = (ownerCourts?.length ?? 0) > 0;
+
+  const initials = user
+    ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+      email[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: "bookings", label: t("profile.tab.bookings"), icon: <CalendarDays className="w-4 h-4" /> },
+    { key: "favorites", label: t("profile.tab.favorites"), icon: <Heart className="w-4 h-4" /> },
+    ...(isOwner
+      ? [{ key: "courts" as Tab, label: t("profile.tab.myCourts"), icon: <LayoutDashboard className="w-4 h-4" /> }]
+      : []),
+  ];
+
+  if (!user) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-16 text-center text-muted-foreground">
+          {t("profile.notSignedIn")}
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-10 max-w-5xl space-y-8">
+
+        {/* ── Profile hero ── */}
+        <div className="bg-card border rounded-2xl shadow-sm overflow-hidden">
+          <div className="h-28 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
+          <div className="px-6 pb-6 -mt-14 flex flex-col sm:flex-row sm:items-end gap-4">
+            <Avatar className="w-24 h-24 border-4 border-card ring-2 ring-primary/20 shadow-lg shrink-0">
+              <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
+              <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 sm:mb-1">
+              <h1 className="text-2xl font-bold tracking-tight truncate">
+                {user.fullName || t("nav.account")}
+              </h1>
+              <p className="text-sm text-muted-foreground truncate">{email}</p>
+              {user.createdAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("profile.memberSince")} {format(new Date(user.createdAt), "MMMM yyyy")}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 sm:mb-1">
+              {isOwner && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/owner">
+                    <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                    {t("nav.ownerDashboard")}
+                  </Link>
+                </Button>
+              )}
+              <Button size="sm" onClick={() => openUserProfile()}>
+                <Pencil className="w-4 h-4 mr-1.5" />
+                {t("profile.editProfile")}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard
+            icon={<CalendarDays className="w-5 h-5" />}
+            label={t("profile.stat.totalBookings")}
+            value={bookingsLoading ? "–" : (bookings?.length ?? 0)}
+          />
+          <StatCard
+            icon={<Clock className="w-5 h-5" />}
+            label={t("profile.stat.upcoming")}
+            value={bookingsLoading ? "–" : upcomingBookings.length}
+            color="text-green-500"
+          />
+          <StatCard
+            icon={<Heart className="w-5 h-5" />}
+            label={t("profile.stat.favorites")}
+            value={favoritesLoading ? "–" : favorites.length}
+            color="text-rose-500"
+          />
+          {isOwner && (
+            <StatCard
+              icon={<Building2 className="w-5 h-5" />}
+              label={t("profile.stat.myCourts")}
+              value={courtsLoading ? "–" : (ownerCourts?.length ?? 0)}
+              color="text-blue-500"
+            />
+          )}
+        </div>
+
+        {/* ── Tabs ── */}
+        <div className="space-y-4">
+          <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  activeTab === tab.key
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Bookings tab */}
+          {activeTab === "bookings" && (
+            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+              {bookingsLoading ? (
+                <div className="divide-y">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="px-5 py-4 flex gap-4 items-center">
+                      <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-40" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : !bookings || bookings.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground text-sm">
+                  <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>{t("profile.noBookings")}</p>
+                  <Button variant="outline" size="sm" className="mt-4" asChild>
+                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {bookings.map((booking) => {
+                    const isPast = booking.date < today;
+                    return (
+                      <div
+                        key={booking.id}
+                        className="px-5 py-4 flex gap-4 items-center hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                          #{booking.id}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            href={`/courts/${booking.courtId}`}
+                            className="font-medium hover:text-primary hover:underline truncate block"
+                          >
+                            {booking.courtName || `Kortas #${booking.courtId}`}
+                          </Link>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <CalendarDays className="w-3 h-3 shrink-0" />
+                            {format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}
+                            <span className="text-muted-foreground/50">·</span>
+                            {booking.startTime} – {booking.endTime}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-sm font-semibold text-muted-foreground hidden sm:block">
+                            {booking.totalPrice}€
+                          </span>
+                          <StatusBadge status={booking.status} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Favorites tab */}
+          {activeTab === "favorites" && (
+            <div>
+              {favoritesLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-40 rounded-xl" />
+                  ))}
+                </div>
+              ) : favorites.length === 0 ? (
+                <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
+                  <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>{t("profile.noFavorites")}</p>
+                  <Button variant="outline" size="sm" className="mt-4" asChild>
+                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {favorites.map((court) => {
+                    const color = SPORT_COLOR[court.type] ?? "#84cc16";
+                    return (
+                      <Link key={court.id} href={`/courts/${court.id}`}>
+                        <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
+                          <div
+                            className="h-28 bg-muted relative overflow-hidden"
+                            style={
+                              court.imageUrl
+                                ? { backgroundImage: `url(${court.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+                                : {}
+                            }
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                            <div className="absolute top-2.5 left-2.5">
+                              <div
+                                className="w-7 h-7 rounded-full flex items-center justify-center"
+                                style={{ background: color }}
+                              >
+                                <SportIcon sport={court.type} size={14} strokeWidth={2} className="text-white" />
+                              </div>
+                            </div>
+                            {court.rating && (
+                              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5">
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                {court.rating.toFixed(1)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3.5">
+                            <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                              {court.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {court.city}
+                            </p>
+                            <div className="flex items-center justify-between mt-2.5">
+                              <span className="text-sm font-bold" style={{ color }}>
+                                {court.pricePerHour}€
+                                <span className="text-xs font-normal text-muted-foreground">/val</span>
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* My Courts tab (owner only) */}
+          {activeTab === "courts" && isOwner && (
+            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+              {courtsLoading ? (
+                <div className="divide-y">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="px-5 py-4 flex gap-4 items-center">
+                      <Skeleton className="h-12 w-12 rounded-lg shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-32" />
+                      </div>
+                      <Skeleton className="h-8 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="divide-y">
+                    {(ownerCourts ?? []).map((court) => {
+                      const color = SPORT_COLOR[court.type] ?? "#84cc16";
+                      return (
+                        <div
+                          key={court.id}
+                          className="px-5 py-4 flex gap-4 items-center hover:bg-muted/30 transition-colors"
+                        >
+                          <div
+                            className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: `${color}20`, border: `1.5px solid ${color}40` }}
+                          >
+                            <SportIcon sport={court.type} size={22} strokeWidth={1.8} style={{ color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Link
+                              href={`/courts/${court.id}`}
+                              className="font-medium hover:text-primary hover:underline truncate block"
+                            >
+                              {court.name}
+                            </Link>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {court.address}, {court.city}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right hidden sm:block">
+                              <p className="text-sm font-semibold">{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span></p>
+                              {court.rating && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-0.5 justify-end">
+                                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                  {court.rating.toFixed(1)}
+                                </p>
+                              )}
+                            </div>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href="/owner">{t("owner.editCourt")}</Link>
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-5 py-3 border-t bg-muted/20 flex justify-end">
+                    <Button size="sm" asChild>
+                      <Link href="/owner">
+                        <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                        {t("nav.ownerDashboard")}
+                      </Link>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}

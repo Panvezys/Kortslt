@@ -35,6 +35,9 @@ router.get("/bookings", async (req, res): Promise<void> => {
   if (params.data.status) {
     conditions.push(eq(bookingsTable.status, params.data.status));
   }
+  if (params.data.customerEmail) {
+    conditions.push(eq(bookingsTable.customerEmail, params.data.customerEmail));
+  }
 
   let query = db
     .select({

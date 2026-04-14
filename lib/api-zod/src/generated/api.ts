@@ -27,6 +27,7 @@ export const ListCourtsQueryParams = zod.object({
   isIndoor: zod.coerce.boolean().optional(),
   minPrice: zod.coerce.number().optional(),
   maxPrice: zod.coerce.number().optional(),
+  ownerEmail: zod.coerce.string().optional(),
 });
 
 export const ListCourtsResponseItem = zod.object({
@@ -302,6 +303,7 @@ export const ListCitiesResponse = zod.array(ListCitiesResponseItem);
 export const ListBookingsQueryParams = zod.object({
   courtId: zod.coerce.number().optional(),
   status: zod.enum(["pending", "confirmed", "cancelled"]).optional(),
+  customerEmail: zod.coerce.string().optional(),
 });
 
 export const ListBookingsResponseItem = zod.object({

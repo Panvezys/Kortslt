@@ -76,6 +76,7 @@ router.get("/courts", async (req, res): Promise<void> => {
   if (params.data.isIndoor != null) conditions.push(eq(courtsTable.isIndoor, params.data.isIndoor));
   if (params.data.minPrice != null) conditions.push(gte(courtsTable.pricePerHour, String(params.data.minPrice)));
   if (params.data.maxPrice != null) conditions.push(lte(courtsTable.pricePerHour, String(params.data.maxPrice)));
+  if (params.data.ownerEmail) conditions.push(eq(courtsTable.ownerEmail, params.data.ownerEmail));
 
   let query = db.select().from(courtsTable).$dynamic();
   if (conditions.length > 0) query = query.where(and(...conditions));

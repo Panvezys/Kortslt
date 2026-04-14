@@ -161,6 +161,21 @@ const translations = {
     "upload.uploading": "Įkeliama...",
     "upload.change": "Keisti",
     "upload.delete": "Ištrinti",
+    // Nav extra
+    "nav.myProfile": "Mano profilis",
+    // Profile page
+    "profile.memberSince": "Narys nuo",
+    "profile.editProfile": "Redaguoti profilį",
+    "profile.tab.bookings": "Rezervacijos",
+    "profile.tab.favorites": "Mėgstami",
+    "profile.tab.myCourts": "Mano kortai",
+    "profile.stat.totalBookings": "Iš viso rezervacijų",
+    "profile.stat.upcoming": "Būsimos",
+    "profile.stat.favorites": "Mėgstami kortai",
+    "profile.stat.myCourts": "Mano kortai",
+    "profile.noBookings": "Rezervacijų dar nėra.",
+    "profile.noFavorites": "Mėgstamų kortų dar nėra.",
+    "profile.notSignedIn": "Prisijunkite, kad matytumėte profilį.",
   },
 
   en: {
@@ -321,6 +336,21 @@ const translations = {
     "upload.uploading": "Uploading...",
     "upload.change": "Change",
     "upload.delete": "Delete",
+    // Nav extra
+    "nav.myProfile": "My Profile",
+    // Profile page
+    "profile.memberSince": "Member since",
+    "profile.editProfile": "Edit Profile",
+    "profile.tab.bookings": "My Bookings",
+    "profile.tab.favorites": "Favourites",
+    "profile.tab.myCourts": "My Courts",
+    "profile.stat.totalBookings": "Total Bookings",
+    "profile.stat.upcoming": "Upcoming",
+    "profile.stat.favorites": "Favourite Courts",
+    "profile.stat.myCourts": "My Courts",
+    "profile.noBookings": "No bookings yet.",
+    "profile.noFavorites": "No favourite courts yet.",
+    "profile.notSignedIn": "Please sign in to view your profile.",
   },
 
   ru: {
@@ -481,6 +511,21 @@ const translations = {
     "upload.uploading": "Загрузка...",
     "upload.change": "Изменить",
     "upload.delete": "Удалить",
+    // Nav extra
+    "nav.myProfile": "Мой профиль",
+    // Profile page
+    "profile.memberSince": "Участник с",
+    "profile.editProfile": "Редактировать профиль",
+    "profile.tab.bookings": "Бронирования",
+    "profile.tab.favorites": "Избранное",
+    "profile.tab.myCourts": "Мои корты",
+    "profile.stat.totalBookings": "Всего бронирований",
+    "profile.stat.upcoming": "Предстоящие",
+    "profile.stat.favorites": "Избранные корты",
+    "profile.stat.myCourts": "Мои корты",
+    "profile.noBookings": "Бронирований пока нет.",
+    "profile.noFavorites": "Избранных кортов пока нет.",
+    "profile.notSignedIn": "Войдите, чтобы просмотреть профиль.",
   },
 } as const;
 

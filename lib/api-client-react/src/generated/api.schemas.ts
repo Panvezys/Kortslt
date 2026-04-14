@@ -231,6 +231,7 @@ export type ListCourtsParams = {
   isIndoor?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  ownerEmail?: string;
 };
 
 export type ListCourtsType =
@@ -261,6 +262,7 @@ export type GetCourtAvailabilityParams = {
 export type ListBookingsParams = {
   courtId?: number;
   status?: ListBookingsStatus;
+  customerEmail?: string;
 };
 
 export type ListBookingsStatus =
