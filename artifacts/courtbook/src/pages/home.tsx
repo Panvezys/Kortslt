@@ -8,15 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar } from "@/components/ui/calendar";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isBefore, addMonths, subMonths } from "date-fns";
+import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const HERO_IMAGES = [
   "courts/court_2_bernardinu.png",
@@ -177,6 +177,7 @@ export default function Home() {
   const timeRef = useRef<HTMLDivElement>(null);
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
+  const [calMonth, setCalMonth] = useState(() => startOfMonth(new Date()));
   const dateRef = useRef<HTMLDivElement>(null);
   const [showMoreCities, setShowMoreCities] = useState(false);
   const { locale } = useI18n();
@@ -497,22 +498,86 @@ export default function Home() {
                     )}
                   </button>
 
-                  {dateDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-1 bg-zinc-900/98 backdrop-blur border border-white/10 rounded-2xl p-3 shadow-2xl z-50">
-                      <Calendar
-                        mode="single"
-                        selected={searchDateObj}
-                        onSelect={d => {
-                          setSearchDateObj(d);
-                          setSearchDate(d ? format(d, "yyyy-MM-dd") : "");
-                          setDateDropdownOpen(false);
-                        }}
-                        disabled={{ before: new Date() }}
-                        locale={locale}
-                        className="[--cell-size:2rem] text-white [&_.rdp-day]:text-white/80 [&_.rdp-weekday]:text-white/40"
-                      />
-                    </div>
-                  )}
+                  {dateDropdownOpen && (() => {
+                    const dnLocale = locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS;
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const monthStart = startOfMonth(calMonth);
+                    const monthEnd = endOfMonth(calMonth);
+                    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+                    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+                    // 7 short weekday names starting Monday
+                    const refMon = new Date(2024, 3, 1);
+                    const dayLabels = Array.from({ length: 7 }, (_, i) => {
+                      const d = new Date(refMon); d.setDate(d.getDate() + i);
+                      return format(d, "EEEEE", { locale: dnLocale });
+                    });
+                    return (
+                      <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ width: 252 }}>
+                        {/* Month header */}
+                        <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/8">
+                          <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <span className="text-sm font-semibold text-white capitalize tracking-wide">
+                            {format(calMonth, "LLLL yyyy", { locale: dnLocale })}
+                          </span>
+                          <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="p-2">
+                          {/* Day-of-week header */}
+                          <div className="grid grid-cols-7 mb-1">
+                            {dayLabels.map((label, i) => (
+                              <div key={i} className={`text-center text-[10px] font-semibold py-1 ${i >= 5 ? "text-primary/50" : "text-white/30"}`}>
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Day grid */}
+                          <div className="grid grid-cols-7 gap-y-0.5">
+                            {days.map(day => {
+                              const inMonth = isSameMonth(day, calMonth);
+                              const isPast = isBefore(day, today);
+                              const isSelected = searchDateObj ? isSameDay(day, searchDateObj) : false;
+                              const isTodayDay = isToday(day);
+                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                              return (
+                                <button
+                                  key={day.toISOString()}
+                                  onMouseDown={e => e.preventDefault()}
+                                  onClick={() => {
+                                    if (isPast) return;
+                                    setSearchDateObj(day);
+                                    setSearchDate(format(day, "yyyy-MM-dd"));
+                                    setDateDropdownOpen(false);
+                                  }}
+                                  disabled={isPast}
+                                  className={[
+                                    "relative h-8 w-full rounded-lg text-xs font-medium transition-all duration-100 flex items-center justify-center",
+                                    !inMonth ? "text-white/15" :
+                                    isSelected ? "bg-primary text-black font-bold shadow-md" :
+                                    isPast ? "text-white/18 cursor-not-allowed" :
+                                    isTodayDay ? "bg-white/12 text-white ring-1 ring-white/20 hover:bg-white/20" :
+                                    isWeekend ? "text-primary/70 hover:bg-primary/15" :
+                                    "text-white/80 hover:bg-white/10",
+                                  ].join(" ")}
+                                >
+                                  {format(day, "d")}
+                                  {isTodayDay && !isSelected && (
+                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Time slider popover */}
