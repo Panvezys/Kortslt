@@ -464,7 +464,7 @@ export function CourtMap({
             </button>
             {filterPanelOpen && (
               <button
-                onClick={() => setInternalActiveSports(allInternalActive ? new Set(["tennis"]) : new Set(ALL_SPORTS))}
+                onClick={() => setInternalActiveSports(allInternalActive ? new Set() : new Set(ALL_SPORTS))}
                 className="text-[9px] font-medium text-primary hover:underline ml-2"
               >
                 {allInternalActive ? "Slėpti" : "Visi"}
