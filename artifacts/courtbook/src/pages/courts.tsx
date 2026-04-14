@@ -39,13 +39,14 @@ export default function Courts() {
   const [condition, setCondition] = useState<ListCourtsCondition | "all">("all");
   const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
   const [maxPrice, setMaxPrice] = useState<number>(100);
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [search, type, city, surface, condition, isIndoorFilter, maxPrice]);
+  }, [search, type, city, surface, condition, isIndoorFilter, maxPrice, sortBy]);
 
   const { data: cities } = useListCities();
 
@@ -70,9 +71,15 @@ export default function Courts() {
     c.address.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalCourts = filteredCourts?.length ?? 0;
+  const sortedCourts = filteredCourts ? [...filteredCourts].sort((a, b) => {
+    if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
+    if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
+    return 0;
+  }) : filteredCourts;
+
+  const totalCourts = sortedCourts?.length ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCourts / PAGE_SIZE));
-  const pagedCourts = filteredCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pagedCourts = sortedCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const activeFilterCount = [
     type !== "all",
@@ -91,6 +98,7 @@ export default function Courts() {
     setIsIndoorFilter("all");
     setMaxPrice(100);
     setSearch("");
+    setSortBy("default");
   };
 
   const sportItems = [
@@ -117,6 +125,21 @@ export default function Courts() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+      </div>
+
+      {/* Sort */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.sort")}</Label>
+        <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc") => setSortBy(v)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+            <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
+            <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Sport Type */}
@@ -366,7 +389,7 @@ export default function Courts() {
               )
             ) : viewMode === "map" ? (
               <div className="h-[400px] md:h-[600px]">
-                <CourtMap courts={filteredCourts ?? []} />
+                <CourtMap courts={sortedCourts ?? []} />
               </div>
             ) : pagedCourts && pagedCourts.length > 0 ? (
               <>

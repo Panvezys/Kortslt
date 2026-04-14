@@ -55,6 +55,10 @@ const translations = {
     "courts.filters.anyCondition": "Bet kokia buklė",
     "courts.filters.maxPrice": "Maks. kaina / val.",
     "courts.filters.reset": "Išvalyti filtrus",
+    "courts.filters.sort": "Rikiuoti",
+    "courts.filters.sortDefault": "Pagal numatytąjį",
+    "courts.filters.sortPriceAsc": "Kaina: nuo mažiausios",
+    "courts.filters.sortPriceDesc": "Kaina: nuo didžiausios",
     // Court card
     "card.indoor": "Vidaus",
     "card.outdoor": "Lauko",
@@ -230,6 +234,10 @@ const translations = {
     "courts.filters.anyCondition": "Any condition",
     "courts.filters.maxPrice": "Max price / hr",
     "courts.filters.reset": "Reset filters",
+    "courts.filters.sort": "Sort",
+    "courts.filters.sortDefault": "Default",
+    "courts.filters.sortPriceAsc": "Price: Low to High",
+    "courts.filters.sortPriceDesc": "Price: High to Low",
     // Court card
     "card.indoor": "Indoor",
     "card.outdoor": "Outdoor",
@@ -405,6 +413,10 @@ const translations = {
     "courts.filters.anyCondition": "Любое состояние",
     "courts.filters.maxPrice": "Макс. цена / час",
     "courts.filters.reset": "Сбросить фильтры",
+    "courts.filters.sort": "Сортировка",
+    "courts.filters.sortDefault": "По умолчанию",
+    "courts.filters.sortPriceAsc": "Цена: от низкой",
+    "courts.filters.sortPriceDesc": "Цена: от высокой",
     // Court card
     "card.indoor": "В помещении",
     "card.outdoor": "На улице",
