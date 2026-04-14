@@ -126,7 +126,7 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
-          className="text-destructive focus:text-destructive"
+          className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
         >
           <LogOut className="mr-2 h-4 w-4" />
           {t("nav.signOut")}
