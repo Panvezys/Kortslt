@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, ArrowRight, Heart, Landmark } from "lucide-react";
-import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -27,6 +26,92 @@ const HERO_IMAGES = [
   "courts/padel/padel_court_indoor_3.jpg",
   "courts/court_3_lsc_vingis.png",
 ];
+
+type PopularCourt = { id: number; name: string; type: string; city: string; imageUrl?: string | null; rating?: number | null; pricePerHour?: number | string | null };
+
+function PopularCourtCard({ court }: { court: PopularCourt }) {
+  const t = useT();
+  const [hovered, setHovered] = useState(false);
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const imgSrc = court.imageUrl
+    ? court.imageUrl.startsWith("http") ? court.imageUrl : `${base}/${court.imageUrl}`
+    : null;
+  const sportLabel = t(`sports.${court.type}` as never) || court.type;
+  const color = sportColor[court.type] ?? "#84cc16";
+
+  return (
+    <Link href={`/courts/${court.id}`}>
+      <Card
+        className="h-full transition-all duration-200 group cursor-pointer overflow-hidden hover:shadow-lg"
+        style={{ borderColor: hovered ? color : undefined }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div className="w-full h-44 overflow-hidden bg-muted relative">
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt={court.name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              <SportIcon sport={court.type} size={40} style={{ color }} />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <div className="absolute top-2 left-2">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white capitalize" style={{ background: color }}>
+              <SportIcon sport={court.type} size={10} strokeWidth={2.2} />
+              {sportLabel}
+            </span>
+          </div>
+          {court.rating ? (
+            <div className="absolute top-2 right-2">
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm flex items-center gap-1">
+                <span className="text-yellow-400">★</span>
+                {court.rating.toFixed(1)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        <CardHeader className="pb-2">
+          <CardTitle
+            className="transition-colors duration-200 text-base line-clamp-1"
+            style={{ color: hovered ? color : undefined }}
+          >
+            {court.name}
+          </CardTitle>
+          <div className="flex items-center text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3 mr-1 shrink-0" />
+            <span className="truncate">{court.city}</span>
+            {court.pricePerHour && (
+              <span
+                className="ml-auto font-semibold transition-colors duration-200"
+                style={{ color: hovered ? color : undefined }}
+              >
+                {court.pricePerHour}€<span className="font-normal text-muted-foreground">{t("card.perHour")}</span>
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full transition-colors duration-200"
+            style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff" } : undefined}
+          >
+            {t("home.popular.bookNow")}
+          </Button>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
 
 export default function Home() {
   const t = useT();
@@ -207,65 +292,9 @@ export default function Home() {
             {popularLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
             ) : Array.isArray(popularCourts) ? (
-              popularCourts.map(court => {
-                const imgSrc = resolveCourtImage(court.imageUrl);
-                const sportLabel = t(`sports.${court.type as string}` as never) || court.type;
-                const color = sportColor[court.type as string] ?? "#84cc16";
-                return (
-                  <Link key={court.id} href={`/courts/${court.id}`}>
-                    <Card className="h-full hover:border-primary/50 transition-all group cursor-pointer overflow-hidden hover:shadow-lg">
-                      <div className="w-full h-44 overflow-hidden bg-muted relative">
-                        {imgSrc ? (
-                          <img
-                            src={imgSrc}
-                            alt={court.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-muted">
-                            <SportIcon sport={court.type as string} size={40} style={{ color }} />
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                        <div className="absolute top-2 left-2">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white capitalize" style={{ background: color }}>
-                            <SportIcon sport={court.type as string} size={10} strokeWidth={2.2} />
-                            {sportLabel}
-                          </span>
-                        </div>
-                        {court.rating ? (
-                          <div className="absolute top-2 right-2">
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm flex items-center gap-1">
-                              <span className="text-yellow-400">★</span>
-                              {court.rating.toFixed(1)}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                      <CardHeader className="pb-2">
-                        <CardTitle className="group-hover:text-primary transition-colors text-base line-clamp-1">{court.name}</CardTitle>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3 mr-1 shrink-0" />
-                          <span className="truncate">{court.city}</span>
-                          {court.pricePerHour && (
-                            <span className="ml-auto font-semibold text-foreground">
-                              {court.pricePerHour}€<span className="font-normal text-muted-foreground">{t("card.perHour")}</span>
-                            </span>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <Button variant="outline" size="sm" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                          {t("home.popular.bookNow")}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
-              })
+              popularCourts.map(court => (
+                <PopularCourtCard key={court.id} court={court} />
+              ))
             ) : null}
           </div>
         </div>
