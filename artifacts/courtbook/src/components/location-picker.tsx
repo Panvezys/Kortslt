@@ -1,6 +1,11 @@
-import { useEffect, useRef, useCallback } from "react";
-import L from "leaflet";
+import { useCallback, useRef, useState } from "react";
+import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 import { MapPin } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
+const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
+const LIBRARIES: ("places")[] = [];
 
 interface LocationPickerProps {
   latitude: number;
@@ -8,89 +13,57 @@ interface LocationPickerProps {
   onChange: (lat: number, lng: number, city?: string, address?: string) => void;
 }
 
-const LITHUANIA_CENTER: [number, number] = [55.1694, 23.8813];
+async function reverseGeocode(lat: number, lng: number): Promise<{ city?: string; address?: string }> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { "Accept-Language": "lt,en" } }
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    const addr = data.address ?? {};
+    const city = addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? "";
+    const road = addr.road ?? "";
+    const houseNumber = addr.house_number ? ` ${addr.house_number}` : "";
+    const address = road ? `${road}${houseNumber}` : "";
+    return { city, address };
+  } catch {
+    return {};
+  }
+}
 
 export function LocationPicker({ latitude, longitude, onChange }: LocationPickerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markerRef = useRef<L.Marker | null>(null);
-  const initializedRef = useRef(false);
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: LIBRARIES,
+  });
 
-  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=lt`,
-        { headers: { "Accept-Language": "lt,en" } }
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const addr = data.address ?? {};
-      const city = addr.city ?? addr.town ?? addr.village ?? addr.municipality ?? "";
-      const road = addr.road ?? "";
-      const houseNumber = addr.house_number ? ` ${addr.house_number}` : "";
-      const address = road ? `${road}${houseNumber}` : "";
-      onChange(lat, lng, city, address);
-    } catch {
-      onChange(lat, lng);
-    }
+  const hasCoords = latitude !== 0 && longitude !== 0;
+  const center = hasCoords ? { lat: latitude, lng: longitude } : LITHUANIA_CENTER;
+  const zoom = hasCoords ? 15 : 7;
+
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const [markerPos, setMarkerPos] = useState<google.maps.LatLngLiteral | null>(
+    hasCoords ? { lat: latitude, lng: longitude } : null
+  );
+
+  const handleMapClick = useCallback(async (e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = parseFloat(e.latLng.lat().toFixed(6));
+    const lng = parseFloat(e.latLng.lng().toFixed(6));
+    setMarkerPos({ lat, lng });
+    const { city, address } = await reverseGeocode(lat, lng);
+    onChange(lat, lng, city, address);
   }, [onChange]);
 
-  const placeMarker = useCallback((map: L.Map, lat: number, lng: number, geocode = true) => {
-    if (markerRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-    } else {
-      const icon = L.divIcon({
-        className: "",
-        html: `<div style="background:#84cc16;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-      });
-      const marker = L.marker([lat, lng], { draggable: true, icon }).addTo(map);
-      marker.on("dragend", (e) => {
-        const pos = e.target.getLatLng();
-        const newLat = parseFloat(pos.lat.toFixed(6));
-        const newLng = parseFloat(pos.lng.toFixed(6));
-        reverseGeocode(newLat, newLng);
-      });
-      markerRef.current = marker;
-    }
-    if (geocode) reverseGeocode(lat, lng);
-    else onChange(lat, lng);
-  }, [onChange, reverseGeocode]);
-
-  useEffect(() => {
-    if (!containerRef.current || initializedRef.current) return;
-    initializedRef.current = true;
-
-    const hasCoords = latitude !== 0 && longitude !== 0;
-    const center: [number, number] = hasCoords ? [latitude, longitude] : LITHUANIA_CENTER;
-    const zoom = hasCoords ? 15 : 7;
-
-    const map = L.map(containerRef.current, { zoomControl: true }).setView(center, zoom);
-    mapRef.current = map;
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-      maxZoom: 19,
-    }).addTo(map);
-
-    if (hasCoords) {
-      placeMarker(map, latitude, longitude, false);
-    }
-
-    map.on("click", (e) => {
-      const lat = parseFloat(e.latlng.lat.toFixed(6));
-      const lng = parseFloat(e.latlng.lng.toFixed(6));
-      placeMarker(map, lat, lng, true);
-    });
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      markerRef.current = null;
-      initializedRef.current = false;
-    };
-  }, []);
+  const handleMarkerDragEnd = useCallback(async (e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = parseFloat(e.latLng.lat().toFixed(6));
+    const lng = parseFloat(e.latLng.lng().toFixed(6));
+    setMarkerPos({ lat, lng });
+    const { city, address } = await reverseGeocode(lat, lng);
+    onChange(lat, lng, city, address);
+  }, [onChange]);
 
   return (
     <div className="space-y-1.5">
@@ -99,14 +72,40 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
         <span>Korto vieta žemėlapyje</span>
         <span className="text-xs text-muted-foreground font-normal">(spauskite, kad pažymėti)</span>
       </div>
-      <div
-        ref={containerRef}
-        className="w-full rounded-lg overflow-hidden border border-border"
-        style={{ height: 260 }}
-      />
-      {latitude !== 0 && longitude !== 0 && (
+
+      {!isLoaded ? (
+        <Skeleton className="w-full rounded-lg" style={{ height: 260 }} />
+      ) : (
+        <div className="w-full rounded-lg overflow-hidden border border-border" style={{ height: 260 }}>
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "100%" }}
+            center={center}
+            zoom={zoom}
+            onLoad={(map) => { mapRef.current = map; }}
+            onClick={handleMapClick}
+            options={{
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+              styles: [
+                { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+              ],
+            }}
+          >
+            {markerPos && (
+              <Marker
+                position={markerPos}
+                draggable
+                onDragEnd={handleMarkerDragEnd}
+              />
+            )}
+          </GoogleMap>
+        </div>
+      )}
+
+      {markerPos && (
         <p className="text-xs text-muted-foreground font-mono">
-          {latitude.toFixed(6)}, {longitude.toFixed(6)}
+          {markerPos.lat.toFixed(6)}, {markerPos.lng.toFixed(6)}
         </p>
       )}
     </div>
