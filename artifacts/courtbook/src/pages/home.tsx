@@ -8,13 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { Calendar } from "@/components/ui/calendar";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown } from "lucide-react";
+import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { format } from "date-fns";
 
 const HERO_IMAGES = [
   "courts/court_2_bernardinu.png",
@@ -173,6 +175,11 @@ export default function Home() {
   const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const [timeSlider, setTimeSlider] = useState<number | null>(null);
   const timeRef = useRef<HTMLDivElement>(null);
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
+  const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
+  const dateRef = useRef<HTMLDivElement>(null);
+  const [showMoreCities, setShowMoreCities] = useState(false);
+  const { locale } = useI18n();
 
   function handleSearch() {
     const params = new URLSearchParams();
@@ -194,6 +201,9 @@ export default function Home() {
       }
       if (timeRef.current && !timeRef.current.contains(e.target as Node)) {
         setTimeDropdownOpen(false);
+      }
+      if (dateRef.current && !dateRef.current.contains(e.target as Node)) {
+        setDateDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -423,23 +433,42 @@ export default function Home() {
                         </>
                       )}
 
-                      {/* Other cities */}
+                      {/* Other cities — collapsed behind "More" button when not typing */}
                       {filteredOther.length > 0 && (
                         <>
-                          <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
-                            Kiti miestai
-                          </div>
-                          {filteredOther.map(city => (
+                          {(showMoreCities || cityInput.length > 0) ? (
+                            <>
+                              <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
+                                Kiti miestai
+                              </div>
+                              {filteredOther.map(city => (
+                                <button
+                                  key={city}
+                                  onMouseDown={e => e.preventDefault()}
+                                  onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
+                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                                >
+                                  <span>{city}</span>
+                                  <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                                </button>
+                              ))}
+                              <button
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => setShowMoreCities(false)}
+                                className="w-full text-left px-4 py-2 text-xs text-white/30 hover:text-white/60 border-t border-white/5 flex items-center gap-1"
+                              >
+                                <ChevronDown className="h-3 w-3 rotate-180" /> Mažiau
+                              </button>
+                            </>
+                          ) : (
                             <button
-                              key={city}
                               onMouseDown={e => e.preventDefault()}
-                              onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
-                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                              onClick={() => setShowMoreCities(true)}
+                              className="w-full text-left px-4 py-2.5 text-xs text-white/40 hover:text-white/70 border-t border-white/5 flex items-center gap-1 transition-colors"
                             >
-                              <span>{city}</span>
-                              <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                              <ChevronDown className="h-3 w-3" /> Daugiau miestų ({filteredOther.length})
                             </button>
-                          ))}
+                          )}
                         </>
                       )}
 
@@ -450,15 +479,40 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 focus-within:border-primary/60 transition-colors">
-                  <CalendarDays className="h-3.5 w-3.5 text-white/50 shrink-0" />
-                  <input
-                    type="date"
-                    value={searchDate}
-                    onChange={e => setSearchDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                    className="bg-transparent text-sm text-white/80 outline-none cursor-pointer [color-scheme:dark]"
-                  />
+                {/* Date calendar popover */}
+                <div className="relative" ref={dateRef}>
+                  <button
+                    onClick={() => setDateDropdownOpen(v => !v)}
+                    className={`flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap ${dateDropdownOpen ? "border-primary/60" : "border-white/20"}`}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                    <span className="text-sm text-white/80">
+                      {searchDateObj ? format(searchDateObj, "d MMM") : "Data"}
+                    </span>
+                    {searchDateObj && (
+                      <span
+                        onClick={e => { e.stopPropagation(); setSearchDateObj(undefined); setSearchDate(""); }}
+                        className="text-white/40 hover:text-white/70 text-lg leading-none ml-1"
+                      >×</span>
+                    )}
+                  </button>
+
+                  {dateDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 bg-zinc-900/98 backdrop-blur border border-white/10 rounded-2xl p-3 shadow-2xl z-50">
+                      <Calendar
+                        mode="single"
+                        selected={searchDateObj}
+                        onSelect={d => {
+                          setSearchDateObj(d);
+                          setSearchDate(d ? format(d, "yyyy-MM-dd") : "");
+                          setDateDropdownOpen(false);
+                        }}
+                        disabled={{ before: new Date() }}
+                        locale={locale}
+                        className="[--cell-size:2rem] text-white [&_.rdp-day]:text-white/80 [&_.rdp-weekday]:text-white/40"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Time slider popover */}
@@ -480,63 +534,36 @@ export default function Home() {
                   </button>
 
                   {timeDropdownOpen && (
-                    <div className="absolute top-full right-0 mt-1 bg-zinc-900/96 backdrop-blur border border-white/10 rounded-2xl p-5 shadow-2xl z-50 w-72">
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-semibold text-white/40 uppercase tracking-widest">Pradžios laikas</span>
+                    <div className="absolute top-full right-0 mt-1 bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl p-3 shadow-2xl z-50 w-56">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Pradžios laikas</span>
                         {timeSlider !== null && (
-                          <button
-                            onClick={() => { setTimeSlider(null); setSearchTime(""); }}
-                            className="text-xs text-primary hover:underline"
-                          >Išvalyti</button>
+                          <button onClick={() => { setTimeSlider(null); setSearchTime(""); }} className="text-[10px] text-primary hover:underline">Išvalyti</button>
                         )}
                       </div>
 
-                      {/* Big time display */}
-                      <div className="text-center mb-5">
-                        <span className="text-4xl font-bold text-white tabular-nums">
+                      <div className="text-center mb-2">
+                        <span className="text-2xl font-bold text-white tabular-nums">
                           {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "--:--"}
                         </span>
                       </div>
 
-                      {/* Slider */}
-                      <div className="relative px-1">
+                      <div className="relative px-0.5">
                         <input
-                          type="range"
-                          min={6}
-                          max={23}
-                          step={1}
-                          value={timeSlider ?? 9}
-                          onChange={e => {
-                            const h = Number(e.target.value);
-                            setTimeSlider(h);
-                            setSearchTime(`${String(h).padStart(2, "0")}:00`);
-                          }}
+                          type="range" min={6} max={23} step={1} value={timeSlider ?? 9}
+                          onChange={e => { const h = Number(e.target.value); setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
                           onMouseDown={() => { if (timeSlider === null) setTimeSlider(9); }}
-                          className="time-slider w-full h-2 rounded-full appearance-none cursor-pointer"
-                          style={{
-                            background: timeSlider !== null
-                              ? `linear-gradient(to right, #84cc16 0%, #84cc16 ${((( timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) ${((( timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) 100%)`
-                              : "rgba(255,255,255,0.15)",
-                          }}
+                          className="time-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                          style={{ background: timeSlider !== null ? `linear-gradient(to right, #84cc16 0%, #84cc16 ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) 100%)` : "rgba(255,255,255,0.15)" }}
                         />
-                        {/* Hour labels */}
-                        <div className="flex justify-between mt-2 px-0.5">
-                          {[6, 9, 12, 15, 18, 21].map(h => (
-                            <button
-                              key={h}
-                              onClick={() => { setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
-                              className={`text-[10px] tabular-nums transition-colors ${timeSlider === h ? "text-primary font-bold" : "text-white/30 hover:text-white/60"}`}
-                            >
-                              {h}:00
-                            </button>
+                        <div className="flex justify-between mt-1.5">
+                          {[6, 10, 14, 18, 22].map(h => (
+                            <button key={h} onClick={() => { setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }} className={`text-[9px] tabular-nums transition-colors ${timeSlider === h ? "text-primary font-bold" : "text-white/30 hover:text-white/60"}`}>{h}:00</button>
                           ))}
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => setTimeDropdownOpen(false)}
-                        className="mt-5 w-full py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
-                      >
+                      <button onClick={() => setTimeDropdownOpen(false)} className="mt-3 w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
                         Patvirtinti
                       </button>
                     </div>
