@@ -141,6 +141,16 @@ export default function Home() {
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  const SPORT_IMAGES: Record<string, string> = {
+    tennis:     `${base}/courts/court_2_bernardinu.png`,
+    basketball: `${base}/courts/court_17_zalgiris.png`,
+    padel:      `${base}/courts/padel/padel_court_indoor_1.jpg`,
+    football:   `${base}/courts/football/football_futsal_court_2.jpg`,
+    badminton:  `${base}/courts/badminton/badminton_court_indoor_1.jpg`,
+    squash:     `${base}/courts/squash/squash_court_1.jpg`,
+    total:      `${base}/courts/court_1_seb_arena.png`,
+  };
+
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary();
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts();
   const { data: courts, isLoading: courtsLoading } = useListCourts();
@@ -223,6 +233,8 @@ export default function Home() {
                 ].sort((a, b) => b.count - a.count).map(({ count, label, sport, href }) => {
                   const numColor = sport === null ? undefined : sport === "multi" ? sportColor["football"] : sportColor[sport];
                   const isHovered = hoveredStat === label;
+                  const imgKey = sport === null ? "total" : sport === "multi" ? "football" : sport;
+                  const bgImage = SPORT_IMAGES[imgKey];
                   return (
                   <Link key={label} href={href}
                     className="group relative overflow-hidden px-4 py-6 cursor-pointer transition-colors"
@@ -247,10 +259,17 @@ export default function Home() {
                         {label}
                       </div>
                     </div>
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-muted/60 backdrop-blur-sm">
-                      <Search className="h-5 w-5" style={{ color: numColor ?? "currentColor" }} />
-                      <span className="text-sm font-semibold tracking-wide" style={{ color: numColor ?? "currentColor" }}>Ieškoti</span>
+                    {/* Hover overlay with sport-specific court photo */}
+                    <div
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      style={{
+                        backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url(${bgImage})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    >
+                      <Search className="h-5 w-5" style={{ color: numColor ?? "#fff" }} />
+                      <span className="text-sm font-semibold tracking-wide" style={{ color: numColor ?? "#fff" }}>Ieškoti</span>
                     </div>
                   </Link>
                   );
