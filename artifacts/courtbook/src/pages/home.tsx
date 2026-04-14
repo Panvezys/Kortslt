@@ -246,7 +246,7 @@ export default function Home() {
             {courtsLoading ? (
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
-              <CourtMap courts={courts} />
+              <CourtMap courts={courts} showFilterPanel={true} />
             ) : null}
           </div>
         </div>

@@ -218,12 +218,36 @@ const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
 const LIBRARIES: ("places")[] = ["places"];
 const ALL_SPORTS = Object.keys(sportLithuanian);
 
-export function CourtMap({ courts, activeSports: activeSportsProp }: { courts: Court[]; activeSports?: Set<string> }) {
+export function CourtMap({
+  courts,
+  activeSports: activeSportsProp,
+  showFilterPanel = false,
+}: {
+  courts: Court[];
+  activeSports?: Set<string>;
+  showFilterPanel?: boolean;
+}) {
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [mapReady, setMapReady] = useState(false);
+  const [internalActiveSports, setInternalActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
 
-  const activeSports = activeSportsProp ?? new Set(ALL_SPORTS);
+  const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
+
+  const toggleSportInternal = (sport: string) => {
+    setInternalActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) {
+        if (next.size === 1) return prev;
+        next.delete(sport);
+      } else {
+        next.add(sport);
+      }
+      if (selectedCourt && !next.has(selectedCourt.type)) setSelectedCourt(null);
+      return next;
+    });
+  };
+  const allInternalActive = internalActiveSports.size === ALL_SPORTS.length;
 
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map());
@@ -403,7 +427,7 @@ export function CourtMap({ courts, activeSports: activeSportsProp }: { courts: C
       </GoogleMap>
 
       {/* Map / Satellite toggle */}
-      <div className="absolute top-3 left-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
+      <div className="absolute top-3 right-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
         {(["roadmap", "satellite"] as const).map(t => (
           <button
             key={t}
@@ -418,6 +442,50 @@ export function CourtMap({ courts, activeSports: activeSportsProp }: { courts: C
           </button>
         ))}
       </div>
+
+      {/* Sport filter panel — shown when showFilterPanel is true */}
+      {showFilterPanel && (
+        <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl text-xs min-w-[130px]">
+          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 border-b border-border/50">
+            <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest">Sportas</span>
+            <button
+              onClick={() => setInternalActiveSports(allInternalActive ? new Set(ALL_SPORTS.slice(0, 1)) : new Set(ALL_SPORTS))}
+              className="text-[9px] font-medium text-primary hover:underline ml-2"
+            >
+              {allInternalActive ? "Slėpti" : "Visi"}
+            </button>
+          </div>
+          <div className="px-2 py-2 space-y-0.5">
+            {ALL_SPORTS.map(sport => {
+              const active = internalActiveSports.has(sport);
+              const color = SPORT_COLOR[sport];
+              const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
+              return (
+                <button
+                  key={sport}
+                  onClick={() => toggleSportInternal(sport)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all text-left ${
+                    active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-60 hover:bg-muted/30"
+                  }`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                    style={{ background: active ? color : "transparent", borderColor: color }}
+                  >
+                    <SportIcon sport={sport} size={9} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                  </div>
+                  <span className={`flex-1 font-medium transition-colors text-[11px] ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                    {sportLithuanian[sport]}
+                  </span>
+                  <span className={`text-[10px] tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/40"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );
