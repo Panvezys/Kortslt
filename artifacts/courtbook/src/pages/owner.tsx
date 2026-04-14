@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LocationPicker } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
+
+const STANDARD_AMENITIES = [
+  { id: "floodlights",     label: "Prožektoriai",       icon: Lightbulb },
+  { id: "showers",         label: "Dušai",              icon: ShowerHead },
+  { id: "changing_rooms",  label: "Persirengimo kambariai", icon: DoorOpen },
+  { id: "water_station",   label: "Vandens stotis",     icon: Droplets },
+] as const;
+
+interface RentableItem {
+  name: string;
+  pricePerBooking: number;
+}
 
 const DAYS = ["Sekmadienis", "Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis"];
 const DAY_SHORT = ["Sek", "Pir", "Ant", "Tre", "Ket", "Pen", "Šeš"];
@@ -379,12 +391,15 @@ const courtSchema = z.object({
   latitude: z.coerce.number(),
   longitude: z.coerce.number(),
   pricePerHour: z.coerce.number().min(1),
+  peakPricePerHour: z.coerce.number().optional(),
+  bufferMinutes: z.coerce.number().min(0).max(120).default(0),
   ownershipDocUrl: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerName: z.string().min(2, "Owner name required"),
   ownerEmail: z.string().email("Invalid email"),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
+  amenities: z.array(z.string()).default([]),
 });
 
 type CourtFormValues = z.infer<typeof courtSchema>;
@@ -414,6 +429,9 @@ export default function OwnerDashboard() {
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
 
   const { data: courts, isLoading } = useListCourts(
     user?.id ? { ownerUserId: user.id } : undefined
@@ -436,12 +454,15 @@ export default function OwnerDashboard() {
       latitude: 0,
       longitude: 0,
       pricePerHour: 20,
+      peakPricePerHour: undefined,
+      bufferMinutes: 0,
       imageUrl: "",
       ownershipDocUrl: "",
       ownerName: user?.fullName ?? "Owner",
       ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
       isIndoor: false,
       maxPlayers: 4,
+      amenities: [],
     }
   });
 
@@ -450,17 +471,20 @@ export default function OwnerDashboard() {
 
   const onSubmit = async (data: CourtFormValues) => {
     try {
+      const rentableItemsJson = rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined;
+      const payload = { ...data, rentableItems: rentableItemsJson };
       if (editingId) {
-        await updateCourt.mutateAsync({ id: editingId, data });
-        toast({ title: "Court updated" });
+        await updateCourt.mutateAsync({ id: editingId, data: payload });
+        toast({ title: "Kortas atnaujintas" });
       } else {
-        await createCourt.mutateAsync({ data });
-        toast({ title: "Court created" });
+        await createCourt.mutateAsync({ data: payload });
+        toast({ title: "Kortas sukurtas — laukia patvirtinimo" });
       }
       setIsDialogOpen(false);
+      setRentableItems([]);
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
     } catch {
-      toast({ title: "Error saving court", variant: "destructive" });
+      toast({ title: "Klaida išsaugant kortą", variant: "destructive" });
     }
   };
 
@@ -476,13 +500,21 @@ export default function OwnerDashboard() {
       latitude: court.latitude,
       longitude: court.longitude,
       pricePerHour: court.pricePerHour,
+      peakPricePerHour: court.peakPricePerHour ?? undefined,
+      bufferMinutes: court.bufferMinutes ?? 0,
       imageUrl: court.imageUrl || "",
       ownershipDocUrl: court.ownershipDocUrl || "",
       ownerName: court.ownerName,
       ownerEmail: court.ownerEmail,
       isIndoor: court.isIndoor,
       maxPlayers: court.maxPlayers,
+      amenities: Array.isArray(court.amenities) ? court.amenities : [],
     });
+    try {
+      setRentableItems(court.rentableItems ? JSON.parse(court.rentableItems) : []);
+    } catch {
+      setRentableItems([]);
+    }
     setIsDialogOpen(true);
   };
 
@@ -620,21 +652,73 @@ export default function OwnerDashboard() {
                     )} />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="pricePerHour" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kaina per valandą (€)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="maxPlayers" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Maks. žaidėjai</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+                  {/* Pricing */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Euro className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Kainos</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="pricePerHour" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Off-Peak kaina (€/val)</FormLabel>
+                          <FormControl><Input type="number" min={1} step={0.5} {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="peakPricePerHour" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                            Peak kaina (€/val)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={0.5}
+                              placeholder="Neprivaloma"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            />
+                          </FormControl>
+                          <p className="text-[11px] text-muted-foreground">Pir–Pen 17:00–22:00</p>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="bufferMinutes" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Clock3 className="w-3.5 h-3.5 text-blue-400" />
+                            Buferis (min)
+                          </FormLabel>
+                          <Select onValueChange={v => field.onChange(Number(v))} value={String(field.value ?? 0)}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="0">Nėra</SelectItem>
+                              <SelectItem value="15">15 min</SelectItem>
+                              <SelectItem value="30">30 min</SelectItem>
+                              <SelectItem value="60">60 min</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">Laikas tarp rezervacijų</p>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="maxPlayers" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Maks. žaidėjai</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
                   </div>
 
                   <FormField control={form.control} name="imageUrl" render={({ field }) => (
@@ -696,6 +780,104 @@ export default function OwnerDashboard() {
                       </div>
                     </FormItem>
                   )} />
+
+                  {/* Smart Amenities */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Patogumai</span>
+                    </div>
+                    <FormField control={form.control} name="amenities" render={({ field }) => (
+                      <FormItem>
+                        <div className="grid grid-cols-2 gap-2">
+                          {STANDARD_AMENITIES.map(({ id, label, icon: Icon }) => {
+                            const checked = (field.value ?? []).includes(id);
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => {
+                                  const current = field.value ?? [];
+                                  field.onChange(
+                                    checked ? current.filter(a => a !== id) : [...current, id]
+                                  );
+                                }}
+                                className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                                  checked
+                                    ? "bg-primary/10 border-primary text-primary"
+                                    : "bg-muted/30 border-border hover:border-primary/40"
+                                }`}
+                              >
+                                <Icon className={`w-4 h-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  {/* Rentable Items */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Nuomojama įranga</span>
+                    </div>
+                    <div className="space-y-2">
+                      {rentableItems.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg px-3 py-2 text-sm">
+                          <span className="font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{item.pricePerBooking}€ / rezerv.</span>
+                            <button
+                              type="button"
+                              onClick={() => setRentableItems(prev => prev.filter((_, j) => j !== i))}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Pavadinimas (pvz. Raketė)"
+                          value={newItemName}
+                          onChange={e => setNewItemName(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="number"
+                          placeholder="€"
+                          value={newItemPrice}
+                          onChange={e => setNewItemPrice(e.target.value)}
+                          className="w-20"
+                          min={0}
+                          step={0.5}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const price = parseFloat(newItemPrice);
+                            if (newItemName.trim() && !isNaN(price) && price >= 0) {
+                              setRentableItems(prev => [...prev, { name: newItemName.trim(), pricePerBooking: price }]);
+                              setNewItemName("");
+                              setNewItemPrice("");
+                            }
+                          }}
+                          disabled={!newItemName.trim() || !newItemPrice}
+                          className="shrink-0"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Pridėkite raketės, kamuolių ar kitos įrangos nuomą</p>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="ownerName" render={({ field }) => (

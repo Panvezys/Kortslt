@@ -44,6 +44,7 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
 - Location & contact section on each court: Google Maps embed with pin, "Get Directions" button, clickable phone number, and opening hours (all 40 courts populated with real/researched data)
 - Owner dashboard to list and manage courts (all 6 sport types supported) with per-slot pricing editor (day-of-week × 30-min grid)
+- Advanced court features: peak pricing (Mon–Fri 17–22 auto rate), buffer minutes between bookings, smart amenity toggle buttons (Prožektoriai/Dušai/Persirengimo kambariai/Vandens stotis), rentable equipment items (name + price per booking)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
 - Reviews section on court detail page showing all reviews with star display

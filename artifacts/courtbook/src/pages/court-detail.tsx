@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -272,16 +272,72 @@ export default function CourtDetail() {
               </p>
             </div>
 
+            {/* Amenities */}
             {court.amenities && court.amenities.length > 0 && (
               <div>
                 <h2 className="text-2xl font-semibold mb-4">Patogumai</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {court.amenities.map((amenity, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-primary" />
-                      <span>{amenity}</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {court.amenities.map((amenity, i) => {
+                    type IconType = typeof Lightbulb;
+                    const icons: Record<string, IconType> = {
+                      floodlights: Lightbulb,
+                      showers: ShowerHead,
+                      changing_rooms: DoorOpen,
+                      water_station: Droplets,
+                    };
+                    const labels: Record<string, string> = {
+                      floodlights: "Prožektoriai",
+                      showers: "Dušai",
+                      changing_rooms: "Persirengimo kambariai",
+                      water_station: "Vandens stotis",
+                    };
+                    const Icon = icons[amenity] ?? CheckCircle2;
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center">
+                        <Icon className="w-6 h-6 text-primary" />
+                        <span className="text-sm font-medium">{labels[amenity] ?? amenity}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Rentable Items */}
+            {(() => {
+              try {
+                const items: Array<{name: string; pricePerBooking: number}> =
+                  court.rentableItems ? JSON.parse(court.rentableItems) : [];
+                if (!items.length) return null;
+                return (
+                  <div>
+                    <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+                      <ShoppingBag className="w-6 h-6 text-primary" />
+                      Nuomojama įranga
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {items.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 rounded-xl border bg-muted/30">
+                          <span className="font-medium text-sm">{item.name}</span>
+                          <Badge variant="secondary">{item.pricePerBooking}€ / rezerv.</Badge>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                );
+              } catch { return null; }
+            })()}
+
+            {/* Peak Pricing info */}
+            {court.peakPricePerHour && (
+              <div className="flex items-start gap-3 p-4 rounded-xl border border-yellow-400/30 bg-yellow-400/5">
+                <Zap className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-sm">Dinamiška kainodara</p>
+                  <p className="text-sm text-muted-foreground">
+                    Off-peak: <strong className="text-foreground">{court.pricePerHour}€/val</strong>&nbsp;·&nbsp;
+                    Peak (Pir–Pen 17–22): <strong className="text-yellow-400">{court.peakPricePerHour}€/val</strong>
+                  </p>
                 </div>
               </div>
             )}
@@ -478,9 +534,16 @@ export default function CourtDetail() {
                 <p className="text-xs text-muted-foreground mb-2">Spustelėkite vieną ar kelis 30 min laikotarpius</p>
 
                 {/* Legend */}
-                <div className="flex gap-3 text-xs text-muted-foreground mb-2">
+                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-2">
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary inline-block" /> Pasirinkta</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-muted-foreground/20 inline-block" /> Užimta</span>
+                  {court.peakPricePerHour && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-3 h-3 rounded-sm bg-yellow-400/20 border border-yellow-400/40 inline-block" />
+                      <Zap className="w-2.5 h-2.5 text-yellow-400" />
+                      Peak
+                    </span>
+                  )}
                 </div>
 
                 {availabilityLoading ? (
@@ -500,6 +563,7 @@ export default function CourtDetail() {
                       const isRangeStart = idx === rangeStart;
                       const isRangeEnd = idx === rangeEnd;
 
+                      const isPeak = court.peakPricePerHour != null && slot.price >= court.peakPricePerHour;
                       return (
                         <button
                           key={idx}
@@ -511,11 +575,16 @@ export default function CourtDetail() {
                               ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
                               : isSelected
                                 ? "bg-primary text-primary-foreground border-primary shadow-md scale-[0.97]"
-                                : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer"
+                                : isPeak
+                                  ? "bg-yellow-400/10 text-foreground border-yellow-400/40 hover:border-yellow-400 cursor-pointer"
+                                  : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer"
                           }`}
                         >
                           <div className="text-center leading-tight">
-                            <div className={`${isRangeStart || isRangeEnd ? "font-bold" : ""}`}>{slot.startTime}</div>
+                            <div className={`flex items-center justify-center gap-0.5 ${isRangeStart || isRangeEnd ? "font-bold" : ""}`}>
+                              {isPeak && !isSelected && <Zap className="w-2.5 h-2.5 text-yellow-400 shrink-0" />}
+                              {slot.startTime}
+                            </div>
                             <div className={`mt-0.5 flex items-center justify-center gap-0.5 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                               <Euro className="w-2.5 h-2.5" />
                               <span>{slot.price.toFixed(0)}</span>

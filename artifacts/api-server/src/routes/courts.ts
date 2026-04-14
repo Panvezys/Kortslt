@@ -28,6 +28,9 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
   return {
     ...c,
     pricePerHour: Number(c.pricePerHour),
+    peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
+    bufferMinutes: c.bufferMinutes ?? 0,
+    rentableItems: c.rentableItems ?? undefined,
     description: c.description ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
     rating: c.rating ?? undefined,
@@ -39,6 +42,13 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     ownershipDocUrl: c.ownershipDocUrl ?? undefined,
     rejectionReason: c.rejectionReason ?? undefined,
   };
+}
+
+/** Returns true if the given time slot (HH:MM) falls in peak hours: Mon–Fri 17:00–22:00 */
+function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false; // weekend
+  const [h] = startTime.split(":").map(Number);
+  return h >= 17 && h < 22;
 }
 
 /** Generate all 30-min slots for a day: 07:00 – 21:30 */
@@ -113,11 +123,14 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
     .values({
       ...parsed.data,
       pricePerHour: String(parsed.data.pricePerHour),
+      peakPricePerHour: parsed.data.peakPricePerHour != null ? String(parsed.data.peakPricePerHour) : null,
+      bufferMinutes: parsed.data.bufferMinutes ?? 0,
+      rentableItems: parsed.data.rentableItems ?? null,
       amenities: parsed.data.amenities ?? [],
       condition: (parsed.data.condition ?? "good") as string,
       ownerUserId: userId,
-      status: "pending",         // New courts start pending
-      ownershipDocUrl: (parsed.data as any).ownershipDocUrl ?? null,
+      status: "pending",
+      ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
     })
     .returning();
 
@@ -170,6 +183,9 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     .set({
       ...body.data,
       pricePerHour: String(body.data.pricePerHour),
+      peakPricePerHour: body.data.peakPricePerHour != null ? String(body.data.peakPricePerHour) : null,
+      bufferMinutes: body.data.bufferMinutes ?? 0,
+      rentableItems: body.data.rentableItems ?? null,
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
     })
@@ -268,6 +284,23 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
 
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
+  const bufferMinutes = court.bufferMinutes ?? 0;
+  const bufferSlots = Math.ceil(bufferMinutes / 30); // number of 30-min slots to block after a booking
+
+  // Build a set of buffer-blocked start times
+  const bufferBlockedTimes = new Set<string>();
+  if (bufferSlots > 0) {
+    const slotsArr = generateSlots();
+    for (const booking of existingBookings) {
+      const endIdx = slotsArr.findIndex(s => s.startTime === booking.endTime);
+      if (endIdx >= 0) {
+        for (let i = endIdx; i < Math.min(endIdx + bufferSlots, slotsArr.length); i++) {
+          bufferBlockedTimes.add(slotsArr[i].startTime);
+        }
+      }
+    }
+  }
 
   const allSlots = generateSlots().map(({ startTime, endTime }) => {
     const isBooked = existingBookings.some(
@@ -276,8 +309,19 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
     const isBlocked = blockedSlots.some(
       b => b.startTime <= startTime && b.endTime > startTime
     );
-    const price = pricingMap.has(startTime) ? pricingMap.get(startTime)! : defaultSlotPrice;
-    return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
+    const isBuffer = bufferBlockedTimes.has(startTime);
+
+    // Slot price: custom pricing > peak pricing > default
+    let price: number;
+    if (pricingMap.has(startTime)) {
+      price = pricingMap.get(startTime)!;
+    } else if (peakSlotPrice != null && isPeakSlot(startTime, dayOfWeek)) {
+      price = peakSlotPrice;
+    } else {
+      price = defaultSlotPrice;
+    }
+
+    return { startTime, endTime, isAvailable: !isBooked && !isBlocked && !isBuffer, price };
   });
 
   res.json(GetCourtAvailabilityResponse.parse({
