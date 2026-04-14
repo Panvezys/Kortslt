@@ -202,9 +202,37 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center text-primary-foreground font-bold text-sm">
-                K
-              </div>
+              <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                <defs>
+                  <linearGradient id="kg-bg" x1="0" y1="0" x2="0.4" y2="1">
+                    <stop offset="0%" stopColor="#166534" />
+                    <stop offset="100%" stopColor="#15803d" />
+                  </linearGradient>
+                  <clipPath id="kg-clip">
+                    <rect width="34" height="34" rx="8" />
+                  </clipPath>
+                </defs>
+                {/* Grass background */}
+                <rect width="34" height="34" rx="8" fill="url(#kg-bg)" />
+                <g clipPath="url(#kg-clip)">
+                  {/* Mowed-lawn alternating stripes */}
+                  <rect x="0" y="0" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+                  <rect x="0" y="11.3" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+                  <rect x="0" y="22.6" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+                  {/* Court baselines */}
+                  <line x1="5" y1="6" x2="29" y2="6" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
+                  <line x1="5" y1="28" x2="29" y2="28" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
+                  {/* Sidelines */}
+                  <line x1="5" y1="6" x2="5" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+                  <line x1="29" y1="6" x2="29" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+                  {/* Net / centre line */}
+                  <line x1="5" y1="17" x2="29" y2="17" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+                  {/* Centre service mark */}
+                  <line x1="17" y1="6" x2="17" y2="28" stroke="rgba(255,255,255,0.13)" strokeWidth="0.6" />
+                </g>
+                {/* Bold white K */}
+                <text x="17" y="24" textAnchor="middle" fontFamily="'Arial Black','Impact',Arial,sans-serif" fontSize="19" fontWeight="900" fill="white" letterSpacing="-0.5">K</text>
+              </svg>
               korts.lt
             </Link>
 
