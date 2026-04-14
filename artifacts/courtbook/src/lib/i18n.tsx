@@ -557,9 +557,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "lt" || stored === "en" || stored === "ru") return stored;
-    const browser = navigator.language.slice(0, 2).toLowerCase();
-    if (browser === "ru") return "ru";
-    if (browser === "en") return "en";
     return "lt";
   });
 
