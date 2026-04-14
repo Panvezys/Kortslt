@@ -5,8 +5,15 @@ import { userRolesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import type { UserRole } from "@workspace/db/schema";
 
-/** Fetch a user's role from DB; returns 'player' if no row exists */
+/** IDs in ADMIN_USER_IDS env var always get admin role, even if DB says otherwise */
+const HARDCODED_ADMIN_IDS = new Set(
+  (process.env.ADMIN_USER_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean)
+);
+
+/** Fetch a user's role from DB; returns 'player' if no row exists.
+ *  Users listed in ADMIN_USER_IDS env var always get 'admin'. */
 export async function getUserRole(userId: string): Promise<UserRole> {
+  if (HARDCODED_ADMIN_IDS.has(userId)) return "admin";
   const [row] = await db
     .select({ role: userRolesTable.role })
     .from(userRolesTable)
