@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
@@ -10,14 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const SPORT_LABELS: Record<string, string> = {
@@ -136,8 +135,13 @@ export default function CourtDetail() {
   const [date, setDate] = useState<Date>(new Date());
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
   const [selectedEnd, setSelectedEnd] = useState<number | null>(null);
-  const [messageSubject, setMessageSubject] = useState("");
-  const [messageBody, setMessageBody] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState<Array<{ id: number; senderUserId: string; senderName: string; body: string; createdAt: string }>>([]);
+  const [chatText, setChatText] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const chatSectionRef = useRef<HTMLDivElement>(null);
 
   const dateStr = format(date, "yyyy-MM-dd");
 
@@ -319,25 +323,40 @@ export default function CourtDetail() {
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.startTime.localeCompare(a.startTime));
   }, [bookings, courtId]);
 
-  const handleSendMessage = async () => {
-    if (!court || !user) {
-      openSignIn();
-      return;
+  const openChat = () => {
+    if (!isSignedIn) { openSignIn(); return; }
+    setChatOpen(true);
+    setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
+  useEffect(() => {
+    if (!chatOpen || !user || !courtId) return;
+    setChatLoading(true);
+    fetch(`${API}/courts/${courtId}/messages?userId=${encodeURIComponent(user.id)}`)
+      .then(r => r.json())
+      .then(data => { setChatMsgs(Array.isArray(data) ? data : []); setChatLoading(false); })
+      .catch(() => setChatLoading(false));
+  }, [chatOpen, courtId, user]);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMsgs]);
+
+  const handleChatSend = async () => {
+    if (!user || !chatText.trim() || chatSending) return;
+    setChatSending(true);
+    try {
+      const r = await fetch(`${API}/courts/${courtId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderUserId: user.id, senderName: displayName, senderEmail: displayEmail, body: chatText }),
+      });
+      const msg = await r.json();
+      setChatMsgs(prev => [...prev, msg]);
+      setChatText("");
+    } finally {
+      setChatSending(false);
     }
-    if (!messageSubject.trim() || !messageBody.trim() || !displayEmail) return;
-    await fetch(`${API}/courts/${courtId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        senderUserId: user.id,
-        senderName: displayName,
-        senderEmail: displayEmail,
-        subject: messageSubject,
-        body: messageBody,
-      }),
-    });
-    setMessageSubject("");
-    setMessageBody("");
   };
 
   if (courtLoading) {
@@ -411,7 +430,7 @@ export default function CourtDetail() {
                   <Button variant="outline" size="icon" onClick={handleShare} aria-label="Share court">
                     <Share2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={() => openSignIn()} aria-label="Message court">
+                  <Button variant="outline" size="icon" onClick={openChat} aria-label="Message court">
                     <MessageSquare className="h-4 w-4" />
                   </Button>
                 </div>
@@ -431,16 +450,71 @@ export default function CourtDetail() {
 
             <Separator />
 
-            <div className="space-y-4 p-5 rounded-2xl border bg-card">
-              <h2 className="text-2xl font-semibold flex items-center gap-2">
-                <MessageSquare className="w-6 h-6 text-primary" />
-                Žinutė kortui
-              </h2>
-              <div className="grid gap-3">
-                <Input placeholder="Tema" value={messageSubject} onChange={(e) => setMessageSubject(e.target.value)} />
-                <Textarea placeholder="Jūsų žinutė" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
-                <Button onClick={handleSendMessage}>Siųsti žinutę</Button>
-              </div>
+            {/* Inline Chat */}
+            <div ref={chatSectionRef}>
+              {!chatOpen ? (
+                <Button variant="outline" className="w-full gap-2" onClick={openChat}>
+                  <MessageSquare className="w-4 h-4" />
+                  Rašyti žinutę kortui
+                </Button>
+              ) : (
+                <div className="rounded-2xl border bg-card overflow-hidden flex flex-col" style={{ height: 400 }}>
+                  <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30 shrink-0">
+                    <MessageSquare className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="font-semibold text-sm">{court.name}</p>
+                      <p className="text-xs text-muted-foreground">Pokalbis su kortu</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+                    {chatLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+                            <Skeleton className="h-9 w-40 rounded-2xl" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : chatMsgs.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-1">
+                        <MessageSquare className="w-8 h-8 opacity-20" />
+                        <p>Parašykite pirmą žinutę!</p>
+                      </div>
+                    ) : (
+                      chatMsgs.map(msg => {
+                        const isMine = msg.senderUserId === user?.id;
+                        return (
+                          <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[75%] flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
+                              {!isMine && <span className="text-[11px] text-muted-foreground px-1">{msg.senderName}</span>}
+                              <div className={`px-3.5 py-2 rounded-2xl text-sm ${isMine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
+                                {msg.body}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground px-1">
+                                {format(parseISO(msg.createdAt), "HH:mm · dd MMM")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div ref={chatBottomRef} />
+                  </div>
+                  <div className="border-t px-3 py-2.5 flex gap-2 items-end shrink-0 bg-card">
+                    <Textarea
+                      placeholder="Rašykite žinutę..."
+                      className="resize-none min-h-[36px] max-h-[100px] text-sm"
+                      value={chatText}
+                      onChange={e => setChatText(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                      rows={1}
+                    />
+                    <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleChatSend} disabled={chatSending || !chatText.trim()}>
+                      <Send className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

@@ -1,15 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useUser, useClerk } from "@clerk/react";
 import { useListBookings, useListCourts } from "@workspace/api-client-react";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
-import { format, parseISO, isAfter } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
 import { useT } from "@/lib/i18n";
 import { SportIcon } from "@/components/sport-icon";
@@ -23,10 +22,15 @@ import {
   CheckCircle2,
   XCircle,
   Pencil,
-  Euro,
   Building2,
   MessageSquare,
+  Send,
+  ArrowLeft,
+  ChevronRight,
 } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
 
 const SPORT_COLOR: Record<string, string> = {
   tennis: "#84cc16",
@@ -36,6 +40,241 @@ const SPORT_COLOR: Record<string, string> = {
   badminton: "#a855f7",
   squash: "#06b6d4",
 };
+
+interface Thread {
+  courtId: number;
+  courtName: string;
+  lastMessage: {
+    body: string;
+    senderUserId: string;
+    senderName: string;
+    createdAt: string;
+  };
+}
+
+interface Msg {
+  id: number;
+  courtId: number;
+  senderUserId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
+function ChatPane({
+  thread,
+  userId,
+  userName,
+  userEmail,
+  onBack,
+}: {
+  thread: Thread;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  onBack: () => void;
+}) {
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API}/courts/${thread.courtId}/messages?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(data => { setMsgs(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [thread.courtId, userId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  const send = async () => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      const r = await fetch(`${API}/courts/${thread.courtId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderUserId: userId, senderName: userName, senderEmail: userEmail, body: text }),
+      });
+      const msg = await r.json();
+      setMsgs(prev => [...prev, msg]);
+      setText("");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+        <button onClick={onBack} className="md:hidden text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <MessageSquare className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <p className="font-semibold text-sm leading-tight">{thread.courtName}</p>
+          <p className="text-xs text-muted-foreground">Korto žinutės</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+                <Skeleton className={`h-10 w-48 rounded-2xl`} />
+              </div>
+            ))}
+          </div>
+        ) : msgs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+            <MessageSquare className="w-10 h-10 opacity-20" />
+            <p>Dar nėra žinučių. Parašykite pirmą!</p>
+          </div>
+        ) : (
+          msgs.map(msg => {
+            const isMine = msg.senderUserId === userId;
+            return (
+              <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[75%] ${isMine ? "items-end" : "items-start"} flex flex-col gap-1`}>
+                  {!isMine && (
+                    <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
+                  )}
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                      isMine
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted text-foreground rounded-bl-sm"
+                    }`}
+                  >
+                    {msg.body}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground px-1">
+                    {format(parseISO(msg.createdAt), "HH:mm · dd MMM")}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="border-t bg-card px-4 py-3 flex gap-2 items-end shrink-0">
+        <Textarea
+          placeholder="Rašykite žinutę..."
+          className="resize-none min-h-[40px] max-h-[120px] text-sm"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          rows={1}
+        />
+        <Button size="icon" onClick={send} disabled={sending || !text.trim()} className="shrink-0 h-10 w-10">
+          <Send className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MessagesInbox({ userId, userName, userEmail }: { userId: string; userName: string; userEmail: string }) {
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/messages/inbox?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(data => { setThreads(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [userId]);
+
+  return (
+    <div className="bg-card border rounded-xl shadow-sm overflow-hidden" style={{ height: 520 }}>
+      <div className="grid h-full" style={{ gridTemplateColumns: selectedThread ? "0 1fr" : "1fr", transition: "grid-template-columns 0.2s" }}>
+        {/* Thread list — hidden on mobile when chat open */}
+        <div className={`border-r flex flex-col min-w-0 ${selectedThread ? "hidden md:flex md:col-span-1" : "flex"}`} style={{ gridColumn: selectedThread ? "1" : "1" }}>
+          <div className="px-4 py-3 border-b">
+            <p className="font-semibold text-sm">Pokalbiai</p>
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="px-4 py-4 flex gap-3 items-center">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                </div>
+              ))
+            ) : threads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground text-sm gap-2">
+                <MessageSquare className="w-10 h-10 opacity-20" />
+                <p>Dar nėra pokalbių.</p>
+                <Button variant="outline" size="sm" asChild className="mt-2">
+                  <Link href="/courts">Naršyti kortus</Link>
+                </Button>
+              </div>
+            ) : (
+              threads.map(t => (
+                <button
+                  key={t.courtId}
+                  onClick={() => setSelectedThread(t)}
+                  className={`w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-muted/40 transition-colors ${selectedThread?.courtId === t.courtId ? "bg-muted/60" : ""}`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{t.courtName}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {t.lastMessage.senderUserId === userId ? "Jūs: " : ""}{t.lastMessage.body}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {format(parseISO(t.lastMessage.createdAt), "dd MMM")}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Chat pane */}
+        {selectedThread ? (
+          <div className="flex flex-col min-w-0 h-full">
+            <ChatPane
+              thread={selectedThread}
+              userId={userId}
+              userName={userName}
+              userEmail={userEmail}
+              onBack={() => setSelectedThread(null)}
+            />
+          </div>
+        ) : (
+          <div className="hidden md:flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+            <MessageSquare className="w-12 h-12 opacity-15" />
+            <p>Pasirinkite pokalbį</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   const t = useT();
@@ -90,12 +329,10 @@ export default function Profile() {
   const { openUserProfile } = useClerk();
   const t = useT();
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
-  const [messages, setMessages] = useState<any[]>([]);
-  const [messageSubject, setMessageSubject] = useState("");
-  const [messageBody, setMessageBody] = useState("");
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
+  const displayName = user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Vartotojas";
 
   const { data: bookings, isLoading: bookingsLoading } = useListBookings(
     { customerEmail: email },
@@ -213,7 +450,7 @@ export default function Profile() {
 
         {/* ── Tabs ── */}
         <div className="space-y-4">
-          <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+          <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-lg w-fit">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -257,7 +494,6 @@ export default function Profile() {
               ) : (
                 <div className="divide-y">
                   {bookings.map((booking) => {
-                    const isPast = booking.date < today;
                     return (
                       <div
                         key={booking.id}
@@ -369,33 +605,9 @@ export default function Profile() {
             </div>
           )}
 
-          {activeTab === "messages" && (
-            <div className="space-y-4">
-              <div className="bg-card border rounded-xl p-4 shadow-sm">
-                <div className="grid gap-3">
-                  <Input placeholder="Tema" value={messageSubject} onChange={(e) => setMessageSubject(e.target.value)} />
-                  <Textarea placeholder="Nauja žinutė" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
-                  <Button onClick={() => setMessages([{ subject: messageSubject, body: messageBody, createdAt: new Date().toISOString() }, ...messages])}>
-                    Siųsti
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {messages.length === 0 ? (
-                  <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
-                    <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p>Dar nėra žinučių.</p>
-                  </div>
-                ) : (
-                  messages.map((m, i) => (
-                    <div key={i} className="bg-card border rounded-xl p-4 shadow-sm">
-                      <p className="font-semibold">{m.subject}</p>
-                      <p className="text-sm text-muted-foreground mt-1">{m.body}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* Messages tab */}
+          {activeTab === "messages" && userId && (
+            <MessagesInbox userId={userId} userName={displayName} userEmail={email} />
           )}
 
           {/* My Courts tab (owner only) */}

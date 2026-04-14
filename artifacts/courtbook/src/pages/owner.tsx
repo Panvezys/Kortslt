@@ -13,7 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { format, parseISO } from "date-fns";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -428,6 +430,221 @@ const SPORT_LABELS: Record<string, string> = {
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
 };
 
+interface OwnerThread {
+  courtId: number;
+  courtName: string;
+  threadUserId: string;
+  threadUserName: string;
+  lastMessage: { body: string; senderUserId: string; createdAt: string };
+}
+
+interface OwnerMsg {
+  id: number;
+  senderUserId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
+function OwnerChatPane({
+  thread,
+  ownerUserId,
+  ownerName,
+  ownerEmail,
+  onBack,
+}: {
+  thread: OwnerThread;
+  ownerUserId: string;
+  ownerName: string;
+  ownerEmail: string;
+  onBack: () => void;
+}) {
+  const [msgs, setMsgs] = useState<OwnerMsg[]>([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_URL}/courts/${thread.courtId}/messages?userId=${encodeURIComponent(thread.threadUserId)}`)
+      .then(r => r.json())
+      .then(data => { setMsgs(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [thread.courtId, thread.threadUserId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs]);
+
+  const send = async () => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    try {
+      const r = await fetch(`${API_URL}/courts/${thread.courtId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderUserId: ownerUserId, senderName: ownerName, senderEmail: ownerEmail, body: text, threadUserId: thread.threadUserId }),
+      });
+      const msg = await r.json();
+      setMsgs(prev => [...prev, msg]);
+      setText("");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+        <button onClick={onBack} className="md:hidden text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <MessageSquare className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <p className="font-semibold text-sm leading-tight">{thread.threadUserName}</p>
+          <p className="text-xs text-muted-foreground">{thread.courtName}</p>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
+                <Skeleton className="h-10 w-44 rounded-2xl" />
+              </div>
+            ))}
+          </div>
+        ) : msgs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+            <MessageSquare className="w-10 h-10 opacity-20" />
+            <p>Dar nėra žinučių šiame pokalbyje.</p>
+          </div>
+        ) : (
+          msgs.map(msg => {
+            const isMine = msg.senderUserId === ownerUserId;
+            return (
+              <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[75%] flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}>
+                  {!isMine && <span className="text-[11px] text-muted-foreground px-1">{msg.senderName}</span>}
+                  <div className={`px-3.5 py-2 rounded-2xl text-sm ${isMine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
+                    {msg.body}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground px-1">
+                    {format(parseISO(msg.createdAt), "HH:mm · dd MMM")}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+      <div className="border-t bg-card px-3 py-2.5 flex gap-2 items-end shrink-0">
+        <Textarea
+          placeholder="Rašykite atsakymą..."
+          className="resize-none min-h-[36px] max-h-[100px] text-sm"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          rows={1}
+        />
+        <Button size="icon" className="h-9 w-9 shrink-0" onClick={send} disabled={sending || !text.trim()}>
+          <Send className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function OwnerInbox({ ownerUserId, ownerName, ownerEmail }: { ownerUserId: string; ownerName: string; ownerEmail: string }) {
+  const [threads, setThreads] = useState<OwnerThread[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<OwnerThread | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/messages/owner-inbox?ownerUserId=${encodeURIComponent(ownerUserId)}`)
+      .then(r => r.json())
+      .then(data => { setThreads(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [ownerUserId]);
+
+  return (
+    <div className="bg-card border rounded-xl shadow-sm overflow-hidden mb-8" style={{ height: 520 }}>
+      <div
+        className="grid h-full"
+        style={{ gridTemplateColumns: selected ? "280px 1fr" : "1fr", transition: "grid-template-columns 0.2s" }}
+      >
+        {/* Thread list */}
+        <div className={`border-r flex flex-col min-w-0 ${selected ? "hidden md:flex" : "flex"}`}>
+          <div className="px-4 py-3 border-b">
+            <p className="font-semibold text-sm">Pokalbiai su vartotojais</p>
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="px-4 py-4 flex gap-3 items-center">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-28" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                </div>
+              ))
+            ) : threads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground text-sm gap-2">
+                <MessageSquare className="w-10 h-10 opacity-20" />
+                <p>Dar nėra žinučių.</p>
+              </div>
+            ) : (
+              threads.map((t, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelected(t)}
+                  className={`w-full text-left px-4 py-3.5 flex items-center gap-3 hover:bg-muted/40 transition-colors ${selected?.courtId === t.courtId && selected?.threadUserId === t.threadUserId ? "bg-muted/60" : ""}`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-sm font-bold text-primary">
+                    {t.threadUserName?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{t.threadUserName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.courtName}</p>
+                    <p className="text-xs text-muted-foreground/70 truncate">{t.lastMessage.body}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground">{format(parseISO(t.lastMessage.createdAt), "dd MMM")}</span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Chat pane */}
+        {selected ? (
+          <div className="flex flex-col min-w-0 h-full">
+            <OwnerChatPane
+              thread={selected}
+              ownerUserId={ownerUserId}
+              ownerName={ownerName}
+              ownerEmail={ownerEmail}
+              onBack={() => setSelected(null)}
+            />
+          </div>
+        ) : (
+          <div className="hidden md:flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2">
+            <MessageSquare className="w-12 h-12 opacity-15" />
+            <p>Pasirinkite pokalbį</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface CoachItem {
   id: number;
   name: string;
@@ -609,6 +826,7 @@ export default function OwnerDashboard() {
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
+  const [showInbox, setShowInbox] = useState(false);
 
   const { data: courts, isLoading } = useListCourts(
     user?.id ? { ownerUserId: user.id } : undefined
@@ -734,6 +952,16 @@ export default function OwnerDashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Valdymo skydelis</h1>
             <p className="text-muted-foreground mt-1">Tvarkykite savo kortus ir kainas.</p>
           </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant={showInbox ? "default" : "outline"}
+              onClick={() => setShowInbox(v => !v)}
+              className="gap-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Žinutės
+            </Button>
 
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
@@ -1090,7 +1318,17 @@ export default function OwnerDashboard() {
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+
+        {/* Owner Inbox */}
+        {showInbox && user && (
+          <OwnerInbox
+            ownerUserId={user.id}
+            ownerName={user.fullName ?? user.firstName ?? "Savininkas"}
+            ownerEmail={user.primaryEmailAddress?.emailAddress ?? ""}
+          />
+        )}
 
         {/* Courts table */}
         <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
