@@ -130,6 +130,7 @@ export default function Home() {
     });
   };
   const allActive = activeSports.size === ALL_SPORTS.length;
+  const [hoveredStat, setHoveredStat] = useState<string | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -221,9 +222,14 @@ export default function Home() {
                   { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0),                              label: t("home.stats.otherSports"),    sport: "multi",        href: "/courts" },
                 ].sort((a, b) => b.count - a.count).map(({ count, label, sport, href }) => {
                   const numColor = sport === null ? undefined : sport === "multi" ? sportColor["football"] : sportColor[sport];
+                  const isHovered = hoveredStat === label;
                   return (
-                  <Link key={label} href={href} className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors">
-                    <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: numColor }}>{count}</div>
+                  <Link key={label} href={href}
+                    className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors"
+                    onMouseEnter={() => setHoveredStat(label)}
+                    onMouseLeave={() => setHoveredStat(null)}
+                  >
+                    <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
                     <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
                       {sport === null ? (
                         <Landmark className="h-3.5 w-3.5 shrink-0" />
