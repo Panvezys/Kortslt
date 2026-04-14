@@ -1,4 +1,37 @@
 @import "tailwindcss";
+
+/* Google Places Autocomplete dropdown — must sit above Radix Dialog (z-50) */
+.pac-container {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: inherit;
+  margin-top: 4px;
+}
+.pac-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-top: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+}
+.pac-item:hover, .pac-item-selected {
+  background: hsl(var(--accent));
+}
+.pac-item-query {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.pac-icon {
+  display: none;
+}
+.pac-logo::after {
+  display: none;
+}
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 @import "leaflet/dist/leaflet.css";

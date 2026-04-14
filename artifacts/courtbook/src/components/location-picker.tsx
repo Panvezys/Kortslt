@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
-import { MapPin, Search, Map } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
@@ -21,8 +20,6 @@ interface LocationPickerProps {
   longitude: number;
   onChange: (result: LocationPickerResult) => void;
 }
-
-type Mode = "search" | "pin";
 
 async function reverseGeocode(lat: number, lng: number): Promise<Omit<LocationPickerResult, "lat" | "lng">> {
   try {
@@ -68,7 +65,6 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
     libraries: LIBRARIES,
   });
 
-  const [mode, setMode] = useState<Mode>("search");
   const hasCoords = latitude !== 0 && longitude !== 0;
   const [markerPos, setMarkerPos] = useState<google.maps.LatLngLiteral | null>(
     hasCoords ? { lat: latitude, lng: longitude } : null
@@ -77,12 +73,13 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
     hasCoords ? { lat: latitude, lng: longitude } : LITHUANIA_CENTER
   );
   const [mapZoom, setMapZoom] = useState(hasCoords ? 15 : 7);
-  const [searchInput, setSearchInput] = useState("");
+
+  // Uncontrolled input — Google Autocomplete manages the input value directly.
+  // Using a controlled (value=...) input breaks autocomplete item selection.
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  // Initialise Places Autocomplete once the Maps API has loaded and input is mounted
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
 
@@ -128,66 +125,29 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
 
   return (
     <div className="space-y-3">
-      {/* Mode toggle */}
-      <div className="flex rounded-lg border overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setMode("search")}
-          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${
-            mode === "search"
-              ? "bg-primary text-primary-foreground"
-              : "bg-background text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          <Search className="w-4 h-4" />
-          Ieškoti adreso
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("pin")}
-          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors ${
-            mode === "pin"
-              ? "bg-primary text-primary-foreground"
-              : "bg-background text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          <Map className="w-4 h-4" />
-          Žymėti žemėlapyje
-        </button>
-      </div>
-
-      {/* Address search input — always mounted so autocomplete ref stays valid */}
-      <div className={mode === "search" ? "block" : "hidden"}>
-        {isLoaded ? (
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Pradėkite rašyti adresą Lietuvoje…"
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            />
-          </div>
-        ) : (
-          <Skeleton className="h-10 w-full rounded-md" />
-        )}
-        {mode === "search" && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Pasirinkite adresą iš sąrašo — miestas, pašto kodas ir koordinatės užsipildys automatiškai
-          </p>
-        )}
-      </div>
-
-      {mode === "pin" && (
-        <p className="text-xs text-muted-foreground">
-          <MapPin className="w-3.5 h-3.5 inline mr-1 text-primary" />
-          Spauskite žemėlapyje arba vilkite žymeklį, kad tiksliai pažymėtumėte kortą
-        </p>
+      {/* Search input — always at the top */}
+      {!isLoaded ? (
+        <Skeleton className="h-10 w-full rounded-md" />
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Pradėkite rašyti adresą Lietuvoje…"
+            className="flex h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            autoComplete="off"
+          />
+        </div>
       )}
 
-      {/* Map */}
+      <p className="text-xs text-muted-foreground">
+        Pasirinkite adresą iš sąrašo arba{" "}
+        <MapPin className="w-3 h-3 inline mx-0.5 text-primary" />
+        spauskite žemėlapyje, kad pažymėtumėte kortą
+      </p>
+
+      {/* Map — always interactive */}
       {!isLoaded ? (
         <Skeleton className="w-full rounded-lg" style={{ height: 260 }} />
       ) : (
@@ -197,13 +157,13 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
             center={mapCenter}
             zoom={mapZoom}
             onLoad={(map) => { mapRef.current = map; }}
-            onClick={mode === "pin" ? handleMapClick : undefined}
+            onClick={handleMapClick}
             options={{
               mapTypeControl: false,
               streetViewControl: false,
               fullscreenControl: false,
               clickableIcons: false,
-              cursor: mode === "pin" ? "crosshair" : undefined,
+              cursor: "crosshair",
               styles: [
                 { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
               ],
@@ -212,8 +172,8 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
             {markerPos && (
               <Marker
                 position={markerPos}
-                draggable={mode === "pin"}
-                onDragEnd={mode === "pin" ? handleMarkerDragEnd : undefined}
+                draggable
+                onDragEnd={handleMarkerDragEnd}
               />
             )}
           </GoogleMap>
