@@ -182,6 +182,13 @@ export default function Home() {
   const [showMoreCities, setShowMoreCities] = useState(false);
   const { locale } = useI18n();
 
+  const accentColor = searchSport ? (sportColor[searchSport] ?? "#84cc16") : "#84cc16";
+  function contrastText(hex: string) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.55 ? "#000" : "#fff";
+  }
+  const accentFg = contrastText(accentColor);
+
   function handleSearch() {
     const params = new URLSearchParams();
     if (searchName.trim()) params.set("name", searchName.trim());
@@ -484,7 +491,8 @@ export default function Home() {
                 <div className="relative" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
-                    className={`flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap ${dateDropdownOpen ? "border-primary/60" : "border-white/20"}`}
+                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: dateDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
                   >
                     <CalendarDays className="h-3.5 w-3.5 text-white/50 shrink-0" />
                     <span className="text-sm text-white/80">
@@ -531,7 +539,8 @@ export default function Home() {
                           {/* Day-of-week header */}
                           <div className="grid grid-cols-7 mb-1">
                             {dayLabels.map((label, i) => (
-                              <div key={i} className={`text-center text-[10px] font-semibold py-1 ${i >= 5 ? "text-primary/50" : "text-white/30"}`}>
+                              <div key={i} className="text-center text-[10px] font-semibold py-1"
+                                style={{ color: i >= 5 ? accentColor + "88" : "rgba(255,255,255,0.3)" }}>
                                 {label}
                               </div>
                             ))}
@@ -559,16 +568,21 @@ export default function Home() {
                                   className={[
                                     "relative h-8 w-full rounded-lg text-xs font-medium transition-all duration-100 flex items-center justify-center",
                                     !inMonth ? "text-white/15" :
-                                    isSelected ? "bg-primary text-black font-bold shadow-md" :
+                                    isSelected ? "font-bold shadow-md" :
                                     isPast ? "text-white/18 cursor-not-allowed" :
                                     isTodayDay ? "bg-white/12 text-white ring-1 ring-white/20 hover:bg-white/20" :
-                                    isWeekend ? "text-primary/70 hover:bg-primary/15" :
-                                    "text-white/80 hover:bg-white/10",
+                                    "hover:bg-white/10",
                                   ].join(" ")}
+                                  style={
+                                    isSelected ? { background: accentColor, color: accentFg } :
+                                    (!isPast && !isTodayDay && inMonth && isWeekend) ? { color: accentColor + "bb" } :
+                                    (!isPast && !isTodayDay && inMonth) ? { color: "rgba(255,255,255,0.8)" } :
+                                    undefined
+                                  }
                                 >
                                   {format(day, "d")}
                                   {isTodayDay && !isSelected && (
-                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: accentColor }} />
                                   )}
                                 </button>
                               );
@@ -584,7 +598,8 @@ export default function Home() {
                 <div className="relative" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
-                    className={`flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap ${timeDropdownOpen ? "border-primary/60" : "border-white/20"}`}
+                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: timeDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
                   >
                     <Clock className="h-3.5 w-3.5 text-white/50 shrink-0" />
                     <span className="text-sm text-white/80">
@@ -603,7 +618,7 @@ export default function Home() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Pradžios laikas</span>
                         {timeSlider !== null && (
-                          <button onClick={() => { setTimeSlider(null); setSearchTime(""); }} className="text-[10px] text-primary hover:underline">Išvalyti</button>
+                          <button onClick={() => { setTimeSlider(null); setSearchTime(""); }} className="text-[10px] hover:underline" style={{ color: accentColor }}>Išvalyti</button>
                         )}
                       </div>
 
@@ -619,16 +634,20 @@ export default function Home() {
                           onChange={e => { const h = Number(e.target.value); setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
                           onMouseDown={() => { if (timeSlider === null) setTimeSlider(9); }}
                           className="time-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                          style={{ background: timeSlider !== null ? `linear-gradient(to right, #84cc16 0%, #84cc16 ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) 100%)` : "rgba(255,255,255,0.15)" }}
+                          style={{ background: timeSlider !== null ? `linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) 100%)` : "rgba(255,255,255,0.15)" }}
                         />
                         <div className="flex justify-between mt-1.5">
                           {[6, 10, 14, 18, 22].map(h => (
-                            <button key={h} onClick={() => { setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }} className={`text-[9px] tabular-nums transition-colors ${timeSlider === h ? "text-primary font-bold" : "text-white/30 hover:text-white/60"}`}>{h}:00</button>
+                            <button key={h} onClick={() => { setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
+                              className="text-[9px] tabular-nums transition-colors"
+                              style={{ color: timeSlider === h ? accentColor : "rgba(255,255,255,0.3)", fontWeight: timeSlider === h ? "700" : "400" }}
+                            >{h}:00</button>
                           ))}
                         </div>
                       </div>
 
-                      <button onClick={() => setTimeDropdownOpen(false)} className="mt-3 w-full py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
+                      <button onClick={() => setTimeDropdownOpen(false)} className="mt-3 w-full py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                        style={{ background: accentColor, color: accentFg }}>
                         Patvirtinti
                       </button>
                     </div>
