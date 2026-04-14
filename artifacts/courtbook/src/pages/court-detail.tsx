@@ -1092,7 +1092,7 @@ export default function CourtDetail() {
                         <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
                       </div>
 
-                      <Button onClick={handleReserve} className="w-full h-12 text-base font-semibold gap-2" disabled={isPending}>
+                      <Button onClick={() => handleReserve()} className="w-full h-12 text-base font-semibold gap-2" disabled={isPending}>
                         {isPending ? "Apdorojama..." : "Rezervuoti"}
                       </Button>
                       <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
