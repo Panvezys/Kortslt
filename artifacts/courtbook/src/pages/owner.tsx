@@ -25,10 +25,10 @@ import { LocationPicker, type LocationPickerResult } from "@/components/location
 import { CourtImageUpload } from "@/components/court-image-upload";
 
 const STANDARD_AMENITIES = [
-  { id: "floodlights",     label: "Prožektoriai",       icon: Lightbulb },
-  { id: "showers",         label: "Dušai",              icon: ShowerHead },
-  { id: "changing_rooms",  label: "Persirengimo kambariai", icon: DoorOpen },
-  { id: "water_station",   label: "Vandens stotis",     icon: Droplets },
+  { id: "floodlights", label: "Prožektoriai", icon: Lightbulb },
+  { id: "showers", label: "Dušai", icon: ShowerHead },
+  { id: "changing_rooms", label: "Persirengimo kambariai", icon: DoorOpen },
+  { id: "water_station", label: "Vandens stotis", icon: Droplets },
 ] as const;
 
 interface RentableItem {
@@ -270,4 +270,8 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
   });
 
   return null;
+}
+
+export default function OwnerDashboard() {
+  return <Layout />;
 }
