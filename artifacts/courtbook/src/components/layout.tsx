@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
+import { useRole } from "@/lib/useRole";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -65,24 +66,18 @@ function LanguageSwitcher() {
   );
 }
 
-const ADMIN_USER_IDS = (import.meta.env.VITE_ADMIN_USER_IDS ?? "")
-  .split(",")
-  .map((s: string) => s.trim())
-  .filter(Boolean);
-
 function UserMenu() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
+  const { isAdmin, isOwner } = useRole();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
       user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
       "U"
     : "U";
-
-  const isAdmin = user && ADMIN_USER_IDS.includes(user.id);
 
   return (
     <DropdownMenu>
@@ -116,10 +111,12 @@ function UserMenu() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/owner")}>
-          <LayoutDashboard className="mr-2 h-4 w-4" />
-          {t("nav.ownerDashboard")}
-        </DropdownMenuItem>
+        {isOwner && (
+          <DropdownMenuItem onClick={() => setLocation("/owner")}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            {t("nav.ownerDashboard")}
+          </DropdownMenuItem>
+        )}
         {isAdmin && (
           <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
             <ShieldCheck className="mr-2 h-4 w-4" />
@@ -136,6 +133,28 @@ function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function NavRoleLinks({ onClick }: { onClick?: () => void }) {
+  const t = useT();
+  const { isOwner, isAdmin } = useRole();
+  return (
+    <>
+      <Link href="/bookings" className="transition-colors hover:text-primary" onClick={onClick}>
+        {t("nav.myBookings")}
+      </Link>
+      {isOwner && (
+        <Link href="/owner" className="transition-colors hover:text-primary" onClick={onClick}>
+          {t("nav.ownerDashboard")}
+        </Link>
+      )}
+      {isAdmin && (
+        <Link href="/admin" className="transition-colors hover:text-amber-500 text-amber-500/80" onClick={onClick}>
+          Administravimas
+        </Link>
+      )}
+    </>
   );
 }
 
@@ -161,12 +180,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {t("nav.findCourts")}
               </Link>
               <Show when="signed-in">
-                <Link href="/bookings" className="transition-colors hover:text-primary">
-                  {t("nav.myBookings")}
-                </Link>
-                <Link href="/owner" className="transition-colors hover:text-primary">
-                  {t("nav.ownerDashboard")}
-                </Link>
+                <NavRoleLinks />
               </Show>
             </nav>
 
@@ -209,20 +223,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {t("nav.findCourts")}
               </Link>
               <Show when="signed-in">
-                <Link
-                  href="/bookings"
-                  className="transition-colors hover:text-primary"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t("nav.myBookings")}
-                </Link>
-                <Link
-                  href="/owner"
-                  className="transition-colors hover:text-primary"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t("nav.ownerDashboard")}
-                </Link>
+                <NavRoleLinks onClick={() => setMobileMenuOpen(false)} />
                 <UserMenu />
               </Show>
               <Show when="signed-out">

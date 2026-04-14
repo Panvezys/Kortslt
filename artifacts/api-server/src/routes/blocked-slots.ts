@@ -48,7 +48,7 @@ router.post("/courts/:id/blocked-slots", requireAuth, async (req, res): Promise<
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (!isOwner(req, court.ownerUserId)) {
+  if (!(await isOwner(req, court.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -70,7 +70,7 @@ router.delete("/courts/:id/blocked-slots/:slotId", requireAuth, async (req, res)
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (!isOwner(req, court.ownerUserId)) {
+  if (!(await isOwner(req, court.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }

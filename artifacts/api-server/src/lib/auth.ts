@@ -1,13 +1,29 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth } from "@clerk/express";
+import { db } from "@workspace/db";
+import { userRolesTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
+import type { UserRole } from "@workspace/db/schema";
 
-/** Clerk userIds that have admin access, comma-separated in ADMIN_USER_IDS env var */
-function getAdminIds(): Set<string> {
-  const raw = process.env.ADMIN_USER_IDS ?? "";
-  return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
+/** Fetch a user's role from DB; returns 'player' if no row exists */
+export async function getUserRole(userId: string): Promise<UserRole> {
+  const [row] = await db
+    .select({ role: userRolesTable.role })
+    .from(userRolesTable)
+    .where(eq(userRolesTable.userId, userId));
+  return (row?.role as UserRole) ?? "player";
 }
 
-/** Express middleware: requires request to carry a valid Clerk session */
+/** Ensure user has a role row (upsert as player on first visit) */
+export async function ensureUserRole(userId: string): Promise<UserRole> {
+  await db
+    .insert(userRolesTable)
+    .values({ userId, role: "player" })
+    .onConflictDoNothing();
+  return getUserRole(userId);
+}
+
+/** Express middleware: requires a valid Clerk session */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const { userId } = getAuth(req);
   if (!userId) {
@@ -17,23 +33,52 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-/** Express middleware: requires the caller to be listed in ADMIN_USER_IDS */
-export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const { userId } = getAuth(req);
-  if (!userId || !getAdminIds().has(userId)) {
-    res.status(403).json({ error: "Forbidden – admin only" });
-    return;
+/** Express middleware: requires role === 'admin' in user_roles table */
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin") {
+      res.status(403).json({ error: "Forbidden – admin only" });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }
 
-/** Returns true if the current request's userId matches the court owner */
-export function isOwner(req: Request, ownerUserId: string | null | undefined, ownerEmail?: string): boolean {
+/** Express middleware: requires role === 'admin' or 'owner' */
+export async function requireOwner(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin" && role !== "owner") {
+      res.status(403).json({ error: "Forbidden – owner or admin only" });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Returns true if the current request's userId matches the court owner (or is admin) */
+export async function isOwner(req: Request, ownerUserId: string | null | undefined): Promise<boolean> {
   const { userId } = getAuth(req);
   if (!userId) return false;
-  if (ownerUserId) return ownerUserId === userId;
-  // Fallback for legacy courts without ownerUserId: use email if clerk provides it
-  return false;
+  if (ownerUserId && ownerUserId === userId) return true;
+  // Admins can act as owners
+  const role = await getUserRole(userId);
+  return role === "admin";
 }
 
 export function getCurrentUserId(req: Request): string | null {

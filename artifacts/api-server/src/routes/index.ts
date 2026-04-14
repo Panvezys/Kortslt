@@ -9,6 +9,7 @@ import uploadRouter from "./upload";
 import favoritesRouter from "./favorites";
 import adminRouter from "./admin";
 import blockedSlotsRouter from "./blocked-slots";
+import rolesRouter from "./roles";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(statsRouter);
 router.use(uploadRouter);
 router.use(favoritesRouter);
 router.use(adminRouter);
+router.use(rolesRouter);
 
 export default router;

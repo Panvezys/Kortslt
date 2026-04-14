@@ -160,7 +160,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (existing.ownerUserId && !isOwner(req, existing.ownerUserId)) {
+  if (existing.ownerUserId && !(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -197,7 +197,7 @@ router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (existing.ownerUserId && !isOwner(req, existing.ownerUserId)) {
+  if (existing.ownerUserId && !(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }

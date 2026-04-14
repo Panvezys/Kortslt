@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch, type Court } from "@workspace/api-client-react";
 import { Check, X, Eye, ShieldAlert, FileText, RefreshCw } from "lucide-react";
-
-const ADMIN_USER_IDS = (import.meta.env.VITE_ADMIN_USER_IDS ?? "")
-  .split(",")
-  .map((s: string) => s.trim())
-  .filter(Boolean);
+import { useRole } from "@/lib/useRole";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas",
@@ -66,7 +61,6 @@ function useRejectCourt() {
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
 export default function AdminDashboard() {
-  const { user, isLoaded } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
@@ -76,10 +70,9 @@ export default function AdminDashboard() {
   const { data: courts, isLoading, isError } = useAdminCourts();
   const approveMutation = useApproveCourt();
   const rejectMutation = useRejectCourt();
+  const { isAdmin, isLoading: roleLoading } = useRole();
 
-  const isAdmin = isLoaded && user && ADMIN_USER_IDS.includes(user.id);
-
-  if (!isLoaded) {
+  if (roleLoading) {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-12 space-y-4">

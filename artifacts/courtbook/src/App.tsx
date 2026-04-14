@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, Show, useClerk, useAuth } from "@clerk/react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
 import NotFound from "@/pages/not-found";
+import { useRole } from "@/lib/useRole";
 
 import Home from "@/pages/home";
 import Courts from "@/pages/courts";
@@ -68,16 +69,13 @@ function BookingsRoute() {
 }
 
 function OwnerRoute() {
-  return (
-    <>
-      <Show when="signed-in">
-        <OwnerDashboard />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isOwner, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isOwner) return <Redirect to="/" />;
+  return <OwnerDashboard />;
 }
 
 function ProfileRoute() {
@@ -94,16 +92,13 @@ function ProfileRoute() {
 }
 
 function AdminRoute() {
-  return (
-    <>
-      <Show when="signed-in">
-        <AdminDashboard />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
-  );
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isAdmin, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <AdminDashboard />;
 }
 
 // Invalidates React Query cache when the signed-in user changes

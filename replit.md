@@ -54,11 +54,24 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Existing tennis/basketball courts: `artifacts/courtbook/public/courts/*.png` (AI generated)
 - New sport courts: `artifacts/courtbook/public/courts/{padel,football,badminton,squash}/*.jpg` (stock photos)
 
+### Role-Based Access Control (RBAC)
+- **Three roles**: `admin`, `owner`, `player` (stored in `user_roles` table, keyed by Clerk userId)
+- **admin** — full access: approve/reject courts, manage all users' roles, modify any court
+- **owner** — can list/manage their own courts, block time slots; can only modify courts where `owner_user_id` matches their Clerk userId
+- **player** — default role; can browse, book, and review courts
+- Role lookup: `GET /api/me/role` auto-creates a `player` row on first sign-in
+- Admin role management: `GET /api/admin/users`, `PUT /api/admin/users/:userId/role`
+- Route guards: `/admin` redirects non-admins; `/owner` redirects non-owners (players)
+- Nav links (Owner Dashboard, Administravimas) only shown to users with the correct role
+- **Admin user**: seeded in `user_roles` table; `ADMIN_USER_IDS` env var no longer needed for auth (kept for legacy, but DB role is the source of truth)
+
 ### Database Tables
 - `courts` — court listings with: type, city, lat/lng, price (€), surface, condition, isIndoor, amenities, rating
 - `bookings` — customer bookings with status (pending/confirmed/cancelled)
 - `reviews` — court reviews linked to bookings: rating (1–5), optional text, reviewer name; auto-updates `courts.rating` on insert
 - `court_pricing` — per-slot dynamic pricing: courtId, dayOfWeek (0=Sun), startTime (30-min slot), price (€); overrides default price per slot
+- `court_blocked_slots` — owner-blocked time ranges per court (date, startTime, endTime, reason)
+- `user_roles` — maps Clerk userId → role ('admin'|'owner'|'player'); auto-upserts on first login
 - `courts.phone` — real phone numbers for each venue (TEXT, nullable)
 - `courts.openingHours` — opening hours as TEXT[] e.g. ["Pirm–Penkt: 07:00–23:00", "Šeštadienis–Sekmadienis: 08:00–22:00"]
 
