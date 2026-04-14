@@ -11,6 +11,7 @@ import adminRouter from "./admin";
 import blockedSlotsRouter from "./blocked-slots";
 import rolesRouter from "./roles";
 import coachesRouter from "./coaches";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(favoritesRouter);
 router.use(adminRouter);
 router.use(rolesRouter);
 router.use(coachesRouter);
+router.use(messagesRouter);
 
 export default router;

@@ -6,3 +6,4 @@ export * from "./favorites";
 export * from "./court-blocked-slots";
 export * from "./user-roles";
 export * from "./coaches";
+export * from "./messages";

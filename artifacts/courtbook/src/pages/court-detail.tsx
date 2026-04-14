@@ -10,13 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2 } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -134,6 +136,8 @@ export default function CourtDetail() {
   const [date, setDate] = useState<Date>(new Date());
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
   const [selectedEnd, setSelectedEnd] = useState<number | null>(null);
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
 
   const dateStr = format(date, "yyyy-MM-dd");
 
@@ -302,6 +306,7 @@ export default function CourtDetail() {
 
   const isPending = createBooking.isPending;
   const displayName = user?.fullName || `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "Vartotojas";
+  const displayEmail = user?.primaryEmailAddress?.emailAddress ?? "";
 
   const avgRating = useMemo(() => {
     if (!reviews || reviews.length === 0) return null;
@@ -313,6 +318,27 @@ export default function CourtDetail() {
       .filter((booking) => booking.courtId === courtId)
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.startTime.localeCompare(a.startTime));
   }, [bookings, courtId]);
+
+  const handleSendMessage = async () => {
+    if (!court || !user) {
+      openSignIn();
+      return;
+    }
+    if (!messageSubject.trim() || !messageBody.trim() || !displayEmail) return;
+    await fetch(`${API}/courts/${courtId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senderUserId: user.id,
+        senderName: displayName,
+        senderEmail: displayEmail,
+        subject: messageSubject,
+        body: messageBody,
+      }),
+    });
+    setMessageSubject("");
+    setMessageBody("");
+  };
 
   if (courtLoading) {
     return (
@@ -385,6 +411,9 @@ export default function CourtDetail() {
                   <Button variant="outline" size="icon" onClick={handleShare} aria-label="Share court">
                     <Share2 className="h-4 w-4" />
                   </Button>
+                  <Button variant="outline" size="icon" onClick={() => openSignIn()} aria-label="Message court">
+                    <MessageSquare className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-muted-foreground">
@@ -401,6 +430,18 @@ export default function CourtDetail() {
             </div>
 
             <Separator />
+
+            <div className="space-y-4 p-5 rounded-2xl border bg-card">
+              <h2 className="text-2xl font-semibold flex items-center gap-2">
+                <MessageSquare className="w-6 h-6 text-primary" />
+                Žinutė kortui
+              </h2>
+              <div className="grid gap-3">
+                <Input placeholder="Tema" value={messageSubject} onChange={(e) => setMessageSubject(e.target.value)} />
+                <Textarea placeholder="Jūsų žinutė" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
+                <Button onClick={handleSendMessage}>Siųsti žinutę</Button>
+              </div>
+            </div>
 
             <div>
               <h2 className="text-2xl font-semibold mb-4">Apie kortą</h2>

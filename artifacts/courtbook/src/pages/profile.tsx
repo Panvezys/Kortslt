@@ -7,6 +7,8 @@ import { format, parseISO, isAfter } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { useT } from "@/lib/i18n";
@@ -23,6 +25,7 @@ import {
   Pencil,
   Euro,
   Building2,
+  MessageSquare,
 } from "lucide-react";
 
 const SPORT_COLOR: Record<string, string> = {
@@ -80,13 +83,16 @@ function StatCard({
   );
 }
 
-type Tab = "bookings" | "favorites" | "courts";
+type Tab = "bookings" | "favorites" | "courts" | "messages";
 
 export default function Profile() {
   const { user } = useUser();
   const { openUserProfile } = useClerk();
   const t = useT();
   const [activeTab, setActiveTab] = useState<Tab>("bookings");
+  const [messages, setMessages] = useState<any[]>([]);
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
@@ -118,6 +124,7 @@ export default function Profile() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "bookings", label: t("profile.tab.bookings"), icon: <CalendarDays className="w-4 h-4" /> },
     { key: "favorites", label: t("profile.tab.favorites"), icon: <Heart className="w-4 h-4" /> },
+    { key: "messages", label: "Žinutės", icon: <MessageSquare className="w-4 h-4" /> },
     ...(isOwner
       ? [{ key: "courts" as Tab, label: t("profile.tab.myCourts"), icon: <LayoutDashboard className="w-4 h-4" /> }]
       : []),
@@ -359,6 +366,35 @@ export default function Profile() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "messages" && (
+            <div className="space-y-4">
+              <div className="bg-card border rounded-xl p-4 shadow-sm">
+                <div className="grid gap-3">
+                  <Input placeholder="Tema" value={messageSubject} onChange={(e) => setMessageSubject(e.target.value)} />
+                  <Textarea placeholder="Nauja žinutė" value={messageBody} onChange={(e) => setMessageBody(e.target.value)} />
+                  <Button onClick={() => setMessages([{ subject: messageSubject, body: messageBody, createdAt: new Date().toISOString() }, ...messages])}>
+                    Siųsti
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {messages.length === 0 ? (
+                  <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
+                    <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p>Dar nėra žinučių.</p>
+                  </div>
+                ) : (
+                  messages.map((m, i) => (
+                    <div key={i} className="bg-card border rounded-xl p-4 shadow-sm">
+                      <p className="font-semibold">{m.subject}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{m.body}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 
