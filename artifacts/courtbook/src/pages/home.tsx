@@ -206,7 +206,7 @@ export default function Home() {
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {popularLoading ? (
               Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
-            ) : popularCourts ? (
+            ) : Array.isArray(popularCourts) ? (
               popularCourts.map(court => {
                 const imgSrc = resolveCourtImage(court.imageUrl);
                 const sportLabel = t(`sports.${court.type as string}` as never) || court.type;

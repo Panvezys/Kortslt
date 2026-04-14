@@ -230,7 +230,7 @@ export function CourtMap({ courts }: { courts: Court[] }) {
   const iconCacheRef = useRef<ReturnType<typeof buildIconCache> | null>(null);
 
   const visibleCourts = useMemo(
-    () => courts.filter(c => activeSports.has(c.type)),
+    () => (Array.isArray(courts) ? courts : []).filter(c => activeSports.has(c.type)),
     [courts, activeSports]
   );
 
