@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -49,6 +50,7 @@ export function CourtCard({ court }: { court: Court }) {
   const t = useT();
   const { isSignedIn } = useUser();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
+  const [hovered, setHovered] = useState(false);
   const imageSrc = resolveCourtImage(court.imageUrl);
   const sport = sportConfig[court.type] ?? { color: "#84cc16" };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
@@ -56,7 +58,14 @@ export function CourtCard({ court }: { court: Court }) {
   const favorited = isFavorite(court.id);
 
   return (
-    <Card className="h-full flex flex-col hover:border-primary/50 transition-colors group overflow-hidden">
+    <Card
+      className="h-full flex flex-col transition-colors duration-200 group overflow-hidden"
+      style={{
+        borderColor: hovered ? sport.color : undefined,
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {imageSrc ? (
         <div className="w-full h-48 overflow-hidden bg-muted relative">
           <img
@@ -113,11 +122,19 @@ export function CourtCard({ court }: { court: Court }) {
             </span>
             <StarRating rating={court.rating} />
           </div>
-          <span className="font-bold text-lg text-primary shrink-0">
+          <span
+            className="font-bold text-lg shrink-0 transition-colors duration-200"
+            style={{ color: hovered ? sport.color : undefined }}
+          >
             {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
           </span>
         </div>
-        <CardTitle className="group-hover:text-primary transition-colors line-clamp-1 text-base">{court.name}</CardTitle>
+        <CardTitle
+          className="transition-colors duration-200 line-clamp-1 text-base"
+          style={{ color: hovered ? sport.color : undefined }}
+        >
+          {court.name}
+        </CardTitle>
         <CardDescription className="flex items-center text-xs">
           <MapPin className="h-3 w-3 mr-1 shrink-0" />
           <span className="truncate">{court.city} — {court.address}</span>
@@ -149,7 +166,11 @@ export function CourtCard({ court }: { court: Court }) {
 
       <CardFooter className="pt-0">
         <Link href={`/courts/${court.id}`} className="w-full">
-          <Button variant="default" className="w-full">
+          <Button
+            variant="default"
+            className="w-full transition-colors duration-200"
+            style={hovered ? { backgroundColor: sport.color, borderColor: sport.color, color: "#fff" } : undefined}
+          >
             {t("card.viewBook")}
           </Button>
         </Link>
