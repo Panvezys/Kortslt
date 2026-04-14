@@ -182,7 +182,30 @@ export default function Home() {
   const [showMoreCities, setShowMoreCities] = useState(false);
   const { locale } = useI18n();
 
-  const accentColor = searchSport ? (sportColor[searchSport] ?? "#84cc16") : "#84cc16";
+  // Time-of-day accent — uses local browser time so it's already location-aware
+  const [currentHour, setCurrentHour] = useState(() => new Date().getHours());
+  useEffect(() => {
+    const tick = setInterval(() => setCurrentHour(new Date().getHours()), 60_000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const TIME_PALETTES: { label: string; color: string; fg: string }[] = [
+    { label: "dawn",      color: "#38bdf8", fg: "#000" }, // 05-09  sky blue
+    { label: "morning",   color: "#84cc16", fg: "#000" }, // 10-13  lime (default)
+    { label: "afternoon", color: "#f59e0b", fg: "#000" }, // 14-16  warm amber
+    { label: "evening",   color: "#f97316", fg: "#000" }, // 17-20  sunset orange
+    { label: "night",     color: "#8b5cf6", fg: "#fff" }, // 21-04  indigo/night
+  ];
+  const timePalette =
+    currentHour >= 5  && currentHour < 10 ? TIME_PALETTES[0] :
+    currentHour >= 10 && currentHour < 14 ? TIME_PALETTES[1] :
+    currentHour >= 14 && currentHour < 17 ? TIME_PALETTES[2] :
+    currentHour >= 17 && currentHour < 21 ? TIME_PALETTES[3] :
+    TIME_PALETTES[4];
+
+  const timeAccent = timePalette.color;
+
+  const accentColor = searchSport ? (sportColor[searchSport] ?? timeAccent) : timeAccent;
   function contrastText(hex: string) {
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
     return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.55 ? "#000" : "#fff";
@@ -312,8 +335,10 @@ export default function Home() {
 
               {/* Row 1: Court name with autocomplete */}
               <div className="relative">
-                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 focus-within:border-primary/60 transition-colors">
-                  <Search className="h-4 w-4 text-white/50 shrink-0" />
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border rounded-xl px-4 py-3 transition-all"
+                  style={{ borderColor: dropdownOpen || searchName ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
+                >
+                  <Search className="h-4 w-4 shrink-0" style={{ color: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.5)" }} />
                   <input
                     type="text"
                     placeholder="Ieškoti korto pagal pavadinimą..."
@@ -385,10 +410,11 @@ export default function Home() {
                 {/* City combobox */}
                 <div className="relative flex-1 min-w-[140px]" ref={cityRef}>
                   <div
-                    className={`flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-colors ${cityDropdownOpen ? "border-primary/60" : "border-white/20"}`}
+                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-all"
+                    style={{ borderColor: cityDropdownOpen || searchCity ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
                     onClick={() => setCityDropdownOpen(true)}
                   >
-                    <MapPin className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                    <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.5)" }} />
                     <input
                       type="text"
                       value={searchCity ? searchCity : cityInput}
@@ -415,7 +441,8 @@ export default function Home() {
                       <button
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => { setSearchCity(""); setCityInput(""); setCityDropdownOpen(false); }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center gap-2 ${!searchCity && !cityInput ? "text-primary font-medium" : "text-white/60"}`}
+                        className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center gap-2"
+                        style={{ color: !searchCity && !cityInput ? accentColor : "rgba(255,255,255,0.6)", fontWeight: !searchCity && !cityInput ? "600" : "400" }}
                       >
                         <MapPin className="h-3.5 w-3.5 shrink-0" />
                         Visi miestai
@@ -432,7 +459,8 @@ export default function Home() {
                               key={city}
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
-                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                              className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
+                              style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
                             >
                               <span>{city}</span>
                               <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
@@ -454,7 +482,8 @@ export default function Home() {
                                   key={city}
                                   onMouseDown={e => e.preventDefault()}
                                   onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                                  className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
+                                  style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
                                 >
                                   <span>{city}</span>
                                   <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
@@ -494,7 +523,7 @@ export default function Home() {
                     className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
                     style={{ borderColor: dateDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
                   >
-                    <CalendarDays className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.5)" }} />
                     <span className="text-sm text-white/80">
                       {searchDateObj ? format(searchDateObj, "d MMM") : "Data"}
                     </span>
@@ -601,7 +630,7 @@ export default function Home() {
                     className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
                     style={{ borderColor: timeDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
                   >
-                    <Clock className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                    <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: timeDropdownOpen || timeSlider !== null ? accentColor : "rgba(255,255,255,0.5)" }} />
                     <span className="text-sm text-white/80">
                       {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
                     </span>
@@ -656,7 +685,8 @@ export default function Home() {
 
                 <button
                   onClick={handleSearch}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0"
+                  style={{ background: accentColor, color: accentFg, boxShadow: `0 0 16px ${accentColor}55` }}
                 >
                   <Search className="h-4 w-4" />
                   Ieškoti
