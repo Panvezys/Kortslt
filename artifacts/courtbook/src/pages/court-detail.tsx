@@ -69,6 +69,7 @@ export default function CourtDetail() {
     }
   );
 
+  const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
   const { data: reviews } = useListCourtReviews(courtId, {
     query: { enabled: !!courtId && !isNaN(courtId) }
   });
@@ -78,7 +79,6 @@ export default function CourtDetail() {
   );
 
   const createBooking = useCreateBooking();
-  const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
   const { openSignIn } = useClerk();
   const [, navigate] = useLocation();
 
