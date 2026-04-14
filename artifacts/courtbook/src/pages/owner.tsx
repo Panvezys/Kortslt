@@ -25,10 +25,10 @@ import { LocationPicker, type LocationPickerResult } from "@/components/location
 import { CourtImageUpload } from "@/components/court-image-upload";
 
 const STANDARD_AMENITIES = [
-  { id: "floodlights", label: "Prožektoriai", icon: Lightbulb },
-  { id: "showers", label: "Dušai", icon: ShowerHead },
-  { id: "changing_rooms", label: "Persirengimo kambariai", icon: DoorOpen },
-  { id: "water_station", label: "Vandens stotis", icon: Droplets },
+  { id: "floodlights",     label: "Prožektoriai",       icon: Lightbulb },
+  { id: "showers",         label: "Dušai",              icon: ShowerHead },
+  { id: "changing_rooms",  label: "Persirengimo kambariai", icon: DoorOpen },
+  { id: "water_station",   label: "Vandens stotis",     icon: Droplets },
 ] as const;
 
 interface RentableItem {
@@ -67,6 +67,7 @@ function PricingEditor({ courtId, defaultPrice, onClose }: PricingEditorProps) {
   const { data: pricing, isLoading } = useGetCourtPricing(courtId);
   const setPricing = useSetCourtPricing();
 
+  // Local pricing state: Map<"dayOfWeek:startTime", price>
   const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -148,6 +149,7 @@ function PricingEditor({ courtId, defaultPrice, onClose }: PricingEditorProps) {
         Nustatykite kainą kiekvienam 30 min. laiko tarpui. Numatytoji kaina: <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min.
       </p>
 
+      {/* Day tabs */}
       <div className="flex gap-1.5 flex-wrap">
         {DAYS.map((day, i) => (
           <button
@@ -165,6 +167,7 @@ function PricingEditor({ courtId, defaultPrice, onClose }: PricingEditorProps) {
         ))}
       </div>
 
+      {/* Slot grid for selected day */}
       <div className="border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
           <span className="text-sm font-semibold">{DAYS[selectedDay]}</span>
@@ -256,22 +259,790 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
       customFetch<CourtBlockedSlot[]>(`/api/courts/${courtId}/blocked-slots?date=${date}`, { method: "GET" }),
   });
 
-  const createBlocked = useMutation({
+  const qc = useQueryClient();
+
+  const addMutation = useMutation({
     mutationFn: () =>
       customFetch(`/api/courts/${courtId}/blocked-slots`, {
         method: "POST",
         body: JSON.stringify({ date, startTime, endTime, reason: reason || undefined }),
+        headers: { "Content-Type": "application/json" },
       }),
     onSuccess: () => {
-      toast({ title: "Laikas užblokuotas" });
-      onClose();
+      qc.invalidateQueries({ queryKey: qk });
+      toast({ title: "Laiko tarpas užblokuotas" });
     },
-    onError: () => toast({ title: "Klaida užblokuojant laiką", variant: "destructive" }),
+    onError: () => toast({ title: "Klaida", variant: "destructive" }),
   });
 
-  return null;
+  const removeMutation = useMutation({
+    mutationFn: (slotId: number) =>
+      customFetch(`/api/courts/${courtId}/blocked-slots/${slotId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk });
+      toast({ title: "Blokavimas pašalintas" });
+    },
+    onError: () => toast({ title: "Klaida", variant: "destructive" }),
+  });
+
+  function generateTimeOptions() {
+    const opts: string[] = [];
+    for (let h = 7; h <= 22; h++) {
+      for (const m of [0, 30]) {
+        opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
+      }
+    }
+    return opts;
+  }
+
+  const timeOptions = generateTimeOptions();
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">
+        Blokuokite laiko tarpus, kurie nebus prieinami rezervuoti (pvz., techninis aptarnavimas).
+      </p>
+
+      {/* Date picker */}
+      <div className="space-y-1">
+        <Label>Data</Label>
+        <Input type="date" value={date} min={new Date().toISOString().split("T")[0]} onChange={e => setDate(e.target.value)} />
+      </div>
+
+      {/* Time range */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Nuo</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+            value={startTime}
+            onChange={e => setStartTime(e.target.value)}
+          >
+            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Iki</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+            value={endTime}
+            onChange={e => setEndTime(e.target.value)}
+          >
+            {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Priežastis (neprivaloma)</Label>
+        <Input placeholder="pvz. Techninis aptarnavimas" value={reason} onChange={e => setReason(e.target.value)} />
+      </div>
+
+      <Button
+        onClick={() => addMutation.mutate()}
+        disabled={addMutation.isPending || startTime >= endTime}
+        className="w-full"
+      >
+        {addMutation.isPending ? "Blokuojama..." : "Užblokuoti"}
+      </Button>
+
+      {/* List of blocked slots */}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Blokuoti laikai {date}</p>
+        {isLoading && <Skeleton className="h-10 w-full" />}
+        {!isLoading && slots.length === 0 && (
+          <p className="text-sm text-muted-foreground">Blokuotų laikų nėra</p>
+        )}
+        {slots.map(s => (
+          <div key={s.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div>
+              <span className="text-sm font-medium">{s.startTime} – {s.endTime}</span>
+              {s.reason && <span className="ml-2 text-xs text-muted-foreground">{s.reason}</span>}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => removeMutation.mutate(s.id)}
+              disabled={removeMutation.isPending}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <Button variant="outline" onClick={onClose}>Uždaryti</Button>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Court form schema
+// ──────────────────────────────────────────────
+const courtSchema = z.object({
+  name: z.string().min(2, "Name required"),
+  type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash"]),
+  description: z.string().optional(),
+  address: z.string().min(5, "Address required"),
+  city: z.string().min(2, "City required"),
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
+  pricePerHour: z.coerce.number().min(1),
+  peakPricePerHour: z.coerce.number().optional(),
+  bufferMinutes: z.coerce.number().min(0).max(120).default(0),
+  ownershipDocUrl: z.string().optional(),
+  imageUrl: z.string().optional(),
+  ownerName: z.string().min(2, "Owner name required"),
+  ownerEmail: z.string().email("Invalid email"),
+  isIndoor: z.boolean().default(false),
+  maxPlayers: z.coerce.number().min(2),
+  postcode: z.string().optional(),
+  amenities: z.array(z.string()).default([]),
+});
+
+type CourtFormValues = z.infer<typeof courtSchema>;
+
+function StatusBadge({ status }: { status?: string }) {
+  if (!status || status === "approved") return null;
+  if (status === "pending")
+    return (
+      <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30 ml-2">
+        Laukiama
+      </Badge>
+    );
+  return (
+    <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/30 ml-2">
+      Atmesta
+    </Badge>
+  );
 }
 
 export default function OwnerDashboard() {
-  return <Layout />;
+  const { user } = useUser();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [mapKey, setMapKey] = useState(0);
+  const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
+  const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
+  const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
+  const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+
+  const { data: courts, isLoading } = useListCourts(
+    user?.id ? { ownerUserId: user.id } : undefined
+  );
+  const createCourt = useCreateCourt();
+  const updateCourt = useUpdateCourt();
+  const deleteCourt = useDeleteCourt();
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const form = useForm<CourtFormValues>({
+    resolver: zodResolver(courtSchema),
+    defaultValues: {
+      name: "",
+      type: "tennis",
+      description: "",
+      address: "",
+      city: "",
+      latitude: 0,
+      longitude: 0,
+      pricePerHour: 20,
+      peakPricePerHour: undefined,
+      bufferMinutes: 0,
+      imageUrl: "",
+      ownershipDocUrl: "",
+      ownerName: user?.fullName ?? "Owner",
+      ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
+      isIndoor: false,
+      maxPlayers: 4,
+      postcode: "",
+      amenities: [],
+    }
+  });
+
+  const watchedLat = form.watch("latitude") ?? 0;
+  const watchedLng = form.watch("longitude") ?? 0;
+
+  const onSubmit = async (data: CourtFormValues) => {
+    try {
+      const rentableItemsJson = rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined;
+      const payload = { ...data, rentableItems: rentableItemsJson };
+      if (editingId) {
+        await updateCourt.mutateAsync({ id: editingId, data: payload });
+        toast({ title: "Kortas atnaujintas" });
+      } else {
+        await createCourt.mutateAsync({ data: payload });
+        toast({ title: "Kortas sukurtas — laukia patvirtinimo" });
+      }
+      setIsDialogOpen(false);
+      setRentableItems([]);
+      queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
+    } catch {
+      toast({ title: "Klaida išsaugant kortą", variant: "destructive" });
+    }
+  };
+
+  const handleEdit = (court: any) => {
+    setEditingId(court.id);
+    setMapKey(k => k + 1);
+    form.reset({
+      name: court.name,
+      type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash",
+      description: court.description || "",
+      address: court.address,
+      city: court.city,
+      latitude: court.latitude,
+      longitude: court.longitude,
+      pricePerHour: court.pricePerHour,
+      peakPricePerHour: court.peakPricePerHour ?? undefined,
+      bufferMinutes: court.bufferMinutes ?? 0,
+      imageUrl: court.imageUrl || "",
+      ownershipDocUrl: court.ownershipDocUrl || "",
+      ownerName: court.ownerName,
+      ownerEmail: court.ownerEmail,
+      isIndoor: court.isIndoor,
+      maxPlayers: court.maxPlayers,
+      amenities: Array.isArray(court.amenities) ? court.amenities : [],
+      postcode: court.postcode ?? "",
+    });
+    try {
+      setRentableItems(court.rentableItems ? JSON.parse(court.rentableItems) : []);
+    } catch {
+      setRentableItems([]);
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleDocUpload = async (file: File) => {
+    setOwnershipDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("doc", file);
+      const baseUrl = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const resp = await fetch(`${baseUrl}/api/upload/ownership-doc`, { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      form.setValue("ownershipDocUrl", url);
+      toast({ title: "Dokumentas įkeltas" });
+    } catch {
+      toast({ title: "Klaida įkeliant dokumentą", variant: "destructive" });
+    } finally {
+      setOwnershipDocUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Ar tikrai norite ištrinti šį kortą?")) return;
+    try {
+      await deleteCourt.mutateAsync({ id });
+      toast({ title: "Court deleted" });
+      queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
+    } catch {
+      toast({ title: "Error deleting court", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-12">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Valdymo skydelis</h1>
+            <p className="text-muted-foreground mt-1">Tvarkykite savo kortus ir kainas.</p>
+          </div>
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) { setEditingId(null); setMapKey(k => k + 1); }
+          }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingId(null);
+                form.reset();
+                setMapKey(k => k + 1);
+              }}>
+                <Plus className="w-4 h-4 mr-2" /> Pridėti kortą
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Redaguoti kortą" : "Pridėti naują kortą"}</DialogTitle>
+              </DialogHeader>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="name" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Korto pavadinimas</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="type" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sporto šaka</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="tennis">🎾 Tenisas</SelectItem>
+                            <SelectItem value="basketball">🏀 Krepšinis</SelectItem>
+                            <SelectItem value="padel">🏓 Padelis</SelectItem>
+                            <SelectItem value="football">⚽ Futbolas</SelectItem>
+                            <SelectItem value="badminton">🏸 Badmintonas</SelectItem>
+                            <SelectItem value="squash">🎯 Squash</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <LocationPicker
+                    key={mapKey}
+                    latitude={Number(watchedLat) || 0}
+                    longitude={Number(watchedLng) || 0}
+                    onChange={(result: LocationPickerResult) => {
+                      form.setValue("latitude", result.lat, { shouldValidate: true });
+                      form.setValue("longitude", result.lng, { shouldValidate: true });
+                      if (result.city) form.setValue("city", result.city, { shouldValidate: true });
+                      if (result.address) form.setValue("address", result.address, { shouldValidate: true });
+                      if (result.postcode != null) form.setValue("postcode", result.postcode, { shouldValidate: true });
+                    }}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="address" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Adresas</FormLabel>
+                        <FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="city" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Miestas</FormLabel>
+                        <FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                  <FormField control={form.control} name="postcode" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pašto kodas</FormLabel>
+                      <FormControl><Input placeholder="LT-XXXXX — auto-užpildoma iš paieškos" className="max-w-[180px]" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="latitude" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Platuma (auto)</FormLabel>
+                        <FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="longitude" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">Ilguma (auto)</FormLabel>
+                        <FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  {/* Pricing */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Euro className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Kainos</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="pricePerHour" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Off-Peak kaina (€/val)</FormLabel>
+                          <FormControl><Input type="number" min={1} step={0.5} {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="peakPricePerHour" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                            Peak kaina (€/val)
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={0.5}
+                              placeholder="Neprivaloma"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+                            />
+                          </FormControl>
+                          <p className="text-[11px] text-muted-foreground">Pir–Pen 17:00–22:00</p>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField control={form.control} name="bufferMinutes" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Clock3 className="w-3.5 h-3.5 text-blue-400" />
+                            Buferis (min)
+                          </FormLabel>
+                          <Select onValueChange={v => field.onChange(Number(v))} value={String(field.value ?? 0)}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="0">Nėra</SelectItem>
+                              <SelectItem value="15">15 min</SelectItem>
+                              <SelectItem value="30">30 min</SelectItem>
+                              <SelectItem value="60">60 min</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground">Laikas tarp rezervacijų</p>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="maxPlayers" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Maks. žaidėjai</FormLabel>
+                          <FormControl><Input type="number" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                    </div>
+                  </div>
+
+                  <FormField control={form.control} name="imageUrl" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Korto nuotrauka</FormLabel>
+                      <FormControl>
+                        <CourtImageUpload
+                          value={field.value}
+                          onChange={(path) => form.setValue("imageUrl", path)}
+                          onClear={() => form.setValue("imageUrl", "")}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  {/* Ownership document upload — only shown for new courts */}
+                  {!editingId && (
+                    <div className="space-y-2">
+                      <Label>Nuosavybės dokumentas</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Įkelkite dokumentą, patvirtinantį, kad esate korto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins kortą.
+                      </p>
+                      <input
+                        ref={docInputRef}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
+                      />
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => docInputRef.current?.click()}
+                          disabled={ownershipDocUploading}
+                          className="gap-2"
+                        >
+                          <FileUp className="w-4 h-4" />
+                          {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
+                        </Button>
+                        {form.watch("ownershipDocUrl") && (
+                          <span className="text-xs text-green-400 flex items-center gap-1">
+                            ✓ Dokumentas įkeltas
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <FormField control={form.control} name="isIndoor" render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Patalpų kortas</FormLabel>
+                      </div>
+                    </FormItem>
+                  )} />
+
+                  {/* Smart Amenities */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Patogumai</span>
+                    </div>
+                    <FormField control={form.control} name="amenities" render={({ field }) => (
+                      <FormItem>
+                        <div className="grid grid-cols-2 gap-2">
+                          {STANDARD_AMENITIES.map(({ id, label, icon: Icon }) => {
+                            const checked = (field.value ?? []).includes(id);
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => {
+                                  const current = field.value ?? [];
+                                  field.onChange(
+                                    checked ? current.filter(a => a !== id) : [...current, id]
+                                  );
+                                }}
+                                className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                                  checked
+                                    ? "bg-primary/10 border-primary text-primary"
+                                    : "bg-muted/30 border-border hover:border-primary/40"
+                                }`}
+                              >
+                                <Icon className={`w-4 h-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  {/* Rentable Items */}
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-primary" />
+                      <span className="font-semibold text-sm">Nuomojama įranga</span>
+                    </div>
+                    <div className="space-y-2">
+                      {rentableItems.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg px-3 py-2 text-sm">
+                          <span className="font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{item.pricePerBooking}€ / rezerv.</span>
+                            <button
+                              type="button"
+                              onClick={() => setRentableItems(prev => prev.filter((_, j) => j !== i))}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Pavadinimas (pvz. Raketė)"
+                          value={newItemName}
+                          onChange={e => setNewItemName(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="number"
+                          placeholder="€"
+                          value={newItemPrice}
+                          onChange={e => setNewItemPrice(e.target.value)}
+                          className="w-20"
+                          min={0}
+                          step={0.5}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const price = parseFloat(newItemPrice);
+                            if (newItemName.trim() && !isNaN(price) && price >= 0) {
+                              setRentableItems(prev => [...prev, { name: newItemName.trim(), pricePerBooking: price }]);
+                              setNewItemName("");
+                              setNewItemPrice("");
+                            }
+                          }}
+                          disabled={!newItemName.trim() || !newItemPrice}
+                          className="shrink-0"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Pridėkite raketės, kamuolių ar kitos įrangos nuomą</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="ownerName" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Savininko vardas</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="ownerEmail" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Savininko el. paštas</FormLabel>
+                        <FormControl><Input type="email" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+
+                  <Button type="submit" className="w-full mt-6" disabled={createCourt.isPending || updateCourt.isPending}>
+                    {editingId ? "Išsaugoti pakeitimus" : "Sukurti kortą"}
+                  </Button>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Courts table */}
+        <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead>Pavadinimas</TableHead>
+                <TableHead className="hidden md:table-cell">Tipas</TableHead>
+                <TableHead className="hidden md:table-cell">Miestas</TableHead>
+                <TableHead className="hidden sm:table-cell">Kaina/val</TableHead>
+                <TableHead className="text-right">Veiksmai</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : courts && courts.length > 0 ? (
+                courts.map((court) => (
+                  <TableRow key={court.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center flex-wrap gap-1">
+                          {court.name}
+                          <StatusBadge status={court.status} />
+                        </div>
+                        {court.status === "rejected" && court.rejectionReason && (
+                          <div className="flex items-center gap-1 text-xs text-red-400 mt-0.5">
+                            <AlertTriangle className="w-3 h-3" />
+                            {court.rejectionReason}
+                          </div>
+                        )}
+                        {court.status === "pending" && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Laukiama administratoriaus patvirtinimo
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="capitalize hidden md:table-cell">{court.type}</TableCell>
+                    <TableCell className="hidden md:table-cell">{court.city}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{court.pricePerHour}€/val</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs hidden sm:flex"
+                          onClick={() => {
+                            setPricingCourtId(court.id);
+                            setPricingDefaultPrice(court.pricePerHour);
+                          }}
+                        >
+                          <Euro className="w-3.5 h-3.5" /> Kainos
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs hidden sm:flex"
+                          onClick={() => setBlockedSlotsCourtId(court.id)}
+                        >
+                          <CalendarClock className="w-3.5 h-3.5" /> Blokai
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
+                          <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(court.id)} disabled={deleteCourt.isPending}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                    {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pricing Editor Dialog */}
+        <Dialog open={pricingCourtId !== null} onOpenChange={(open) => { if (!open) setPricingCourtId(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Euro className="w-5 h-5 text-primary" />
+                Kainų redaktorius
+              </DialogTitle>
+            </DialogHeader>
+            {pricingCourtId !== null && (
+              <PricingEditor
+                courtId={pricingCourtId}
+                defaultPrice={pricingDefaultPrice}
+                onClose={() => setPricingCourtId(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Blocked Slots Dialog */}
+        <Dialog open={blockedSlotsCourtId !== null} onOpenChange={(open) => { if (!open) setBlockedSlotsCourtId(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-primary" />
+                Blokuoti laiko tarpai
+              </DialogTitle>
+            </DialogHeader>
+            {blockedSlotsCourtId !== null && (
+              <BlockedSlotsModal
+                courtId={blockedSlotsCourtId}
+                onClose={() => setBlockedSlotsCourtId(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
 }
