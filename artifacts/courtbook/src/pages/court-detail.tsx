@@ -703,7 +703,7 @@ export default function CourtDetail() {
                       </div>
 
                       <Button onClick={handleReserve} className="w-full h-12 text-base font-semibold gap-2" disabled={isPending}>
-                        {isPending ? "Apdorojama..." : "Rezervuoti nemokamai"}
+                        {isPending ? "Apdorojama..." : "Rezervuoti"}
                       </Button>
                       <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
                     </>
