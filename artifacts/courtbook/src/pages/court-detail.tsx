@@ -2,14 +2,14 @@ import { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListCourtReviews } from "@workspace/api-client-react";
-import { format } from "date-fns";
+import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
+import { format, parseISO } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -72,6 +72,10 @@ export default function CourtDetail() {
   const { data: reviews } = useListCourtReviews(courtId, {
     query: { enabled: !!courtId && !isNaN(courtId) }
   });
+  const { data: bookings } = useListBookings(
+    { courtId },
+    { query: { enabled: !!courtId && !isNaN(courtId) && !!user } }
+  );
 
   const createBooking = useCreateBooking();
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
@@ -196,6 +200,12 @@ export default function CourtDetail() {
     if (!reviews || reviews.length === 0) return null;
     return reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
   }, [reviews]);
+
+  const courtBookings = useMemo(() => {
+    return (bookings ?? [])
+      .filter((booking) => booking.courtId === courtId)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.startTime.localeCompare(a.startTime));
+  }, [bookings, courtId]);
 
   if (courtLoading) {
     return (
@@ -503,6 +513,51 @@ export default function CourtDetail() {
                   </div>
                 )}
               </div>
+
+              <Separator />
+
+              {user && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" />
+                      Jūsų rezervacijos
+                    </p>
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setLocation("/bookings")}>
+                      Visos
+                    </Button>
+                  </div>
+                  {courtBookings.length === 0 ? (
+                    <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+                      Šioje kortoje dar neturite rezervacijų.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {courtBookings.slice(0, 4).map((booking) => (
+                        <div key={booking.id} className="rounded-xl border bg-muted/20 p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-sm">{format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}</p>
+                              <p className="text-xs text-muted-foreground">{booking.startTime} – {booking.endTime}</p>
+                            </div>
+                            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"}>{booking.status}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                            <div>
+                              <span className="block text-foreground font-medium">Suma</span>
+                              {booking.totalPrice}€
+                            </div>
+                            <div>
+                              <span className="block text-foreground font-medium">ID</span>
+                              #{booking.id}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Separator />
 
