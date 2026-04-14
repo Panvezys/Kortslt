@@ -32,6 +32,12 @@ export default function Courts() {
   const searchStr = useSearch();
   const initialType = (new URLSearchParams(searchStr.replace(/^\?/, "")).get("type") as ListCourtsType | null) ?? "all";
 
+  const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash"];
+  const sportLT: Record<string, string> = {
+    tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+    football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
+  };
+
   const [search, setSearch] = useState("");
   const [type, setType] = useState<ListCourtsType | "all">(initialType);
   const [city, setCity] = useState<string>("all");
@@ -43,6 +49,21 @@ export default function Courts() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
+
+  const toggleSport = (sport: string) => {
+    setActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) {
+        if (next.size === 1) return prev;
+        next.delete(sport);
+      } else {
+        next.add(sport);
+      }
+      return next;
+    });
+  };
+  const allSportsActive = activeSports.size === ALL_SPORTS.length;
 
   useEffect(() => {
     setPage(1);
@@ -71,11 +92,13 @@ export default function Courts() {
     c.address.toLowerCase().includes(search.toLowerCase())
   );
 
-  const sortedCourts = filteredCourts ? [...filteredCourts].sort((a, b) => {
-    if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
-    if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
-    return 0;
-  }) : filteredCourts;
+  const sortedCourts = filteredCourts ? [...filteredCourts]
+    .filter(c => activeSports.has(c.type))
+    .sort((a, b) => {
+      if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
+      if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
+      return 0;
+    }) : filteredCourts;
 
   const totalCourts = sortedCourts?.length ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCourts / PAGE_SIZE));
@@ -110,8 +133,54 @@ export default function Courts() {
     { value: "squash" },
   ] as const;
 
+  const sportFilterControls = (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šakos</Label>
+        <button
+          onClick={() => setActiveSports(allSportsActive ? new Set(ALL_SPORTS.slice(0, 1)) : new Set(ALL_SPORTS))}
+          className="text-[10px] font-medium text-primary hover:underline"
+        >
+          {allSportsActive ? "Slėpti viską" : "Rodyti viską"}
+        </button>
+      </div>
+      <div className="space-y-1">
+        {ALL_SPORTS.map(sport => {
+          const active = activeSports.has(sport);
+          const color = sportColor[sport];
+          const count = (courts ?? []).filter(c => c.type === sport).length;
+          return (
+            <button
+              key={sport}
+              onClick={() => toggleSport(sport)}
+              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+              }`}
+            >
+              <div
+                className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                style={{ background: active ? color : "transparent", borderColor: color }}
+              >
+                <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+              </div>
+              <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                {sportLT[sport]}
+              </span>
+              <span className={`text-xs tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const filterControls = (
     <div className="space-y-6">
+      {/* Sport filter */}
+      {sportFilterControls}
+
       {/* Search */}
       <div>
         <Label htmlFor="search" className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.search")}</Label>
@@ -386,7 +455,7 @@ export default function Courts() {
               )
             ) : viewMode === "map" ? (
               <div className="h-[400px] md:h-[600px]">
-                <CourtMap courts={sortedCourts ?? []} />
+                <CourtMap courts={sortedCourts ?? []} activeSports={activeSports} />
               </div>
             ) : pagedCourts && pagedCourts.length > 0 ? (
               <>
