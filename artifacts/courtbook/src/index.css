@@ -216,3 +216,33 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Time slider thumb styling */
+input[type="range"].time-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #84cc16;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(132,204,22,0.3);
+  transition: box-shadow 0.15s;
+}
+input[type="range"].time-slider::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 5px rgba(132,204,22,0.4);
+}
+input[type="range"].time-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #84cc16;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(132,204,22,0.3);
+}
+input[type="range"].time-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+}
