@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Plus } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Plus, Mail, Phone, Instagram, Facebook, MessageCircle } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -301,6 +301,49 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <footer className="border-t bg-background">
+        <div className="container mx-auto px-4 py-10">
+          <div className="grid gap-8 md:grid-cols-3">
+            <div>
+              <h3 className="text-lg font-semibold mb-3">korts.lt</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Lithuanian court booking platform for tennis, basketball, padel, football, badminton, and squash.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 text-muted-foreground">Contact</h4>
+              <div className="space-y-2 text-sm">
+                <a className="flex items-center gap-2 hover:text-primary transition-colors" href="mailto:hello@korts.lt">
+                  <Mail className="h-4 w-4" />
+                  hello@korts.lt
+                </a>
+                <a className="flex items-center gap-2 hover:text-primary transition-colors" href="tel:+37060000000">
+                  <Phone className="h-4 w-4" />
+                  +370 600 00000
+                </a>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 text-muted-foreground">Social</h4>
+              <div className="space-y-2 text-sm">
+                <a className="flex items-center gap-2 hover:text-primary transition-colors" href="https://instagram.com/korts.lt" target="_blank" rel="noreferrer">
+                  <Instagram className="h-4 w-4" />
+                  Instagram
+                </a>
+                <a className="flex items-center gap-2 hover:text-primary transition-colors" href="https://facebook.com/korts.lt" target="_blank" rel="noreferrer">
+                  <Facebook className="h-4 w-4" />
+                  Facebook
+                </a>
+                <a className="flex items-center gap-2 hover:text-primary transition-colors" href="https://t.me/kortslt" target="_blank" rel="noreferrer">
+                  <MessageCircle className="h-4 w-4" />
+                  Telegram
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
     </Layout>
   );
 }
