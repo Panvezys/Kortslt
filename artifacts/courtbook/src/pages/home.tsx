@@ -225,24 +225,32 @@ export default function Home() {
                   const isHovered = hoveredStat === label;
                   return (
                   <Link key={label} href={href}
-                    className="group px-4 py-6 cursor-pointer hover:bg-muted/40 transition-colors"
+                    className="group relative overflow-hidden px-4 py-6 cursor-pointer transition-colors"
                     onMouseEnter={() => setHoveredStat(label)}
                     onMouseLeave={() => setHoveredStat(null)}
                   >
-                    <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
-                      {sport === null ? (
-                        <Landmark className="h-3.5 w-3.5 shrink-0" />
-                      ) : sport === "multi" ? (
-                        <div className="flex gap-0.5">
-                          {(["football","badminton","squash"] as const).map(s => (
-                            <SportIcon key={s} sport={s} size={12} strokeWidth={2} style={{ color: sportColor[s] }} />
-                          ))}
-                        </div>
-                      ) : (
-                        <SportIcon sport={sport} size={14} strokeWidth={2} style={{ color: sportColor[sport] }} />
-                      )}
-                      {label}
+                    {/* Background content — fades out on hover */}
+                    <div className="transition-opacity duration-200 group-hover:opacity-20">
+                      <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
+                      <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+                        {sport === null ? (
+                          <Landmark className="h-3.5 w-3.5 shrink-0" />
+                        ) : sport === "multi" ? (
+                          <div className="flex gap-0.5">
+                            {(["football","badminton","squash"] as const).map(s => (
+                              <SportIcon key={s} sport={s} size={12} strokeWidth={2} style={{ color: sportColor[s] }} />
+                            ))}
+                          </div>
+                        ) : (
+                          <SportIcon sport={sport} size={14} strokeWidth={2} style={{ color: sportColor[sport] }} />
+                        )}
+                        {label}
+                      </div>
+                    </div>
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-muted/60 backdrop-blur-sm">
+                      <Search className="h-5 w-5 text-primary" />
+                      <span className="text-sm font-semibold text-foreground tracking-wide">Ieškoti</span>
                     </div>
                   </Link>
                   );
