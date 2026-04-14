@@ -167,6 +167,9 @@ export default function Home() {
   const [searchTime, setSearchTime] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [cityInput, setCityInput] = useState("");
+  const cityRef = useRef<HTMLDivElement>(null);
 
   function handleSearch() {
     const params = new URLSearchParams();
@@ -182,6 +185,9 @@ export default function Home() {
     function handleClick(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (cityRef.current && !cityRef.current.contains(e.target as Node)) {
+        setCityDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -218,6 +224,18 @@ export default function Home() {
     : [];
 
   const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter(Boolean))].sort();
+
+  // City combobox helpers
+  const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
+    if (c.city) acc[c.city] = (acc[c.city] ?? 0) + 1;
+    return acc;
+  }, {});
+  const TOP_N = 5;
+  const popularCities = [...uniqueCities].sort((a, b) => (cityCounts[b] ?? 0) - (cityCounts[a] ?? 0)).slice(0, TOP_N);
+  const otherCities = uniqueCities.filter(c => !popularCities.includes(c));
+  const cityFilter = cityInput.trim().toLowerCase();
+  const filteredPopular = popularCities.filter(c => !cityFilter || c.toLowerCase().includes(cityFilter));
+  const filteredOther = otherCities.filter(c => !cityFilter || c.toLowerCase().includes(cityFilter));
 
   const heroLines = t("home.hero.title").split("\n");
 
@@ -339,18 +357,91 @@ export default function Home() {
 
               {/* Row 3: City + Date + Time + Search */}
               <div className="flex gap-2 flex-wrap items-center">
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 flex-1 min-w-[130px] focus-within:border-primary/60 transition-colors">
-                  <MapPin className="h-3.5 w-3.5 text-white/50 shrink-0" />
-                  <select
-                    value={searchCity}
-                    onChange={e => setSearchCity(e.target.value)}
-                    className="bg-transparent text-sm text-white/80 outline-none flex-1 appearance-none cursor-pointer"
+
+                {/* City combobox */}
+                <div className="relative flex-1 min-w-[140px]" ref={cityRef}>
+                  <div
+                    className={`flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-colors ${cityDropdownOpen ? "border-primary/60" : "border-white/20"}`}
+                    onClick={() => setCityDropdownOpen(true)}
                   >
-                    <option value="" className="bg-zinc-900 text-white">Visi miestai</option>
-                    {uniqueCities.map(city => (
-                      <option key={city} value={city} className="bg-zinc-900 text-white">{city}</option>
-                    ))}
-                  </select>
+                    <MapPin className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                    <input
+                      type="text"
+                      value={searchCity ? searchCity : cityInput}
+                      placeholder="Miestas"
+                      onFocus={() => { setCityDropdownOpen(true); if (searchCity) { setCityInput(""); } }}
+                      onChange={e => {
+                        setCityInput(e.target.value);
+                        setSearchCity("");
+                        setCityDropdownOpen(true);
+                      }}
+                      className="bg-transparent text-sm text-white/80 placeholder:text-white/40 outline-none flex-1 w-full min-w-0"
+                    />
+                    {searchCity && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setSearchCity(""); setCityInput(""); }}
+                        className="text-white/40 hover:text-white/70 text-lg leading-none shrink-0"
+                      >×</button>
+                    )}
+                  </div>
+
+                  {cityDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto">
+                      {/* All cities option */}
+                      <button
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => { setSearchCity(""); setCityInput(""); setCityDropdownOpen(false); }}
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center gap-2 ${!searchCity && !cityInput ? "text-primary font-medium" : "text-white/60"}`}
+                      >
+                        <MapPin className="h-3.5 w-3.5 shrink-0" />
+                        Visi miestai
+                      </button>
+
+                      {/* Popular cities */}
+                      {filteredPopular.length > 0 && (
+                        <>
+                          <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
+                            Populiariausi
+                          </div>
+                          {filteredPopular.map(city => (
+                            <button
+                              key={city}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
+                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                            >
+                              <span>{city}</span>
+                              <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {/* Other cities */}
+                      {filteredOther.length > 0 && (
+                        <>
+                          <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
+                            Kiti miestai
+                          </div>
+                          {filteredOther.map(city => (
+                            <button
+                              key={city}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
+                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between ${searchCity === city ? "text-primary font-semibold bg-primary/10" : "text-white/80"}`}
+                            >
+                              <span>{city}</span>
+                              <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
+                      {filteredPopular.length === 0 && filteredOther.length === 0 && (
+                        <div className="px-4 py-3 text-sm text-white/40 text-center">Nerasta miestų</div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 focus-within:border-primary/60 transition-colors">
