@@ -312,6 +312,58 @@ export function CourtMap({
       },
     });
     fitBounds(map, courts);
+
+    // Load Lithuania border and grey-out surrounding countries
+    fetch("https://raw.githubusercontent.com/glynnbird/countriesgeojson/master/lithuania.geojson")
+      .then(r => r.json())
+      .then((geoJson: any) => {
+        if (!mapRef.current) return;
+        const feature = geoJson.features?.[0];
+        if (!feature) return;
+        const geom = feature.geometry;
+        let outerRing: number[][];
+        if (geom.type === "Polygon") {
+          outerRing = geom.coordinates[0];
+        } else if (geom.type === "MultiPolygon") {
+          outerRing = geom.coordinates[0][0];
+        } else return;
+
+        // World bounding box (counter-clockwise outer ring)
+        const worldBbox = [[-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]];
+        // Lithuania ring reversed → clockwise hole
+        const hole = [...outerRing].reverse();
+
+        map.data.addGeoJson({
+          type: "FeatureCollection",
+          features: [
+            // Grey veil over everything outside Lithuania
+            {
+              type: "Feature",
+              properties: { kind: "overlay" },
+              geometry: { type: "Polygon", coordinates: [worldBbox, hole] },
+            },
+            // Lithuania border highlight
+            {
+              type: "Feature",
+              properties: { kind: "border" },
+              geometry: geom,
+            },
+          ],
+        });
+
+        map.data.setStyle((f: google.maps.Data.Feature) => {
+          const kind = f.getProperty("kind");
+          if (kind === "overlay") {
+            return { fillColor: "#0d0f14", fillOpacity: 0.55, strokeOpacity: 0, clickable: false, zIndex: 1 };
+          }
+          if (kind === "border") {
+            return { fillOpacity: 0, strokeColor: "#adff2f", strokeWeight: 1.5, strokeOpacity: 0.45, clickable: false, zIndex: 2 };
+          }
+          return {};
+        });
+      })
+      .catch(() => { /* non-critical — map still works without overlay */ });
+
     setMapReady(true);
   }, [courts, fitBounds]);
 
