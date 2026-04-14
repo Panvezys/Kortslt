@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { CheckCircle2, Calendar, Clock, ArrowRight, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -16,6 +17,11 @@ interface BookingInfo {
   totalPrice: number;
   customerName: string;
   status: string;
+}
+
+function formatBookingDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : format(date, "yyyy-MM-dd");
 }
 
 export default function BookingConfirmed() {
@@ -120,7 +126,7 @@ export default function BookingConfirmed() {
                 {booking?.date && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span>{booking.date}</span>
+                    <span>{formatBookingDate(booking.date)}</span>
                   </div>
                 )}
                 {booking?.startTime && booking?.endTime && (
