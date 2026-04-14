@@ -191,7 +191,7 @@ export default function Courts() {
             </button>
           )}
         </div>
-        <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+        <div className="space-y-1">
           {sortedCities.map(c => {
             const active = selectedCities.has(c);
             const count = cityCounts[c] ?? 0;
