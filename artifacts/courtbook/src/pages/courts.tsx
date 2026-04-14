@@ -39,7 +39,10 @@ const HERO_IMAGES = [
 export default function Courts() {
   const t = useT();
   const searchStr = useSearch();
-  const initialType = (new URLSearchParams(searchStr.replace(/^\?/, "")).get("type") as ListCourtsType | null) ?? null;
+  const _qp = new URLSearchParams(searchStr.replace(/^\?/, ""));
+  const initialType = (_qp.get("type") as ListCourtsType | null) ?? null;
+  const initialName = _qp.get("name") ?? "";
+  const initialCity = _qp.get("city") ?? "";
 
   const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash"];
   const sportLT: Record<string, string> = {
@@ -47,8 +50,8 @@ export default function Courts() {
     football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
   };
 
-  const [search, setSearch] = useState("");
-  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState(initialName);
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(initialCity ? new Set([initialCity]) : new Set());
   const [surface, setSurface] = useState<string>("all");
   const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
   const [maxPrice, setMaxPrice] = useState<number>(100);

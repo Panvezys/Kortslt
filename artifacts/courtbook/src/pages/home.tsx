@@ -1,5 +1,5 @@
-import { Link } from "wouter";
-import { useState, useEffect } from "react";
+import { Link, useLocation } from "wouter";
+import { useState, useEffect, useRef } from "react";
 import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Plus, Mail, Phone, Instagram, Facebook, MessageCircle } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -158,6 +158,36 @@ export default function Home() {
   const [hoveredStat, setHoveredStat] = useState<string | null>(null);
   const [tappedStat, setTappedStat] = useState<string | null>(null);
 
+  // Search bar state
+  const [, setLocation] = useLocation();
+  const [searchName, setSearchName] = useState("");
+  const [searchSport, setSearchSport] = useState("");
+  const [searchCity, setSearchCity] = useState("");
+  const [searchDate, setSearchDate] = useState("");
+  const [searchTime, setSearchTime] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  function handleSearch() {
+    const params = new URLSearchParams();
+    if (searchName.trim()) params.set("name", searchName.trim());
+    if (searchSport) params.set("type", searchSport);
+    if (searchCity) params.set("city", searchCity);
+    if (searchDate) params.set("date", searchDate);
+    if (searchTime) params.set("time", searchTime);
+    setLocation(`/courts${params.toString() ? "?" + params.toString() : ""}`);
+  }
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setHeroIdx((i) => (i + 1) % HERO_IMAGES.length);
@@ -181,6 +211,14 @@ export default function Home() {
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts();
   const { data: courts, isLoading: courtsLoading } = useListCourts();
 
+  const filteredCourts = searchName.trim().length >= 2
+    ? (courts ?? [])
+        .filter(c => c.name.toLowerCase().includes(searchName.trim().toLowerCase()))
+        .slice(0, 7)
+    : [];
+
+  const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter(Boolean))].sort();
+
   const heroLines = t("home.hero.title").split("\n");
 
   return (
@@ -203,9 +241,7 @@ export default function Home() {
             />
           ))}
           {/* Dark overlay — keeps text readable without being too heavy */}
-          <div className="absolute inset-0 bg-zinc-950/68 z-10" />
-          {/* Left-side vignette for extra text legibility */}
-          <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/75 via-zinc-950/20 to-transparent z-10" />
+          <div className="absolute inset-0 bg-zinc-950/65 z-10" />
         </div>
         <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent z-[1]"></div>
         <div className="container px-4 mx-auto relative z-10">
@@ -228,15 +264,124 @@ export default function Home() {
             <p className="text-lg md:text-xl text-zinc-400 mb-8 max-w-xl">
               {t("home.hero.subtitle")}
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/courts" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 py-2">
-                <Search className="h-4 w-4" />
-                {t("home.hero.browse")}
-              </Link>
-              <Link href="/owner" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input hover:bg-zinc-800 hover:text-white h-12 px-8 py-2">
-                <Plus className="h-4 w-4" />
-                {t("home.hero.list")}
-              </Link>
+
+            {/* Multi-row search widget */}
+            <div className="w-full max-w-2xl space-y-2" ref={searchRef}>
+
+              {/* Row 1: Court name with autocomplete */}
+              <div className="relative">
+                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-3 focus-within:border-primary/60 transition-colors">
+                  <Search className="h-4 w-4 text-white/50 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Ieškoti korto pagal pavadinimą..."
+                    value={searchName}
+                    onChange={e => { setSearchName(e.target.value); setDropdownOpen(true); }}
+                    onFocus={() => setDropdownOpen(true)}
+                    onKeyDown={e => e.key === "Enter" && handleSearch()}
+                    className="bg-transparent flex-1 text-white placeholder:text-white/40 outline-none text-sm"
+                  />
+                  {searchName && (
+                    <button onClick={() => setSearchName("")} className="text-white/40 hover:text-white/70 text-lg leading-none">×</button>
+                  )}
+                </div>
+                {/* Autocomplete dropdown */}
+                {dropdownOpen && filteredCourts.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900/95 backdrop-blur border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
+                    {filteredCourts.map(court => (
+                      <Link
+                        key={court.id}
+                        href={`/courts/${court.id}`}
+                        onClick={() => { setSearchName(""); setDropdownOpen(false); }}
+                      >
+                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors cursor-pointer border-b border-white/5 last:border-b-0">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${sportColor[court.type] ?? "#84cc16"}22` }}>
+                            <SportIcon sport={court.type} size={14} strokeWidth={2} style={{ color: sportColor[court.type] ?? "#84cc16" }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{court.name}</p>
+                            <p className="text-xs text-white/45">{court.city}</p>
+                          </div>
+                          {court.rating != null && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="text-yellow-400 text-xs">★</span>
+                              <span className="text-xs text-white/60 font-medium">{Number(court.rating).toFixed(1)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: Sport type pills */}
+              <div className="flex gap-2 flex-wrap">
+                {ALL_SPORTS.map(sport => {
+                  const color = sportColor[sport] ?? "#84cc16";
+                  const active = searchSport === sport;
+                  return (
+                    <button
+                      key={sport}
+                      onClick={() => setSearchSport(active ? "" : sport)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
+                      style={active
+                        ? { background: color, borderColor: color, color: "#000" }
+                        : { borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)" }
+                      }
+                    >
+                      <SportIcon sport={sport} size={11} strokeWidth={2} />
+                      {sportLithuanian[sport]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Row 3: City + Date + Time + Search */}
+              <div className="flex gap-2 flex-wrap items-center">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 flex-1 min-w-[130px] focus-within:border-primary/60 transition-colors">
+                  <MapPin className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                  <select
+                    value={searchCity}
+                    onChange={e => setSearchCity(e.target.value)}
+                    className="bg-transparent text-sm text-white/80 outline-none flex-1 appearance-none cursor-pointer"
+                  >
+                    <option value="" className="bg-zinc-900 text-white">Visi miestai</option>
+                    {uniqueCities.map(city => (
+                      <option key={city} value={city} className="bg-zinc-900 text-white">{city}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 focus-within:border-primary/60 transition-colors">
+                  <CalendarDays className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                  <input
+                    type="date"
+                    value={searchDate}
+                    onChange={e => setSearchDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="bg-transparent text-sm text-white/80 outline-none cursor-pointer [color-scheme:dark]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-3 py-2.5 focus-within:border-primary/60 transition-colors">
+                  <Clock className="h-3.5 w-3.5 text-white/50 shrink-0" />
+                  <input
+                    type="time"
+                    value={searchTime}
+                    onChange={e => setSearchTime(e.target.value)}
+                    className="bg-transparent text-sm text-white/80 outline-none cursor-pointer [color-scheme:dark]"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSearch}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
+                >
+                  <Search className="h-4 w-4" />
+                  Ieškoti
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -425,6 +570,61 @@ export default function Home() {
                 <PopularCourtCard key={court.id} court={court} />
               ))
             ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Become a Partner Section */}
+      <section className="py-24 bg-zinc-950 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/15 via-transparent to-transparent pointer-events-none" />
+        <div className="container mx-auto px-4 relative z-10">
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold uppercase tracking-widest mb-6">
+              <Building2 className="h-3.5 w-3.5" />
+              Tapkite partneriu
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-5">
+              Turite sportinį kortą?
+              <br />
+              <span className="text-primary">Uždirbkite daugiau.</span>
+            </h2>
+            <p className="text-zinc-400 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
+              Prisijunkite prie korts.lt partnerių tinklo ir leiskite mūsų platformai pripildyti jūsų kortus klientais — jokių komisinių mokesčių per pirmus 3 mėnesius.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/owner"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
+              >
+                Registruoti kortą
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a
+                href="mailto:hello@korts.lt"
+                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors"
+              >
+                <Mail className="h-4 w-4" />
+                Susisiekti su mumis
+              </a>
+            </div>
+
+            {/* Quick benefit pills */}
+            <div className="flex flex-wrap gap-3 justify-center mt-10">
+              {[
+                "📅 Online rezervacijos 24/7",
+                "💬 Tiesioginis ryšys su klientais",
+                "📊 Statistikos skydelis",
+                "🔔 Realaus laiko pranešimai",
+                "🏷️ Lanksti kainodara",
+              ].map(text => (
+                <span
+                  key={text}
+                  className="px-3.5 py-1.5 rounded-full border border-white/10 bg-white/5 text-sm text-zinc-300"
+                >
+                  {text}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
