@@ -41,6 +41,7 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     ownerUserId: c.ownerUserId ?? undefined,
     ownershipDocUrl: c.ownershipDocUrl ?? undefined,
     rejectionReason: c.rejectionReason ?? undefined,
+    postcode: c.postcode ?? undefined,
   };
 }
 

@@ -21,7 +21,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LocationPicker } from "@/components/location-picker";
+import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
 
 const STANDARD_AMENITIES = [
@@ -399,6 +399,7 @@ const courtSchema = z.object({
   ownerEmail: z.string().email("Invalid email"),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
+  postcode: z.string().optional(),
   amenities: z.array(z.string()).default([]),
 });
 
@@ -462,6 +463,7 @@ export default function OwnerDashboard() {
       ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
       isIndoor: false,
       maxPlayers: 4,
+      postcode: "",
       amenities: [],
     }
   });
@@ -509,6 +511,7 @@ export default function OwnerDashboard() {
       isIndoor: court.isIndoor,
       maxPlayers: court.maxPlayers,
       amenities: Array.isArray(court.amenities) ? court.amenities : [],
+      postcode: court.postcode ?? "",
     });
     try {
       setRentableItems(court.rentableItems ? JSON.parse(court.rentableItems) : []);
@@ -610,7 +613,7 @@ export default function OwnerDashboard() {
                     <FormField control={form.control} name="address" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Adresas</FormLabel>
-                        <FormControl><Input placeholder="Gatvė, nr." {...field} /></FormControl>
+                        <FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
@@ -622,16 +625,24 @@ export default function OwnerDashboard() {
                       </FormItem>
                     )} />
                   </div>
+                  <FormField control={form.control} name="postcode" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pašto kodas</FormLabel>
+                      <FormControl><Input placeholder="LT-XXXXX — auto-užpildoma iš paieškos" className="max-w-[180px]" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
                   <LocationPicker
                     key={mapKey}
                     latitude={Number(watchedLat) || 0}
                     longitude={Number(watchedLng) || 0}
-                    onChange={(lat, lng, city, address) => {
-                      form.setValue("latitude", lat, { shouldValidate: true });
-                      form.setValue("longitude", lng, { shouldValidate: true });
-                      if (city) form.setValue("city", city, { shouldValidate: true });
-                      if (address) form.setValue("address", address, { shouldValidate: true });
+                    onChange={(result: LocationPickerResult) => {
+                      form.setValue("latitude", result.lat, { shouldValidate: true });
+                      form.setValue("longitude", result.lng, { shouldValidate: true });
+                      if (result.city) form.setValue("city", result.city, { shouldValidate: true });
+                      if (result.address) form.setValue("address", result.address, { shouldValidate: true });
+                      if (result.postcode != null) form.setValue("postcode", result.postcode, { shouldValidate: true });
                     }}
                   />
 

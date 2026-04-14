@@ -9,6 +9,7 @@ export const courtsTable = pgTable("courts", {
   description: text("description"),
   address: text("address").notNull(),
   city: text("city").notNull(),
+  postcode: text("postcode"),
   latitude: real("latitude").notNull(),
   longitude: real("longitude").notNull(),
   pricePerHour: numeric("price_per_hour", { precision: 10, scale: 2 }).notNull(),

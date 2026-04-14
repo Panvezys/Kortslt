@@ -215,7 +215,7 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
 }
 
 const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
-const LIBRARIES: ("places")[] = [];
+const LIBRARIES: ("places")[] = ["places"];
 const ALL_SPORTS = Object.keys(sportLithuanian);
 
 export function CourtMap({ courts }: { courts: Court[] }) {
