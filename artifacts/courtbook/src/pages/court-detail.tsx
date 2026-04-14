@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -155,6 +156,7 @@ export default function CourtDetail() {
   );
 
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { data: reviews } = useListCourtReviews(courtId, {
     query: { enabled: !!courtId && !isNaN(courtId) }
   });
@@ -166,6 +168,26 @@ export default function CourtDetail() {
   const createBooking = useCreateBooking();
   const { openSignIn } = useClerk();
   const [, navigate] = useLocation();
+  const favorited = court ? isFavorite(court.id) : false;
+
+  const handleShare = async () => {
+    if (!court) return;
+    const url = window.location.href;
+    const text = `${court.name} — korts.lt`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: court.name, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Nuoroda nukopijuota" });
+    } catch {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast({ title: "Nuoroda nukopijuota" });
+      }
+    }
+  };
 
   const slots = availability?.slots ?? [];
 
@@ -340,11 +362,31 @@ export default function CourtDetail() {
           {/* Main Info */}
           <div className="md:col-span-2 space-y-8">
             <div>
-              <div className="flex gap-2 items-center mb-4">
-                <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
-                {court.isIndoor && <Badge variant="secondary">Indoor</Badge>}
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="min-w-0">
+                  <div className="flex gap-2 items-center mb-4">
+                    <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
+                    {court.isIndoor && <Badge variant="secondary">Indoor</Badge>}
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{court.name}</h1>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      if (!isSignedIn) return openSignIn();
+                      await toggleFavorite(court.id);
+                    }}
+                    aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Heart className={`h-4 w-4 ${favorited ? "fill-red-500 text-red-500" : ""}`} />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={handleShare} aria-label="Share court">
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{court.name}</h1>
               <div className="flex flex-wrap gap-4 text-muted-foreground">
                 <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" />{court.address}, {court.city}</div>
                 <div className="flex items-center"><Users className="w-4 h-4 mr-2" />Max {court.maxPlayers} žaidėjai</div>
