@@ -16,6 +16,7 @@ import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserC
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
+import { NotificationBell } from "@/components/notification-bell";
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -230,6 +231,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </Show>
               <Show when="signed-in">
+                <NotificationBell />
                 <div className="hidden md:block">
                   <UserMenu />
                 </div>

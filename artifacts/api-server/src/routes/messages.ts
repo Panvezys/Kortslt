@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, or, and, inArray } from "drizzle-orm";
-import { db, messagesTable, courtsTable } from "@workspace/db";
+import { db, messagesTable, courtsTable, notificationsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -149,6 +149,17 @@ router.post("/courts/:id/messages", async (req, res): Promise<void> => {
     subject: isOwner ? "Re: Žinutė nuo savininko" : "Žinutė kortui",
     body,
   }).returning();
+
+  // Fire notification for the recipient
+  if (recipientUserId) {
+    await db.insert(notificationsTable).values({
+      userId: recipientUserId,
+      type: "message",
+      title: isOwner ? `Atsakymas nuo savininko — ${court.name}` : `Nauja žinutė nuo ${senderName}`,
+      body: body.length > 100 ? body.slice(0, 97) + "…" : body,
+      link: isOwner ? "/profile" : `/courts/${courtId}`,
+    }).catch(() => {});
+  }
 
   res.status(201).json(formatMsg(message));
 });

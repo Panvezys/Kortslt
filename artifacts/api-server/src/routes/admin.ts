@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, count } from "drizzle-orm";
-import { db, courtsTable } from "@workspace/db";
+import { db, courtsTable, notificationsTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { z } from "zod";
 import { readFileSync } from "fs";
@@ -48,6 +48,17 @@ router.put("/admin/courts/:id/approve", requireAdmin, async (req, res): Promise<
     .returning();
 
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (court.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: court.ownerUserId,
+      type: "court_approved",
+      title: `Kortas patvirtintas: ${court.name}`,
+      body: "Jūsų kortas patvirtintas ir dabar matomas klientams.",
+      link: "/owner",
+    }).catch(() => {});
+  }
+
   res.json({ id: court.id, status: court.status });
 });
 
@@ -68,6 +79,17 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
     .returning();
 
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (court.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: court.ownerUserId,
+      type: "court_rejected",
+      title: `Kortas atmestas: ${court.name}`,
+      body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
+      link: "/owner",
+    }).catch(() => {});
+  }
+
   res.json({ id: court.id, status: court.status, rejectionReason: court.rejectionReason });
 });
 
