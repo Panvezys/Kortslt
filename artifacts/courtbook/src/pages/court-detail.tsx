@@ -361,10 +361,13 @@ export default function CourtDetail() {
         if (!resp.ok) throw new Error("Confirm failed");
         navigate(`/booking-confirmed?id=${booking.id}`);
       }
-    } catch {
+    } catch (err: unknown) {
+      const apiErr = err as { data?: { error?: string; details?: unknown }; status?: number } | null;
+      const detail = apiErr?.data?.error ?? (err instanceof Error ? err.message : undefined);
+      console.error("[handleReserve] booking error:", err);
       toast({
         title: "Rezervacija nepavyko",
-        description: "Bandykite dar kartą.",
+        description: detail ? `${detail}` : "Bandykite dar kartą.",
         variant: "destructive",
       });
     }

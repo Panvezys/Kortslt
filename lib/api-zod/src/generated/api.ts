@@ -384,7 +384,7 @@ export const CreateBookingBody = zod.object({
   courtId: zod.number(),
   customerName: zod.string(),
   customerEmail: zod.string(),
-  customerPhone: zod.string().optional(),
+  customerPhone: zod.string().nullish(),
   date: zod.coerce.date(),
   startTime: zod.string(),
   endTime: zod.string(),

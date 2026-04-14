@@ -59,7 +59,8 @@ router.get("/bookings", async (req, res): Promise<void> => {
 router.post("/bookings", async (req, res): Promise<void> => {
   const parsed = CreateBookingBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    console.error("[bookings] validation failed:", JSON.stringify(req.body), parsed.error.flatten());
+    res.status(400).json({ error: parsed.error.message, details: parsed.error.flatten() });
     return;
   }
 
@@ -70,12 +71,24 @@ router.post("/bookings", async (req, res): Promise<void> => {
   }
 
   const startHour = parseInt(parsed.data.startTime.split(":")[0], 10);
-  const endHour = parseInt(parsed.data.endTime.split(":")[0], 10);
-  const hours = endHour - startHour;
-  const totalPrice = Number(court.pricePerHour) * hours;
+  const startMin  = parseInt(parsed.data.startTime.split(":")[1] ?? "0", 10);
+  const endHour   = parseInt(parsed.data.endTime.split(":")[0], 10);
+  const endMin    = parseInt(parsed.data.endTime.split(":")[1] ?? "0", 10);
+  const durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+  const totalPrice = Number(court.pricePerHour) * (durationMinutes / 60);
+
+  // Normalise date to YYYY-MM-DD (the Zod schema coerces it to Date)
+  const d = parsed.data.date;
+  const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
   const [booking] = await db.insert(bookingsTable).values({
-    ...parsed.data,
+    courtId: parsed.data.courtId,
+    customerName: parsed.data.customerName,
+    customerEmail: parsed.data.customerEmail,
+    customerPhone: parsed.data.customerPhone ?? null,
+    date: dateStr,
+    startTime: parsed.data.startTime,
+    endTime: parsed.data.endTime,
     totalPrice: String(totalPrice),
     status: "pending",
   }).returning();
@@ -86,7 +99,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
       userId: court.ownerUserId,
       type: "booking_created",
       title: `Nauja rezervacija — ${court.name}`,
-      body: `${parsed.data.customerName} užrezervavo ${parsed.data.date} ${parsed.data.startTime}–${parsed.data.endTime}.`,
+      body: `${parsed.data.customerName} užrezervavo ${dateStr} ${parsed.data.startTime}–${parsed.data.endTime}.`,
       link: "/owner",
     }).catch(() => {});
   }
