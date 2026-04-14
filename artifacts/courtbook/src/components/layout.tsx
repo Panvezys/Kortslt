@@ -105,15 +105,6 @@ function UserMenu() {
             <p className="text-xs leading-none text-muted-foreground truncate">
               {user?.emailAddresses[0]?.emailAddress}
             </p>
-            {user?.id && (
-              <p
-                className="text-[10px] leading-none text-muted-foreground/60 truncate cursor-pointer hover:text-primary transition-colors"
-                title="Click to copy your user ID"
-                onClick={() => { navigator.clipboard.writeText(user.id); }}
-              >
-                ID: {user.id}
-              </p>
-            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
