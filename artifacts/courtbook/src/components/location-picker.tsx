@@ -74,11 +74,8 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
   );
   const [mapZoom, setMapZoom] = useState(hasCoords ? 15 : 7);
 
-  // Uncontrolled input — Google Autocomplete manages the input value directly.
-  // Using a controlled (value=...) input breaks autocomplete item selection.
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const mapRef = useRef<google.maps.Map | null>(null);
 
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
@@ -89,17 +86,25 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
     });
 
     ac.addListener("place_changed", () => {
-      const place = ac.getPlace();
-      if (!place.geometry?.location) return;
+      try {
+        const place = ac.getPlace();
+        if (!place.geometry?.location) return;
 
-      const lat = parseFloat(place.geometry.location.lat().toFixed(6));
-      const lng = parseFloat(place.geometry.location.lng().toFixed(6));
-      const extracted = extractFromPlaceComponents(place.address_components ?? []);
+        const lat = parseFloat(place.geometry.location.lat().toFixed(6));
+        const lng = parseFloat(place.geometry.location.lng().toFixed(6));
+        const extracted = extractFromPlaceComponents(place.address_components ?? []);
 
-      setMarkerPos({ lat, lng });
-      setMapCenter({ lat, lng });
-      setMapZoom(16);
-      onChange({ lat, lng, ...extracted });
+        setMarkerPos({ lat, lng });
+        setMapCenter({ lat, lng });
+        setMapZoom(16);
+        onChange({ lat, lng, ...extracted });
+
+        if (inputRef.current && place.formatted_address) {
+          inputRef.current.value = place.formatted_address;
+        }
+      } catch {
+        return;
+      }
     });
 
     autocompleteRef.current = ac;
@@ -125,7 +130,6 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
 
   return (
     <div className="space-y-3">
-      {/* Search input — always at the top */}
       {!isLoaded ? (
         <Skeleton className="h-10 w-full rounded-md" />
       ) : (
@@ -147,7 +151,6 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
         spauskite žemėlapyje, kad pažymėtumėte kortą
       </p>
 
-      {/* Map — always interactive */}
       {!isLoaded ? (
         <Skeleton className="w-full rounded-lg" style={{ height: 260 }} />
       ) : (
@@ -156,7 +159,6 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
             mapContainerStyle={{ width: "100%", height: "100%" }}
             center={mapCenter}
             zoom={mapZoom}
-            onLoad={(map) => { mapRef.current = map; }}
             onClick={handleMapClick}
             options={{
               mapTypeControl: false,
