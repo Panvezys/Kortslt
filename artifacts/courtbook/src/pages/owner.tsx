@@ -387,7 +387,7 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
 // ──────────────────────────────────────────────
 const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
-  type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash"]),
+  type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
   address: z.string().min(5, "Address required"),
   city: z.string().min(2, "City required"),
@@ -429,6 +429,7 @@ const API_URL = `${BASE_URL}/api`;
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
 };
 
 interface OwnerThread {
@@ -1021,7 +1022,7 @@ export default function OwnerDashboard() {
     setMapKey(k => k + 1);
     form.reset({
       name: court.name,
-      type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash",
+      type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash" | "table_tennis" | "golf" | "snooker" | "bowling",
       description: court.description || "",
       address: court.address,
       city: court.city,
@@ -1137,7 +1138,11 @@ export default function OwnerDashboard() {
                             <SelectItem value="padel">🏓 Padelis</SelectItem>
                             <SelectItem value="football">⚽ Futbolas</SelectItem>
                             <SelectItem value="badminton">🏸 Badmintonas</SelectItem>
-                            <SelectItem value="squash">🎯 Squash</SelectItem>
+                            <SelectItem value="squash">🎯 Skvoše</SelectItem>
+                            <SelectItem value="table_tennis">🏓 Stalo tenisas</SelectItem>
+                            <SelectItem value="golf">⛳ Golfas</SelectItem>
+                            <SelectItem value="snooker">🎱 Snukeris</SelectItem>
+                            <SelectItem value="bowling">🎳 Boulingas</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

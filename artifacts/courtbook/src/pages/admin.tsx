@@ -21,7 +21,11 @@ const SPORT_LABELS: Record<string, string> = {
   padel: "Padelis",
   football: "Futbolas",
   badminton: "Badmintonas",
-  squash: "Squash",
+  squash: "Skvoše",
+  table_tennis: "Stalo tenisas",
+  golf: "Golfas",
+  snooker: "Snukeris",
+  bowling: "Boulingas",
 };
 
 type UserRole = "admin" | "owner" | "player";

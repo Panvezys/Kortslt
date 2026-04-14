@@ -44,10 +44,11 @@ export default function Courts() {
   const initialName = _qp.get("name") ?? "";
   const initialCity = _qp.get("city") ?? "";
 
-  const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash"];
+  const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
   const sportLT: Record<string, string> = {
     tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-    football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
+    table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+    football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
   };
 
   const [search, setSearch] = useState(initialName);

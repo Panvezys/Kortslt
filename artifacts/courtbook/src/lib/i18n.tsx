@@ -18,7 +18,7 @@ const translations = {
     "footer.bookings": "Rezervacijos",
     // Home
     "home.hero.title": "Rask savo kortą.\nŽaisk savo žaidimą.",
-    "home.hero.subtitle": "Rezervuokite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus akimirksniu. Jokių skambučių, jokio laukimo.",
+    "home.hero.subtitle": "Rezervuokite teniso, krepšinio, padelio, futbolo, badmintono, stalo teniso, golfo, snukerio ir boulingas aikštynus akimirksniu. Jokių skambučių, jokio laukimo.",
     "home.hero.browse": "Naršyti kortus",
     "home.hero.list": "Registruoti kortą",
     "home.stats.courtsAvailable": "Kortų skaičius",
@@ -32,7 +32,7 @@ const translations = {
     "home.popular.bookNow": "Rezervuoti",
     // Courts page
     "courts.title": "Rasti kortą",
-    "courts.subtitle": "Raskite teniso, krepšinio, padelio, futbolo, badmintono ir squash kortus visoje Lietuvoje. Filtruokite pagal miestą, dangą ir kainą.",
+    "courts.subtitle": "Raskite teniso, krepšinio, padelio, futbolo, badmintono, stalo teniso, golfo, snukerio ir boulingas kortus visoje Lietuvoje. Filtruokite pagal miestą, dangą ir kainą.",
     "courts.found": "Rasta {n} kortų",
     "courts.noResults": "Kortų nerasta. Pabandykite pakeisti filtrus.",
     "courts.viewDetails": "Peržiūrėti ir rezervuoti",
@@ -197,7 +197,7 @@ const translations = {
     "footer.bookings": "Bookings",
     // Home
     "home.hero.title": "Find your court.\nPlay your game.",
-    "home.hero.subtitle": "Book tennis, basketball, padel, football, badminton and squash courts instantly. No calls, no waiting.",
+    "home.hero.subtitle": "Book tennis, basketball, padel, football, badminton, squash, table tennis, golf, snooker and bowling venues instantly. No calls, no waiting.",
     "home.hero.browse": "Browse Courts",
     "home.hero.list": "List a Court",
     "home.stats.courtsAvailable": "Courts Available",
@@ -211,7 +211,7 @@ const translations = {
     "home.popular.bookNow": "Book Now",
     // Courts page
     "courts.title": "Find a Court",
-    "courts.subtitle": "Find tennis, basketball, padel, football, badminton and squash courts across Lithuania. Filter by city, surface and price.",
+    "courts.subtitle": "Find tennis, basketball, padel, football, badminton, squash, table tennis, golf, snooker and bowling venues across Lithuania. Filter by city, surface and price.",
     "courts.found": "{n} courts found",
     "courts.noResults": "No courts found. Try adjusting your filters.",
     "courts.viewDetails": "View & Book",

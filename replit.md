@@ -38,6 +38,7 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Interactive Leaflet/OpenStreetMap map centered on Lithuania, satellite/street view toggle, courts color-coded by rating (5 tiers: lime→green→yellow→orange→gray)
 - 385 real Lithuanian sports courts across 24+ Lithuanian cities seeded in DB
   - Tennis 🎾 (#84cc16), Basketball 🏀 (#f97316), Padel 🏓 (#3b82f6), Football ⚽ (#22c55e), Badminton 🏸 (#a855f7), Squash 🎯 (#06b6d4)
+  - Table Tennis 🏓 (#f43f5e), Golf ⛳ (#ca8a04), Snooker 🎱 (#0d9488), Bowling 🎳 (#dc2626)
   - Cities: Vilnius, Kaunas, Klaipėda, Druskininkai, Šiauliai, Panevėžys
 - Court browsing with full filters: sport type, city, surface type, condition, indoor/outdoor, max price (€)
 - List view + interactive map view toggle; map legend shows sport emojis + rating color tiers

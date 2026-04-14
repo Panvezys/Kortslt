@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
 };
 

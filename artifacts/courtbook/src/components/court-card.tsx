@@ -12,12 +12,16 @@ import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 
 const sportConfig: Record<string, { color: string }> = {
-  tennis:     { color: sportColor.tennis },
-  basketball: { color: sportColor.basketball },
-  padel:      { color: sportColor.padel },
-  football:   { color: sportColor.football },
-  badminton:  { color: sportColor.badminton },
-  squash:     { color: sportColor.squash },
+  tennis:       { color: sportColor.tennis },
+  basketball:   { color: sportColor.basketball },
+  padel:        { color: sportColor.padel },
+  football:     { color: sportColor.football },
+  badminton:    { color: sportColor.badminton },
+  squash:       { color: sportColor.squash },
+  table_tennis: { color: sportColor.table_tennis },
+  golf:         { color: sportColor.golf },
+  snooker:      { color: sportColor.snooker },
+  bowling:      { color: sportColor.bowling },
 };
 
 function StarRating({ rating }: { rating?: number }) {

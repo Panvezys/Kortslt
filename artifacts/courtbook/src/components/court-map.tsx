@@ -84,7 +84,8 @@ const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
 
 export const sportLithuanian: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Squash",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
 };
 
 /**
