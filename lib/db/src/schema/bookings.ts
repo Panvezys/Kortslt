@@ -7,6 +7,7 @@ export const bookingsTable = pgTable("bookings", {
   courtId: integer("court_id").notNull(),
   customerName: text("customer_name").notNull(),
   customerEmail: text("customer_email").notNull(),
+  customerPhone: text("customer_phone"),
   date: text("date").notNull(), // YYYY-MM-DD
   startTime: text("start_time").notNull(), // HH:MM
   endTime: text("end_time").notNull(), // HH:MM

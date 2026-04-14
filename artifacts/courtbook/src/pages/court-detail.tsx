@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send, ChevronLeft, ChevronRight, Images } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send, ChevronLeft, ChevronRight, Images, UserPlus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -176,8 +178,13 @@ export default function CourtDetail() {
   );
 
   const createBooking = useCreateBooking();
-  const { openSignIn } = useClerk();
+  const { openSignIn, openSignUp } = useClerk();
   const [, navigate] = useLocation();
+
+  const [guestFirstName, setGuestFirstName] = useState("");
+  const [guestLastName, setGuestLastName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
 
   interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
   const { data: extraPhotos = [] } = useQuery<CourtPhoto[]>({
@@ -278,18 +285,25 @@ export default function CourtDetail() {
     }
   };
 
-  const handleReserve = async () => {
+  const handleReserve = async (overrideData?: { customerName: string; customerEmail: string; customerPhone?: string }) => {
     if (!selectedSlotRange) {
       toast({ title: "Pasirinkite laiką", variant: "destructive" });
       return;
     }
-    if (!isSignedIn || !user) {
-      openSignIn();
-      return;
-    }
 
-    const customerName = user.fullName ?? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-    const customerEmail = user.primaryEmailAddress?.emailAddress ?? "";
+    let customerName: string;
+    let customerEmail: string;
+    let customerPhone: string | undefined;
+
+    if (overrideData) {
+      customerName = overrideData.customerName;
+      customerEmail = overrideData.customerEmail;
+      customerPhone = overrideData.customerPhone;
+    } else {
+      if (!isSignedIn || !user) { openSignIn(); return; }
+      customerName = user.fullName ?? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+      customerEmail = user.primaryEmailAddress?.emailAddress ?? "";
+    }
 
     if (!customerName || !customerEmail) {
       toast({ title: "Profilio duomenys neišsamūs", description: "Papildykite profilį ir bandykite dar kartą.", variant: "destructive" });
@@ -302,13 +316,13 @@ export default function CourtDetail() {
           courtId,
           customerName,
           customerEmail,
+          customerPhone,
           date: dateStr,
           startTime: selectedSlotRange.startTime,
           endTime: selectedSlotRange.endTime,
         }
       });
 
-      // Free reservation — confirm immediately and send email, no payment required
       const resp = await fetch(`${API}/payments/confirm-free`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -325,6 +339,25 @@ export default function CourtDetail() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleGuestReserve = async () => {
+    const firstName = guestFirstName.trim();
+    const lastName = guestLastName.trim();
+    const email = guestEmail.trim();
+    const phone = guestPhone.trim();
+
+    if (!firstName || !lastName) {
+      toast({ title: "Įveskite vardą ir pavardę", variant: "destructive" }); return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "Įveskite teisingą el. paštą", variant: "destructive" }); return;
+    }
+    if (!phone || phone.length < 6) {
+      toast({ title: "Įveskite telefono numerį", variant: "destructive" }); return;
+    }
+
+    await handleReserve({ customerName: `${firstName} ${lastName}`, customerEmail: email, customerPhone: phone });
   };
 
   const isPending = createBooking.isPending;
@@ -1033,20 +1066,94 @@ export default function CourtDetail() {
                       <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
                     </>
                   ) : (
-                    /* Not signed in */
-                    (<div className="rounded-xl border border-dashed border-border bg-muted/30 p-5 flex flex-col items-center gap-3 text-center">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <LogIn className="w-5 h-5 text-primary" />
+                    /* Not signed in — guest booking form */
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="guestFirstName" className="text-xs text-muted-foreground">Vardas *</Label>
+                          <Input
+                            id="guestFirstName"
+                            placeholder="Vardas"
+                            value={guestFirstName}
+                            onChange={e => setGuestFirstName(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="guestLastName" className="text-xs text-muted-foreground">Pavardė *</Label>
+                          <Input
+                            id="guestLastName"
+                            placeholder="Pavardė"
+                            value={guestLastName}
+                            onChange={e => setGuestLastName(e.target.value)}
+                            className="h-9 text-sm"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold">Prisijunkite, kad rezervuotumėte</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Jūsų rezervacijos bus saugomos paskyroje</p>
+                      <div className="space-y-1">
+                        <Label htmlFor="guestEmail" className="text-xs text-muted-foreground">El. paštas *</Label>
+                        <Input
+                          id="guestEmail"
+                          type="email"
+                          placeholder="jusu@el.pastas.lt"
+                          value={guestEmail}
+                          onChange={e => setGuestEmail(e.target.value)}
+                          className="h-9 text-sm"
+                        />
                       </div>
-                      <Button onClick={() => openSignIn()} className="w-full gap-2" size="sm">
-                        <LogIn className="w-4 h-4" />
-                        Prisijungti
+                      <div className="space-y-1">
+                        <Label htmlFor="guestPhone" className="text-xs text-muted-foreground">Telefono numeris *</Label>
+                        <Input
+                          id="guestPhone"
+                          type="tel"
+                          placeholder="+370 600 00000"
+                          value={guestPhone}
+                          onChange={e => setGuestPhone(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={handleGuestReserve}
+                        className="w-full h-12 text-base font-semibold gap-2"
+                        disabled={isPending}
+                      >
+                        {isPending ? "Apdorojama..." : "Rezervuoti be registracijos"}
                       </Button>
-                    </div>)
+
+                      {/* Account creation CTA */}
+                      <div className="rounded-xl border border-border bg-muted/40 p-3 flex flex-col gap-2">
+                        <p className="text-xs text-muted-foreground text-center">
+                          Norite sekti visas savo rezervacijas vienoje vietoje?
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1.5 text-xs"
+                            onClick={() => openSignIn()}
+                          >
+                            <LogIn className="w-3 h-3" />
+                            Prisijungti
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1 gap-1.5 text-xs"
+                            onClick={() => openSignUp({
+                              initialValues: {
+                                firstName: guestFirstName || undefined,
+                                lastName: guestLastName || undefined,
+                                emailAddress: guestEmail || undefined,
+                              }
+                            })}
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            Registruotis
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
