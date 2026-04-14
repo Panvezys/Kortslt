@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -333,6 +334,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 function UsersPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { user: currentUser } = useUser();
   const { data: users, isLoading, isError } = useAdminUsers();
   const setRoleMutation = useSetUserRole();
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -399,43 +401,59 @@ function UsersPanel() {
                   </td>
                 </tr>
               )}
-              {(users ?? []).map(u => (
-                <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground">
-                      {u.userId}
-                    </code>
-                  </td>
-                  <td className="px-4 py-3">
-                    <RoleBadge role={u.role as UserRole} />
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
-                    {new Date(u.createdAt).toLocaleDateString("lt-LT")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      {ROLE_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          disabled={u.role === opt.value || setRoleMutation.isPending}
-                          onClick={() => handleRoleChange(u.userId, u.role as UserRole, opt.value)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                            u.role === opt.value
-                              ? opt.value === "admin"
-                                ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
-                                : opt.value === "owner"
-                                  ? "bg-blue-500/20 text-blue-400 border-blue-500/40"
-                                  : "bg-muted text-muted-foreground border-border"
-                              : "bg-background border-border hover:border-primary/50 hover:text-primary"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {(users ?? []).map(u => {
+                const isSelf = u.userId === currentUser?.id;
+                return (
+                  <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground">
+                          {u.userId}
+                        </code>
+                        {isSelf && (
+                          <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30">
+                            Jūs
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <RoleBadge role={u.role as UserRole} />
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
+                      {new Date(u.createdAt).toLocaleDateString("lt-LT")}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isSelf ? (
+                        <div className="flex justify-end">
+                          <span className="text-xs text-muted-foreground italic">Negalima keisti savo rolės</span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-1.5">
+                          {ROLE_OPTIONS.map(opt => (
+                            <button
+                              key={opt.value}
+                              disabled={u.role === opt.value || setRoleMutation.isPending}
+                              onClick={() => handleRoleChange(u.userId, u.role as UserRole, opt.value)}
+                              className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                u.role === opt.value
+                                  ? opt.value === "admin"
+                                    ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                                    : opt.value === "owner"
+                                      ? "bg-blue-500/20 text-blue-400 border-blue-500/40"
+                                      : "bg-muted text-muted-foreground border-border"
+                                  : "bg-background border-border hover:border-primary/50 hover:text-primary"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
