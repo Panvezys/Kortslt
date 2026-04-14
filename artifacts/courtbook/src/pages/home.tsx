@@ -242,7 +242,7 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-zinc-950 text-white pt-24 pb-32">
+      <section className="relative bg-zinc-950 text-white pt-24 pb-32">
         {/* Slideshow background */}
         <div className="absolute inset-0 z-0">
           {HERO_IMAGES.map((img, i) => (
