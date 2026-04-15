@@ -189,6 +189,9 @@ export default function CourtDetail() {
   const [guestPhone, setGuestPhone] = useState("");
 
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
+  interface EquipAvailItem { name: string; pricePerSlot: number; stock: number; available: number; }
+  const [equipAvailability, setEquipAvailability] = useState<EquipAvailItem[]>([]);
+  const [equipAvailLoading, setEquipAvailLoading] = useState(false);
 
   interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
   const { data: extraPhotos = [] } = useQuery<CourtPhoto[]>({
@@ -229,20 +232,29 @@ export default function CourtDetail() {
 
   const slots = availability?.slots ?? [];
 
-  const availableEquipment: Array<{ name: string; pricePerBooking: number }> = useMemo(() => {
+  const availableEquipment: Array<{ name: string; pricePerSlot: number; stock: number }> = useMemo(() => {
     try {
-      return court?.rentableItems ? JSON.parse(court.rentableItems) : [];
+      const raw: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock?: number }> =
+        court?.rentableItems ? JSON.parse(court.rentableItems) : [];
+      return raw.map(r => ({ name: r.name, pricePerSlot: r.pricePerSlot ?? r.pricePerBooking ?? 0, stock: r.stock ?? 1 }));
     } catch { return []; }
   }, [court?.rentableItems]);
+
+  // slotCount: derived from selectedStart/selectedEnd directly (no circular dep on selectedSlotRange)
+  const slotCount = useMemo(() => {
+    if (selectedStart === null) return 0;
+    const end = selectedEnd ?? selectedStart;
+    return Math.abs(end - selectedStart) + 1;
+  }, [selectedStart, selectedEnd]);
 
   const equipmentTotal = useMemo(() => {
     let total = 0;
     selectedEquipment.forEach((qty, name) => {
       const item = availableEquipment.find(e => e.name === name);
-      if (item && qty > 0) total += item.pricePerBooking * qty;
+      if (item && qty > 0) total += item.pricePerSlot * qty * Math.max(1, slotCount);
     });
     return total;
-  }, [selectedEquipment, availableEquipment]);
+  }, [selectedEquipment, availableEquipment, slotCount]);
 
   // Selected slot range (selectedStart..selectedEnd inclusive)
   const selectedSlotRange = useMemo(() => {
@@ -270,6 +282,20 @@ export default function CourtDetail() {
       rangeEnd,
     };
   }, [selectedStart, selectedEnd, slots, equipmentTotal]);
+
+  // Fetch real-time equipment availability when slot selection changes
+  useEffect(() => {
+    if (!selectedSlotRange || availableEquipment.length === 0) {
+      setEquipAvailability([]);
+      return;
+    }
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    setEquipAvailLoading(true);
+    fetch(`${API}/courts/${courtId}/equipment-availability?date=${dateStr}&startTime=${encodeURIComponent(selectedSlotRange.startTime)}&endTime=${encodeURIComponent(selectedSlotRange.endTime)}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: EquipAvailItem[]) => { setEquipAvailability(data); setEquipAvailLoading(false); })
+      .catch(() => { setEquipAvailability([]); setEquipAvailLoading(false); });
+  }, [selectedSlotRange?.startTime, selectedSlotRange?.endTime, courtId, date, availableEquipment.length]);
 
   // Handle slot click: select, extend, or deselect
   const handleSlotClick = (idx: number) => {
@@ -378,11 +404,22 @@ export default function CourtDetail() {
         navigate(`/booking-confirmed?id=${booking.id}`);
       }
     } catch (err: unknown) {
-      const apiErr = err as { data?: { error?: string; details?: unknown }; status?: number } | null;
+      const apiErr = err as { data?: { error?: string; code?: string; item?: string; available?: number }; status?: number } | null;
       const detail = apiErr?.data?.error ?? (err instanceof Error ? err.message : undefined);
+      const isEquipmentError = apiErr?.data?.code === "EQUIPMENT_UNAVAILABLE";
       console.error("[handleReserve] booking error:", err);
+      if (isEquipmentError) {
+        // Refresh availability data so UI updates immediately
+        if (selectedSlotRange) {
+          const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+          fetch(`${API}/courts/${courtId}/equipment-availability?date=${dateStr}&startTime=${encodeURIComponent(selectedSlotRange.startTime)}&endTime=${encodeURIComponent(selectedSlotRange.endTime)}`)
+            .then(r => r.ok ? r.json() : Promise.reject())
+            .then((data: EquipAvailItem[]) => setEquipAvailability(data))
+            .catch(() => {});
+        }
+      }
       toast({
-        title: "Rezervacija nepavyko",
+        title: isEquipmentError ? "Įranga nebepasiekiama" : "Rezervacija nepavyko",
         description: detail ? `${detail}` : "Bandykite dar kartą.",
         variant: "destructive",
       });
@@ -716,7 +753,7 @@ export default function CourtDetail() {
             {/* Rentable Items */}
             {(() => {
               try {
-                const items: Array<{name: string; pricePerBooking: number}> =
+                const items: Array<{name: string; pricePerSlot?: number; pricePerBooking?: number; stock?: number}> =
                   court.rentableItems ? JSON.parse(court.rentableItems) : [];
                 if (!items.length) return null;
                 return (
@@ -726,12 +763,19 @@ export default function CourtDetail() {
                       Nuomojama įranga
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded-xl border bg-muted/30">
-                          <span className="font-medium text-sm">{item.name}</span>
-                          <Badge variant="secondary">{item.pricePerBooking}€ / rezerv.</Badge>
-                        </div>
-                      ))}
+                      {items.map((item, i) => {
+                        const price = item.pricePerSlot ?? item.pricePerBooking ?? 0;
+                        const stock = item.stock ?? 1;
+                        return (
+                          <div key={i} className="flex flex-col gap-1.5 p-3 rounded-xl border bg-muted/30">
+                            <span className="font-medium text-sm">{item.name}</span>
+                            <div className="flex items-center justify-between">
+                              <Badge variant="secondary">{price}€/laikot.</Badge>
+                              <span className="text-xs text-muted-foreground">{stock} vnt.</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1102,20 +1146,30 @@ export default function CourtDetail() {
               {/* Equipment rental — shown when slots are selected and court has equipment */}
               {selectedSlotRange && availableEquipment.length > 0 && (
                 <div className="rounded-xl border p-3 space-y-2">
-                  <p className="text-sm font-semibold flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-primary" />
-                    Pridėti įrangą
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold flex items-center gap-2">
+                      <ShoppingBag className="w-4 h-4 text-primary" />
+                      Pridėti įrangą
+                    </p>
+                    {equipAvailLoading && <span className="text-xs text-muted-foreground animate-pulse">Tikrinama...</span>}
+                  </div>
                   <div className="space-y-1.5">
                     {availableEquipment.map(item => {
+                      const availInfo = equipAvailability.find(e => e.name === item.name);
+                      const realAvailable = availInfo ? availInfo.available : item.stock;
                       const qty = selectedEquipment.get(item.name) ?? 0;
                       const isSelected = qty > 0;
+                      const isUnavailable = realAvailable === 0;
+                      const maxQty = Math.max(0, realAvailable);
+                      const itemTotal = item.pricePerSlot * qty * slotCount;
                       return (
-                        <div key={item.name} className={`flex items-center justify-between rounded-lg px-3 py-2 border transition-colors ${isSelected ? "bg-primary/5 border-primary/30" : "bg-muted/30 border-transparent"}`}>
+                        <div key={item.name} className={`flex items-center justify-between rounded-lg px-3 py-2 border transition-colors ${isUnavailable ? "opacity-50 bg-muted/20 border-transparent" : isSelected ? "bg-primary/5 border-primary/30" : "bg-muted/30 border-transparent"}`}>
                           <div className="flex items-center gap-2 min-w-0">
                             <button
                               type="button"
+                              disabled={isUnavailable}
                               onClick={() => {
+                                if (isUnavailable) return;
                                 setSelectedEquipment(prev => {
                                   const next = new Map(prev);
                                   if (isSelected) next.delete(item.name);
@@ -1123,14 +1177,21 @@ export default function CourtDetail() {
                                   return next;
                                 });
                               }}
-                              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isUnavailable ? "border-muted-foreground/20 cursor-not-allowed" : isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}
                             >
-                              {isSelected && <Check className="w-3 h-3" />}
+                              {isSelected && !isUnavailable && <Check className="w-3 h-3" />}
                             </button>
-                            <span className="text-sm font-medium truncate">{item.name}</span>
+                            <div className="min-w-0">
+                              <span className="text-sm font-medium truncate block">{item.name}</span>
+                              {isUnavailable ? (
+                                <span className="text-[10px] text-destructive font-medium">Nepasiekiama</span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">Likę: {realAvailable} vnt.</span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {isSelected && (
+                            {isSelected && !isUnavailable && (
                               <div className="flex items-center gap-1 bg-background border rounded-md">
                                 <button type="button" onClick={() => {
                                   setSelectedEquipment(prev => {
@@ -1144,18 +1205,24 @@ export default function CourtDetail() {
                                 <button type="button" onClick={() => {
                                   setSelectedEquipment(prev => {
                                     const next = new Map(prev);
-                                    next.set(item.name, qty + 1);
+                                    if (qty < maxQty) next.set(item.name, qty + 1);
                                     return next;
                                   });
-                                }} className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">+</button>
+                                }} disabled={qty >= maxQty} className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30">+</button>
                               </div>
                             )}
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">{item.pricePerBooking.toFixed(2)}€</span>
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground whitespace-nowrap">{item.pricePerSlot.toFixed(2)}€/laikot.</div>
+                              {isSelected && slotCount > 1 && <div className="text-[10px] text-primary font-medium">{itemTotal.toFixed(2)}€ iš viso</div>}
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
+                  {slotCount > 1 && (
+                    <p className="text-[10px] text-muted-foreground pl-1">Kaina × kiekis × {slotCount} laikotarpiai</p>
+                  )}
                 </div>
               )}
 

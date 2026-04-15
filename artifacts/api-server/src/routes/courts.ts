@@ -405,4 +405,59 @@ router.put("/courts/:id/pricing", async (req, res): Promise<void> => {
   }));
 });
 
+// GET /courts/:id/equipment-availability?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM
+router.get("/courts/:id/equipment-availability", async (req, res): Promise<void> => {
+  const courtId = parseInt(req.params.id, 10);
+  const { date, startTime, endTime } = req.query as Record<string, string>;
+  if (!courtId || !date || !startTime || !endTime) {
+    res.status(400).json({ error: "courtId, date, startTime, endTime required" });
+    return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const equipment: Array<{ name: string; pricePerSlot: number; stock: number }> =
+    court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+  if (equipment.length === 0) { res.json([]); return; }
+
+  // Find overlapping confirmed/pending bookings with rented items
+  const existingBookings = await db
+    .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+    .from(bookingsTable)
+    .where(and(eq(bookingsTable.courtId, courtId), eq(bookingsTable.date, date)));
+
+  // Parse startTime/endTime to minutes for overlap check
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const reqStart = toMin(startTime);
+  const reqEnd = toMin(endTime);
+
+  // Sum up booked quantities for overlapping bookings
+  const bookedQty: Record<string, number> = {};
+  for (const b of existingBookings) {
+    if (!b.rentedItems) continue;
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    // Overlap: not (bEnd <= reqStart || bStart >= reqEnd)
+    if (bEnd <= reqStart || bStart >= reqEnd) continue;
+    try {
+      const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
+      for (const item of items) {
+        bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
+      }
+    } catch {}
+  }
+
+  const result = equipment.map(e => ({
+    name: e.name,
+    pricePerSlot: e.pricePerSlot,
+    stock: e.stock,
+    booked: bookedQty[e.name] ?? 0,
+    available: Math.max(0, e.stock - (bookedQty[e.name] ?? 0)),
+  }));
+
+  res.json(result);
+});
+
 export default router;

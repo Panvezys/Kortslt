@@ -78,22 +78,61 @@ router.post("/bookings", async (req, res): Promise<void> => {
   const durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
   let totalPrice = Number(court.pricePerHour) * (durationMinutes / 60);
 
+  const slotCount = Math.round(durationMinutes / 30);
+
   let equipmentCost = 0;
   let validatedRentedItems: string | null = null;
   if (parsed.data.rentedItems) {
     try {
-      const clientItems: Array<{ name: string; pricePerBooking?: number; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
-      const courtEquipment: Array<{ name: string; pricePerBooking: number }> = court.rentableItems ? JSON.parse(court.rentableItems) : [];
-      const serverValidated: Array<{ name: string; pricePerBooking: number; quantity: number }> = [];
+      const clientItems: Array<{ name: string; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
+      const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
+        court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+      // Check current equipment availability for this time slot
+      const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+      const reqStart = toMin(parsed.data.startTime);
+      const reqEnd = toMin(parsed.data.endTime);
+      const d = parsed.data.date;
+      const dateStr2 = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      const existingBookings = await db
+        .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+        .from(bookingsTable)
+        .where(and(eq(bookingsTable.courtId, parsed.data.courtId), eq(bookingsTable.date, dateStr2)));
+      const bookedQty: Record<string, number> = {};
+      for (const b of existingBookings) {
+        if (!b.rentedItems || b.status === "cancelled") continue;
+        const bStart = toMin(b.startTime);
+        const bEnd = toMin(b.endTime);
+        if (bEnd <= reqStart || bStart >= reqEnd) continue;
+        const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
+        for (const item of items) {
+          bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
+        }
+      }
+
+      const serverValidated: Array<{ name: string; pricePerSlot: number; quantity: number }> = [];
       for (const ci of clientItems) {
         const canonical = courtEquipment.find(e => e.name === ci.name);
         if (!canonical) continue;
+        const pricePerSlot = canonical.pricePerSlot ?? canonical.pricePerBooking ?? 0;
         const qty = Math.max(1, Math.min(Math.floor(ci.quantity ?? 1), 20));
-        serverValidated.push({ name: canonical.name, pricePerBooking: canonical.pricePerBooking, quantity: qty });
-        equipmentCost += canonical.pricePerBooking * qty;
+        const alreadyBooked = bookedQty[ci.name] ?? 0;
+        if (alreadyBooked + qty > canonical.stock) {
+          res.status(409).json({
+            error: `Įranga "${ci.name}" nebepasiekiama: likę ${Math.max(0, canonical.stock - alreadyBooked)} vnt.`,
+            code: "EQUIPMENT_UNAVAILABLE",
+            item: ci.name,
+            available: Math.max(0, canonical.stock - alreadyBooked),
+          });
+          return;
+        }
+        serverValidated.push({ name: canonical.name, pricePerSlot, quantity: qty });
+        equipmentCost += pricePerSlot * qty * slotCount;
       }
       if (serverValidated.length > 0) validatedRentedItems = JSON.stringify(serverValidated);
-    } catch {}
+    } catch (e) {
+      console.error("[bookings] equipment validation error:", e);
+    }
   }
   totalPrice += equipmentCost;
 

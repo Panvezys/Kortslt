@@ -44,7 +44,8 @@ const STANDARD_AMENITIES = [
 
 interface RentableItem {
   name: string;
-  pricePerBooking: number;
+  pricePerSlot: number;
+  stock: number;
 }
 
 const DAYS = ["Sekmadienis", "Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis"];
@@ -1517,6 +1518,7 @@ export default function OwnerDashboard() {
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemStock, setNewItemStock] = useState("");
   const [showInbox, setShowInbox] = useState(false);
   const [activeOwnerTab, setActiveOwnerTab] = useState<"courts" | "trainers" | "tournaments">("courts");
   const [formTab, setFormTab] = useState<"info" | "schedule" | "amenities" | "media" | "contact">("info");
@@ -1691,7 +1693,13 @@ export default function OwnerDashboard() {
       setWorkingHoursState(defaultWorkingHours());
     }
     try {
-      setRentableItems(court.rentableItems ? JSON.parse(court.rentableItems) : []);
+      const raw: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock?: number }> =
+        court.rentableItems ? JSON.parse(court.rentableItems) : [];
+      setRentableItems(raw.map(r => ({
+        name: r.name,
+        pricePerSlot: r.pricePerSlot ?? r.pricePerBooking ?? 0,
+        stock: r.stock ?? 1,
+      })));
     } catch {
       setRentableItems([]);
     }
@@ -2284,7 +2292,9 @@ export default function OwnerDashboard() {
                         <div key={i} className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg px-3 py-2 text-sm">
                           <span className="font-medium">{item.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">{item.pricePerBooking}€ / rezerv.</span>
+                            <span className="text-muted-foreground">{item.pricePerSlot}€ / laikot.</span>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-muted-foreground">{item.stock} vnt.</span>
                             <button
                               type="button"
                               onClick={() => setRentableItems(prev => prev.filter((_, j) => j !== i))}
@@ -2304,12 +2314,21 @@ export default function OwnerDashboard() {
                         />
                         <Input
                           type="number"
-                          placeholder="€"
+                          placeholder="€/laikot."
                           value={newItemPrice}
                           onChange={e => setNewItemPrice(e.target.value)}
-                          className="w-20"
+                          className="w-24"
                           min={0}
                           step={0.5}
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Kiekis"
+                          value={newItemStock}
+                          onChange={e => setNewItemStock(e.target.value)}
+                          className="w-20"
+                          min={1}
+                          step={1}
                         />
                         <Button
                           type="button"
@@ -2317,19 +2336,21 @@ export default function OwnerDashboard() {
                           size="sm"
                           onClick={() => {
                             const price = parseFloat(newItemPrice);
-                            if (newItemName.trim() && !isNaN(price) && price >= 0) {
-                              setRentableItems(prev => [...prev, { name: newItemName.trim(), pricePerBooking: price }]);
+                            const stock = parseInt(newItemStock, 10);
+                            if (newItemName.trim() && !isNaN(price) && price >= 0 && !isNaN(stock) && stock >= 1) {
+                              setRentableItems(prev => [...prev, { name: newItemName.trim(), pricePerSlot: price, stock }]);
                               setNewItemName("");
                               setNewItemPrice("");
+                              setNewItemStock("");
                             }
                           }}
-                          disabled={!newItemName.trim() || !newItemPrice}
+                          disabled={!newItemName.trim() || !newItemPrice || !newItemStock}
                           className="shrink-0"
                         >
                           <Plus className="w-4 h-4" />
                         </Button>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">Pridėkite raketės, kamuolių ar kitos įrangos nuomą</p>
+                      <p className="text-[11px] text-muted-foreground">Pridėkite raketės, kamuolių ar kitos įrangos nuomą (kaina × laikotarpių skaičius)</p>
                     </div>
                   </div>
 
