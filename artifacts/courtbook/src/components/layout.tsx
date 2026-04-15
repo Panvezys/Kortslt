@@ -43,7 +43,7 @@ function LogoBrand() {
   return (
     <Link
       href="/"
-      className="flex items-center gap-2 font-bold text-xl tracking-tight"
+      className="flex items-center gap-2 font-bold text-xl tracking-tight shrink-0"
     >
       <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
         <defs>
@@ -342,6 +342,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <Link href="/sign-up">{t("nav.register")}</Link>
                   </Button>
                 </div>
+                <div className="md:hidden">
+                  <Button size="sm" className="h-8 text-xs px-3" asChild>
+                    <Link href="/sign-in">{t("nav.signIn")}</Link>
+                  </Button>
+                </div>
               </Show>
               <Show when="signed-in">
                 <NotificationBell />
@@ -350,53 +355,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
                 <MobileUserAvatar />
               </Show>
-
-              <button
-                className="md:hidden p-2 rounded-md hover:bg-accent"
-                onClick={() => setMobileMenuOpen((v) => !v)}
-                aria-label="Toggle menu"
-              >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
             </div>
           </div>
 
-          {mobileMenuOpen && (
-            <div className="md:hidden border-t bg-background px-4 py-4 flex flex-col gap-3 text-sm font-medium">
-              <Link
-                href="/courts"
-                className="transition-colors hover:text-primary flex items-center gap-1.5"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <TennisCourtIcon className="w-3.5 h-3.5" />
-                {t("nav.findCourts")}
-              </Link>
-              <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
-                <Dumbbell className="w-3.5 h-3.5" />
-                Treneriai
-              </Link>
-              <Link href="/tournaments" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
-                <Trophy className="w-3.5 h-3.5" />
-                Turnyrai
-              </Link>
-              <Show when="signed-out">
-                <Link
-                  href="/sign-in"
-                  className="transition-colors hover:text-primary"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t("nav.signIn")}
-                </Link>
-                <Link
-                  href="/sign-up"
-                  className="transition-colors hover:text-primary"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t("nav.register")}
-                </Link>
-              </Show>
-            </div>
-          )}
+          {/* Mobile always-visible nav row */}
+          <nav className="md:hidden border-t bg-background/95 flex items-center justify-around px-2 py-1.5 text-xs font-medium">
+            <Link href="/courts" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+              <TennisCourtIcon className="w-4 h-4" />
+              <span>{t("nav.findCourts")}</span>
+            </Link>
+            <Link href="/coaches" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+              <Dumbbell className="w-4 h-4" />
+              <span>Treneriai</span>
+            </Link>
+            <Link href="/tournaments" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+              <Trophy className="w-4 h-4" />
+              <span>Turnyrai</span>
+            </Link>
+          </nav>
         </header>
 
         <main className="flex-1 w-full">{children}</main>
