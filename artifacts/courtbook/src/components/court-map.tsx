@@ -155,7 +155,7 @@ interface CourtInfoWindowProps {
   theme: "light" | "dark";
 }
 
-/** Inject once — strips Google InfoWindow chrome globally */
+/** Inject once — strips ALL Google InfoWindow chrome globally */
 function useInfoWindowStyles() {
   useEffect(() => {
     const id = "gm-iw-overrides";
@@ -163,8 +163,27 @@ function useInfoWindowStyles() {
     const style = document.createElement("style");
     style.id = id;
     style.textContent = `
-      .gm-style-iw-c { padding: 0 !important; overflow: hidden !important; border-radius: 12px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.28) !important; }
-      .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; }
+      .gm-style-iw-c {
+        padding: 0 !important;
+        overflow: hidden !important;
+        border-radius: 12px !important;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.28) !important;
+        top: 0 !important;
+      }
+      .gm-style-iw-d {
+        overflow: hidden !important;
+        padding: 0 !important;
+        max-height: none !important;
+      }
+      .gm-style-iw-d > div {
+        overflow: hidden !important;
+      }
+      /* Header row that reserves space for the close button */
+      .gm-style-iw-ch {
+        display: none !important;
+        height: 0 !important;
+        padding: 0 !important;
+      }
       .gm-style-iw-t::after { display: none !important; }
       button.gm-ui-hover-effect { display: none !important; }
     `;
@@ -326,11 +345,20 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
               href={`/courts/${court.id}`}
               style={{
                 background: color, color: "black",
-                padding: "5px 12px", borderRadius: "8px",
+                padding: "5px 14px", borderRadius: "8px",
                 fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
+                transition: "filter 0.15s, transform 0.15s",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.12)";
+                (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1.04)";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)";
+                (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
               }}
             >
-              Rezervuoti
+              Rezervuoti →
             </a>
           </div>
         </div>
