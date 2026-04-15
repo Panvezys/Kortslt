@@ -21,13 +21,22 @@ import { NotificationBell } from "@/components/notification-bell";
 
 function TennisCourtIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 20 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="1" y="1" width="18" height="12" />
-      <line x1="10" y1="1" x2="10" y2="13" />
-      <line x1="5.5" y1="3" x2="5.5" y2="11" />
-      <line x1="14.5" y1="3" x2="14.5" y2="11" />
-      <line x1="5.5" y1="7" x2="14.5" y2="7" />
-    </svg>
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{
+        display: "inline-block",
+        backgroundColor: "currentColor",
+        maskImage: "url(/icons/court-icon.png)",
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskImage: "url(/icons/court-icon.png)",
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+      }}
+    />
   );
 }
 
