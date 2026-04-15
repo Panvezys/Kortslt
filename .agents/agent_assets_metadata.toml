@@ -114,6 +114,42 @@ uri = "file://attached_assets/courts/court_19_santaka.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "ts-81KmEn6lkxO3ZPLi0g"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_1.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "SjRsAuy7NdzfDARcBi4FP"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_2.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "EF3xfuatJX4DNFZXoyzyB"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_3.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "K6tV6MTisWhw7N2D1_d8J"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_4.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "nPeQyeN_2nzlFfZkQHaUy"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_5.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "zp466CTmnfZuXftyvg_3k"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_6.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "JDsh2ehVV4F624Q5PqerW"
 uri = "file://attached_assets/stock_images/padel_court_indoor_1.jpg"

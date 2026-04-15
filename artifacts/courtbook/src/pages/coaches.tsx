@@ -26,16 +26,12 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
 const HERO_IMAGES = [
-  "courts/court_2_bernardinu.png",
-  "courts/padel/padel_court_indoor_1.jpg",
-  "courts/court_17_zalgiris.png",
-  "courts/football/football_futsal_court_2.jpg",
-  "courts/badminton/badminton_court_indoor_1.jpg",
-  "courts/squash/squash_court_1.jpg",
-  "courts/court_4_verkiai.png",
-  "courts/padel/padel_court_indoor_3.jpg",
-  "courts/court_3_lsc_vingis.png",
-  "courts/court_1_seb_arena.png",
+  "coaches/coach_banner_1.png",
+  "coaches/coach_banner_2.png",
+  "coaches/coach_banner_3.png",
+  "coaches/coach_banner_4.png",
+  "coaches/coach_banner_5.png",
+  "coaches/coach_banner_6.png",
 ];
 
 const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
