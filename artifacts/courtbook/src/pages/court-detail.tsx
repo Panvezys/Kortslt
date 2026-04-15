@@ -32,6 +32,36 @@ const SPORT_LABELS: Record<string, string> = {
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
+const EQUIPMENT_ICONS: Record<string, string> = {
+  "Raketė": "🎾",
+  "Teniso raketė": "🎾",
+  "Kamuliukai": "⚪",
+  "Kamuoliukai": "⚪",
+  "Rankšluostis": "🧺",
+  "Rankšluosčiai": "🧺",
+  "Batai": "👟",
+  "Apranga": "👕",
+  "Vanduo": "💧",
+  "Gėrimas": "💧",
+  "Krepšys": "👜",
+  "Stovas": "📦",
+};
+
+function getEquipmentIcon(name: string) {
+  const key = Object.keys(EQUIPMENT_ICONS).find((item) => name.toLowerCase().includes(item.toLowerCase()));
+  return key ? EQUIPMENT_ICONS[key] : "•";
+}
+
+function formatPriceLabel(price: number, unit?: string) {
+  if (unit === "hour") return `${price}€ / 1hr`;
+  return `${price}€ / 30 min`;
+}
+
+function formatCourtPrice(price: number, peakPrice?: number) {
+  if (peakPrice != null && price === peakPrice) return `${price}€ / 1hr`;
+  return `${price}€ / 30 min`;
+}
+
 
 function StarDisplay({ rating, size = "md" }: { rating?: number | null; size?: "sm" | "md" | "lg" }) {
   const sizes = { sm: "h-3 w-3", md: "h-4 w-4", lg: "h-5 w-5" };
@@ -729,9 +759,12 @@ export default function CourtDetail() {
                         const stock = item.stock ?? 1;
                         return (
                           <div key={i} className="flex flex-col gap-1.5 p-3 rounded-xl border bg-muted/30">
-                            <span className="font-medium text-sm">{item.name}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-lg leading-none">{getEquipmentIcon(item.name)}</span>
+                              <span className="font-medium text-sm truncate">{item.name}</span>
+                            </div>
                             <div className="flex items-center justify-between">
-                              <Badge variant="secondary">{price}€/laikot.</Badge>
+                              <Badge variant="secondary">{formatPriceLabel(price)}</Badge>
                               <span className="text-xs text-muted-foreground">{stock} vnt.</span>
                             </div>
                           </div>
@@ -750,8 +783,8 @@ export default function CourtDetail() {
                 <div>
                   <p className="font-semibold text-sm">Dinamiška kainodara</p>
                   <p className="text-sm text-muted-foreground">
-                    Off-peak: <strong className="text-foreground">{court.pricePerHour}€/val</strong>&nbsp;·&nbsp;
-                    Peak (Pir–Pen 17–22): <strong className="text-yellow-400">{court.peakPricePerHour}€/val</strong>
+                    Off-peak: <strong className="text-foreground">{formatCourtPrice(court.pricePerHour)}</strong>&nbsp;·&nbsp;
+                    Peak (Pir–Pen 17–22): <strong className="text-yellow-400">{formatCourtPrice(court.peakPricePerHour)}</strong>
                   </p>
                 </div>
               </div>
@@ -1122,7 +1155,7 @@ export default function CourtDetail() {
                               </div>
                             )}
                             <div className="text-right">
-                              <div className="text-xs text-muted-foreground whitespace-nowrap">{item.pricePerSlot.toFixed(2)}€/laikot.</div>
+                              <div className="text-xs text-muted-foreground whitespace-nowrap">{formatPriceLabel(item.pricePerSlot)}</div>
                               {isSelected && slotCount > 1 && <div className="text-[10px] text-primary font-medium">{itemTotal.toFixed(2)}€ iš viso</div>}
                             </div>
                           </div>
