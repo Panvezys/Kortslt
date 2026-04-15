@@ -5,7 +5,7 @@ import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspa
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
 import { CourtCard } from "@/components/court-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,7 +32,7 @@ const HERO_IMAGES = [
   "courts/court_3_lsc_vingis.png",
 ];
 
-type PopularCourt = { id: number; name: string; type: string; city: string; imageUrl?: string | null; rating?: number | null; pricePerHour?: number | string | null };
+type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
 
 function StarRatingSmall({ rating }: { rating?: number | null }) {
   const t = useT();
@@ -64,71 +64,71 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
   const color = sportColor[court.type] ?? "#84cc16";
 
   return (
-    <Link href={`/courts/${court.id}`}>
-      <Card
-        className="h-full flex flex-col transition-colors duration-200 group cursor-pointer overflow-hidden"
-        style={{ borderColor: hovered ? color : undefined }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* Image area */}
-        <div className="w-full h-48 overflow-hidden bg-muted relative shrink-0">
-          {imgSrc ? (
-            <img
-              src={imgSrc}
-              alt={court.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
-              }}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <SportIcon sport={court.type} size={40} style={{ color }} />
+    <Card
+      className="h-full flex flex-col transition-colors duration-200 group overflow-hidden"
+      style={{ borderColor: hovered ? color : undefined }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {imgSrc ? (
+        <div className="w-full h-48 overflow-hidden bg-muted relative">
+          <img
+            src={imgSrc}
+            alt={court.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
+            }}
+          />
+          {court.isIndoor !== undefined && court.isIndoor !== null && (
+            <div className="absolute top-2 right-2 flex gap-1 items-center">
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
+                {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
+              </span>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
         </div>
+      ) : (
+        <div className="w-full h-48 bg-muted flex items-center justify-center">
+          <SportIcon sport={court.type} size={40} style={{ color }} />
+        </div>
+      )}
 
-        {/* Header — badge + stars + price */}
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-start mb-2 gap-2">
-            <div className="flex gap-1.5 flex-wrap items-center">
-              <span
-                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
-                style={{ background: color }}
-              >
-                <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
-                {sportLabel}
-              </span>
-              <StarRatingSmall rating={court.rating} />
-            </div>
-            {court.pricePerHour && (
-              <span
-                className="font-bold text-lg shrink-0 transition-colors duration-200"
-                style={{ color: hovered ? color : undefined }}
-              >
-                {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
-              </span>
-            )}
-          </div>
-          <CardTitle
-            className="transition-colors duration-200 line-clamp-1 text-base"
-            style={{ color: hovered ? color : undefined }}
-          >
-            {court.name}
-          </CardTitle>
-          <div className="mt-1">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start mb-2 gap-2">
+          <div className="flex gap-1.5 flex-wrap items-center">
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
+              style={{ background: color }}
+            >
+              <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
+              {sportLabel}
+            </span>
             <StarRatingSmall rating={court.rating} />
           </div>
-          <div className="flex items-center text-xs text-muted-foreground mt-0.5">
-            <MapPin className="h-3 w-3 mr-1 shrink-0" />
-            <span className="truncate">{court.city}</span>
-          </div>
-        </CardHeader>
+          {court.pricePerHour && (
+            <span
+              className="font-bold text-lg shrink-0 transition-colors duration-200"
+              style={{ color: hovered ? color : undefined }}
+            >
+              {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
+            </span>
+          )}
+        </div>
+        <CardTitle
+          className="transition-colors duration-200 line-clamp-1 text-base"
+          style={{ color: hovered ? color : undefined }}
+        >
+          {court.name}
+        </CardTitle>
+        <CardDescription className="flex items-center text-xs">
+          <MapPin className="h-3 w-3 mr-1 shrink-0" />
+          <span className="truncate">{court.city}{court.address ? ` — ${court.address}` : ""}</span>
+        </CardDescription>
+      </CardHeader>
 
-        {/* Footer button */}
-        <CardContent className="pt-0 mt-auto">
+      <CardFooter className="pt-0 mt-auto">
+        <Link href={`/courts/${court.id}`} className="w-full">
           <Button
             variant="default"
             className="w-full transition-colors duration-200"
@@ -136,9 +136,9 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
           >
             {t("card.viewBook")}
           </Button>
-        </CardContent>
-      </Card>
-    </Link>
+        </Link>
+      </CardFooter>
+    </Card>
   );
 }
 
