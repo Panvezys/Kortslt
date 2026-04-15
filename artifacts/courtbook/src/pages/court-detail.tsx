@@ -628,7 +628,11 @@ export default function CourtDetail() {
                     size="icon"
                     onClick={handleToggleFavorite}
                     aria-label={localFavorited ? "Remove from favorites" : "Add to favorites"}
-                    className={localFavorited ? "border-red-400/60 bg-red-500/10 hover:bg-red-500/20" : ""}
+                    className={`transition-all duration-150 hover:scale-110 hover:shadow-md active:scale-95 ${
+                      localFavorited
+                        ? "border-red-400/60 bg-red-500/10 hover:bg-red-500/20 hover:border-red-400"
+                        : "hover:border-red-300 hover:bg-red-500/5 hover:text-red-500"
+                    }`}
                   >
                     <Heart
                       className={`h-4 w-4 transition-all duration-200 ${
@@ -636,10 +640,22 @@ export default function CourtDetail() {
                       } ${heartPop ? "scale-125" : "scale-100"}`}
                     />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={handleShare} aria-label="Share court">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleShare}
+                    aria-label="Share court"
+                    className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-blue-400/60 hover:bg-blue-500/5 hover:text-blue-500 active:scale-95"
+                  >
                     <Share2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={openChat} aria-label="Message court">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={openChat}
+                    aria-label="Message court"
+                    className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-primary/60 hover:bg-primary/5 hover:text-primary active:scale-95"
+                  >
                     <MessageSquare className="h-4 w-4" />
                   </Button>
                 </div>
