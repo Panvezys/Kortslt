@@ -64,6 +64,7 @@ const translations = {
     // Court card
     "card.indoor": "Vidaus",
     "card.outdoor": "Lauko",
+    "card.from": "nuo",
     "card.perHour": "/val",
     "card.maxPlayers": "iki {n} žaidėjų",
     "card.viewBook": "Peržiūrėti ir rezervuoti",
@@ -260,6 +261,7 @@ const translations = {
     // Court card
     "card.indoor": "Indoor",
     "card.outdoor": "Outdoor",
+    "card.from": "from",
     "card.perHour": "/hr",
     "card.maxPlayers": "up to {n} players",
     "card.viewBook": "View & Book",
@@ -456,6 +458,7 @@ const translations = {
     // Court card
     "card.indoor": "В помещении",
     "card.outdoor": "На улице",
+    "card.from": "от",
     "card.perHour": "/ч",
     "card.maxPlayers": "до {n} игроков",
     "card.viewBook": "Посмотреть и забронировать",

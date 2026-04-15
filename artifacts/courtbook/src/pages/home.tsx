@@ -171,7 +171,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
               className="font-bold text-lg shrink-0 transition-colors duration-200"
               style={{ color: hovered ? color : undefined }}
             >
-              {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
+              <span className="text-xs font-normal text-muted-foreground mr-0.5">{t("card.from")}</span>{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
             </span>
           )}
         </div>
