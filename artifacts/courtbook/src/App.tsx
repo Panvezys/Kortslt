@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ClerkProvider, Show, useClerk, useAuth } from "@clerk/react";
-import { ltLT, enUS, ruRU } from "@clerk/localizations";
+import { enUS, ruRU } from "@clerk/localizations";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -159,7 +159,7 @@ function Router() {
   );
 }
 
-const clerkLocales = { lt: ltLT, en: enUS, ru: ruRU } as const;
+const clerkLocales = { lt: enUS, en: enUS, ru: ruRU } as const;
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
