@@ -1009,10 +1009,10 @@ export default function Home() {
               </ul>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/owner" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
+                <Link href="/list-your-court" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
                   Registruoti kortą <ArrowRight className="h-4 w-4" />
                 </Link>
-                <a href="mailto:hello@korts.lt" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors">
+                <a href="mailto:info@korts.lt" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors">
                   <Mail className="h-4 w-4" /> Susisiekti su mumis
                 </a>
               </div>
