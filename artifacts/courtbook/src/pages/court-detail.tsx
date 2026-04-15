@@ -210,6 +210,18 @@ export default function CourtDetail() {
     return urls;
   }, [court?.imageUrl, extraPhotos]);
   const favorited = court ? isFavorite(court.id) : false;
+  const [localFavorited, setLocalFavorited] = useState(false);
+  const [heartPop, setHeartPop] = useState(false);
+  useEffect(() => { setLocalFavorited(favorited); }, [favorited]);
+
+  const handleToggleFavorite = async () => {
+    if (!isSignedIn) return openSignIn();
+    const next = !localFavorited;
+    setLocalFavorited(next);
+    setHeartPop(true);
+    setTimeout(() => setHeartPop(false), 300);
+    await toggleFavorite(court!.id);
+  };
 
   const handleShare = async () => {
     if (!court) return;
@@ -614,13 +626,15 @@ export default function CourtDetail() {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={async () => {
-                      if (!isSignedIn) return openSignIn();
-                      await toggleFavorite(court.id);
-                    }}
-                    aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
+                    onClick={handleToggleFavorite}
+                    aria-label={localFavorited ? "Remove from favorites" : "Add to favorites"}
+                    className={localFavorited ? "border-red-400/60 bg-red-500/10 hover:bg-red-500/20" : ""}
                   >
-                    <Heart className={`h-4 w-4 ${favorited ? "fill-red-500 text-red-500" : ""}`} />
+                    <Heart
+                      className={`h-4 w-4 transition-all duration-200 ${
+                        localFavorited ? "fill-red-500 text-red-500" : ""
+                      } ${heartPop ? "scale-125" : "scale-100"}`}
+                    />
                   </Button>
                   <Button variant="outline" size="icon" onClick={handleShare} aria-label="Share court">
                     <Share2 className="h-4 w-4" />
