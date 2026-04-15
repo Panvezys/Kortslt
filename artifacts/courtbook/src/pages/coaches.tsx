@@ -228,7 +228,7 @@ export default function CoachesPage() {
     initialSport ? new Set([initialSport]) : new Set(ALL_SPORTS)
   );
   const [maxPrice, setMaxPrice] = useState(200);
-  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc" | "rating_desc">("default");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [cityExpanded, setCityExpanded] = useState(false);
   const [page, setPage] = useState(1);
@@ -266,6 +266,7 @@ export default function CoachesPage() {
   });
 
   const sortedCoaches = [...filteredCoaches].sort((a, b) => {
+    if (sortBy === "rating_desc") return ((b as any).rating ?? 0) - ((a as any).rating ?? 0);
     if (sortBy === "price_asc") return (a.pricePerHour ?? 999) - (b.pricePerHour ?? 999);
     if (sortBy === "price_desc") return (b.pricePerHour ?? 0) - (a.pricePerHour ?? 0);
     return 0;
@@ -722,11 +723,12 @@ export default function CoachesPage() {
               </h2>
               <div className="flex items-center gap-2 ml-auto">
                 <Select value={sortBy} onValueChange={(v: typeof sortBy) => setSortBy(v)}>
-                  <SelectTrigger className="h-8 text-xs w-44 gap-1">
+                  <SelectTrigger className="h-8 text-xs w-48 gap-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">Numatyta</SelectItem>
+                    <SelectItem value="rating_desc">Įvertinimas: aukščiausias</SelectItem>
                     <SelectItem value="price_asc">Kaina: mažiausia</SelectItem>
                     <SelectItem value="price_desc">Kaina: didžiausia</SelectItem>
                   </SelectContent>

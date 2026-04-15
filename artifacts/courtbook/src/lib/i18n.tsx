@@ -59,6 +59,8 @@ const translations = {
     "courts.filters.sortDefault": "Pagal numatytąjį",
     "courts.filters.sortPriceAsc": "Kaina: nuo mažiausios",
     "courts.filters.sortPriceDesc": "Kaina: nuo didžiausios",
+    "courts.filters.sortRating": "Įvertinimas: aukščiausias",
+    "courts.filters.sortFavorites": "Mėgstamiausi pirma",
     // Court card
     "card.indoor": "Vidaus",
     "card.outdoor": "Lauko",
@@ -253,6 +255,8 @@ const translations = {
     "courts.filters.sortDefault": "Default",
     "courts.filters.sortPriceAsc": "Price: Low to High",
     "courts.filters.sortPriceDesc": "Price: High to Low",
+    "courts.filters.sortRating": "Rating: Highest First",
+    "courts.filters.sortFavorites": "Favorites First",
     // Court card
     "card.indoor": "Indoor",
     "card.outdoor": "Outdoor",
@@ -447,6 +451,8 @@ const translations = {
     "courts.filters.sortDefault": "По умолчанию",
     "courts.filters.sortPriceAsc": "Цена: от низкой",
     "courts.filters.sortPriceDesc": "Цена: от высокой",
+    "courts.filters.sortRating": "Рейтинг: наивысший",
+    "courts.filters.sortFavorites": "Избранные сначала",
     // Court card
     "card.indoor": "В помещении",
     "card.outdoor": "На улице",

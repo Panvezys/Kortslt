@@ -16,6 +16,7 @@ import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight } fr
 import { ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
 
 type ViewMode = "list" | "map";
 
@@ -56,7 +57,8 @@ export default function Courts() {
   const [surface, setSurface] = useState<string>("all");
   const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
   const [maxPrice, setMaxPrice] = useState<number>(100);
-  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first">("default");
+  const { favoriteIds } = useFavoritesContext();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [bgIdx, setBgIdx] = useState(0);
@@ -129,6 +131,12 @@ export default function Courts() {
   const sortedCourts = filteredCourts ? [...filteredCourts]
     .filter(c => activeSports.has(c.type))
     .sort((a, b) => {
+      if (sortBy === "favorites_first") {
+        const aFav = favoriteIds.has(a.id) ? 0 : 1;
+        const bFav = favoriteIds.has(b.id) ? 0 : 1;
+        return aFav - bFav;
+      }
+      if (sortBy === "rating_desc") return (b.rating ?? 0) - (a.rating ?? 0);
       if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
       if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
       return 0;
@@ -451,12 +459,14 @@ export default function Courts() {
                   : t("courts.found", { n: totalCourts })}
               </h2>
               <div className="flex items-center gap-2 ml-auto">
-                <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc") => setSortBy(v)}>
-                  <SelectTrigger className="h-8 text-xs w-44 gap-1">
+                <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first") => setSortBy(v)}>
+                  <SelectTrigger className="h-8 text-xs w-48 gap-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+                    <SelectItem value="rating_desc">{t("courts.filters.sortRating")}</SelectItem>
+                    <SelectItem value="favorites_first">{t("courts.filters.sortFavorites")}</SelectItem>
                     <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
                     <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
                   </SelectContent>
