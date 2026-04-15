@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useT } from "@/lib/i18n";
 import { SportIcon } from "@/components/sport-icon";
 import {
@@ -328,7 +328,11 @@ export default function Profile() {
   const { user } = useUser();
   const { openUserProfile } = useClerk();
   const t = useT();
-  const [activeTab, setActiveTab] = useState<Tab>("bookings");
+  const search = useSearch();
+  const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "bookings";
+  const [activeTab, setActiveTab] = useState<Tab>(
+    ["bookings", "favorites", "courts", "messages"].includes(initialTab) ? initialTab : "bookings"
+  );
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
