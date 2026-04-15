@@ -75,14 +75,16 @@ function LogoBrand() {
       </svg>
       <span>
         k
-        {hovered ? (
+        <span style={{ position: "relative", display: "inline-block", width: "0.82em", height: "0.82em", verticalAlign: "middle" }}>
+          <span style={{ position: "absolute", inset: 0, opacity: hovered ? 0 : 1, transition: "opacity 0.12s ease" }}>o</span>
           <span
             aria-hidden="true"
             style={{
+              position: "absolute",
+              inset: 0,
               display: "inline-block",
-              width: "0.82em",
-              height: "0.82em",
-              verticalAlign: "middle",
+              width: "100%",
+              height: "100%",
               backgroundColor: "currentColor",
               maskImage: "url(/icons/tennis-ball.png)",
               maskSize: "contain",
@@ -92,9 +94,11 @@ function LogoBrand() {
               WebkitMaskSize: "contain",
               WebkitMaskRepeat: "no-repeat",
               WebkitMaskPosition: "center",
+              opacity: hovered ? 1 : 0,
+              transition: "opacity 0.12s ease",
             }}
           />
-        ) : "o"}
+        </span>
         rts.lt
       </span>
     </Link>
