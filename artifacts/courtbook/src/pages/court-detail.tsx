@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2 } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1133,25 +1133,38 @@ export default function CourtDetail() {
               {/* Equipment rental — shown when slots are selected and court has equipment */}
               {selectedSlotRange && availableEquipment.length > 0 && (
                 <div className="rounded-xl border overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setEquipmentOpen(o => !o)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors"
-                  >
-                    <span className="text-sm font-semibold flex items-center gap-2">
-                      <ShoppingBag className="w-4 h-4 text-primary" />
-                      Pridėti įrangą
-                      {equipmentTotal > 0 && (
-                        <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                          +{equipmentTotal.toFixed(2)} €
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex items-center gap-2">
-                      {equipAvailLoading && <span className="text-xs text-muted-foreground animate-pulse">Tikrinama...</span>}
-                      <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${equipmentOpen ? "rotate-180" : ""}`} />
-                    </span>
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setEquipmentOpen(o => !o)}
+                      className="flex-1 flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors text-left"
+                    >
+                      <span className="text-sm font-semibold flex items-center gap-2">
+                        <ShoppingBag className="w-4 h-4 text-primary" />
+                        Pridėti įrangą
+                        {equipmentTotal > 0 && (
+                          <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">
+                            +{equipmentTotal.toFixed(2)} €
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {equipAvailLoading && <span className="text-xs text-muted-foreground animate-pulse">Tikrinama...</span>}
+                        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${equipmentOpen ? "rotate-180" : ""}`} />
+                      </span>
+                    </button>
+                    {equipmentTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEquipment(new Map())}
+                        className="shrink-0 px-3 py-2.5 text-destructive hover:bg-destructive/10 transition-colors border-l"
+                        aria-label="Pašalinti visą įrangą"
+                        title="Pašalinti visą įrangą"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                   {equipmentOpen && (
                   <div className="px-3 pb-3 space-y-1.5 border-t pt-2.5">
                     {availableEquipment.map(item => {
