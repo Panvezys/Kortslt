@@ -976,6 +976,7 @@ export default function CourtDetail() {
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
                     fixedWeeks
+                    showOutsideDays={false}
                     className="rounded-md [--cell-size:2rem] w-full"
                     classNames={{ root: "w-full" }}
                   />
