@@ -603,7 +603,7 @@ export default function CourtDetail() {
           {/* Main Info */}
           <div className="md:col-span-2 space-y-8">
             <div>
-              <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-end justify-between gap-4 mb-4">
                 <div className="min-w-0">
                   <div className="flex gap-2 items-center mb-4">
                     <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
@@ -611,7 +611,7 @@ export default function CourtDetail() {
                   </div>
                   <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{court.name}</h1>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 pb-4">
                   <Button
                     variant="outline"
                     size="icon"
