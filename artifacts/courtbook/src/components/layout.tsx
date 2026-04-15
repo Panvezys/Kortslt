@@ -14,7 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell } from "lucide-react";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
 import { NotificationBell } from "@/components/notification-bell";
@@ -40,55 +40,15 @@ function TennisCourtIcon({ className }: { className?: string }) {
   );
 }
 
-const BALLS = ['tennis', 'basketball', 'football'] as const;
-type Ball = typeof BALLS[number];
-
-function SportBall({ type }: { type: Ball }) {
-  if (type === 'tennis') return (
-    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
-      <circle cx="7" cy="7" r="5.8" />
-      <path d="M1.2 7C3 2 7 2 7 7C7 12 11 12 12.8 7" />
-      <path d="M1.2 7C3 12 7 12 7 7C7 2 11 2 12.8 7" />
-    </svg>
-  );
-  if (type === 'basketball') return (
-    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
-      <circle cx="7" cy="7" r="5.8" />
-      <line x1="7" y1="1.2" x2="7" y2="12.8" />
-      <path d="M2 4.5Q7 8 12 4.5" />
-      <path d="M2 9.5Q7 6 12 9.5" />
-    </svg>
-  );
-  return (
-    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
-      <circle cx="7" cy="7" r="5.8" />
-      <path d="M7 4.5L9 6L8.5 8.5L5.5 8.5L5 6Z" />
-      <line x1="7" y1="1.2" x2="7" y2="4.5" />
-      <line x1="12.5" y1="5" x2="9" y2="6" />
-      <line x1="12.5" y1="9" x2="9" y2="8.5" />
-      <line x1="1.5" y1="5" x2="5" y2="6" />
-      <line x1="1.5" y1="9" x2="5" y2="8.5" />
-      <line x1="7" y1="12.8" x2="7" y2="8.5" />
-    </svg>
-  );
-}
-
 function LogoBrand() {
   const [hovered, setHovered] = useState(false);
-  const [ballIdx, setBallIdx] = useState(0);
-
-  useEffect(() => {
-    if (!hovered) return;
-    const id = setInterval(() => setBallIdx(i => (i + 1) % BALLS.length), 550);
-    return () => clearInterval(id);
-  }, [hovered]);
 
   return (
     <Link
       href="/"
       className="flex items-center gap-2 font-bold text-xl tracking-tight"
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setBallIdx(0); }}
+      onMouseLeave={() => setHovered(false)}
     >
       <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
         <defs>
@@ -116,9 +76,26 @@ function LogoBrand() {
       </svg>
       <span>
         k
-        <span className="inline-flex items-center" style={{ transition: "opacity 0.15s" }}>
-          {hovered ? <SportBall type={BALLS[ballIdx]} /> : "o"}
-        </span>
+        {hovered ? (
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: "0.82em",
+              height: "0.82em",
+              verticalAlign: "middle",
+              backgroundColor: "currentColor",
+              maskImage: "url(/icons/tennis-ball.png)",
+              maskSize: "contain",
+              maskRepeat: "no-repeat",
+              maskPosition: "center",
+              WebkitMaskImage: "url(/icons/tennis-ball.png)",
+              WebkitMaskSize: "contain",
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+            }}
+          />
+        ) : "o"}
         rts.lt
       </span>
     </Link>
