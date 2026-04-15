@@ -1341,6 +1341,45 @@ export default function CourtDetail() {
                 </Button>
               )}
 
+              {/* Past bookings for this court */}
+              {user && (
+                <>
+                  <Separator />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        Jūsų rezervacijos
+                      </p>
+                      <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setLocation("/bookings")}>
+                        Visos
+                      </Button>
+                    </div>
+                    {courtBookings.length === 0 ? (
+                      <div className="rounded-xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                        Šioje kortoje rezervacijų nėra.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {courtBookings.slice(0, 3).map((booking) => (
+                          <div key={booking.id} className="rounded-xl border bg-muted/15 px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}</p>
+                                <p className="text-xs text-muted-foreground">{booking.startTime} – {booking.endTime}</p>
+                              </div>
+                              <Badge variant={booking.status === "confirmed" ? "default" : "secondary"} className="shrink-0">
+                                {booking.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
               </div>
             </div>
           </div>
