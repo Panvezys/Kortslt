@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check, X, Camera } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check, X, Camera, Copy } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -212,6 +212,7 @@ export default function CourtDetail() {
   const [guestLastName, setGuestLastName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [copiedContact, setCopiedContact] = useState<"address" | "phone" | null>(null);
 
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
   interface EquipAvailItem { name: string; pricePerSlot: number; stock: number; available: number; }
@@ -265,6 +266,19 @@ export default function CourtDetail() {
         await navigator.clipboard.writeText(url);
         toast({ title: "Nuoroda nukopijuota" });
       }
+    }
+  };
+
+  const handleCopyContact = async (kind: "address" | "phone", value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedContact(kind);
+      window.setTimeout(() => {
+        setCopiedContact((current) => (current === kind ? null : current));
+      }, 1200);
+      toast({ title: "Nukopijuota" });
+    } catch {
+      toast({ title: "Nepavyko nukopijuoti", variant: "destructive" });
     }
   };
 
@@ -823,18 +837,29 @@ export default function CourtDetail() {
                 {/* Address card */}
                 <div className="flex gap-3 p-4 bg-muted/30 rounded-xl border">
                   <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Adresas</p>
                     <p className="font-semibold text-sm">{court.address}</p>
                     <p className="text-sm text-muted-foreground">{court.city}, Lietuva</p>
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                    >
-                      Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyContact("address", `${court.address}, ${court.city}, Lietuva`)}
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                        aria-label="Kopijuoti adresą"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {copiedContact === "address" ? "Nukopijuota" : "Kopijuoti"}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -842,14 +867,25 @@ export default function CourtDetail() {
                 {court.phone && (
                   <div className="flex gap-3 p-4 bg-muted/30 rounded-xl border">
                     <Phone className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground font-medium mb-0.5">Telefonas</p>
-                      <a
-                        href={`tel:${court.phone}`}
-                        className="font-semibold text-sm hover:text-primary transition-colors"
-                      >
-                        {court.phone}
-                      </a>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={`tel:${court.phone}`}
+                          className="font-semibold text-sm hover:text-primary transition-colors"
+                        >
+                          {court.phone}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyContact("phone", court.phone)}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                          aria-label="Kopijuoti telefoną"
+                        >
+                          <Copy className="w-3 h-3" />
+                          {copiedContact === "phone" ? "Nukopijuota" : "Kopijuoti"}
+                        </button>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">Spustelėkite, kad paskambintumėte</p>
                     </div>
                   </div>
