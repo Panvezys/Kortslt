@@ -32,6 +32,10 @@ const SPORT_LABELS: Record<string, string> = {
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
+function vibrateTap() {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+}
+
 const EQUIPMENT_ICONS: Record<string, string> = {
   "Raketė": "🎾",
   "Teniso raketė": "🎾",
@@ -1038,7 +1042,13 @@ export default function CourtDetail() {
                     mode="single"
                     selected={date}
                     onSelect={(d) => {
-                      if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }
+                      if (d) {
+                        vibrateTap();
+                        setDate(d);
+                        setSelectedStart(null);
+                        setSelectedEnd(null);
+                        setSelectedEquipment(new Map());
+                      }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
                     className="rounded-md [--cell-size:2.05rem] sm:[--cell-size:2.25rem] w-full max-w-full"
@@ -1097,7 +1107,10 @@ export default function CourtDetail() {
                           key={idx}
                           type="button"
                           disabled={!slot.isAvailable}
-                          onClick={() => handleSlotClick(idx)}
+                          onClick={() => {
+                            vibrateTap();
+                            handleSlotClick(idx);
+                          }}
                           className={`relative rounded-lg border px-1 py-2.5 text-xs font-medium transition-all focus:outline-none ${
                             !slot.isAvailable
                             ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
