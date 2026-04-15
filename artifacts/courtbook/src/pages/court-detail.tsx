@@ -952,8 +952,8 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative">
-            <div className="md:sticky md:top-24 bg-card border rounded-2xl shadow-xl md:overflow-hidden md:max-h-[calc(100vh-7rem)]">
-              <div className="md:overflow-y-auto md:h-full p-6 space-y-5 md:max-h-[calc(100vh-7rem)]">
+            <div className="md:sticky md:top-24 bg-card border rounded-2xl shadow-xl md:overflow-hidden md:max-h-[calc(100vh-7rem)] md:flex md:flex-col">
+              <div className="p-6 space-y-5 md:overflow-y-auto md:flex-1 md:min-h-0">
 
               {/* Step 1: Date */}
               <div>
@@ -1322,6 +1322,35 @@ export default function CourtDetail() {
               )}
 
               </div>
+
+              {/* Desktop sticky reserve footer */}
+              {selectedSlotRange && (
+                <div className="hidden md:flex items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
+                  <button
+                    onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
+                    className="w-9 h-9 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors shrink-0"
+                    title="Išvalyti pasirinkimą"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
+                    <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
+                  </div>
+                  {!clerkLoaded ? (
+                    <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
+                  ) : isSignedIn ? (
+                    <Button onClick={() => handleReserve()} className="h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
+                      {isPending ? "..." : "Rezervuoti"}
+                    </Button>
+                  ) : (
+                    <Button onClick={() => openSignIn()} className="h-10 px-4 font-semibold gap-1.5 shrink-0">
+                      <LogIn className="w-4 h-4" />
+                      Prisijungti
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
