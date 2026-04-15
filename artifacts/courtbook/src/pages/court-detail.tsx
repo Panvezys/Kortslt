@@ -825,16 +825,18 @@ export default function CourtDetail() {
                   href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex gap-3 p-4 bg-muted/30 rounded-xl border hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                  className="block p-4 bg-muted/30 rounded-xl border hover:border-primary/40 hover:bg-primary/5 transition-colors group"
                 >
-                  <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                  <div>
+                  <div className="flex gap-3">
+                    <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                    <div className="min-w-0">
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Adresas</p>
-                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{court.address}</p>
-                    <p className="text-sm text-muted-foreground">{court.city}, Lietuva</p>
-                    <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
-                      Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
-                    </span>
+                      <p className="font-semibold text-sm text-primary underline underline-offset-2 decoration-transparent group-hover:decoration-current transition-colors">{court.address}</p>
+                      <p className="text-sm text-muted-foreground">{court.city}, Lietuva</p>
+                      <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
+                        Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
+                      </span>
+                    </div>
                   </div>
                 </a>
 
