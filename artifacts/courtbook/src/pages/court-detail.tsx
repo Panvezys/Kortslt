@@ -1039,6 +1039,7 @@ export default function CourtDetail() {
                 ) : slots.length > 0 ? (
                   <div className="grid grid-cols-3 gap-1.5 max-h-72 overflow-y-auto pr-1">
                     {slots.map((slot, idx) => {
+                      const isPastSlot = slot.startTime < new Date().toTimeString().slice(0, 5);
                       const rangeStart = selectedSlotRange?.rangeStart ?? null;
                       const rangeEnd = selectedSlotRange?.rangeEnd ?? null;
                       const isSelected = rangeStart !== null && rangeEnd !== null
@@ -1052,16 +1053,18 @@ export default function CourtDetail() {
                         <button
                           key={idx}
                           type="button"
-                          disabled={!slot.isAvailable}
+                          disabled={!slot.isAvailable || isPastSlot}
                           onClick={() => handleSlotClick(idx)}
                           className={`relative rounded-lg border px-1 py-2.5 text-xs font-medium transition-all focus:outline-none ${
-                            !slot.isAvailable
+                            isPastSlot
+                              ? "bg-background text-foreground border-border cursor-default"
+                              : !slot.isAvailable
                               ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
                               : isSelected
                                 ? "bg-primary text-primary-foreground border-primary shadow-md scale-[0.97]"
                                 : isPeak
-                                  ? "bg-yellow-400/10 text-foreground border-yellow-400/40 hover:border-yellow-400 cursor-pointer"
-                                  : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 cursor-pointer"
+                                  ? "bg-yellow-400/10 text-foreground border-yellow-400/40 hover:border-yellow-400 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+                                  : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/5 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
                           }`}
                         >
                           <div className="text-center leading-tight">
