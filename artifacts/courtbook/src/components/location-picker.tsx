@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
 import { MapPin, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "@/components/theme-provider";
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string;
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
@@ -59,7 +60,26 @@ function extractFromPlaceComponents(
   return { address, city, postcode };
 }
 
+const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2d2d44" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3b3b5e" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1117" }] },
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1f2937" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a2e1a" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#2d2d44" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
+];
+
+const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+];
+
 export function LocationPicker({ latitude, longitude, onChange }: LocationPickerProps) {
+  const { theme } = useTheme();
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
     libraries: LIBRARIES,
@@ -173,9 +193,7 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
               fullscreenControl: false,
               clickableIcons: false,
               cursor: "crosshair",
-              styles: [
-                { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-              ],
+              styles: theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT,
             }}
           >
             {markerPos && (

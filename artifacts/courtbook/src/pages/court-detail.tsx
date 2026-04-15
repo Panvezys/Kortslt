@@ -21,6 +21,7 @@ import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
+import { useTheme } from "@/components/theme-provider";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -164,6 +165,7 @@ export default function CourtDetail() {
 
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
+  const { theme } = useTheme();
   const { data: reviews } = useListCourtReviews(courtId, {
     query: { enabled: !!courtId && !isNaN(courtId) }
   });
@@ -716,7 +718,8 @@ export default function CourtDetail() {
                 <iframe
                   title="Korto vieta"
                   src={`https://maps.google.com/maps?q=${encodeURIComponent(`${court.address}, ${court.city}, Lietuva`)}&hl=lt&z=16&output=embed`}
-                  className="w-full h-full"
+                  className="w-full h-full transition-[filter] duration-300"
+                  style={theme === "dark" ? { filter: "invert(90%) hue-rotate(180deg) saturate(0.85) brightness(0.9)" } : undefined}
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />

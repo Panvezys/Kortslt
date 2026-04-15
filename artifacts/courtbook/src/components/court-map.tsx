@@ -5,6 +5,7 @@ import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { MapPin } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
+import { useTheme } from "./theme-provider";
 // sportAbbr kept for InfoWindow display
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
@@ -63,6 +64,13 @@ const sportIconPaths: Record<string, string> = {
     <line x1="10" y1="22" x2="14" y2="22"/>`,
 };
 
+
+const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#d1fae5" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bfdbfe" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fde68a" }] },
+];
 
 const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
   { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
@@ -145,11 +153,18 @@ function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: 
 interface CourtInfoWindowProps {
   court: Court;
   onClose: () => void;
+  theme: "light" | "dark";
 }
 
-function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
+function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
   const color = SPORT_COLOR[court.type] ?? "#84cc16";
   const img = resolveCourtImage(court.imageUrl);
+  const isDark = theme === "dark";
+  const bg = isDark ? "hsl(224 71% 4%)" : "#ffffff";
+  const textPrimary = isDark ? "white" : "#111827";
+  const textSecondary = isDark ? "#9ca3af" : "#6b7280";
+  const indoorBg = isDark ? "#374151" : "#f3f4f6";
+  const indoorText = isDark ? "#d1d5db" : "#374151";
   return (
     <InfoWindowF
       position={{ lat: court.latitude, lng: court.longitude }}
@@ -158,7 +173,7 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
     >
       <div
         className="overflow-hidden rounded-lg"
-        style={{ width: "200px", fontFamily: "inherit", background: "hsl(224 71% 4%)", color: "white" }}
+        style={{ width: "200px", fontFamily: "inherit", background: bg, color: textPrimary }}
       >
         {img && (
           <div style={{ width: "100%", height: "100px", overflow: "hidden" }}>
@@ -166,10 +181,10 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
           </div>
         )}
         <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div style={{ fontWeight: 700, fontSize: "13px", lineHeight: "1.3", color: "white" }}>
+          <div style={{ fontWeight: 700, fontSize: "13px", lineHeight: "1.3", color: textPrimary }}>
             {court.name}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#9ca3af" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: textSecondary }}>
             <span style={{ fontSize: "10px" }}>▸</span>
             <span>{court.city}</span>
           </div>
@@ -183,7 +198,7 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
             </span>
             {court.isIndoor && (
               <span style={{
-                background: "#374151", color: "#d1d5db",
+                background: indoorBg, color: indoorText,
                 padding: "2px 8px", borderRadius: "999px", fontSize: "11px",
               }}>
                 Indoor
@@ -193,13 +208,13 @@ function CourtInfoWindow({ court, onClose }: CourtInfoWindowProps) {
           {court.rating ? (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px" }}>
               <span style={{ color: "#facc15" }}>★</span>
-              <span style={{ fontWeight: 700, color: "white" }}>{court.rating.toFixed(1)}</span>
+              <span style={{ fontWeight: 700, color: textPrimary }}>{court.rating.toFixed(1)}</span>
             </div>
           ) : null}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "2px" }}>
             <span style={{ fontWeight: 700, color, fontSize: "14px" }}>
               {court.pricePerHour}€
-              <span style={{ color: "#9ca3af", fontSize: "11px", fontWeight: 400 }}>/val</span>
+              <span style={{ color: textSecondary, fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
             <a href={`/courts/${court.id}`} style={{
               background: color, color: "black",
@@ -228,6 +243,7 @@ export function CourtMap({
   activeSports?: Set<string>;
   showFilterPanel?: boolean;
 }) {
+  const { theme } = useTheme();
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [mapReady, setMapReady] = useState(false);
@@ -434,6 +450,15 @@ export function CourtMap({
     };
   }, []);
 
+  // Update map styles when theme or mapType changes
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const styles = mapType === "roadmap"
+      ? (theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT)
+      : undefined;
+    mapRef.current.setOptions({ styles });
+  }, [theme, mapType]);
+
 
   if (loadError || !API_KEY) {
     return (
@@ -467,7 +492,7 @@ export function CourtMap({
         onClick={() => setSelectedCourt(null)}
         options={{
           mapTypeId: mapType,
-          styles: mapType === "roadmap" ? MAP_STYLES_DARK : undefined,
+          styles: mapType === "roadmap" ? (theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT) : undefined,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
@@ -476,7 +501,7 @@ export function CourtMap({
         }}
       >
         {selectedCourt && (
-          <CourtInfoWindow court={selectedCourt} onClose={() => setSelectedCourt(null)} />
+          <CourtInfoWindow court={selectedCourt} onClose={() => setSelectedCourt(null)} theme={theme} />
         )}
       </GoogleMap>
 
