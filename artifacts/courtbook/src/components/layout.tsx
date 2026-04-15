@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Grid3X3 } from "lucide-react";
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
@@ -237,7 +237,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              <Link href="/courts" className="transition-colors hover:text-primary">
+              <Link href="/courts" className="transition-colors hover:text-primary flex items-center gap-1.5">
+                <Grid3X3 className="w-3.5 h-3.5" />
                 {t("nav.findCourts")}
               </Link>
               <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5">
@@ -288,9 +289,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="md:hidden border-t bg-background px-4 py-4 flex flex-col gap-3 text-sm font-medium">
               <Link
                 href="/courts"
-                className="transition-colors hover:text-primary"
+                className="transition-colors hover:text-primary flex items-center gap-1.5"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <Grid3X3 className="w-3.5 h-3.5" />
                 {t("nav.findCourts")}
               </Link>
               <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
