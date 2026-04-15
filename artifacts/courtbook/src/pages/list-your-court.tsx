@@ -22,6 +22,8 @@ import {
   Camera,
   Settings,
   Bell,
+  QrCode,
+  Printer,
 } from "lucide-react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 
@@ -102,6 +104,12 @@ const BENEFITS = [
     title: "Atsiliepimai ir reitingai",
     description: "Geri atsiliepimai pritraukia daugiau klientų. Mūsų reitingų sistema padeda jūsų kortui išsiskirti.",
     color: "#ca8a04",
+  },
+  {
+    icon: QrCode,
+    title: "QR kodas kiekvienam kortui",
+    description: "Sugeneruokite profesionalų QR kodą, išspausdinkite ir pakabinkite ant tvoros. Žaidėjai nuskeanuoja ir iš karto rezervuoja.",
+    color: "#84cc16",
   },
 ];
 
