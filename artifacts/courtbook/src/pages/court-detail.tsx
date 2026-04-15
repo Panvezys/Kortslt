@@ -945,61 +945,6 @@ export default function CourtDetail() {
 
             <Separator />
 
-            {/* Reviews */}
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold">Atsiliepimai</h2>
-                {avgRating && (
-                  <div className="flex items-center gap-3 bg-muted rounded-xl px-4 py-2">
-                    <span className="text-3xl font-bold">{avgRating.toFixed(1)}</span>
-                    <div>
-                      <StarDisplay rating={avgRating} size="md" />
-                      <p className="text-xs text-muted-foreground mt-0.5">{reviews?.length} atsiliepimai</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!reviews || reviews.length === 0 ? (
-                <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed">
-                  <Star className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-                  <p className="text-muted-foreground font-medium">Dar nėra atsiliepimų</p>
-                  <p className="text-sm text-muted-foreground/70 mt-1">Rezervuokite kortą ir palikite atsiliepimą iš rezervacijų puslapio.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="bg-card border rounded-xl p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold">{review.reviewerName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(new Date(review.createdAt), "yyyy MMMM d")}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <StarDisplay rating={review.rating} size="sm" />
-                          <span className="text-sm font-bold">{review.rating}.0</span>
-                        </div>
-                      </div>
-                      {review.reviewText && (
-                        <p className="text-muted-foreground leading-relaxed">{review.reviewText}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-xl text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">Norite palikti atsiliepimą?</span>{" "}
-                Eikite į{" "}
-                <a href="/bookings" className="text-primary hover:underline font-medium">Mano rezervacijos</a>{" "}
-                ir šalia patvirtintos rezervacijos spustelėkite „Vertinti".
-              </div>
-            </div>
-
-            <Separator />
-
             {/* Coaches Section */}
             <CoachesSectionForCourt courtId={courtId} />
 
@@ -1380,6 +1325,64 @@ export default function CourtDetail() {
             </div>
           </div>
 
+        </div>
+
+        {/* Reviews — full width, below booking widget */}
+        <div className="mt-8">
+          <Separator className="mb-6" />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Star className="w-4 h-4 text-primary" />
+              Atsiliepimai
+            </h2>
+            {avgRating && (
+              <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5">
+                <span className="text-xl font-bold">{avgRating.toFixed(1)}</span>
+                <div>
+                  <StarDisplay rating={avgRating} size="sm" />
+                  <p className="text-[10px] text-muted-foreground">{reviews?.length} atsiliepimai</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!reviews || reviews.length === 0 ? (
+            <div className="flex items-center gap-3 py-3 px-4 bg-muted/30 rounded-xl border border-dashed text-muted-foreground text-sm">
+              <Star className="w-4 h-4 shrink-0 text-muted-foreground/40" />
+              <span>Dar nėra atsiliepimų.</span>
+              <a href="/bookings" className="text-primary hover:underline ml-auto shrink-0 text-xs">Vertinti rezervaciją</a>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {reviews.map((review) => (
+                <div key={review.id} className="bg-card border rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-sm">{review.reviewerName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(new Date(review.createdAt), "yyyy-MM-dd")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <StarDisplay rating={review.rating} size="sm" />
+                      <span className="text-xs font-bold">{review.rating}.0</span>
+                    </div>
+                  </div>
+                  {review.reviewText && (
+                    <p className="text-muted-foreground text-sm leading-relaxed">{review.reviewText}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {reviews && reviews.length > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Norite palikti atsiliepimą? Eikite į{" "}
+              <a href="/bookings" className="text-primary hover:underline">Mano rezervacijos</a>{" "}
+              ir šalia patvirtintos rezervacijos spustelėkite „Vertinti".
+            </p>
+          )}
         </div>
       </div>
 
