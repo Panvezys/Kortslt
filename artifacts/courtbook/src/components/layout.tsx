@@ -257,27 +257,6 @@ function MobileUserAvatar() {
   );
 }
 
-function NavRoleLinks({ onClick }: { onClick?: () => void }) {
-  const t = useT();
-  const { isOwner, isAdmin } = useRole();
-  return (
-    <>
-      <Link href="/bookings" className="transition-colors hover:text-primary" onClick={onClick}>
-        {t("nav.myBookings")}
-      </Link>
-      {isOwner && (
-        <Link href="/owner" className="transition-colors hover:text-primary" onClick={onClick}>
-          {t("nav.ownerDashboard")}
-        </Link>
-      )}
-      {isAdmin && (
-        <Link href="/admin" className="transition-colors hover:text-amber-500 text-amber-500/80" onClick={onClick}>
-          Administravimas
-        </Link>
-      )}
-    </>
-  );
-}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -304,9 +283,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Trophy className="w-3.5 h-3.5" />
                 Turnyrai
               </Link>
-              <Show when="signed-in">
-                <NavRoleLinks />
-              </Show>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -358,9 +334,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Trophy className="w-3.5 h-3.5" />
                 Turnyrai
               </Link>
-              <Show when="signed-in">
-                <NavRoleLinks onClick={() => setMobileMenuOpen(false)} />
-              </Show>
               <Show when="signed-out">
                 <Link
                   href="/sign-in"
