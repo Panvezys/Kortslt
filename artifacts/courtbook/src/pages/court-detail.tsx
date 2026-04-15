@@ -681,7 +681,7 @@ export default function CourtDetail() {
                   try { amenityPhotosMap = court.amenityPhotos ? JSON.parse(court.amenityPhotos) : {}; } catch {}
                   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                       {court.amenities.map((amenity, i) => {
                         const { label, icon: Icon } = getAmenityMeta(amenity);
                         const photoUrl = amenityPhotosMap[amenity];
@@ -691,17 +691,17 @@ export default function CourtDetail() {
                             key={i}
                             type="button"
                             onClick={() => setAmenityPopup({ label, photoUrl: `${base}/${photoUrl}` })}
-                            className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center hover:border-primary hover:bg-primary/5 transition-all group relative"
+                            className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border bg-muted/30 text-center hover:border-primary hover:bg-primary/5 transition-all group relative"
                             title={`Žiūrėti nuotrauką: ${label}`}
                           >
-                            <Icon className="w-6 h-6 text-primary" />
-                            <span className="text-sm font-medium">{label}</span>
-                            <Camera className="absolute top-2 right-2 w-3.5 h-3.5 text-primary/50 group-hover:text-primary transition-colors" />
+                            <Icon className="w-4 h-4 text-primary" />
+                            <span className="text-xs font-medium leading-tight">{label}</span>
+                            <Camera className="absolute top-1.5 right-1.5 w-2.5 h-2.5 text-primary/50 group-hover:text-primary transition-colors" />
                           </button>
                         ) : (
-                          <div key={i} className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center">
-                            <Icon className="w-6 h-6 text-primary" />
-                            <span className="text-sm font-medium">{label}</span>
+                          <div key={i} className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border bg-muted/30 text-center">
+                            <Icon className="w-4 h-4 text-primary" />
+                            <span className="text-xs font-medium leading-tight">{label}</span>
                           </div>
                         );
                       })}
