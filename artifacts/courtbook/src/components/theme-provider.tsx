@@ -8,7 +8,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
+  theme: "light",
   toggleTheme: () => {},
 });
 
@@ -22,7 +22,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem("korts_theme");
       if (stored === "light" || stored === "dark") return stored;
     } catch {}
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "dark";
+    return "light";
   });
 
   useEffect(() => {
