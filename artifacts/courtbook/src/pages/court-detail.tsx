@@ -992,60 +992,8 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative">
-            <div className="sticky top-24 bg-card border rounded-2xl p-6 shadow-xl space-y-5 border-t-[0.889px] border-r-[0.889px] border-b-[0.889px] border-l-[0.889px]">
-
-              {/* Price header */}
-              <div className="flex justify-between items-baseline">
-                <div>
-                  <span className="text-3xl font-bold">{court.pricePerHour}€</span>
-                  <span className="text-muted-foreground text-sm">/val</span>
-                </div>
-                {avgRating && (
-                  <div className="flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-semibold text-sm">{avgRating.toFixed(1)}</span>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {user && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-primary" />
-                      Jūsų rezervacijos
-                    </p>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" onClick={() => setLocation("/bookings")}>
-                      Visos
-                    </Button>
-                  </div>
-                  {courtBookings.length === 0 ? (
-                    <div className="rounded-xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                      Šioje kortoje rezervacijų nėra.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {courtBookings.slice(0, 3).map((booking) => (
-                        <div key={booking.id} className="rounded-xl border bg-muted/15 px-4 py-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}</p>
-                              <p className="text-xs text-muted-foreground">{booking.startTime} – {booking.endTime}</p>
-                            </div>
-                            <Badge variant={booking.status === "confirmed" ? "default" : "secondary"} className="shrink-0">
-                              {booking.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Separator />
+            <div className="sticky top-24 bg-card border rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: "calc(100vh - 7rem)" }}>
+              <div className="overflow-y-auto h-full p-6 space-y-5" style={{ maxHeight: "calc(100vh - 7rem)" }}>
 
               {/* Step 1: Date */}
               <div>
@@ -1393,6 +1341,7 @@ export default function CourtDetail() {
                 </Button>
               )}
 
+              </div>
             </div>
           </div>
 
