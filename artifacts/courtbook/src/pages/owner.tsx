@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Layout } from "@/components/layout";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
@@ -15,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { format, parseISO } from "date-fns";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock, Flame, Building2, ChevronDown } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock, Flame, Building2, ChevronDown, QrCode, Download, Printer } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1511,6 +1512,7 @@ export default function OwnerDashboard() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
+  const [qrCourt, setQrCourt] = useState<{ id: number; name: string; type: string } | null>(null);
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
@@ -2639,6 +2641,9 @@ export default function OwnerDashboard() {
                     onClick={() => setCoachesCourtId(court.id)}>
                     <Trophy className="w-3.5 h-3.5" /> Treneriai
                   </Button>
+                  <Button variant="ghost" size="icon" title="QR kodas" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
+                    <QrCode className="w-4 h-4 text-muted-foreground" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
                     <Edit2 className="w-4 h-4 text-muted-foreground" />
                   </Button>
@@ -2779,6 +2784,155 @@ export default function OwnerDashboard() {
             )}
           </DialogContent>
         </Dialog>
+      {/* QR Code Modal */}
+      {qrCourt && (() => {
+        const courtUrl = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/courts/${qrCourt.id}`;
+        const sportEmojis: Record<string, string> = {
+          tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽",
+          badminton: "🏸", squash: "🎯", table_tennis: "🏓", golf: "⛳", snooker: "🎱", bowling: "🎳",
+        };
+        const sportNames: Record<string, string> = {
+          tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis", football: "Futbolas",
+          badminton: "Badmintonas", squash: "Skvoše", table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+        };
+
+        const handleDownload = () => {
+          const svg = document.getElementById("court-qr-svg");
+          if (!svg) return;
+          const card = document.getElementById("court-qr-card");
+          if (!card) return;
+          const serializer = new XMLSerializer();
+          const svgStr = serializer.serializeToString(svg);
+          const img = new Image();
+          const blob = new Blob([svgStr], { type: "image/svg+xml" });
+          const url = URL.createObjectURL(blob);
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 400; canvas.height = 500;
+            const ctx = canvas.getContext("2d")!;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 400, 500);
+            ctx.fillStyle = "#09090b";
+            ctx.font = "bold 22px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(qrCourt.name, 200, 44);
+            ctx.drawImage(img, 50, 60, 300, 300);
+            ctx.fillStyle = "#84cc16";
+            ctx.font = "bold 20px sans-serif";
+            ctx.fillText("korts.lt", 200, 400);
+            ctx.fillStyle = "#71717a";
+            ctx.font = "13px sans-serif";
+            ctx.fillText("Rezervuokite kortą online", 200, 424);
+            ctx.fillText(courtUrl, 200, 446);
+            URL.revokeObjectURL(url);
+            const link = document.createElement("a");
+            link.download = `qr-${qrCourt.name.toLowerCase().replace(/\s+/g, "-")}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+          };
+          img.src = url;
+        };
+
+        const handlePrint = () => {
+          const card = document.getElementById("court-qr-printable");
+          if (!card) return;
+          const win = window.open("", "_blank");
+          if (!win) return;
+          win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR — ${qrCourt.name}</title><style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: system-ui, -apple-system, sans-serif; background: #fff; display: flex; justify-content: center; align-items: flex-start; padding: 32px; }
+            .card { width: 360px; border: 2px solid #e4e4e7; border-radius: 20px; padding: 28px 24px 24px; text-align: center; background: #fff; }
+            .logo { font-weight: 900; font-size: 28px; letter-spacing: -1px; color: #84cc16; margin-bottom: 2px; }
+            .sport { font-size: 12px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
+            .court-name { font-size: 20px; font-weight: 700; color: #09090b; margin-bottom: 20px; line-height: 1.2; }
+            .qr-wrap { display: flex; justify-content: center; margin-bottom: 20px; }
+            .headline { font-size: 15px; font-weight: 600; color: #09090b; margin-bottom: 4px; }
+            .sub { font-size: 12px; color: #71717a; margin-bottom: 12px; }
+            .url { font-size: 10px; color: #a1a1aa; word-break: break-all; background: #f4f4f5; border-radius: 8px; padding: 6px 10px; }
+            .divider { height: 1px; background: #e4e4e7; margin: 18px 0; }
+            .steps { text-align: left; font-size: 11px; color: #52525b; line-height: 1.8; }
+          </style></head><body><div class="card">
+            <div class="logo">korts.lt</div>
+            <div class="sport">${sportEmojis[qrCourt.type] ?? ""} ${sportNames[qrCourt.type] ?? qrCourt.type}</div>
+            <div class="court-name">${qrCourt.name}</div>
+            <div class="qr-wrap">${document.getElementById("court-qr-svg")?.outerHTML ?? ""}</div>
+            <div class="headline">Rezervuokite kortą internetu</div>
+            <div class="sub">Nuskensuokite QR kodą telefonu</div>
+            <div class="url">${courtUrl}</div>
+            <div class="divider"></div>
+            <div class="steps">1. Nuskensuokite QR kodą<br>2. Pasirinkite datą ir laiką<br>3. Apmokėkite saugiai online<br>4. Gaukite patvirtinimą iš karto</div>
+          </div></body></html>`);
+          win.document.close();
+          setTimeout(() => { win.focus(); win.print(); }, 400);
+        };
+
+        return (
+          <Dialog open={!!qrCourt} onOpenChange={(open) => { if (!open) setQrCourt(null); }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5 text-primary" />
+                  QR kodas rezervacijoms
+                </DialogTitle>
+              </DialogHeader>
+
+              {/* Printable card */}
+              <div id="court-qr-printable" className="flex flex-col items-center rounded-2xl border-2 border-border bg-white dark:bg-zinc-900 p-6 text-center">
+                <div className="font-black text-2xl tracking-tight text-primary mb-0.5">korts.lt</div>
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-4">
+                  {sportEmojis[qrCourt.type] ?? ""} {sportNames[qrCourt.type] ?? qrCourt.type}
+                </div>
+                <div className="text-lg font-bold text-foreground mb-5 leading-tight">{qrCourt.name}</div>
+
+                <div className="p-3 bg-white rounded-xl shadow-inner border mb-5">
+                  <QRCodeSVG
+                    id="court-qr-svg"
+                    value={courtUrl}
+                    size={200}
+                    bgColor="#ffffff"
+                    fgColor="#09090b"
+                    level="H"
+                    imageSettings={{
+                      src: `${import.meta.env.BASE_URL.replace(/\/$/, "")}/icons/tennis-ball.png`,
+                      x: undefined,
+                      y: undefined,
+                      height: 32,
+                      width: 32,
+                      excavate: true,
+                    }}
+                  />
+                </div>
+
+                <div className="text-sm font-semibold text-foreground mb-1">Rezervuokite kortą internetu</div>
+                <div className="text-xs text-muted-foreground mb-3">Nuskensuokite QR kodą telefonu</div>
+
+                <div className="w-full text-[10px] text-muted-foreground bg-muted rounded-lg px-3 py-2 break-all font-mono">
+                  {courtUrl}
+                </div>
+
+                <div className="mt-4 w-full border-t pt-4 text-left space-y-1">
+                  {["Nuskensuokite QR kodą", "Pasirinkite datą ir laiką", "Apmokėkite saugiai online", "Gaukite patvirtinimą iš karto"].map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="flex-1 gap-2" variant="outline" onClick={handlePrint}>
+                  <Printer className="h-4 w-4" /> Spausdinti
+                </Button>
+                <Button className="flex-1 gap-2" onClick={handleDownload}>
+                  <Download className="h-4 w-4" /> Atsisiųsti PNG
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+
       </div>
     </Layout>
   );
