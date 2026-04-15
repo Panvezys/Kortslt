@@ -61,26 +61,56 @@ function DragScrollRow({ children, className }: { children: React.ReactNode; cla
   const dragging = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
+
+  const scroll = (dir: "left" | "right") => {
+    if (!ref.current) return;
+    ref.current.scrollBy({ left: dir === "right" ? 320 : -320, behavior: "smooth" });
+  };
+
   return (
-    <div
-      ref={ref}
-      className={`flex gap-4 overflow-x-auto snap-x snap-mandatory pb-3 cursor-grab active:cursor-grabbing select-none ${className ?? ""}`}
-      style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
-      onMouseDown={(e) => {
-        dragging.current = true;
-        startX.current = e.pageX - (ref.current?.offsetLeft ?? 0);
-        scrollLeft.current = ref.current?.scrollLeft ?? 0;
-      }}
-      onMouseMove={(e) => {
-        if (!dragging.current || !ref.current) return;
-        e.preventDefault();
-        const x = e.pageX - ref.current.offsetLeft;
-        ref.current.scrollLeft = scrollLeft.current - (x - startX.current) * 1.5;
-      }}
-      onMouseUp={() => { dragging.current = false; }}
-      onMouseLeave={() => { dragging.current = false; }}
-    >
-      {children}
+    <div className="relative group/carousel">
+      {/* Left arrow + fade */}
+      <div className="absolute left-0 top-0 bottom-3 w-16 bg-gradient-to-r from-background/80 to-transparent z-10 pointer-events-none rounded-l-xl opacity-0 group-hover/carousel:opacity-100 transition-opacity" />
+      <button
+        type="button"
+        onClick={() => scroll("left")}
+        className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-background/90 border shadow-md flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-accent"
+        aria-label="Scroll left"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+
+      <div
+        ref={ref}
+        className={`flex gap-4 overflow-x-auto snap-x snap-mandatory pb-3 cursor-grab active:cursor-grabbing select-none ${className ?? ""}`}
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        onMouseDown={(e) => {
+          dragging.current = true;
+          startX.current = e.pageX - (ref.current?.offsetLeft ?? 0);
+          scrollLeft.current = ref.current?.scrollLeft ?? 0;
+        }}
+        onMouseMove={(e) => {
+          if (!dragging.current || !ref.current) return;
+          e.preventDefault();
+          const x = e.pageX - ref.current.offsetLeft;
+          ref.current.scrollLeft = scrollLeft.current - (x - startX.current) * 1.5;
+        }}
+        onMouseUp={() => { dragging.current = false; }}
+        onMouseLeave={() => { dragging.current = false; }}
+      >
+        {children}
+      </div>
+
+      {/* Right arrow + fade */}
+      <div className="absolute right-0 top-0 bottom-3 w-16 bg-gradient-to-l from-background/80 to-transparent z-10 pointer-events-none rounded-r-xl opacity-0 group-hover/carousel:opacity-100 transition-opacity" />
+      <button
+        type="button"
+        onClick={() => scroll("right")}
+        className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-background/90 border shadow-md flex items-center justify-center opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:bg-accent"
+        aria-label="Scroll right"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
