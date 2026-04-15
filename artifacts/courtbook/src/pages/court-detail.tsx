@@ -1037,7 +1037,7 @@ export default function CourtDetail() {
                   <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">1</span>
                   Pasirinkite datą
                 </p>
-                <div className="border rounded-xl overflow-hidden bg-background flex justify-center">
+                <div className="border rounded-xl bg-background flex justify-center py-1">
                   <Calendar
                     mode="single"
                     selected={date}
@@ -1051,7 +1051,7 @@ export default function CourtDetail() {
                       }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
-                    className="rounded-md [--cell-size:2.05rem] sm:[--cell-size:2.25rem] w-full max-w-full"
+                    className="rounded-md [--cell-size:2rem]"
                   />
                 </div>
               </div>

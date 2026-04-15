@@ -54,12 +54,12 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn("w-full max-w-full overflow-hidden", defaultClassNames.root),
+        root: cn("w-fit", defaultClassNames.root),
         months: cn(
-          "relative flex flex-col gap-1.5 md:flex-row",
+          "relative flex flex-col gap-2 md:flex-row",
           defaultClassNames.months
         ),
-        month: cn("flex w-full flex-col gap-1.5 min-w-0", defaultClassNames.month),
+        month: cn("flex w-full flex-col gap-2", defaultClassNames.month),
         nav: cn(
           "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1 px-1",
           defaultClassNames.nav
@@ -75,7 +75,7 @@ function Calendar({
           defaultClassNames.button_next
         ),
         month_caption: cn(
-          "flex h-[--cell-size] w-full items-center justify-center px-6 sm:px-[calc(var(--cell-size)+0.25rem)]",
+          "flex h-[--cell-size] w-full items-center justify-center px-[calc(var(--cell-size)+0.25rem)]",
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
@@ -100,7 +100,7 @@ function Calendar({
         table: "w-full border-collapse",
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
-          "flex-1 select-none rounded-md text-[0.66rem] sm:text-[0.78rem] font-medium text-muted-foreground",
+          "flex-1 select-none rounded-md text-[0.78rem] font-medium text-muted-foreground",
           defaultClassNames.weekday
         ),
         week: cn("mt-0.5 sm:mt-1 flex w-full", defaultClassNames.week),
@@ -109,7 +109,7 @@ function Calendar({
           defaultClassNames.week_number_header
         ),
         week_number: cn(
-          "text-muted-foreground select-none text-[0.66rem] sm:text-[0.8rem]",
+          "text-muted-foreground select-none text-[0.8rem]",
           defaultClassNames.week_number
         ),
         day: cn(
