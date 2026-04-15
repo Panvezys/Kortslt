@@ -61,17 +61,17 @@ function Calendar({
         ),
         month: cn("flex w-full flex-col gap-2", defaultClassNames.month),
         nav: cn(
-          "absolute left-1/2 -translate-x-1/2 top-0 h-[--cell-size] flex items-center justify-between gap-1 w-[calc(7*var(--cell-size))]",
+          "absolute left-1/2 -translate-x-1/2 top-0 h-[--cell-size] flex items-center justify-between gap-1 w-[calc(7*var(--cell-size))] -translate-y-[3px]",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 rounded-lg transition-all duration-150 aria-disabled:opacity-30 aria-disabled:pointer-events-none hover:bg-primary/10 hover:text-primary active:scale-90",
+          "h-6 w-6 select-none p-0 rounded-md transition-all duration-150 aria-disabled:opacity-30 aria-disabled:pointer-events-none hover:bg-primary/10 hover:text-primary active:scale-90",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "h-[--cell-size] w-[--cell-size] select-none p-0 rounded-lg transition-all duration-150 aria-disabled:opacity-30 aria-disabled:pointer-events-none hover:bg-primary/10 hover:text-primary active:scale-90",
+          "h-6 w-6 select-none p-0 rounded-md transition-all duration-150 aria-disabled:opacity-30 aria-disabled:pointer-events-none hover:bg-primary/10 hover:text-primary active:scale-90",
           defaultClassNames.button_next
         ),
         month_caption: cn(
