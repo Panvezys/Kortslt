@@ -79,7 +79,6 @@ export default function Courts() {
     setActiveSports(prev => {
       const next = new Set(prev);
       if (next.has(sport)) {
-        if (next.size === 1) return prev;
         next.delete(sport);
       } else {
         next.add(sport);
@@ -169,7 +168,7 @@ export default function Courts() {
       <div className="flex items-center justify-between mb-2">
         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šakos</Label>
         <button
-          onClick={() => setActiveSports(allSportsActive ? new Set(ALL_SPORTS.slice(0, 1)) : new Set(ALL_SPORTS))}
+          onClick={() => setActiveSports(allSportsActive ? new Set() : new Set(ALL_SPORTS))}
           className="text-[10px] font-medium text-primary hover:underline"
         >
           {allSportsActive ? "Slėpti viską" : "Rodyti viską"}
