@@ -358,7 +358,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
                 (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
               }}
             >
-              Rezervuoti →
+              Rezervuoti
             </a>
           </div>
         </div>
