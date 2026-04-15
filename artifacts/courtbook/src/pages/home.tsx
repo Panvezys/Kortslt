@@ -56,6 +56,35 @@ function StarRatingSmall({ rating }: { rating?: number | null }) {
   );
 }
 
+function DragScrollRow({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+  return (
+    <div
+      ref={ref}
+      className={`flex gap-4 overflow-x-auto snap-x snap-mandatory pb-3 cursor-grab active:cursor-grabbing select-none ${className ?? ""}`}
+      style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+      onMouseDown={(e) => {
+        dragging.current = true;
+        startX.current = e.pageX - (ref.current?.offsetLeft ?? 0);
+        scrollLeft.current = ref.current?.scrollLeft ?? 0;
+      }}
+      onMouseMove={(e) => {
+        if (!dragging.current || !ref.current) return;
+        e.preventDefault();
+        const x = e.pageX - ref.current.offsetLeft;
+        ref.current.scrollLeft = scrollLeft.current - (x - startX.current) * 1.5;
+      }}
+      onMouseUp={() => { dragging.current = false; }}
+      onMouseLeave={() => { dragging.current = false; }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function PopularCourtCard({ court }: { court: PopularCourt }) {
   const t = useT();
   const [hovered, setHovered] = useState(false);
@@ -867,17 +896,21 @@ export default function Home() {
             </div>
 
             {favLoading ? (
-              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              <DragScrollRow>
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-[340px] w-full rounded-xl" />
+                  <div key={i} className="shrink-0 snap-start w-[280px] sm:w-[300px]">
+                    <Skeleton className="h-[340px] w-full rounded-xl" />
+                  </div>
                 ))}
-              </div>
+              </DragScrollRow>
             ) : favorites.length > 0 ? (
-              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              <DragScrollRow>
                 {favorites.map(court => (
-                  <CourtCard key={court.id} court={court} />
+                  <div key={court.id} className="shrink-0 snap-start w-[280px] sm:w-[300px]">
+                    <CourtCard court={court} />
+                  </div>
                 ))}
-              </div>
+              </DragScrollRow>
             ) : null}
           </div>
         </section>
@@ -887,17 +920,23 @@ export default function Home() {
       <section className="py-12 md:py-24 bg-muted/30">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl md:text-3xl font-bold mb-8 md:mb-12 tracking-tight">{t("home.popular.title")}</h2>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+          <DragScrollRow>
             {popularLoading ? (
-              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[320px] w-full rounded-xl" />)
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="shrink-0 snap-start w-[280px] sm:w-[300px]">
+                  <Skeleton className="h-[320px] w-full rounded-xl" />
+                </div>
+              ))
             ) : Array.isArray(popularCourts) ? (
               [...popularCourts]
                 .sort((a, b) => (b.imageUrl ? 1 : 0) - (a.imageUrl ? 1 : 0))
                 .map(court => (
-                <PopularCourtCard key={court.id} court={court} />
-              ))
+                  <div key={court.id} className="shrink-0 snap-start w-[280px] sm:w-[300px]">
+                    <PopularCourtCard court={court} />
+                  </div>
+                ))
             ) : null}
-          </div>
+          </DragScrollRow>
         </div>
       </section>
 
