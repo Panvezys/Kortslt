@@ -44,8 +44,16 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - List view + interactive map view toggle; map legend shows sport emojis + rating color tiers
 - Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
 - Location & contact section on each court: Google Maps embed with pin, "Get Directions" button, clickable phone number, and opening hours (all 40 courts populated with real/researched data)
-- Owner dashboard to list and manage courts (all 6 sport types supported) with per-slot pricing editor (day-of-week × 30-min grid)
-- Advanced court features: peak pricing (Mon–Fri 17–22 auto rate), buffer minutes between bookings, smart amenity toggle buttons (Prožektoriai/Dušai/Persirengimo kambariai/Vandens stotis), rentable equipment items (name + price per booking)
+- Owner dashboard: courts grouped by facility; tabbed court form (5 tabs: Pagrindai | Grafikas | Patogumai | Medija | Kontaktai)
+  - **Pagrindai** tab: name, sport type, facility selector (inline create), description, Google Maps location picker, address/city/postcode, lat/lng
+  - **Grafikas** tab: default price, buffer minutes, per-day working hours editor (open/close/closed toggle), per-slot 30-min pricing grid
+  - **Patogumai** tab: max players, indoor toggle, 12-amenity smart buttons (parking, wifi, lockers, café, heating, A/C, first aid, etc.)
+  - **Medija** tab: main image upload, photo gallery (on edit), ownership document upload (on create)
+  - **Kontaktai** tab: owner name/email, social media links (Facebook, Instagram, WhatsApp, Website)
+  - Wizard navigation: Back/Next buttons + direct tab click, Submit only visible on last tab
+- Facilities system: `facilities` DB table; owner can create/select facilities; courts grouped by facility in dashboard table
+  - API: `GET/POST /api/facilities`, `PUT /api/facilities/:id`, `DELETE /api/facilities/:id`
+- Advanced court features: buffer minutes between bookings, smart amenity toggle buttons (12 amenities), rentable equipment items (name + price per booking)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
 - Reviews section on court detail page showing all reviews with star display

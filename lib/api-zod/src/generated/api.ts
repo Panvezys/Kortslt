@@ -76,6 +76,8 @@ export const ListCourtsResponseItem = zod.object({
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
   socialWebsite: zod.string().optional(),
+  facilityId: zod.number().optional(),
+  workingHours: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -120,6 +122,8 @@ export const CreateCourtBody = zod.object({
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
   socialWebsite: zod.string().optional(),
+  facilityId: zod.number().optional(),
+  workingHours: zod.string().optional(),
 });
 
 /**
@@ -174,6 +178,8 @@ export const GetCourtResponse = zod.object({
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
   socialWebsite: zod.string().optional(),
+  facilityId: zod.number().optional(),
+  workingHours: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -220,6 +226,8 @@ export const UpdateCourtBody = zod.object({
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
   socialWebsite: zod.string().optional(),
+  facilityId: zod.number().optional(),
+  workingHours: zod.string().optional(),
 });
 
 export const UpdateCourtResponse = zod.object({
@@ -267,6 +275,8 @@ export const UpdateCourtResponse = zod.object({
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
   socialWebsite: zod.string().optional(),
+  facilityId: zod.number().optional(),
+  workingHours: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -558,3 +568,27 @@ export const GetPopularCourtsResponseItem = zod.object({
   rating: zod.number().optional(),
 });
 export const GetPopularCourtsResponse = zod.array(GetPopularCourtsResponseItem);
+
+/**
+ * @summary Facility CRUD
+ */
+export const FacilityItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().optional(),
+  ownerUserId: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListFacilitiesResponse = zod.array(FacilityItem);
+
+export const CreateFacilityBody = zod.object({
+  name: zod.string().min(2),
+  description: zod.string().optional(),
+});
+
+export const UpdateFacilityParams = zod.object({ id: zod.coerce.number() });
+export const UpdateFacilityBody = zod.object({
+  name: zod.string().min(2),
+  description: zod.string().optional(),
+});
+export const DeleteFacilityParams = zod.object({ id: zod.coerce.number() });

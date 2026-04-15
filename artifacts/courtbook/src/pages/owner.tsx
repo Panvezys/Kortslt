@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { format, parseISO } from "date-fns";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock, Building2, ChevronDown } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,10 +28,18 @@ import { CourtImageUpload } from "@/components/court-image-upload";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
 const STANDARD_AMENITIES = [
-  { id: "floodlights",     label: "Prožektoriai",       icon: Lightbulb },
-  { id: "showers",         label: "Dušai",              icon: ShowerHead },
+  { id: "floodlights",     label: "Prožektoriai",           icon: Lightbulb },
+  { id: "showers",         label: "Dušai",                  icon: ShowerHead },
   { id: "changing_rooms",  label: "Persirengimo kambariai", icon: DoorOpen },
-  { id: "water_station",   label: "Vandens stotis",     icon: Droplets },
+  { id: "water_station",   label: "Vandens stotis",         icon: Droplets },
+  { id: "parking",         label: "Parkavimas",             icon: Car },
+  { id: "toilets",         label: "Tualetai",               icon: Bath },
+  { id: "wifi",            label: "Wi-Fi",                  icon: Wifi },
+  { id: "cafe",            label: "Kavinė / Baras",         icon: Coffee },
+  { id: "first_aid",       label: "Pirmoji pagalba",        icon: HeartPulse },
+  { id: "heating",         label: "Šildymas",               icon: Thermometer },
+  { id: "air_conditioning",label: "Oro kondicionierius",    icon: Wind },
+  { id: "lockers",         label: "Spintelės",              icon: Lock },
 ] as const;
 
 interface RentableItem {
@@ -408,6 +416,8 @@ const courtSchema = z.object({
   socialInstagram: z.string().optional(),
   socialWhatsapp: z.string().optional(),
   socialWebsite: z.string().optional(),
+  facilityId: z.number().optional(),
+  workingHours: z.string().optional(),
 });
 
 type CourtFormValues = z.infer<typeof courtSchema>;
@@ -435,6 +445,36 @@ const SPORT_LABELS: Record<string, string> = {
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
   table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
 };
+
+interface Facility {
+  id: number;
+  name: string;
+  description?: string;
+  ownerUserId: string;
+  createdAt: Date;
+}
+
+type WorkingHourDay = { open: string; close: string; closed: boolean };
+type WorkingHoursMap = Record<string, WorkingHourDay>;
+
+function defaultWorkingHours(): WorkingHoursMap {
+  return {
+    "0": { open: "08:00", close: "22:00", closed: true },
+    "1": { open: "08:00", close: "22:00", closed: false },
+    "2": { open: "08:00", close: "22:00", closed: false },
+    "3": { open: "08:00", close: "22:00", closed: false },
+    "4": { open: "08:00", close: "22:00", closed: false },
+    "5": { open: "08:00", close: "22:00", closed: false },
+    "6": { open: "09:00", close: "20:00", closed: false },
+  };
+}
+
+const HOUR_OPTIONS: string[] = [];
+for (let h = 0; h <= 23; h++) {
+  for (const m of [0, 30]) {
+    HOUR_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
+  }
+}
 
 interface OwnerThread {
   courtId: number;
@@ -1479,6 +1519,15 @@ export default function OwnerDashboard() {
   const [newItemPrice, setNewItemPrice] = useState("");
   const [showInbox, setShowInbox] = useState(false);
   const [activeOwnerTab, setActiveOwnerTab] = useState<"courts" | "trainers" | "tournaments">("courts");
+  const [formTab, setFormTab] = useState<"info" | "schedule" | "amenities" | "media" | "contact">("info");
+  const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [showNewFacilityInput, setShowNewFacilityInput] = useState(false);
+  const [newFacilityName, setNewFacilityName] = useState("");
+  const [localPricingMap, setLocalPricingMap] = useState<Map<string, number>>(new Map());
+  const [pricingDay, setPricingDay] = useState(1);
+  const [pricingEditKey, setPricingEditKey] = useState<string | null>(null);
+  const [pricingEditValue, setPricingEditValue] = useState("");
+  const [workingHoursState, setWorkingHoursState] = useState<WorkingHoursMap>(defaultWorkingHours());
 
   const { data: courts, isLoading } = useListCourts(
     user?.id ? { ownerUserId: user.id } : undefined
@@ -1486,9 +1535,51 @@ export default function OwnerDashboard() {
   const createCourt = useCreateCourt();
   const updateCourt = useUpdateCourt();
   const deleteCourt = useDeleteCourt();
+  const setPricingMutation = useSetCourtPricing();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: editingPricing } = useGetCourtPricing(editingId ?? 0);
+
+  useEffect(() => {
+    if (editingId && editingPricing?.entries) {
+      const map = new Map<string, number>();
+      editingPricing.entries.forEach((e: { dayOfWeek: number; startTime: string; price: number }) => {
+        map.set(`${e.dayOfWeek}:${e.startTime}`, e.price);
+      });
+      setLocalPricingMap(map);
+    } else if (!editingId) {
+      setLocalPricingMap(new Map());
+    }
+  }, [editingId, editingPricing]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    customFetch<Facility[]>(`${API_URL}/facilities`)
+      .then(data => setFacilities(data))
+      .catch(() => { /* ignore */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const createFacility = async (name: string): Promise<number | null> => {
+    try {
+      const fac = await customFetch<Facility>(`${API_URL}/facilities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setFacilities(prev => [...prev, fac]);
+      return fac.id;
+    } catch { return null; }
+  };
+
+  const deleteFacility = async (id: number) => {
+    try {
+      await customFetch(`${API_URL}/facilities/${id}`, { method: "DELETE" });
+      setFacilities(prev => prev.filter(f => f.id !== id));
+    } catch { /* ignore */ }
+  };
 
   const form = useForm<CourtFormValues>({
     resolver: zodResolver(courtSchema),
@@ -1515,25 +1606,44 @@ export default function OwnerDashboard() {
       socialInstagram: "",
       socialWhatsapp: "",
       socialWebsite: "",
+      facilityId: undefined,
+      workingHours: undefined,
     }
   });
 
   const watchedLat = form.watch("latitude") ?? 0;
   const watchedLng = form.watch("longitude") ?? 0;
 
+  const savePricingForCourt = async (courtId: number) => {
+    if (localPricingMap.size === 0) return;
+    const entries: { dayOfWeek: number; startTime: string; price: number }[] = [];
+    localPricingMap.forEach((price, key) => {
+      const [dayStr, startTime] = key.split(":");
+      const dayOfWeek = parseInt(dayStr);
+      if (!isNaN(dayOfWeek) && startTime) entries.push({ dayOfWeek, startTime, price });
+    });
+    if (entries.length > 0) {
+      await setPricingMutation.mutateAsync({ id: courtId, data: { entries } });
+    }
+  };
+
   const onSubmit = async (data: CourtFormValues) => {
     try {
       const rentableItemsJson = rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined;
-      const payload = { ...data, rentableItems: rentableItemsJson };
+      const whJson = JSON.stringify(workingHoursState);
+      const payload = { ...data, rentableItems: rentableItemsJson, workingHours: whJson };
       if (editingId) {
         await updateCourt.mutateAsync({ id: editingId, data: payload });
+        await savePricingForCourt(editingId);
         toast({ title: "Kortas atnaujintas" });
       } else {
-        await createCourt.mutateAsync({ data: payload });
+        const newCourt = await createCourt.mutateAsync({ data: payload });
+        await savePricingForCourt((newCourt as any).id);
         toast({ title: "Kortas sukurtas — laukia patvirtinimo" });
       }
       setIsDialogOpen(false);
       setRentableItems([]);
+      setFormTab("info");
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
     } catch {
       toast({ title: "Klaida išsaugant kortą", variant: "destructive" });
@@ -1543,6 +1653,7 @@ export default function OwnerDashboard() {
   const handleEdit = (court: any) => {
     setEditingId(court.id);
     setMapKey(k => k + 1);
+    setFormTab("info");
     form.reset({
       name: court.name,
       type: court.type as "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash" | "table_tennis" | "golf" | "snooker" | "bowling",
@@ -1566,7 +1677,19 @@ export default function OwnerDashboard() {
       socialInstagram: court.socialInstagram ?? "",
       socialWhatsapp: court.socialWhatsapp ?? "",
       socialWebsite: court.socialWebsite ?? "",
+      facilityId: court.facilityId ?? undefined,
+      workingHours: court.workingHours ?? undefined,
     });
+    if (court.workingHours) {
+      try {
+        const parsed = JSON.parse(court.workingHours) as WorkingHoursMap;
+        setWorkingHoursState({ ...defaultWorkingHours(), ...parsed });
+      } catch {
+        setWorkingHoursState(defaultWorkingHours());
+      }
+    } else {
+      setWorkingHoursState(defaultWorkingHours());
+    }
     try {
       setRentableItems(court.rentableItems ? JSON.parse(court.rentableItems) : []);
     } catch {
@@ -1676,8 +1799,28 @@ export default function OwnerDashboard() {
                 <DialogTitle>{editingId ? "Redaguoti kortą" : "Pridėti naują kortą"}</DialogTitle>
               </DialogHeader>
 
+              {/* Form section tabs */}
+              <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
+                {([
+                  { id: "info", label: "Pagrindai" },
+                  { id: "schedule", label: "Grafikas" },
+                  { id: "amenities", label: "Patogumai" },
+                  { id: "media", label: "Medija" },
+                  { id: "contact", label: "Kontaktai" },
+                ] as const).map(t => (
+                  <button key={t.id} type="button" onClick={() => setFormTab(t.id)}
+                    className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                      formTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >{t.label}</button>
+                ))}
+              </div>
+
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+
+                  {/* ── TAB: PAGRINDAI ── */}
+                  {formTab === "info" && (<div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem>
@@ -1711,6 +1854,83 @@ export default function OwnerDashboard() {
                       </FormItem>
                     )} />
                   </div>
+
+                  {/* Facility selector */}
+                  <div className="rounded-xl border p-3 space-y-2 bg-muted/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">Objektas (neprivaloma)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Jei šis kortas priklauso sporto centrui ar klubui, susiekite jį su objektu.</p>
+                    <FormField control={form.control} name="facilityId" render={({ field }) => (
+                      <FormItem>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <button type="button"
+                            onClick={() => field.onChange(undefined)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!field.value ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                          >Nėra objekto</button>
+                          {facilities.map(f => (
+                            <button key={f.id} type="button"
+                              onClick={() => field.onChange(f.id)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${field.value === f.id ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                            >{f.name}</button>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    {!showNewFacilityInput ? (
+                      <button type="button" onClick={() => setShowNewFacilityInput(true)}
+                        className="text-xs text-primary hover:underline flex items-center gap-1">
+                        <Plus className="w-3 h-3" /> Sukurti naują objektą
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          autoFocus
+                          placeholder="Objekto pavadinimas (pvz. Tennis Club)"
+                          value={newFacilityName}
+                          onChange={e => setNewFacilityName(e.target.value)}
+                          className="text-sm h-8"
+                          onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (newFacilityName.trim()) {
+                                const id = await createFacility(newFacilityName.trim());
+                                if (id) form.setValue("facilityId", id);
+                                setNewFacilityName("");
+                                setShowNewFacilityInput(false);
+                              }
+                            } else if (e.key === "Escape") {
+                              setShowNewFacilityInput(false);
+                            }
+                          }}
+                        />
+                        <Button type="button" size="sm" className="h-8"
+                          onClick={async () => {
+                            if (newFacilityName.trim()) {
+                              const id = await createFacility(newFacilityName.trim());
+                              if (id) form.setValue("facilityId", id);
+                              setNewFacilityName("");
+                              setShowNewFacilityInput(false);
+                            }
+                          }}
+                        >Sukurti</Button>
+                        <button type="button" onClick={() => setShowNewFacilityInput(false)} className="text-muted-foreground">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Description */}
+                  <FormField control={form.control} name="description" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Aprašymas</FormLabel>
+                      <FormControl><Textarea rows={2} placeholder="Trumpas korto aprašymas..." {...field} value={field.value ?? ""} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
                   <LocationPicker
                     key={mapKey}
@@ -1765,45 +1985,24 @@ export default function OwnerDashboard() {
                       </FormItem>
                     )} />
                   </div>
+                  </div>)} {/* end info tab */}
 
-                  {/* Pricing */}
-                  <div className="rounded-xl border p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Euro className="w-4 h-4 text-primary" />
-                      <span className="font-semibold text-sm">Kainos</span>
-                    </div>
+                  {/* ── TAB: GRAFIKAS ── */}
+                  {formTab === "schedule" && (<div className="space-y-5">
+
+                    {/* Base price */}
                     <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="pricePerHour" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Off-Peak kaina (€/val)</FormLabel>
-                          <FormControl><Input type="number" min={1} step={0.5} {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="peakPricePerHour" render={({ field }) => (
-                        <FormItem>
                           <FormLabel className="flex items-center gap-1.5">
-                            <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                            Peak kaina (€/val)
+                            <Euro className="w-3.5 h-3.5 text-primary" />
+                            Numatytoji kaina (€/val)
                           </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              step={0.5}
-                              placeholder="Neprivaloma"
-                              {...field}
-                              value={field.value ?? ""}
-                              onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                            />
-                          </FormControl>
-                          <p className="text-[11px] text-muted-foreground">Pir–Pen 17:00–22:00</p>
+                          <FormControl><Input type="number" min={1} step={0.5} {...field} /></FormControl>
+                          <p className="text-[11px] text-muted-foreground">Slotų numatytoji vertė</p>
                           <FormMessage />
                         </FormItem>
                       )} />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="bufferMinutes" render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1.5">
@@ -1811,9 +2010,7 @@ export default function OwnerDashboard() {
                             Buferis (min)
                           </FormLabel>
                           <Select onValueChange={v => field.onChange(Number(v))} value={String(field.value ?? 0)}>
-                            <FormControl>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                            </FormControl>
+                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="0">Nėra</SelectItem>
                               <SelectItem value="15">15 min</SelectItem>
@@ -1821,20 +2018,146 @@ export default function OwnerDashboard() {
                               <SelectItem value="60">60 min</SelectItem>
                             </SelectContent>
                           </Select>
-                          <p className="text-[11px] text-muted-foreground">Laikas tarp rezervacijų</p>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="maxPlayers" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Maks. žaidėjai</FormLabel>
-                          <FormControl><Input type="number" {...field} /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )} />
                     </div>
-                  </div>
 
+                    {/* Working hours per day */}
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock3 className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm">Darbo laikas</span>
+                      </div>
+                      <div className="space-y-2">
+                        {(["1","2","3","4","5","6","0"] as const).map(dayKey => {
+                          const dayNames: Record<string, string> = {
+                            "0": "Sekmadienis", "1": "Pirmadienis", "2": "Antradienis",
+                            "3": "Trečiadienis", "4": "Ketvirtadienis", "5": "Penktadienis", "6": "Šeštadienis"
+                          };
+                          const dh = workingHoursState[dayKey] ?? { open: "08:00", close: "22:00", closed: false };
+                          return (
+                            <div key={dayKey} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                              <span className="w-28 text-sm font-medium shrink-0">{dayNames[dayKey]}</span>
+                              <button type="button"
+                                onClick={() => setWorkingHoursState(prev => ({
+                                  ...prev,
+                                  [dayKey]: { ...prev[dayKey], closed: !prev[dayKey]?.closed }
+                                }))}
+                                className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 transition-colors ${
+                                  dh.closed ? "bg-red-500/15 text-red-500 border border-red-500/30" : "bg-green-500/15 text-green-600 border border-green-500/30"
+                                }`}
+                              >{dh.closed ? "Uždaryta" : "Atidaryta"}</button>
+                              {!dh.closed && (
+                                <>
+                                  <select
+                                    className="text-xs border rounded px-1.5 py-1 bg-background"
+                                    value={dh.open}
+                                    onChange={e => setWorkingHoursState(prev => ({
+                                      ...prev,
+                                      [dayKey]: { ...prev[dayKey], open: e.target.value }
+                                    }))}
+                                  >
+                                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                                  </select>
+                                  <span className="text-muted-foreground text-xs">–</span>
+                                  <select
+                                    className="text-xs border rounded px-1.5 py-1 bg-background"
+                                    value={dh.close}
+                                    onChange={e => setWorkingHoursState(prev => ({
+                                      ...prev,
+                                      [dayKey]: { ...prev[dayKey], close: e.target.value }
+                                    }))}
+                                  >
+                                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                                  </select>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Inline per-slot pricing grid */}
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Euro className="w-4 h-4 text-primary" />
+                          <span className="font-semibold text-sm">Kainos pagal laiką</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">Numatytoji: {((form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
+                      </div>
+
+                      {/* Day tabs */}
+                      <div className="flex gap-1 flex-wrap">
+                        {DAYS.map((day, i) => (
+                          <button key={i} type="button"
+                            onClick={() => setPricingDay(i)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                              pricingDay === i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
+                            }`}
+                          >{DAY_SHORT[i]}</button>
+                        ))}
+                        <button type="button" onClick={() => {
+                          setLocalPricingMap(prev => {
+                            const next = new Map(prev);
+                            TIME_SLOTS.forEach(s => next.delete(`${pricingDay}:${s}`));
+                            return next;
+                          });
+                        }} className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" /> Atstatyti dieną
+                        </button>
+                      </div>
+
+                      {/* Time slots */}
+                      <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto pr-1">
+                        {TIME_SLOTS.map(slot => {
+                          const key = `${pricingDay}:${slot}`;
+                          const defaultHalf = (form.watch("pricePerHour") || 20) / 2;
+                          const slotPrice = localPricingMap.has(key) ? localPricingMap.get(key)! : defaultHalf;
+                          const isOverridden = localPricingMap.has(key);
+                          const isEditing = pricingEditKey === key;
+                          return (
+                            <div key={slot} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs ${isOverridden ? "bg-primary/10 border border-primary/20" : "bg-muted/30"}`}>
+                              <span className="font-mono text-muted-foreground w-10">{slot}</span>
+                              {isEditing ? (
+                                <input
+                                  autoFocus
+                                  type="number"
+                                  className="w-14 text-xs border rounded px-1 py-0.5 bg-background text-center"
+                                  value={pricingEditValue}
+                                  min={0}
+                                  step={0.5}
+                                  onChange={e => setPricingEditValue(e.target.value)}
+                                  onBlur={() => {
+                                    const price = parseFloat(pricingEditValue);
+                                    if (!isNaN(price) && price >= 0) {
+                                      setLocalPricingMap(prev => { const m = new Map(prev); m.set(key, price); return m; });
+                                    }
+                                    setPricingEditKey(null);
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") { e.currentTarget.blur(); }
+                                    if (e.key === "Escape") { setPricingEditKey(null); }
+                                  }}
+                                />
+                              ) : (
+                                <button type="button"
+                                  onClick={() => { setPricingEditKey(key); setPricingEditValue(slotPrice.toString()); }}
+                                  className={`font-medium tabular-nums w-14 text-right ${isOverridden ? "text-primary" : "text-foreground"}`}
+                                >{slotPrice.toFixed(2)}€</button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                  </div>)} {/* end schedule tab */}
+
+                  {/* ── TAB: MEDIJA ── */}
+                  {formTab === "media" && (<div className="space-y-4">
                   <FormField control={form.control} name="imageUrl" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Pagrindinė nuotrauka</FormLabel>
@@ -1888,16 +2211,29 @@ export default function OwnerDashboard() {
                     </div>
                   )}
 
-                  <FormField control={form.control} name="isIndoor" render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                      <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Patalpų kortas</FormLabel>
-                      </div>
-                    </FormItem>
-                  )} />
+                  </div>)} {/* end media tab */}
+
+                  {/* ── TAB: PATOGUMAI ── */}
+                  {formTab === "amenities" && (<div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="maxPlayers" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Maks. žaidėjai</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="isIndoor" render={({ field }) => (
+                      <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3 h-[62px]">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <div>
+                          <FormLabel>Patalpų kortas</FormLabel>
+                        </div>
+                      </FormItem>
+                    )} />
+                  </div>
 
                   {/* Smart Amenities */}
                   <div className="rounded-xl border p-4 space-y-3">
@@ -1997,6 +2333,10 @@ export default function OwnerDashboard() {
                     </div>
                   </div>
 
+                  </div>)} {/* end amenities tab */}
+
+                  {/* ── TAB: KONTAKTAI ── */}
+                  {formTab === "contact" && (<div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="ownerName" render={({ field }) => (
                       <FormItem>
@@ -2059,10 +2399,31 @@ export default function OwnerDashboard() {
                       )} />
                     </div>
                   </div>
+                  </div>)} {/* end contact tab */}
 
-                  <Button type="submit" className="w-full mt-6" disabled={createCourt.isPending || updateCourt.isPending}>
-                    {editingId ? "Išsaugoti pakeitimus" : "Sukurti kortą"}
-                  </Button>
+                  {/* Always-visible submit + navigation */}
+                  <div className="flex items-center justify-between pt-2 border-t mt-4">
+                    <div className="flex gap-1">
+                      {formTab !== "info" && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => {
+                          const order = ["info","schedule","amenities","media","contact"] as const;
+                          const idx = order.indexOf(formTab as any);
+                          if (idx > 0) setFormTab(order[idx - 1]);
+                        }}>← Atgal</Button>
+                      )}
+                    </div>
+                    {formTab !== "contact" ? (
+                      <Button type="button" size="sm" onClick={() => {
+                        const order = ["info","schedule","amenities","media","contact"] as const;
+                        const idx = order.indexOf(formTab as any);
+                        if (idx < order.length - 1) setFormTab(order[idx + 1]);
+                      }}>Toliau →</Button>
+                    ) : (
+                      <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending}>
+                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti kortą"}
+                      </Button>
+                    )}
+                  </div>
                 </form>
               </Form>
             </DialogContent>
@@ -2102,123 +2463,149 @@ export default function OwnerDashboard() {
         )}
 
         {/* Courts tab */}
-        {activeOwnerTab === "courts" && (
-        <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
-          <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead>Pavadinimas</TableHead>
-                <TableHead className="hidden md:table-cell">Tipas</TableHead>
-                <TableHead className="hidden md:table-cell">Miestas</TableHead>
-                <TableHead className="hidden sm:table-cell">Kaina/val</TableHead>
-                <TableHead className="hidden lg:table-cell">Stripe</TableHead>
-                <TableHead className="text-right">Veiksmai</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : courts && courts.length > 0 ? (
-                courts.map((court) => (
-                  <TableRow key={court.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center flex-wrap gap-1">
-                          {court.name}
-                          <StatusBadge status={court.status} />
-                        </div>
-                        {court.status === "rejected" && court.rejectionReason && (
-                          <div className="flex items-center gap-1 text-xs text-red-400 mt-0.5">
-                            <AlertTriangle className="w-3 h-3" />
-                            {court.rejectionReason}
-                          </div>
-                        )}
-                        {court.status === "pending" && (
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            Laukiama administratoriaus patvirtinimo
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="capitalize hidden md:table-cell">{court.type}</TableCell>
-                    <TableCell className="hidden md:table-cell">{court.city}</TableCell>
-                    <TableCell className="hidden sm:table-cell">{court.pricePerHour}€/val</TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {(court as any).stripeConnectStatus === "active" ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="w-3 h-3" /> Aktyvus
-                        </span>
-                      ) : (court as any).stripeConnectStatus === "pending" ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-full">
-                          <CreditCard className="w-3 h-3" /> Laukiama
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleConnectStripe(court.id)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded-full transition-colors"
-                        >
-                          <CreditCard className="w-3 h-3" /> Prijungti
-                        </button>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-1.5 text-xs hidden sm:flex"
-                          onClick={() => {
-                            setPricingCourtId(court.id);
-                            setPricingDefaultPrice(court.pricePerHour);
-                          }}
-                        >
-                          <Euro className="w-3.5 h-3.5" /> Kainos
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-1.5 text-xs hidden sm:flex"
-                          onClick={() => setBlockedSlotsCourtId(court.id)}
-                        >
-                          <CalendarClock className="w-3.5 h-3.5" /> Blokai
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="gap-1.5 text-xs hidden sm:flex"
-                          onClick={() => setCoachesCourtId(court.id)}
-                        >
-                          <Trophy className="w-3.5 h-3.5" /> Treneriai
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
-                          <Edit2 className="w-4 h-4 text-muted-foreground" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(court.id)} disabled={deleteCourt.isPending}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                    {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
-                  </TableCell>
-                </TableRow>
+        {activeOwnerTab === "courts" && (() => {
+          // Group courts by facilityId
+          const facilityGroups = new Map<string | null, typeof courts>();
+          facilityGroups.set(null, []);
+          facilities.forEach(f => facilityGroups.set(f.id.toString(), []));
+          courts?.forEach(c => {
+            const key = (c as any).facilityId != null ? String((c as any).facilityId) : null;
+            if (!facilityGroups.has(key)) facilityGroups.set(key, []);
+            facilityGroups.get(key)!.push(c);
+          });
+
+          type CourtItem = NonNullable<typeof courts>[0];
+          const CourtRow = ({ court }: { court: CourtItem }) => (
+            <TableRow key={court.id}>
+              <TableCell className="font-medium">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center flex-wrap gap-1">
+                    {court.name}
+                    <StatusBadge status={court.status} />
+                  </div>
+                  {court.status === "rejected" && court.rejectionReason && (
+                    <div className="flex items-center gap-1 text-xs text-red-400 mt-0.5">
+                      <AlertTriangle className="w-3 h-3" />
+                      {court.rejectionReason}
+                    </div>
+                  )}
+                  {court.status === "pending" && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Laukiama administratoriaus patvirtinimo
+                    </div>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="capitalize hidden md:table-cell">{court.type}</TableCell>
+              <TableCell className="hidden md:table-cell">{court.city}</TableCell>
+              <TableCell className="hidden sm:table-cell">{court.pricePerHour}€/val</TableCell>
+              <TableCell className="hidden lg:table-cell">
+                {(court as any).stripeConnectStatus === "active" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 className="w-3 h-3" /> Aktyvus
+                  </span>
+                ) : (court as any).stripeConnectStatus === "pending" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-0.5 rounded-full">
+                    <CreditCard className="w-3 h-3" /> Laukiama
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleConnectStripe(court.id)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded-full transition-colors"
+                  >
+                    <CreditCard className="w-3 h-3" /> Prijungti
+                  </button>
+                )}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs hidden sm:flex"
+                    onClick={() => { setPricingCourtId(court.id); setPricingDefaultPrice(court.pricePerHour); }}>
+                    <Euro className="w-3.5 h-3.5" /> Kainos
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs hidden sm:flex"
+                    onClick={() => setBlockedSlotsCourtId(court.id)}>
+                    <CalendarClock className="w-3.5 h-3.5" /> Blokai
+                  </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-xs hidden sm:flex"
+                    onClick={() => setCoachesCourtId(court.id)}>
+                    <Trophy className="w-3.5 h-3.5" /> Treneriai
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(court)}>
+                    <Edit2 className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(court.id)} disabled={deleteCourt.isPending}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+
+          const TableFrame = ({ children, facilityName }: { children: React.ReactNode; facilityName?: string }) => (
+            <div className="bg-card border rounded-xl overflow-hidden shadow-sm mb-4">
+              {facilityName && (
+                <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/40 border-b">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm">{facilityName}</span>
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </div>
-        )} {/* end courts tab */}
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead>Pavadinimas</TableHead>
+                    <TableHead className="hidden md:table-cell">Tipas</TableHead>
+                    <TableHead className="hidden md:table-cell">Miestas</TableHead>
+                    <TableHead className="hidden sm:table-cell">Kaina/val</TableHead>
+                    <TableHead className="hidden lg:table-cell">Stripe</TableHead>
+                    <TableHead className="text-right">Veiksmai</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>{children}</TableBody>
+              </Table>
+            </div>
+          );
+
+          if (isLoading) return (
+            <TableFrame>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-32 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableFrame>
+          );
+
+          if (!courts || courts.length === 0) return (
+            <TableFrame>
+              <TableRow>
+                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                  {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
+                </TableCell>
+              </TableRow>
+            </TableFrame>
+          );
+
+          // Render facility groups (only non-empty ones)
+          const groups: React.ReactNode[] = [];
+          facilityGroups.forEach((groupCourts, facilityKey) => {
+            if (!groupCourts || groupCourts.length === 0) return;
+            const facilityName = facilityKey === null
+              ? (facilities.length > 0 ? "Be objekto" : undefined)
+              : facilities.find(f => String(f.id) === facilityKey)?.name;
+            groups.push(
+              <TableFrame key={facilityKey ?? "__none__"} facilityName={facilityName}>
+                {groupCourts.map(c => <CourtRow key={c.id} court={c} />)}
+              </TableFrame>
+            );
+          });
+          return <>{groups}</>;
+        })()}
+        {activeOwnerTab === "courts" && null /* anchor */}
 
         {/* Trainers tab */}
         {activeOwnerTab === "trainers" && courts && (

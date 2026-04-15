@@ -46,6 +46,8 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     socialInstagram: c.socialInstagram ?? undefined,
     socialWhatsapp: c.socialWhatsapp ?? undefined,
     socialWebsite: c.socialWebsite ?? undefined,
+    facilityId: c.facilityId ?? undefined,
+    workingHours: c.workingHours ?? undefined,
   };
 }
 
@@ -136,6 +138,8 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       ownerUserId: userId,
       status: "pending",
       ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
+      facilityId: parsed.data.facilityId ?? null,
+      workingHours: parsed.data.workingHours ?? null,
     })
     .returning();
 
@@ -193,6 +197,8 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       rentableItems: body.data.rentableItems ?? null,
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
+      facilityId: body.data.facilityId ?? null,
+      workingHours: body.data.workingHours ?? null,
     })
     .where(eq(courtsTable.id, params.data.id))
     .returning();

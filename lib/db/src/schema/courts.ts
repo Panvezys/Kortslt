@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, numeric, boolean, integer, real } from "drizzle-orm/pg-core";
+import { facilitiesTable } from "./facilities";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -38,6 +39,8 @@ export const courtsTable = pgTable("courts", {
   socialWebsite: text("social_website"),
   stripeConnectAccountId: text("stripe_connect_account_id"),
   stripeConnectStatus: text("stripe_connect_status").default("not_connected"),
+  facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "set null" }),
+  workingHours: text("working_hours"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
