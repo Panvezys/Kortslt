@@ -12,11 +12,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Grid3X3 } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell } from "lucide-react";
+
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
 import { NotificationBell } from "@/components/notification-bell";
+
+function TennisCourtIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="1" y="1" width="18" height="12" />
+      <line x1="10" y1="1" x2="10" y2="13" />
+      <line x1="5.5" y1="3" x2="5.5" y2="11" />
+      <line x1="14.5" y1="3" x2="14.5" y2="11" />
+      <line x1="5.5" y1="7" x2="14.5" y2="7" />
+    </svg>
+  );
+}
 
 function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -238,7 +251,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
               <Link href="/courts" className="transition-colors hover:text-primary flex items-center gap-1.5">
-                <Grid3X3 className="w-3.5 h-3.5" />
+                <TennisCourtIcon className="w-3.5 h-3.5" />
                 {t("nav.findCourts")}
               </Link>
               <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5">
@@ -292,7 +305,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="transition-colors hover:text-primary flex items-center gap-1.5"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <Grid3X3 className="w-3.5 h-3.5" />
+                <TennisCourtIcon className="w-3.5 h-3.5" />
                 {t("nav.findCourts")}
               </Link>
               <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
