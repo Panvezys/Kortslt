@@ -72,6 +72,10 @@ export const ListCourtsResponseItem = zod.object({
   status: zod.enum(["pending", "approved", "rejected"]).optional(),
   ownershipDocUrl: zod.string().optional(),
   rejectionReason: zod.string().optional(),
+  socialFacebook: zod.string().optional(),
+  socialInstagram: zod.string().optional(),
+  socialWhatsapp: zod.string().optional(),
+  socialWebsite: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -112,6 +116,10 @@ export const CreateCourtBody = zod.object({
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "very_good", "good", "fair"]).optional(),
   ownershipDocUrl: zod.string().optional(),
+  socialFacebook: zod.string().optional(),
+  socialInstagram: zod.string().optional(),
+  socialWhatsapp: zod.string().optional(),
+  socialWebsite: zod.string().optional(),
 });
 
 /**
@@ -162,6 +170,10 @@ export const GetCourtResponse = zod.object({
   status: zod.enum(["pending", "approved", "rejected"]).optional(),
   ownershipDocUrl: zod.string().optional(),
   rejectionReason: zod.string().optional(),
+  socialFacebook: zod.string().optional(),
+  socialInstagram: zod.string().optional(),
+  socialWhatsapp: zod.string().optional(),
+  socialWebsite: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -204,6 +216,10 @@ export const UpdateCourtBody = zod.object({
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "very_good", "good", "fair"]).optional(),
+  socialFacebook: zod.string().optional(),
+  socialInstagram: zod.string().optional(),
+  socialWhatsapp: zod.string().optional(),
+  socialWebsite: zod.string().optional(),
 });
 
 export const UpdateCourtResponse = zod.object({
@@ -247,6 +263,10 @@ export const UpdateCourtResponse = zod.object({
   status: zod.enum(["pending", "approved", "rejected"]).optional(),
   ownershipDocUrl: zod.string().optional(),
   rejectionReason: zod.string().optional(),
+  socialFacebook: zod.string().optional(),
+  socialInstagram: zod.string().optional(),
+  socialWhatsapp: zod.string().optional(),
+  socialWebsite: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
