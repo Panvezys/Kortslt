@@ -75,8 +75,8 @@ function LogoBrand() {
           aria-hidden="true"
           style={{
             display: "inline-block",
-            width: "0.82em",
-            height: "0.82em",
+            width: "0.72em",
+            height: "0.72em",
             verticalAlign: "middle",
             backgroundColor: "currentColor",
             maskImage: "url(/icons/tennis-ball.png)",
