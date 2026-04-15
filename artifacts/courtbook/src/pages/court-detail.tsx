@@ -1041,7 +1041,7 @@ export default function CourtDetail() {
                       if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
-                    className="rounded-md [--cell-size:1.9rem] sm:[--cell-size:2.25rem] w-full"
+                    className="rounded-md [--cell-size:2.05rem] sm:[--cell-size:2.25rem] w-full max-w-full"
                   />
                 </div>
               </div>
