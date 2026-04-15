@@ -10,6 +10,7 @@ import {
   CancelBookingResponse,
   ListBookingsResponse,
 } from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -57,7 +58,7 @@ router.get("/bookings", async (req, res): Promise<void> => {
   res.json(ListBookingsResponse.parse(rows.map(r => formatBooking(r.booking, r.courtName ?? undefined))));
 });
 
-router.post("/bookings", async (req, res): Promise<void> => {
+router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateBookingBody.safeParse(req.body);
   if (!parsed.success) {
     console.error("[bookings] validation failed:", JSON.stringify(req.body), parsed.error.flatten());

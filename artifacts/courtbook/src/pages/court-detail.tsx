@@ -212,10 +212,6 @@ export default function CourtDetail() {
   const { openSignIn, openSignUp } = useClerk();
   const [, navigate] = useLocation();
 
-  const [guestFirstName, setGuestFirstName] = useState("");
-  const [guestLastName, setGuestLastName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
   const [copiedContact, setCopiedContact] = useState<"address" | "phone" | null>(null);
   const [equipmentOpen, setEquipmentOpen] = useState(false);
 
@@ -481,25 +477,6 @@ export default function CourtDetail() {
         variant: "destructive",
       });
     }
-  };
-
-  const handleGuestReserve = async () => {
-    const firstName = guestFirstName.trim();
-    const lastName = guestLastName.trim();
-    const email = guestEmail.trim();
-    const phone = guestPhone.trim();
-
-    if (!firstName || !lastName) {
-      toast({ title: t("guest.errorName"), variant: "destructive" }); return;
-    }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast({ title: t("guest.errorEmail"), variant: "destructive" }); return;
-    }
-    if (!phone || phone.length < 6) {
-      toast({ title: t("guest.errorPhone"), variant: "destructive" }); return;
-    }
-
-    await handleReserve({ customerName: `${firstName} ${lastName}`, customerEmail: email, customerPhone: phone });
   };
 
   const isPending = createBooking.isPending;
@@ -1322,92 +1299,19 @@ export default function CourtDetail() {
                       <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
                     </>
                   ) : (
-                    /* Not signed in — guest booking form */
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label htmlFor="guestFirstName" className="text-xs text-muted-foreground">{t("guest.firstName")} *</Label>
-                          <Input
-                            id="guestFirstName"
-                            placeholder={t("guest.firstName")}
-                            value={guestFirstName}
-                            onChange={e => setGuestFirstName(e.target.value)}
-                            className="h-9 text-sm"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="guestLastName" className="text-xs text-muted-foreground">{t("guest.lastName")} *</Label>
-                          <Input
-                            id="guestLastName"
-                            placeholder={t("guest.lastName")}
-                            value={guestLastName}
-                            onChange={e => setGuestLastName(e.target.value)}
-                            className="h-9 text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="guestEmail" className="text-xs text-muted-foreground">{t("guest.email")} *</Label>
-                        <Input
-                          id="guestEmail"
-                          type="email"
-                          placeholder={t("guest.emailPlaceholder")}
-                          value={guestEmail}
-                          onChange={e => setGuestEmail(e.target.value)}
-                          className="h-9 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="guestPhone" className="text-xs text-muted-foreground">{t("guest.phone")} *</Label>
-                        <Input
-                          id="guestPhone"
-                          type="tel"
-                          placeholder={t("guest.phonePlaceholder")}
-                          value={guestPhone}
-                          onChange={e => setGuestPhone(e.target.value)}
-                          className="h-9 text-sm"
-                        />
-                      </div>
-
-                      <Button
-                        onClick={handleGuestReserve}
-                        className="w-full min-h-[48px] h-auto py-3 px-4 text-sm font-semibold gap-2 leading-tight transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:hover:scale-100"
-                        disabled={isPending}
-                      >
-                        {isPending ? t("guest.processing") : t("guest.bookBtn")}
-                      </Button>
-
-                      {/* Account creation CTA */}
-                      <div className="rounded-xl border border-border bg-muted/40 p-3 flex flex-col gap-2">
-                        <p className="text-xs text-muted-foreground text-center">
-                          {t("guest.ctaTitle")}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 gap-1.5 text-xs"
-                            onClick={() => openSignIn()}
-                          >
-                            <LogIn className="w-3 h-3" />
-                            {t("guest.signIn")}
-                          </Button>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="flex-1 gap-1.5 text-xs"
-                            onClick={() => openSignUp({
-                              initialValues: {
-                                firstName: guestFirstName || undefined,
-                                lastName: guestLastName || undefined,
-                                emailAddress: guestEmail || undefined,
-                              }
-                            })}
-                          >
-                            <UserPlus className="w-3 h-3" />
-                            {t("guest.register")}
-                          </Button>
-                        </div>
+                    <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Norėdami rezervuoti, pirmiausia prisijunkite.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1 gap-1.5" onClick={() => openSignIn()}>
+                          <LogIn className="w-4 h-4" />
+                          Prisijungti
+                        </Button>
+                        <Button variant="default" className="flex-1 gap-1.5" onClick={() => openSignUp()}>
+                          <UserPlus className="w-4 h-4" />
+                          Registruotis
+                        </Button>
                       </div>
                     </div>
                   )}

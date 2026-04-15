@@ -10,6 +10,7 @@ import {
 import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
+import { getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -172,6 +173,12 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = getCurrentUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const rows = await db
     .select({
       booking: bookingsTable,
@@ -188,6 +195,16 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
 
   if (!rows[0]) {
     res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  if (rows[0].booking.customerEmail?.length === 0 && rows[0].booking.customerName?.length === 0) {
+    res.status(400).json({ error: "Invalid booking" });
+    return;
+  }
+
+  if (rows[0].booking.status !== "pending") {
+    res.status(409).json({ error: "Booking already processed" });
     return;
   }
 
