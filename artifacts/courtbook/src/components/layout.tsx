@@ -379,6 +379,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   Gedimino pr. 45-7, Vilnius LT-01504
                 </span>
               </div>
+
+              {/* Social links */}
+              <div className="flex items-center gap-3 mt-1">
+                <a href="https://instagram.com/korts.lt" target="_blank" rel="noreferrer" aria-label="Instagram"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+                </a>
+                <a href="https://facebook.com/korts.lt" target="_blank" rel="noreferrer" aria-label="Facebook"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                </a>
+                <a href="https://t.me/kortslt" target="_blank" rel="noreferrer" aria-label="Telegram"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M21.95 5.005l-3.306 15.617c-.25 1.118-.9 1.397-1.826.869l-5-3.683-2.415 2.321c-.267.267-.489.489-.999.489l.356-5.045 9.197-8.304c.4-.355-.087-.551-.619-.196L6.11 13.92l-4.92-1.541c-1.07-.333-1.087-1.07.222-1.583l19.16-7.391c.888-.335 1.667.216 1.378 1.6z"/></svg>
+                </a>
+              </div>
+
+              {/* App store badges */}
+              <div className="flex flex-col gap-2 mt-1">
+                <span title="Netrukus Google Play parduotuvėje"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/40 cursor-not-allowed opacity-55 select-none w-fit text-xs">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor"><path d="M3.18 23.76c.3.17.65.2.97.08L14.84 12 3.18.16a1.1 1.1 0 0 0-.97.08C1.86.57 1.5 1.04 1.5 1.56v20.88c0 .52.36.99.68 1.32zM16.5 13.7l2.6-1.5-2.6-1.5-2.18 1.26 2.18 1.24zM4.02 22.5 13.7 12 4.02 1.5l-.34-.34v21.68l.34-.34zM17.72 7.16l-13.7-7.9 10.5 10.5 3.2-2.6zM4.02 24.84l13.7-7.9-3.2-2.6-10.5 10.5z"/></svg>
+                  <span className="font-medium text-foreground">Google Play</span>
+                  <span className="text-muted-foreground">· Netrukus</span>
+                </span>
+                <span title="Netrukus App Store parduotuvėje"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/40 cursor-not-allowed opacity-55 select-none w-fit text-xs">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                  <span className="font-medium text-foreground">App Store</span>
+                  <span className="text-muted-foreground">· Netrukus</span>
+                </span>
+              </div>
             </div>
 
             {/* Column 2 — Platform */}
