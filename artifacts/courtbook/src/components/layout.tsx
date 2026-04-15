@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -353,16 +353,97 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 w-full">{children}</main>
 
-        <footer className="border-t py-6 md:py-0 bg-muted/30 mt-auto">
-          <div className="container mx-auto flex flex-col items-center justify-between gap-4 md:h-16 md:flex-row px-4 text-sm text-muted-foreground">
-            <p>{t("footer.tagline")}</p>
-            <div className="flex gap-4">
-              <Link href="/courts" className="hover:text-primary transition-colors">
-                {t("footer.courts")}
+        <footer className="border-t bg-muted/20 mt-auto">
+          {/* Main footer grid */}
+          <div className="container mx-auto px-4 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+
+            {/* Column 1 — Company */}
+            <div className="flex flex-col gap-4">
+              <Link href="/" className="font-extrabold text-xl tracking-tight text-foreground">
+                korts.lt
               </Link>
-              <Link href="/bookings" className="hover:text-primary transition-colors">
-                {t("footer.bookings")}
-              </Link>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+                Lietuva pirmaujanti sporto kortų rezervacijos platforma. Raskite, palyginkite ir užsisakykite kortą vos per kelias sekundes.
+              </p>
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-1">
+                <a href="mailto:info@korts.lt" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  info@korts.lt
+                </a>
+                <a href="tel:+37052314567" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  +370 5 231 4567
+                </a>
+                <span className="flex items-start gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  Gedimino pr. 45-7, Vilnius LT-01504
+                </span>
+              </div>
+            </div>
+
+            {/* Column 2 — Platform */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Platforma</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { href: "/courts", label: "Rasti kortą" },
+                  { href: "/coaches", label: "Treneriai" },
+                  { href: "/tournaments", label: "Turnyrai" },
+                  { href: "/bookings", label: "Mano rezervacijos" },
+                  { href: "/profile", label: "Profilis" },
+                ].map(l => (
+                  <Link key={l.href} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {l.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            {/* Column 3 — Sports */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Sporto šakos</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { type: "tennis", label: "Tenisas" },
+                  { type: "basketball", label: "Krepšinis" },
+                  { type: "padel", label: "Padelis" },
+                  { type: "football", label: "Futbolas" },
+                  { type: "badminton", label: "Badmintonas" },
+                  { type: "squash", label: "Skvoše" },
+                ].map(s => (
+                  <Link key={s.type} href={`/courts?type=${s.type}`} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {s.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            {/* Column 4 — Support */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pagalba</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { href: "#", label: "D.U.K." },
+                  { href: "#", label: "Kortų savininkams" },
+                  { href: "#", label: "Privatumo politika" },
+                  { href: "#", label: "Naudojimo taisyklės" },
+                  { href: "#", label: "Kontaktai" },
+                ].map(l => (
+                  <a key={l.label} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {l.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t">
+            <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>© {new Date().getFullYear()} UAB Korts Digital. Visos teisės saugomos.</p>
+              <p className="text-center sm:text-right">
+                Įm. kodas 306 214 857 · PVM LT100012345678 · Lietuva
+              </p>
             </div>
           </div>
         </footer>
