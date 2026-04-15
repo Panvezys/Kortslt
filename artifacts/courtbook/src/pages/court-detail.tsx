@@ -952,8 +952,15 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative">
-            <div className="md:sticky md:top-24 bg-card border rounded-2xl shadow-xl md:overflow-hidden md:max-h-[calc(100vh-7rem)] md:flex md:flex-col">
-              <div className="p-6 space-y-5 md:overflow-y-auto md:flex-1 md:min-h-0">
+            <div className="sticky top-20 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
+
+              {/* Widget title header */}
+              <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Rezervuoti kortą</h3>
+              </div>
+
+              <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
 
               {/* Step 1: Date */}
               <div>
