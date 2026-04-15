@@ -821,22 +821,22 @@ export default function CourtDetail() {
               <div className="grid sm:grid-cols-2 gap-4">
 
                 {/* Address card */}
-                <div className="flex gap-3 p-4 bg-muted/30 rounded-xl border">
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex gap-3 p-4 bg-muted/30 rounded-xl border hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                >
                   <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground font-medium mb-0.5">Adresas</p>
-                    <p className="font-semibold text-sm">{court.address}</p>
+                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{court.address}</p>
                     <p className="text-sm text-muted-foreground">{court.city}, Lietuva</p>
-                    <a
-                      href={`https://maps.google.com/?q=${encodeURIComponent(court.name + ", " + court.address + ", " + court.city)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                    >
+                    <span className="inline-flex items-center gap-1 text-xs text-primary mt-1">
                       Atidaryti žemėlapyje <ExternalLink className="w-3 h-3" />
-                    </a>
+                    </span>
                   </div>
-                </div>
+                </a>
 
                 {/* Phone card */}
                 {court.phone && (
