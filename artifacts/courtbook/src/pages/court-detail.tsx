@@ -1028,8 +1028,8 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative">
-            <div className="sticky top-24 bg-card border rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: "calc(100vh - 7rem)" }}>
-              <div className="overflow-y-auto h-full p-6 space-y-5" style={{ maxHeight: "calc(100vh - 7rem)" }}>
+            <div className="md:sticky md:top-24 bg-card border rounded-2xl shadow-xl md:overflow-hidden md:max-h-[calc(100vh-7rem)]">
+              <div className="md:overflow-y-auto md:h-full p-6 space-y-5 md:max-h-[calc(100vh-7rem)]">
 
               {/* Step 1: Date */}
               <div>
