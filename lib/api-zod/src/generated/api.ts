@@ -401,6 +401,7 @@ export const ListBookingsResponseItem = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
+  rentedItems: zod.string().nullish(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
   stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -418,6 +419,7 @@ export const CreateBookingBody = zod.object({
   date: zod.coerce.date(),
   startTime: zod.string(),
   endTime: zod.string(),
+  rentedItems: zod.string().optional(),
 });
 
 /**
@@ -438,6 +440,7 @@ export const GetBookingResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
+  rentedItems: zod.string().nullish(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
   stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -460,6 +463,7 @@ export const CancelBookingResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
+  rentedItems: zod.string().nullish(),
   status: zod.enum(["pending", "confirmed", "cancelled"]),
   stripeSessionId: zod.string().nullish(),
   createdAt: zod.coerce.date(),

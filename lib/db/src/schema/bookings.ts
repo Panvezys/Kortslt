@@ -13,6 +13,7 @@ export const bookingsTable = pgTable("bookings", {
   endTime: text("end_time").notNull(), // HH:MM
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"), // pending | confirmed | cancelled
+  rentedItems: text("rented_items"),
   stripeSessionId: text("stripe_session_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

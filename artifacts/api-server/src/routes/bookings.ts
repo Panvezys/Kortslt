@@ -17,6 +17,7 @@ function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: s
   return {
     ...booking,
     totalPrice: Number(booking.totalPrice),
+    rentedItems: booking.rentedItems ?? undefined,
     courtName: courtName ?? undefined,
   };
 }
@@ -75,7 +76,26 @@ router.post("/bookings", async (req, res): Promise<void> => {
   const endHour   = parseInt(parsed.data.endTime.split(":")[0], 10);
   const endMin    = parseInt(parsed.data.endTime.split(":")[1] ?? "0", 10);
   const durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-  const totalPrice = Number(court.pricePerHour) * (durationMinutes / 60);
+  let totalPrice = Number(court.pricePerHour) * (durationMinutes / 60);
+
+  let equipmentCost = 0;
+  let validatedRentedItems: string | null = null;
+  if (parsed.data.rentedItems) {
+    try {
+      const clientItems: Array<{ name: string; pricePerBooking?: number; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
+      const courtEquipment: Array<{ name: string; pricePerBooking: number }> = court.rentableItems ? JSON.parse(court.rentableItems) : [];
+      const serverValidated: Array<{ name: string; pricePerBooking: number; quantity: number }> = [];
+      for (const ci of clientItems) {
+        const canonical = courtEquipment.find(e => e.name === ci.name);
+        if (!canonical) continue;
+        const qty = Math.max(1, Math.min(Math.floor(ci.quantity ?? 1), 20));
+        serverValidated.push({ name: canonical.name, pricePerBooking: canonical.pricePerBooking, quantity: qty });
+        equipmentCost += canonical.pricePerBooking * qty;
+      }
+      if (serverValidated.length > 0) validatedRentedItems = JSON.stringify(serverValidated);
+    } catch {}
+  }
+  totalPrice += equipmentCost;
 
   // Normalise date to YYYY-MM-DD (the Zod schema coerces it to Date)
   const d = parsed.data.date;
@@ -90,6 +110,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
     startTime: parsed.data.startTime,
     endTime: parsed.data.endTime,
     totalPrice: String(totalPrice),
+    rentedItems: validatedRentedItems,
     status: "pending",
   }).returning();
 

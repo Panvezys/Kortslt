@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send, ChevronLeft, ChevronRight, Images, UserPlus } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, Send, ChevronLeft, ChevronRight, Images, UserPlus, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -188,6 +188,8 @@ export default function CourtDetail() {
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
 
+  const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
+
   interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
   const { data: extraPhotos = [] } = useQuery<CourtPhoto[]>({
     queryKey: ["court-photos", courtId],
@@ -227,6 +229,21 @@ export default function CourtDetail() {
 
   const slots = availability?.slots ?? [];
 
+  const availableEquipment: Array<{ name: string; pricePerBooking: number }> = useMemo(() => {
+    try {
+      return court?.rentableItems ? JSON.parse(court.rentableItems) : [];
+    } catch { return []; }
+  }, [court?.rentableItems]);
+
+  const equipmentTotal = useMemo(() => {
+    let total = 0;
+    selectedEquipment.forEach((qty, name) => {
+      const item = availableEquipment.find(e => e.name === name);
+      if (item && qty > 0) total += item.pricePerBooking * qty;
+    });
+    return total;
+  }, [selectedEquipment, availableEquipment]);
+
   // Selected slot range (selectedStart..selectedEnd inclusive)
   const selectedSlotRange = useMemo(() => {
     if (selectedStart === null || !slots.length) return null;
@@ -241,16 +258,18 @@ export default function CourtDetail() {
     const durationLabel = hours > 0
       ? mins > 0 ? `${hours} val ${mins} min` : `${hours} val`
       : `${mins} min`;
+    const courtPrice = range.reduce((sum, s) => sum + s.price, 0);
     return {
       startTime: range[0].startTime,
       endTime: range[range.length - 1].endTime,
-      totalPrice: range.reduce((sum, s) => sum + s.price, 0),
+      courtPrice,
+      totalPrice: courtPrice + equipmentTotal,
       slotCount: range.length,
       durationLabel,
       rangeStart,
       rangeEnd,
     };
-  }, [selectedStart, selectedEnd, slots]);
+  }, [selectedStart, selectedEnd, slots, equipmentTotal]);
 
   // Handle slot click: select, extend, or deselect
   const handleSlotClick = (idx: number) => {
@@ -310,6 +329,13 @@ export default function CourtDetail() {
     }
 
     try {
+      const rentedItemsPayload: Array<{ name: string; pricePerBooking: number; quantity: number }> = [];
+      selectedEquipment.forEach((qty, name) => {
+        if (qty > 0) {
+          const item = availableEquipment.find(e => e.name === name);
+          if (item) rentedItemsPayload.push({ name, pricePerBooking: item.pricePerBooking, quantity: qty });
+        }
+      });
       const booking = await createBooking.mutateAsync({
         data: {
           courtId,
@@ -319,6 +345,7 @@ export default function CourtDetail() {
           date: dateStr,
           startTime: selectedSlotRange.startTime,
           endTime: selectedSlotRange.endTime,
+          rentedItems: rentedItemsPayload.length > 0 ? JSON.stringify(rentedItemsPayload) : undefined,
         }
       });
 
@@ -987,7 +1014,7 @@ export default function CourtDetail() {
                     mode="single"
                     selected={date}
                     onSelect={(d) => {
-                      if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); }
+                      if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
                     className="rounded-md"
@@ -1072,6 +1099,66 @@ export default function CourtDetail() {
                 )}
               </div>
 
+              {/* Equipment rental — shown when slots are selected and court has equipment */}
+              {selectedSlotRange && availableEquipment.length > 0 && (
+                <div className="rounded-xl border p-3 space-y-2">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4 text-primary" />
+                    Pridėti įrangą
+                  </p>
+                  <div className="space-y-1.5">
+                    {availableEquipment.map(item => {
+                      const qty = selectedEquipment.get(item.name) ?? 0;
+                      const isSelected = qty > 0;
+                      return (
+                        <div key={item.name} className={`flex items-center justify-between rounded-lg px-3 py-2 border transition-colors ${isSelected ? "bg-primary/5 border-primary/30" : "bg-muted/30 border-transparent"}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedEquipment(prev => {
+                                  const next = new Map(prev);
+                                  if (isSelected) next.delete(item.name);
+                                  else next.set(item.name, 1);
+                                  return next;
+                                });
+                              }}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}
+                            >
+                              {isSelected && <Check className="w-3 h-3" />}
+                            </button>
+                            <span className="text-sm font-medium truncate">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isSelected && (
+                              <div className="flex items-center gap-1 bg-background border rounded-md">
+                                <button type="button" onClick={() => {
+                                  setSelectedEquipment(prev => {
+                                    const next = new Map(prev);
+                                    if (qty <= 1) next.delete(item.name);
+                                    else next.set(item.name, qty - 1);
+                                    return next;
+                                  });
+                                }} className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">−</button>
+                                <span className="text-xs font-medium w-4 text-center">{qty}</span>
+                                <button type="button" onClick={() => {
+                                  setSelectedEquipment(prev => {
+                                    const next = new Map(prev);
+                                    next.set(item.name, qty + 1);
+                                    return next;
+                                  });
+                                }} className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">+</button>
+                              </div>
+                            )}
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">{item.pricePerBooking.toFixed(2)}€</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Booking summary — shown inline below slot grid once something is selected */}
               {selectedSlotRange ? (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
@@ -1083,6 +1170,16 @@ export default function CourtDetail() {
                     <span className="text-muted-foreground">Trukmė</span>
                     <span className="font-medium">{selectedSlotRange.durationLabel}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Kortas</span>
+                    <span className="font-medium">{selectedSlotRange.courtPrice.toFixed(2)} €</span>
+                  </div>
+                  {equipmentTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> Įranga</span>
+                      <span className="font-medium">{equipmentTotal.toFixed(2)} €</span>
+                    </div>
+                  )}
                   <Separator className="my-1" />
                   <div className="flex justify-between font-bold text-base">
                     <span>Iš viso</span>
