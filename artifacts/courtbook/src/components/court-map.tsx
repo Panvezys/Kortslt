@@ -107,7 +107,6 @@ function buildIconUrl(color: string, sport: string, isSelected: boolean): string
   const cy = size / 2;
   const r = size / 2 - border / 2;
 
-  // Scale icon to occupy ~58% of the total marker diameter
   const iconPx = size * 0.58;
   const iconScale = iconPx / 24;
   const tx = (cx - 12 * iconScale).toFixed(3);
@@ -116,24 +115,10 @@ function buildIconUrl(color: string, sport: string, isSelected: boolean): string
 
   const paths = sportIconPaths[sport] ?? sportIconPaths["tennis"];
 
-  // Use SVG <filter> in <defs> so the shadow applies only to the drawn circle,
-  // not the entire rectangular SVG viewport — this keeps transparent corners truly transparent.
-  const filterId = "sh";
-  const filterDef = isSelected
-    ? `<filter id="${filterId}" x="-40%" y="-40%" width="180%" height="180%">
-        <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="${color}" flood-opacity="0.5"/>
-        <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="rgba(0,0,0,0.6)"/>
-      </filter>`
-    : `<filter id="${filterId}" x="-40%" y="-40%" width="180%" height="180%">
-        <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.45)"/>
-      </filter>`;
-
+  // Plain circle — no filter/shadow so there is zero gray bleed outside the circle
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <defs>${filterDef}</defs>
-  <g filter="url(#${filterId})">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
-    <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
-  </g>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
+  <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
 </svg>`;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
