@@ -601,7 +601,7 @@ export default function Home() {
                   >
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.5)" }} />
                     <span className="text-sm text-white/80">
-                      {searchDateObj ? format(searchDateObj, "d MMM") : "Data"}
+                      {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
                     </span>
                     {searchDateObj && (
                       <span
