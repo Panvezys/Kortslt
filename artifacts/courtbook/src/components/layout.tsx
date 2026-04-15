@@ -1,6 +1,5 @@
 import { Link, useLocation } from "wouter";
 import { ThemeProvider, useTheme } from "./theme-provider";
-import { FavoritesProvider } from "@/lib/FavoritesContext";
 import { useUser, useClerk, Show } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -264,7 +263,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      <FavoritesProvider>
       <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -370,7 +368,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </footer>
       </div>
-      </FavoritesProvider>
     </ThemeProvider>
   );
 }

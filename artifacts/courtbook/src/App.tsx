@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "@/lib/i18n";
 import NotFound from "@/pages/not-found";
 import { useRole } from "@/lib/useRole";
+import { FavoritesProvider } from "@/lib/FavoritesContext";
 
 import Home from "@/pages/home";
 import Courts from "@/pages/courts";
@@ -169,10 +170,12 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
+        <FavoritesProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </FavoritesProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );
