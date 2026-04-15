@@ -21,6 +21,7 @@ import AdminDashboard from "@/pages/admin";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import CoachPage from "@/pages/coach";
+import CoachesPage from "@/pages/coaches";
 import TrainersPage from "@/pages/trainers";
 import TrainerDetail from "@/pages/trainer-detail";
 import TournamentsPage from "@/pages/tournaments";
@@ -142,6 +143,7 @@ function Router() {
       <Route path="/payment-success" component={PaymentSuccess} />
       <Route path="/booking-confirmed" component={BookingConfirmed} />
       <Route path="/payment-cancel" component={PaymentCancel} />
+      <Route path="/coaches" component={CoachesPage} />
       <Route path="/coach/me" component={CoachPage} />
       <Route path="/coach/:id" component={CoachPage} />
       <Route path="/trainers" component={TrainersPage} />

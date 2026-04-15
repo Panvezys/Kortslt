@@ -240,7 +240,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link href="/courts" className="transition-colors hover:text-primary">
                 {t("nav.findCourts")}
               </Link>
-              <Link href="/trainers" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5">
                 <Dumbbell className="w-3.5 h-3.5" />
                 Treneriai
               </Link>
@@ -293,7 +293,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               >
                 {t("nav.findCourts")}
               </Link>
-              <Link href="/trainers" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5" onClick={() => setMobileMenuOpen(false)}>
                 <Dumbbell className="w-3.5 h-3.5" />
                 Treneriai
               </Link>
