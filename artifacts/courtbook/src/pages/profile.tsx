@@ -305,14 +305,19 @@ function StatCard({
   label,
   value,
   color = "text-primary",
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
   color?: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="bg-card border rounded-xl p-5 flex flex-col gap-2 shadow-sm">
+    <div
+      onClick={onClick}
+      className={`bg-card border rounded-xl p-5 flex flex-col gap-2 shadow-sm transition-all ${onClick ? "cursor-pointer hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5" : ""}`}
+    >
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center bg-muted ${color}`}>
         {icon}
       </div>
@@ -429,18 +434,21 @@ export default function Profile() {
             icon={<CalendarDays className="w-5 h-5" />}
             label={t("profile.stat.totalBookings")}
             value={bookingsLoading ? "–" : (bookings?.length ?? 0)}
+            onClick={() => setActiveTab("bookings")}
           />
           <StatCard
             icon={<Clock className="w-5 h-5" />}
             label={t("profile.stat.upcoming")}
             value={bookingsLoading ? "–" : upcomingBookings.length}
             color="text-green-500"
+            onClick={() => setActiveTab("bookings")}
           />
           <StatCard
             icon={<Heart className="w-5 h-5" />}
             label={t("profile.stat.favorites")}
             value={favoritesLoading ? "–" : favorites.length}
             color="text-rose-500"
+            onClick={() => setActiveTab("favorites")}
           />
           {isOwner && (
             <StatCard
@@ -448,6 +456,7 @@ export default function Profile() {
               label={t("profile.stat.myCourts")}
               value={courtsLoading ? "–" : (ownerCourts?.length ?? 0)}
               color="text-blue-500"
+              onClick={() => setActiveTab("courts")}
             />
           )}
         </div>
