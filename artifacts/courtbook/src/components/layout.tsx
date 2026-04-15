@@ -224,7 +224,10 @@ function UserMenu() {
 
 function MobileUserAvatar() {
   const { user } = useUser();
+  const { signOut } = useClerk();
   const [, setLocation] = useLocation();
+  const t = useT();
+  const { isAdmin, isOwner } = useRole();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -235,18 +238,68 @@ function MobileUserAvatar() {
   if (!user) return null;
 
   return (
-    <button
-      onClick={() => setLocation("/profile")}
-      className="md:hidden flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      aria-label="Open profile"
-    >
-      <Avatar className="h-8 w-8">
-        <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
-        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-          {initials}
-        </AvatarFallback>
-      </Avatar>
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="md:hidden flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Open profile menu"
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{user.fullName || t("nav.account")}</p>
+            <p className="text-xs leading-none text-muted-foreground truncate">
+              {user.emailAddresses[0]?.emailAddress}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setLocation("/profile")}>
+          <UserCircle className="mr-2 h-4 w-4" />
+          {t("nav.myProfile")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocation("/bookings")}>
+          <CalendarDays className="mr-2 h-4 w-4" />
+          {t("nav.myBookings")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
+          <Heart className="mr-2 h-4 w-4 text-red-500" />
+          Mėgstamiausi
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
+          <Trophy className="mr-2 h-4 w-4" />
+          Trenerio profilis
+        </DropdownMenuItem>
+        {isOwner && (
+          <DropdownMenuItem onClick={() => setLocation("/owner")}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            {t("nav.ownerDashboard")}
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Administravimas
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {t("nav.signOut")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
