@@ -1033,7 +1033,7 @@ export default function CourtDetail() {
                   <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">1</span>
                   Pasirinkite datą
                 </p>
-                <div className="border rounded-xl p-1 bg-background flex justify-center">
+                <div className="border rounded-xl overflow-hidden bg-background flex justify-center">
                   <Calendar
                     mode="single"
                     selected={date}
@@ -1041,7 +1041,7 @@ export default function CourtDetail() {
                       if (d) { setDate(d); setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }
                     }}
                     disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
-                    className="rounded-md"
+                    className="rounded-md [--cell-size:1.9rem] sm:[--cell-size:2.25rem] w-full"
                   />
                 </div>
               </div>
@@ -1074,7 +1074,7 @@ export default function CourtDetail() {
                     ))}
                   </div>
                 ) : slots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-1.5 max-h-72 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {slots.map((slot, idx) => {
                       const selectedDate = new Date(date);
                       const now = new Date();
