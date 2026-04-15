@@ -597,7 +597,7 @@ export default function CourtDetail() {
           </>
         )}
       </div>
-      <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24">
+      <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24 md:pb-24">
         <div className="grid md:grid-cols-3 gap-8">
 
           {/* Main Info */}
@@ -1235,6 +1235,17 @@ export default function CourtDetail() {
               {/* Booking summary — shown inline below slot grid once something is selected */}
               {selectedSlotRange ? (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suvestinė</span>
+                    <button
+                      onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors rounded-lg px-2 py-1 hover:bg-destructive/10"
+                      title="Išvalyti pasirinkimą"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Išvalyti
+                    </button>
+                  </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Laikas</span>
                     <span className="font-semibold">{selectedSlotRange.startTime} – {selectedSlotRange.endTime}</span>
@@ -1371,6 +1382,44 @@ export default function CourtDetail() {
 
         </div>
       </div>
+
+      {/* Mobile sticky bottom reserve bar */}
+      {selectedSlotRange && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t shadow-2xl px-4 py-3 safe-area-bottom">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
+              className="flex-shrink-0 w-11 h-11 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors"
+              title="Išvalyti pasirinkimą"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
+              <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
+            </div>
+            {!clerkLoaded ? (
+              <div className="h-11 w-32 rounded-xl bg-muted animate-pulse" />
+            ) : isSignedIn ? (
+              <Button
+                onClick={() => handleReserve()}
+                className="h-11 px-6 font-semibold gap-2 shrink-0"
+                disabled={isPending}
+              >
+                {isPending ? "..." : "Rezervuoti"}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => openSignIn()}
+                className="h-11 px-5 font-semibold gap-1.5 shrink-0"
+              >
+                <LogIn className="w-4 h-4" />
+                Prisijungti
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
