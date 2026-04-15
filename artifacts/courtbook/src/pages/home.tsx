@@ -59,6 +59,7 @@ function StarRatingSmall({ rating }: { rating?: number | null }) {
 function PopularCourtCard({ court }: { court: PopularCourt }) {
   const t = useT();
   const [hovered, setHovered] = useState(false);
+  const [btnHovered, setBtnHovered] = useState(false);
   const imgSrc = resolveCourtImage(court.imageUrl, court.type);
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const color = sportColor[court.type] ?? "#84cc16";
@@ -128,16 +129,16 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
       </CardHeader>
 
       <CardFooter className="pt-0 mt-auto">
-        <Link href={`/courts/${court.id}`} className="w-full">
+        <Link href={`/courts/${court.id}`} className="w-full"
+          onMouseEnter={() => setBtnHovered(true)}
+          onMouseLeave={() => setBtnHovered(false)}
+        >
           <Button
             variant="outline"
             className="w-full transition-all duration-200 active:scale-[0.98]"
-            style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff", boxShadow: `0 4px 14px ${color}55` } : undefined}
+            style={btnHovered ? { backgroundColor: color, borderColor: color, color: "#fff", boxShadow: `0 4px 14px ${color}55` } : undefined}
           >
-            <span className="flex items-center justify-center gap-2">
-              {t("card.viewBook")}
-              <ArrowRight className={`h-3.5 w-3.5 transition-all duration-200 ${hovered ? "translate-x-0.5 opacity-100" : "-translate-x-1 opacity-0"}`} />
-            </span>
+            {t("card.viewBook")}
           </Button>
         </Link>
       </CardFooter>
