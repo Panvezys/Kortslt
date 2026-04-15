@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Star, Heart } from "lucide-react";
+import { MapPin, Users, Star, Heart, ArrowRight } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -180,10 +180,13 @@ export function CourtCard({ court }: { court: Court }) {
         <Link href={`/courts/${court.id}`} className="w-full">
           <Button
             variant="outline"
-            className="w-full transition-colors duration-200"
-            style={hovered ? { backgroundColor: sport.color, borderColor: sport.color, color: "#fff" } : undefined}
+            className="w-full transition-all duration-200 active:scale-[0.98]"
+            style={hovered ? { backgroundColor: sport.color, borderColor: sport.color, color: "#fff", boxShadow: `0 4px 14px ${sport.color}55` } : undefined}
           >
-            {t("card.viewBook")}
+            <span className="flex items-center justify-center gap-2">
+              {t("card.viewBook")}
+              <ArrowRight className={`h-3.5 w-3.5 transition-all duration-200 ${hovered ? "translate-x-0.5 opacity-100" : "-translate-x-1 opacity-0"}`} />
+            </span>
           </Button>
         </Link>
       </CardFooter>

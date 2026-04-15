@@ -131,10 +131,13 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
         <Link href={`/courts/${court.id}`} className="w-full">
           <Button
             variant="outline"
-            className="w-full transition-colors duration-200"
-            style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff" } : undefined}
+            className="w-full transition-all duration-200 active:scale-[0.98]"
+            style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff", boxShadow: `0 4px 14px ${color}55` } : undefined}
           >
-            {t("card.viewBook")}
+            <span className="flex items-center justify-center gap-2">
+              {t("card.viewBook")}
+              <ArrowRight className={`h-3.5 w-3.5 transition-all duration-200 ${hovered ? "translate-x-0.5 opacity-100" : "-translate-x-1 opacity-0"}`} />
+            </span>
           </Button>
         </Link>
       </CardFooter>
