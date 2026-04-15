@@ -28,6 +28,7 @@ import TrainersPage from "@/pages/trainers";
 import TrainerDetail from "@/pages/trainer-detail";
 import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
+import ListYourCourt from "@/pages/list-your-court";
 
 const queryClient = new QueryClient();
 
@@ -152,6 +153,7 @@ function Router() {
       <Route path="/trainers/:id" component={TrainerDetail} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
+      <Route path="/list-your-court" component={ListYourCourt} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

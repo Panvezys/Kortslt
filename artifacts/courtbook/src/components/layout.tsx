@@ -421,6 +421,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { href: "/courts", label: "Rasti kortą" },
                   { href: "/coaches", label: "Treneriai" },
                   { href: "/tournaments", label: "Turnyrai" },
+                  { href: "/list-your-court", label: "Pridėti kortą" },
                   { href: "/bookings", label: "Mano rezervacijos" },
                   { href: "/profile", label: "Profilis" },
                 ].map(l => (
