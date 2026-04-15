@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2 } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -304,6 +304,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Trophy className="w-3.5 h-3.5" />
                 Turnyrai
               </Link>
+              <Link href="/list-your-court" className="transition-colors hover:text-primary flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" />
+                Kortų savininkai
+              </Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -347,6 +351,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/tournaments" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
               <Trophy className="w-4 h-4" />
               <span>Turnyrai</span>
+            </Link>
+            <Link href="/list-your-court" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+              <Building2 className="w-4 h-4" />
+              <span>Savininkai</span>
             </Link>
           </nav>
         </header>
