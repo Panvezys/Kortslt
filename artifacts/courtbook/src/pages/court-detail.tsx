@@ -1239,7 +1239,7 @@ export default function CourtDetail() {
                         <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
                       </div>
 
-                      <Button onClick={() => handleReserve()} className="w-full h-12 text-base font-semibold gap-2" disabled={isPending}>
+                      <Button onClick={() => handleReserve()} className="w-full h-12 text-base font-semibold gap-2 transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:hover:scale-100" disabled={isPending}>
                         {isPending ? "Apdorojama..." : "Rezervuoti"}
                       </Button>
                       <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
@@ -1294,7 +1294,7 @@ export default function CourtDetail() {
 
                       <Button
                         onClick={handleGuestReserve}
-                        className="w-full min-h-[48px] h-auto py-3 px-4 text-sm font-semibold gap-2 leading-tight"
+                        className="w-full min-h-[48px] h-auto py-3 px-4 text-sm font-semibold gap-2 leading-tight transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:hover:scale-100"
                         disabled={isPending}
                       >
                         {isPending ? t("guest.processing") : t("guest.bookBtn")}
