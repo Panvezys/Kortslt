@@ -4,9 +4,8 @@ import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { MapPin } from "lucide-react";
-import { SportIcon, sportColor as SPORT_COLOR, sportAbbr } from "@/components/sport-icon";
+import { SportIcon, sportColor as SPORT_COLOR } from "@/components/sport-icon";
 import { useTheme } from "./theme-provider";
-// sportAbbr kept for InfoWindow display
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
@@ -156,71 +155,181 @@ interface CourtInfoWindowProps {
   theme: "light" | "dark";
 }
 
+/** Inject once — strips Google InfoWindow chrome globally */
+function useInfoWindowStyles() {
+  useEffect(() => {
+    const id = "gm-iw-overrides";
+    if (document.getElementById(id)) return;
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = `
+      .gm-style-iw-c { padding: 0 !important; overflow: hidden !important; border-radius: 12px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.28) !important; }
+      .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; }
+      .gm-style-iw-t::after { display: none !important; }
+      button.gm-ui-hover-effect { display: none !important; }
+    `;
+    document.head.appendChild(style);
+    return () => { document.getElementById(id)?.remove(); };
+  }, []);
+}
+
 function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
+  useInfoWindowStyles();
   const color = SPORT_COLOR[court.type] ?? "#84cc16";
   const img = resolveCourtImage(court.imageUrl);
   const isDark = theme === "dark";
-  const bg = isDark ? "hsl(224 71% 4%)" : "#ffffff";
-  const textPrimary = isDark ? "white" : "#111827";
+  const bg = isDark ? "#0d0f14" : "#ffffff";
+  const textPrimary = isDark ? "#f9fafb" : "#111827";
   const textSecondary = isDark ? "#9ca3af" : "#6b7280";
-  const indoorBg = isDark ? "#374151" : "#f3f4f6";
+  const indoorBg = isDark ? "#1f2937" : "#f3f4f6";
   const indoorText = isDark ? "#d1d5db" : "#374151";
+
+  const paths = sportIconPaths[court.type] ?? sportIconPaths["tennis"];
+  const sportSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  const sportSvgUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(sportSvg)}`;
+
   return (
     <InfoWindowF
       position={{ lat: court.latitude, lng: court.longitude }}
       onCloseClick={onClose}
-      options={{ pixelOffset: new google.maps.Size(0, -20), disableAutoPan: false }}
+      options={{
+        pixelOffset: new google.maps.Size(0, -22),
+        disableAutoPan: false,
+        maxWidth: 220,
+      }}
     >
+      {/* InfoWindowF requires exactly one child element */}
       <div
-        className="overflow-hidden rounded-lg"
-        style={{ width: "200px", fontFamily: "inherit", background: bg, color: textPrimary }}
+        style={{
+          width: "220px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          background: bg,
+          color: textPrimary,
+          borderRadius: "12px",
+          overflow: "hidden",
+        }}
       >
-        {img && (
-          <div style={{ width: "100%", height: "100px", overflow: "hidden" }}>
-            <img src={img} alt={court.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {/* Photo with close button overlaid */}
+        <div style={{ position: "relative", width: "100%", height: img ? "110px" : "0px", overflow: "hidden" }}>
+          {img && (
+            <img
+              src={img}
+              alt={court.name}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          )}
+          {/* Custom close button inside/over photo */}
+          <button
+            onClick={onClose}
+            title="Uždaryti"
+            style={{
+              position: "absolute",
+              top: "7px",
+              right: "7px",
+              width: "26px",
+              height: "26px",
+              borderRadius: "50%",
+              background: "rgba(0,0,0,0.55)",
+              border: "1.5px solid rgba(255,255,255,0.25)",
+              color: "white",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "14px",
+              lineHeight: 1,
+              transition: "background 0.15s, transform 0.15s",
+              backdropFilter: "blur(4px)",
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.25)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.12)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(0,0,0,0.55)";
+              (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: "10px 12px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {/* Name + close (if no photo) */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "6px" }}>
+            <div style={{ fontWeight: 700, fontSize: "13px", lineHeight: "1.35", color: textPrimary, flex: 1 }}>
+              {court.name}
+            </div>
+            {!img && (
+              <button
+                onClick={onClose}
+                title="Uždaryti"
+                style={{
+                  width: "22px", height: "22px", borderRadius: "50%",
+                  background: isDark ? "#374151" : "#f3f4f6",
+                  border: "none", color: textSecondary, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: "13px", flexShrink: 0, transition: "background 0.15s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = isDark ? "#4b5563" : "#e5e7eb"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = isDark ? "#374151" : "#f3f4f6"; }}
+              >
+                ✕
+              </button>
+            )}
           </div>
-        )}
-        <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
-          <div style={{ fontWeight: 700, fontSize: "13px", lineHeight: "1.3", color: textPrimary }}>
-            {court.name}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: textSecondary }}>
-            <span style={{ fontSize: "10px" }}>▸</span>
+
+          {/* City */}
+          <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: textSecondary }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
             <span>{court.city}</span>
           </div>
-          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+
+          {/* Sport badge with icon + optional indoor */}
+          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center" }}>
             <span style={{
               background: color, color: "white",
-              padding: "2px 8px", borderRadius: "999px",
-              fontSize: "10px", fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase",
+              padding: "3px 8px 3px 6px", borderRadius: "999px",
+              fontSize: "11px", fontWeight: 600,
+              display: "inline-flex", alignItems: "center", gap: "5px",
             }}>
-              {sportAbbr[court.type] ?? "—"} · {sportLithuanian[court.type] ?? court.type}
+              <img src={sportSvgUrl} alt="" width="13" height="13" style={{ display: "block" }} />
+              {sportLithuanian[court.type] ?? court.type}
             </span>
             {court.isIndoor && (
               <span style={{
                 background: indoorBg, color: indoorText,
-                padding: "2px 8px", borderRadius: "999px", fontSize: "11px",
+                padding: "3px 8px", borderRadius: "999px", fontSize: "10px", fontWeight: 500,
               }}>
-                Indoor
+                Vidaus
               </span>
             )}
           </div>
+
+          {/* Rating */}
           {court.rating ? (
             <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px" }}>
               <span style={{ color: "#facc15" }}>★</span>
               <span style={{ fontWeight: 700, color: textPrimary }}>{court.rating.toFixed(1)}</span>
             </div>
           ) : null}
+
+          {/* Price + CTA */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "2px" }}>
-            <span style={{ fontWeight: 700, color, fontSize: "14px" }}>
+            <span style={{ fontWeight: 700, color, fontSize: "15px" }}>
               {court.pricePerHour}€
               <span style={{ color: textSecondary, fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
-            <a href={`/courts/${court.id}`} style={{
-              background: color, color: "black",
-              padding: "5px 12px", borderRadius: "8px",
-              fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
-            }}>
+            <a
+              href={`/courts/${court.id}`}
+              style={{
+                background: color, color: "black",
+                padding: "5px 12px", borderRadius: "8px",
+                fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
+              }}
+            >
               Rezervuoti
             </a>
           </div>
