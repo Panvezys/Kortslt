@@ -33,7 +33,9 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
 function vibrateTap() {
-  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(12);
+  if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+  if (typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches) return;
+  navigator.vibrate(12);
 }
 
 const EQUIPMENT_ICONS: Record<string, string> = {
