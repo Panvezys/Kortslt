@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, Lightbulb, ShowerHead, DoorOpen, Droplets, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check } from "lucide-react";
+import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -646,24 +647,11 @@ export default function CourtDetail() {
                 <h2 className="text-2xl font-semibold mb-4">Patogumai</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {court.amenities.map((amenity, i) => {
-                    type IconType = typeof Lightbulb;
-                    const icons: Record<string, IconType> = {
-                      floodlights: Lightbulb,
-                      showers: ShowerHead,
-                      changing_rooms: DoorOpen,
-                      water_station: Droplets,
-                    };
-                    const labels: Record<string, string> = {
-                      floodlights: "Prožektoriai",
-                      showers: "Dušai",
-                      changing_rooms: "Persirengimo kambariai",
-                      water_station: "Vandens stotis",
-                    };
-                    const Icon = icons[amenity] ?? CheckCircle2;
+                    const { label, icon: Icon } = getAmenityMeta(amenity);
                     return (
                       <div key={i} className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center">
                         <Icon className="w-6 h-6 text-primary" />
-                        <span className="text-sm font-medium">{labels[amenity] ?? amenity}</span>
+                        <span className="text-sm font-medium">{label}</span>
                       </div>
                     );
                   })}

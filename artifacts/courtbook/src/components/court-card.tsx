@@ -4,6 +4,7 @@ import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Star, Heart } from "lucide-react";
+import { getAmenityMeta } from "@/lib/amenities";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
@@ -154,11 +155,15 @@ export function CourtCard({ court }: { court: Court }) {
         </div>
         {court.amenities && court.amenities.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {court.amenities.slice(0, 3).map((amenity, i) => (
-              <Badge key={i} variant="outline" className="text-[10px] font-normal px-1.5 py-0">
-                {amenity}
-              </Badge>
-            ))}
+            {court.amenities.slice(0, 3).map((amenity, i) => {
+              const { label, icon: Icon } = getAmenityMeta(amenity);
+              return (
+                <Badge key={i} variant="outline" className="text-[10px] font-normal px-1.5 py-0 gap-1">
+                  <Icon className="w-2.5 h-2.5 shrink-0" />
+                  {label}
+                </Badge>
+              );
+            })}
             {court.amenities.length > 3 && (
               <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">
                 +{court.amenities.length - 3}
