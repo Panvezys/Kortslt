@@ -14,7 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell } from "lucide-react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
 import { NotificationBell } from "@/components/notification-bell";
@@ -37,6 +37,91 @@ function TennisCourtIcon({ className }: { className?: string }) {
         WebkitMaskPosition: "center",
       }}
     />
+  );
+}
+
+const BALLS = ['tennis', 'basketball', 'football'] as const;
+type Ball = typeof BALLS[number];
+
+function SportBall({ type }: { type: Ball }) {
+  if (type === 'tennis') return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
+      <circle cx="7" cy="7" r="5.8" />
+      <path d="M1.2 7C3 2 7 2 7 7C7 12 11 12 12.8 7" />
+      <path d="M1.2 7C3 12 7 12 7 7C7 2 11 2 12.8 7" />
+    </svg>
+  );
+  if (type === 'basketball') return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
+      <circle cx="7" cy="7" r="5.8" />
+      <line x1="7" y1="1.2" x2="7" y2="12.8" />
+      <path d="M2 4.5Q7 8 12 4.5" />
+      <path d="M2 9.5Q7 6 12 9.5" />
+    </svg>
+  );
+  return (
+    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" className="w-[0.85em] h-[0.85em] inline-block align-middle">
+      <circle cx="7" cy="7" r="5.8" />
+      <path d="M7 4.5L9 6L8.5 8.5L5.5 8.5L5 6Z" />
+      <line x1="7" y1="1.2" x2="7" y2="4.5" />
+      <line x1="12.5" y1="5" x2="9" y2="6" />
+      <line x1="12.5" y1="9" x2="9" y2="8.5" />
+      <line x1="1.5" y1="5" x2="5" y2="6" />
+      <line x1="1.5" y1="9" x2="5" y2="8.5" />
+      <line x1="7" y1="12.8" x2="7" y2="8.5" />
+    </svg>
+  );
+}
+
+function LogoBrand() {
+  const [hovered, setHovered] = useState(false);
+  const [ballIdx, setBallIdx] = useState(0);
+
+  useEffect(() => {
+    if (!hovered) return;
+    const id = setInterval(() => setBallIdx(i => (i + 1) % BALLS.length), 550);
+    return () => clearInterval(id);
+  }, [hovered]);
+
+  return (
+    <Link
+      href="/"
+      className="flex items-center gap-2 font-bold text-xl tracking-tight"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); setBallIdx(0); }}
+    >
+      <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+        <defs>
+          <linearGradient id="kg-bg" x1="0" y1="0" x2="0.4" y2="1">
+            <stop offset="0%" stopColor="#166534" />
+            <stop offset="100%" stopColor="#15803d" />
+          </linearGradient>
+          <clipPath id="kg-clip">
+            <rect width="34" height="34" rx="8" />
+          </clipPath>
+        </defs>
+        <rect width="34" height="34" rx="8" fill="url(#kg-bg)" />
+        <g clipPath="url(#kg-clip)">
+          <rect x="0" y="0" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+          <rect x="0" y="11.3" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+          <rect x="0" y="22.6" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
+          <line x1="5" y1="6" x2="29" y2="6" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
+          <line x1="5" y1="28" x2="29" y2="28" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
+          <line x1="5" y1="6" x2="5" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+          <line x1="29" y1="6" x2="29" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+          <line x1="5" y1="17" x2="29" y2="17" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
+          <line x1="17" y1="6" x2="17" y2="28" stroke="rgba(255,255,255,0.13)" strokeWidth="0.6" />
+        </g>
+        <text x="17" y="24" textAnchor="middle" fontFamily="'Arial Black','Impact',Arial,sans-serif" fontSize="19" fontWeight="900" fill="white" letterSpacing="-0.5">K</text>
+      </svg>
+      <span>
+        k
+        <span className="inline-flex items-center" style={{ transition: "opacity 0.15s" }}>
+          {hovered ? <SportBall type={BALLS[ballIdx]} /> : "o"}
+        </span>
+        rts.lt
+      </span>
+    </Link>
   );
 }
 
@@ -223,40 +308,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
-            <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tight">
-              <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-                <defs>
-                  <linearGradient id="kg-bg" x1="0" y1="0" x2="0.4" y2="1">
-                    <stop offset="0%" stopColor="#166534" />
-                    <stop offset="100%" stopColor="#15803d" />
-                  </linearGradient>
-                  <clipPath id="kg-clip">
-                    <rect width="34" height="34" rx="8" />
-                  </clipPath>
-                </defs>
-                {/* Grass background */}
-                <rect width="34" height="34" rx="8" fill="url(#kg-bg)" />
-                <g clipPath="url(#kg-clip)">
-                  {/* Mowed-lawn alternating stripes */}
-                  <rect x="0" y="0" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-                  <rect x="0" y="11.3" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-                  <rect x="0" y="22.6" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-                  {/* Court baselines */}
-                  <line x1="5" y1="6" x2="29" y2="6" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
-                  <line x1="5" y1="28" x2="29" y2="28" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
-                  {/* Sidelines */}
-                  <line x1="5" y1="6" x2="5" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-                  <line x1="29" y1="6" x2="29" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-                  {/* Net / centre line */}
-                  <line x1="5" y1="17" x2="29" y2="17" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-                  {/* Centre service mark */}
-                  <line x1="17" y1="6" x2="17" y2="28" stroke="rgba(255,255,255,0.13)" strokeWidth="0.6" />
-                </g>
-                {/* Bold white K */}
-                <text x="17" y="24" textAnchor="middle" fontFamily="'Arial Black','Impact',Arial,sans-serif" fontSize="19" fontWeight="900" fill="white" letterSpacing="-0.5">K</text>
-              </svg>
-              korts.lt
-            </Link>
+            <LogoBrand />
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
               <Link href="/courts" className="transition-colors hover:text-primary flex items-center gap-1.5">
