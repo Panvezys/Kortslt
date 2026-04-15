@@ -107,23 +107,33 @@ function buildIconUrl(color: string, sport: string, isSelected: boolean): string
   const cy = size / 2;
   const r = size / 2 - border / 2;
 
-  // Scale icon to occupy ~58% of the total marker diameter (matches filter proportions)
+  // Scale icon to occupy ~58% of the total marker diameter
   const iconPx = size * 0.58;
   const iconScale = iconPx / 24;
   const tx = (cx - 12 * iconScale).toFixed(3);
   const ty = (cy - 12 * iconScale).toFixed(3);
-  // Pre-scale strokeWidth=2 so after the transform it renders as ~2px (matching filter)
   const sw = (2 / iconScale).toFixed(2);
 
   const paths = sportIconPaths[sport] ?? sportIconPaths["tennis"];
 
-  const shadow = isSelected
-    ? `filter:drop-shadow(0 0 6px ${color}80) drop-shadow(0 4px 10px rgba(0,0,0,0.6))`
-    : `filter:drop-shadow(0 2px 5px rgba(0,0,0,0.45))`;
+  // Use SVG <filter> in <defs> so the shadow applies only to the drawn circle,
+  // not the entire rectangular SVG viewport — this keeps transparent corners truly transparent.
+  const filterId = "sh";
+  const filterDef = isSelected
+    ? `<filter id="${filterId}" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="${color}" flood-opacity="0.5"/>
+        <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="rgba(0,0,0,0.6)"/>
+      </filter>`
+    : `<filter id="${filterId}" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.45)"/>
+      </filter>`;
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="${shadow}">
-  <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
-  <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <defs>${filterDef}</defs>
+  <g filter="url(#${filterId})">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="white" stroke-width="${border}"/>
+    <g transform="translate(${tx},${ty}) scale(${iconScale.toFixed(4)})" fill="none" stroke="white" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${paths}</g>
+  </g>
 </svg>`;
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
@@ -388,6 +398,17 @@ export function CourtMap({
   const [filterPanelOpen, setFilterPanelOpen] = useState(true);
 
   const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
+
+  // Strip any background Google Maps may paint behind SVG marker img elements
+  useEffect(() => {
+    const id = "gm-marker-bg-fix";
+    if (document.getElementById(id)) return;
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = `.gm-style img[src^="data:image/svg"] { background: transparent !important; background-color: transparent !important; }`;
+    document.head.appendChild(style);
+    return () => { document.getElementById(id)?.remove(); };
+  }, []);
 
   const toggleSportInternal = (sport: string) => {
     setInternalActiveSports(prev => {
