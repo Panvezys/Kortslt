@@ -98,8 +98,8 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
-              style={{ background: color }}
+              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all duration-200 ${hovered ? "text-white" : "bg-muted text-muted-foreground"}`}
+              style={hovered ? { background: color } : undefined}
             >
               <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
               {sportLabel}
@@ -130,7 +130,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
       <CardFooter className="pt-0 mt-auto">
         <Link href={`/courts/${court.id}`} className="w-full">
           <Button
-            variant="default"
+            variant="outline"
             className="w-full transition-colors duration-200"
             style={hovered ? { backgroundColor: color, borderColor: color, color: "#fff" } : undefined}
           >
