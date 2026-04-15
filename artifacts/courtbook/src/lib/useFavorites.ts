@@ -15,7 +15,9 @@ export function useFavorites() {
     if (!isSignedIn || !user) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/favorites?userId=${encodeURIComponent(user.id)}`);
+      const res = await fetch(`${API}/favorites?userId=${encodeURIComponent(user.id)}`, {
+        cache: "no-store",
+      });
       if (!res.ok) return;
       const data: Court[] = await res.json();
       setFavorites(data);
