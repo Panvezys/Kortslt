@@ -41,6 +41,7 @@ export const courtsTable = pgTable("courts", {
   stripeConnectStatus: text("stripe_connect_status").default("not_connected"),
   facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "set null" }),
   workingHours: text("working_hours"),
+  amenityPhotos: text("amenity_photos"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

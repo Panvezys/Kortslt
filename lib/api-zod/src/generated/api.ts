@@ -124,6 +124,7 @@ export const CreateCourtBody = zod.object({
   socialWebsite: zod.string().optional(),
   facilityId: zod.number().optional(),
   workingHours: zod.string().optional(),
+  amenityPhotos: zod.string().optional(),
 });
 
 /**
@@ -180,6 +181,7 @@ export const GetCourtResponse = zod.object({
   socialWebsite: zod.string().optional(),
   facilityId: zod.number().optional(),
   workingHours: zod.string().optional(),
+  amenityPhotos: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -228,6 +230,7 @@ export const UpdateCourtBody = zod.object({
   socialWebsite: zod.string().optional(),
   facilityId: zod.number().optional(),
   workingHours: zod.string().optional(),
+  amenityPhotos: zod.string().optional(),
 });
 
 export const UpdateCourtResponse = zod.object({
@@ -277,6 +280,7 @@ export const UpdateCourtResponse = zod.object({
   socialWebsite: zod.string().optional(),
   facilityId: zod.number().optional(),
   workingHours: zod.string().optional(),
+  amenityPhotos: zod.string().optional(),
   createdAt: zod.coerce.date(),
 });
 

@@ -1531,6 +1531,8 @@ export default function OwnerDashboard() {
   const [pricingEditKey, setPricingEditKey] = useState<string | null>(null);
   const [pricingEditValue, setPricingEditValue] = useState("");
   const [workingHoursState, setWorkingHoursState] = useState<WorkingHoursMap>(defaultWorkingHours());
+  const [amenityPhotos, setAmenityPhotos] = useState<Record<string, string>>({});
+  const [uploadingAmenity, setUploadingAmenity] = useState<string | null>(null);
 
   const { data: courts, isLoading } = useListCourts(
     user?.id ? { ownerUserId: user.id } : undefined
@@ -1634,7 +1636,8 @@ export default function OwnerDashboard() {
     try {
       const rentableItemsJson = rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined;
       const whJson = JSON.stringify(workingHoursState);
-      const payload = { ...data, rentableItems: rentableItemsJson, workingHours: whJson };
+      const amenityPhotosJson = Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined;
+      const payload = { ...data, rentableItems: rentableItemsJson, workingHours: whJson, amenityPhotos: amenityPhotosJson };
       if (editingId) {
         await updateCourt.mutateAsync({ id: editingId, data: payload });
         await savePricingForCourt(editingId);
@@ -1646,6 +1649,7 @@ export default function OwnerDashboard() {
       }
       setIsDialogOpen(false);
       setRentableItems([]);
+      setAmenityPhotos({});
       setFormTab("info");
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
     } catch {
@@ -1704,6 +1708,12 @@ export default function OwnerDashboard() {
     } catch {
       setRentableItems([]);
     }
+    try {
+      const photos = court.amenityPhotos ? JSON.parse(court.amenityPhotos) : {};
+      setAmenityPhotos(typeof photos === "object" && photos !== null ? photos : {});
+    } catch {
+      setAmenityPhotos({});
+    }
     setIsDialogOpen(true);
   };
 
@@ -1722,6 +1732,24 @@ export default function OwnerDashboard() {
       toast({ title: "Klaida įkeliant dokumentą", variant: "destructive" });
     } finally {
       setOwnershipDocUploading(false);
+    }
+  };
+
+  const handleAmenityPhotoUpload = async (amenityId: string, file: File) => {
+    setUploadingAmenity(amenityId);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const baseUrl = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+      const resp = await fetch(`${baseUrl}/api/upload/amenity-photo`, { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      setAmenityPhotos(prev => ({ ...prev, [amenityId]: url }));
+      toast({ title: "Nuotrauka įkelta" });
+    } catch {
+      toast({ title: "Klaida įkeliant nuotrauką", variant: "destructive" });
+    } finally {
+      setUploadingAmenity(null);
     }
   };
 
@@ -2273,11 +2301,69 @@ export default function OwnerDashboard() {
                               >
                                 <Icon className={`w-4 h-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
                                 {label}
+                                {checked && amenityPhotos[id] && (
+                                  <Images className="w-3 h-3 ml-auto shrink-0 text-primary/70" />
+                                )}
                               </button>
                             );
                           })}
                         </div>
                         <FormMessage />
+
+                        {/* Amenity photo uploads — shown for each selected amenity */}
+                        {(field.value ?? []).length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                              <Images className="w-3.5 h-3.5" /> Nuotraukos patogumiams (neprivaloma)
+                            </p>
+                            {STANDARD_AMENITIES.filter(a => (field.value ?? []).includes(a.id)).map(({ id, label, icon: Icon }) => {
+                              const photoUrl = amenityPhotos[id];
+                              const isUploading = uploadingAmenity === id;
+                              const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+                              return (
+                                <div key={id} className="flex items-center gap-3 p-2 rounded-lg border bg-muted/20">
+                                  <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />
+                                  <span className="text-xs font-medium flex-1 truncate">{label}</span>
+                                  {photoUrl ? (
+                                    <>
+                                      <img
+                                        src={`${base}/${photoUrl}`}
+                                        alt={label}
+                                        className="w-12 h-8 object-cover rounded border shrink-0"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setAmenityPhotos(prev => { const n = { ...prev }; delete n[id]; return n; })}
+                                        className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                                        title="Pašalinti nuotrauką"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <label className="cursor-pointer shrink-0">
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        disabled={isUploading}
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (file) handleAmenityPhotoUpload(id, file);
+                                          e.target.value = "";
+                                        }}
+                                      />
+                                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isUploading ? "opacity-50 cursor-not-allowed" : "hover:border-primary hover:text-primary"}`}>
+                                        <Upload className="w-3 h-3" />
+                                        {isUploading ? "Keliama..." : "Įkelti"}
+                                      </span>
+                                    </label>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </FormItem>
                     )} />
                   </div>

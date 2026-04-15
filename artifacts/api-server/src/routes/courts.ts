@@ -48,6 +48,7 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     socialWebsite: c.socialWebsite ?? undefined,
     facilityId: c.facilityId ?? undefined,
     workingHours: c.workingHours ?? undefined,
+    amenityPhotos: c.amenityPhotos ?? undefined,
   };
 }
 
@@ -199,6 +200,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       condition: (body.data.condition ?? "good") as string,
       facilityId: body.data.facilityId ?? null,
       workingHours: body.data.workingHours ?? null,
+      amenityPhotos: body.data.amenityPhotos ?? null,
     })
     .where(eq(courtsTable.id, params.data.id))
     .returning();

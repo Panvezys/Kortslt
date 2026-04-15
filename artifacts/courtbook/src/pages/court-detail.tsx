@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, Images, UserPlus, Check, X, Camera } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -207,6 +207,7 @@ export default function CourtDetail() {
   const favorited = court ? isFavorite(court.id) : false;
   const [localFavorited, setLocalFavorited] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
+  const [amenityPopup, setAmenityPopup] = useState<{ label: string; photoUrl: string } | null>(null);
   useEffect(() => { setLocalFavorited(favorited); }, [favorited]);
 
   const handleToggleFavorite = async () => {
@@ -647,16 +648,65 @@ export default function CourtDetail() {
             {court.amenities && court.amenities.length > 0 && (
               <div>
                 <h2 className="text-2xl font-semibold mb-4">Patogumai</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {court.amenities.map((amenity, i) => {
-                    const { label, icon: Icon } = getAmenityMeta(amenity);
-                    return (
-                      <div key={i} className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center">
-                        <Icon className="w-6 h-6 text-primary" />
-                        <span className="text-sm font-medium">{label}</span>
-                      </div>
-                    );
-                  })}
+                {(() => {
+                  let amenityPhotosMap: Record<string, string> = {};
+                  try { amenityPhotosMap = court.amenityPhotos ? JSON.parse(court.amenityPhotos) : {}; } catch {}
+                  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {court.amenities.map((amenity, i) => {
+                        const { label, icon: Icon } = getAmenityMeta(amenity);
+                        const photoUrl = amenityPhotosMap[amenity];
+                        const hasPhoto = !!photoUrl;
+                        return hasPhoto ? (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setAmenityPopup({ label, photoUrl: `${base}/${photoUrl}` })}
+                            className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center hover:border-primary hover:bg-primary/5 transition-all group relative"
+                            title={`Žiūrėti nuotrauką: ${label}`}
+                          >
+                            <Icon className="w-6 h-6 text-primary" />
+                            <span className="text-sm font-medium">{label}</span>
+                            <Camera className="absolute top-2 right-2 w-3.5 h-3.5 text-primary/50 group-hover:text-primary transition-colors" />
+                          </button>
+                        ) : (
+                          <div key={i} className="flex flex-col items-center gap-2 p-4 rounded-xl border bg-muted/30 text-center">
+                            <Icon className="w-6 h-6 text-primary" />
+                            <span className="text-sm font-medium">{label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Amenity photo popup */}
+            {amenityPopup && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                onClick={() => setAmenityPopup(null)}
+              >
+                <div
+                  className="relative max-w-lg w-full bg-card rounded-2xl overflow-hidden shadow-2xl"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b">
+                    <span className="font-semibold text-sm">{amenityPopup.label}</span>
+                    <button
+                      onClick={() => setAmenityPopup(null)}
+                      className="w-7 h-7 rounded-full hover:bg-muted flex items-center justify-center transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <img
+                    src={amenityPopup.photoUrl}
+                    alt={amenityPopup.label}
+                    className="w-full object-cover max-h-80"
+                  />
                 </div>
               </div>
             )}

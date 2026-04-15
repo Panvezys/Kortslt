@@ -68,6 +68,15 @@ router.post("/upload/court-image", uploadImage.single("image"), (req, res): void
   res.json({ path: relativePath, url: relativePath });
 });
 
+router.post("/upload/amenity-photo", uploadImage.single("image"), (req, res): void => {
+  if (!req.file) {
+    res.status(400).json({ error: "No image file provided" });
+    return;
+  }
+  const relativePath = `courts/uploads/${req.file.filename}`;
+  res.json({ path: relativePath, url: relativePath });
+});
+
 router.post("/upload/ownership-doc", uploadDoc.single("doc"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No document file provided" });

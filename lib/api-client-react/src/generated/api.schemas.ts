@@ -46,6 +46,7 @@ export interface Court {
   ownerEmail: string;
   ownerUserId?: string;
   amenities?: string[];
+  amenityPhotos?: string;
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
