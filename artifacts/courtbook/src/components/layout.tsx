@@ -45,30 +45,6 @@ function LogoBrand() {
       href="/"
       className="flex items-center gap-2 font-bold text-xl tracking-tight shrink-0"
     >
-      <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-        <defs>
-          <linearGradient id="kg-bg" x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0%" stopColor="#166534" />
-            <stop offset="100%" stopColor="#15803d" />
-          </linearGradient>
-          <clipPath id="kg-clip">
-            <rect width="34" height="34" rx="8" />
-          </clipPath>
-        </defs>
-        <rect width="34" height="34" rx="8" fill="url(#kg-bg)" />
-        <g clipPath="url(#kg-clip)">
-          <rect x="0" y="0" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-          <rect x="0" y="11.3" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-          <rect x="0" y="22.6" width="34" height="5.7" fill="rgba(255,255,255,0.055)" />
-          <line x1="5" y1="6" x2="29" y2="6" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
-          <line x1="5" y1="28" x2="29" y2="28" stroke="rgba(255,255,255,0.28)" strokeWidth="0.85" />
-          <line x1="5" y1="6" x2="5" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-          <line x1="29" y1="6" x2="29" y2="28" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-          <line x1="5" y1="17" x2="29" y2="17" stroke="rgba(255,255,255,0.22)" strokeWidth="0.7" />
-          <line x1="17" y1="6" x2="17" y2="28" stroke="rgba(255,255,255,0.13)" strokeWidth="0.6" />
-        </g>
-        <text x="17" y="24" textAnchor="middle" fontFamily="'Arial Black','Impact',Arial,sans-serif" fontSize="19" fontWeight="900" fill="white" letterSpacing="-0.5">K</text>
-      </svg>
       <span>
         k
         <span
