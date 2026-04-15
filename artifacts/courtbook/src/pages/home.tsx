@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
@@ -144,6 +145,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
 export default function Home() {
   const t = useT();
   const { isSignedIn } = useUser();
+  const queryClient = useQueryClient();
   const { favorites, loading: favLoading } = useFavoritesContext();
   const [heroIdx, setHeroIdx] = useState(0);
   const ALL_SPORTS = Object.keys(sportLithuanian);
@@ -247,6 +249,11 @@ export default function Home() {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["courts"] });
+    queryClient.invalidateQueries({ queryKey: ["cities"] });
+  }, [queryClient]);
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 

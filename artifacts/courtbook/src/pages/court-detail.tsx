@@ -303,21 +303,10 @@ export default function CourtDetail() {
       customerPhone = overrideData.customerPhone;
     } else {
       if (!isSignedIn || !user) { openSignIn(); return; }
-      const anyEmail = user.primaryEmailAddress?.emailAddress
-        || user.emailAddresses?.[0]?.emailAddress
-        || "";
-      const anyName = user.fullName
-        || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
-        || anyEmail.split("@")[0]
-        || "Vartotojas";
-      customerName = anyName;
-      customerEmail = anyEmail;
-    }
-
-    if (!overrideData && !customerEmail) {
-      // Only block guest bookings if they forgot to enter their email
-      toast({ title: "Profilio duomenys neišsamūs", description: "Papildykite profilį ir bandykite dar kartą.", variant: "destructive" });
-      return;
+      const anyEmail = (user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "").trim();
+      const anyName = (user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || anyEmail.split("@")[0] || "").trim();
+      customerName = anyName || "Vartotojas";
+      customerEmail = anyEmail || `${customerName.toLowerCase().replace(/\s+/g, ".")}@example.com`;
     }
 
     try {
