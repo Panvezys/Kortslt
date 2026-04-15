@@ -267,9 +267,15 @@ export default function Home() {
     total:      `${base}/courts/court_1_seb_arena.png`,
   };
 
-  const { data: stats, isLoading: statsLoading } = useGetStatsSummary();
-  const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts();
-  const { data: courts, isLoading: courtsLoading } = useListCourts();
+  const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
+  const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts({
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
+  const { data: courts, isLoading: courtsLoading } = useListCourts(undefined, {
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
 
   const filteredCourts = searchName.trim().length >= 2
     ? (courts ?? [])
