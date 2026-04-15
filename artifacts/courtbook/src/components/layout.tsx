@@ -40,14 +40,10 @@ function TennisCourtIcon({ className }: { className?: string }) {
 }
 
 function LogoBrand() {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <Link
       href="/"
       className="flex items-center gap-2 font-bold text-xl tracking-tight"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
         <defs>
@@ -75,30 +71,24 @@ function LogoBrand() {
       </svg>
       <span>
         k
-        <span style={{ position: "relative", display: "inline-block", width: "0.82em", height: "0.82em", verticalAlign: "middle" }}>
-          <span style={{ position: "absolute", inset: 0, opacity: hovered ? 0 : 1, transition: "opacity 0.12s ease" }}>o</span>
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "inline-block",
-              width: "100%",
-              height: "100%",
-              backgroundColor: "currentColor",
-              maskImage: "url(/icons/tennis-ball.png)",
-              maskSize: "contain",
-              maskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskImage: "url(/icons/tennis-ball.png)",
-              WebkitMaskSize: "contain",
-              WebkitMaskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              opacity: hovered ? 1 : 0,
-              transition: "opacity 0.12s ease",
-            }}
-          />
-        </span>
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-block",
+            width: "0.82em",
+            height: "0.82em",
+            verticalAlign: "middle",
+            backgroundColor: "currentColor",
+            maskImage: "url(/icons/tennis-ball.png)",
+            maskSize: "contain",
+            maskRepeat: "no-repeat",
+            maskPosition: "center",
+            WebkitMaskImage: "url(/icons/tennis-ball.png)",
+            WebkitMaskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+          }}
+        />
         rts.lt
       </span>
     </Link>
