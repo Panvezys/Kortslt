@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,10 +11,14 @@ export const facilitiesTable = pgTable("facilities", {
   registrationCode: text("registration_code"),
   address: text("address"),
   city: text("city"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  postcode: text("postcode"),
   phone: text("phone"),
   email: text("email"),
   verificationStatus: text("verification_status").notNull().default("pending"),
   verificationDocUrl: text("verification_doc_url"),
+  ownershipDocUrl: text("ownership_doc_url"),
   photos: text("photos").array().notNull().default([]),
   equipment: text("equipment").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

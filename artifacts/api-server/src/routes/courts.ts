@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
 import {
   ListCourtsQueryParams,
   CreateCourtBody,
@@ -126,10 +126,25 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
 
   const userId = getCurrentUserId(req);
 
+  let inheritedLocation: { address?: string; city?: string; latitude?: number; longitude?: number; postcode?: string } = {};
+  if (parsed.data.facilityId) {
+    const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, parsed.data.facilityId));
+    if (facility) {
+      inheritedLocation = {
+        address: facility.address ?? parsed.data.address,
+        city: facility.city ?? parsed.data.city,
+        latitude: facility.latitude ?? parsed.data.latitude,
+        longitude: facility.longitude ?? parsed.data.longitude,
+        postcode: facility.postcode ?? parsed.data.postcode,
+      };
+    }
+  }
+
   const [court] = await db
     .insert(courtsTable)
     .values({
       ...parsed.data,
+      ...inheritedLocation,
       pricePerHour: String(parsed.data.pricePerHour),
       peakPricePerHour: parsed.data.peakPricePerHour != null ? String(parsed.data.peakPricePerHour) : null,
       bufferMinutes: parsed.data.bufferMinutes ?? 0,

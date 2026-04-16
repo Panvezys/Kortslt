@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useUser } from "@clerk/react";
@@ -12,9 +12,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
+import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import {
   Plus, Building2, MapPin, ChevronRight, Trophy, Users,
-  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, Image as ImageIcon,
+  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -52,10 +53,14 @@ interface FacilityWithCourts {
   registrationCode?: string;
   address?: string;
   city?: string;
+  latitude?: number;
+  longitude?: number;
+  postcode?: string;
   phone?: string;
   email?: string;
   verificationStatus: string;
   verificationDocUrl?: string;
+  ownershipDocUrl?: string;
   photos: string[];
   equipment: string[];
   courtCount: number;
@@ -89,9 +94,13 @@ export default function OwnerFacilities() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<FacilityWithCourts | null>(null);
+  const [mapKey, setMapKey] = useState(0);
+  const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "", description: "", address: "", city: "", phone: "", email: "",
-    companyName: "", registrationCode: "",
+    companyName: "", registrationCode: "", latitude: 0, longitude: 0,
+    postcode: "", ownershipDocUrl: "",
   });
 
   const { data: facilities, isLoading } = useQuery<FacilityWithCourts[]>({
@@ -144,7 +153,8 @@ export default function OwnerFacilities() {
   });
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", companyName: "", registrationCode: "" });
+    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", companyName: "", registrationCode: "", latitude: 0, longitude: 0, postcode: "", ownershipDocUrl: "" });
+    setMapKey(k => k + 1);
   };
 
   const openCreate = () => {
@@ -165,16 +175,38 @@ export default function OwnerFacilities() {
       email: f.email || "",
       companyName: f.companyName || "",
       registrationCode: f.registrationCode || "",
+      latitude: f.latitude || 0,
+      longitude: f.longitude || 0,
+      postcode: f.postcode || "",
+      ownershipDocUrl: f.ownershipDocUrl || "",
     });
+    setMapKey(k => k + 1);
     setDialogOpen(true);
   };
 
   const handleSubmit = () => {
-    if (!formData.name.trim()) return;
+    if (!formData.name.trim() || !formData.address.trim() || !formData.city.trim()) return;
     if (editingFacility) {
       updateMutation.mutate({ id: editingFacility.id, data: formData });
     } else {
       createMutation.mutate(formData);
+    }
+  };
+
+  const handleDocUpload = async (file: File) => {
+    setOwnershipDocUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("doc", file);
+      const resp = await fetch(`${BASE_URL}/api/upload/ownership-doc`, { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      setFormData(d => ({ ...d, ownershipDocUrl: url }));
+      toast({ title: "Dokumentas įkeltas" });
+    } catch {
+      toast({ title: "Klaida įkeliant dokumentą", variant: "destructive" });
+    } finally {
+      setOwnershipDocUploading(false);
     }
   };
 
@@ -396,7 +428,7 @@ export default function OwnerFacilities() {
         )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-primary" />
@@ -411,6 +443,7 @@ export default function OwnerFacilities() {
                   onChange={e => setFormData(d => ({ ...d, name: e.target.value }))}
                   placeholder="pvz. Vilniaus Teniso Klubas"
                 />
+                {!formData.name.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -442,22 +475,59 @@ export default function OwnerFacilities() {
                 />
               </div>
 
+              <LocationPicker
+                key={mapKey}
+                latitude={formData.latitude || 0}
+                longitude={formData.longitude || 0}
+                onChange={(result: LocationPickerResult) => {
+                  setFormData(d => ({
+                    ...d,
+                    latitude: result.lat,
+                    longitude: result.lng,
+                    ...(result.city ? { city: result.city } : {}),
+                    ...(result.address ? { address: result.address } : {}),
+                    ...(result.postcode != null ? { postcode: result.postcode } : {}),
+                  }));
+                }}
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Adresas</Label>
+                  <Label className="text-sm">Adresas *</Label>
                   <Input
                     value={formData.address}
                     onChange={e => setFormData(d => ({ ...d, address: e.target.value }))}
-                    placeholder="Sporto g. 5"
+                    placeholder="Auto-užpildoma iš žemėlapio"
                   />
+                  {!formData.address.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm">Miestas</Label>
+                  <Label className="text-sm">Miestas *</Label>
                   <Input
                     value={formData.city}
                     onChange={e => setFormData(d => ({ ...d, city: e.target.value }))}
-                    placeholder="Vilnius"
+                    placeholder="Auto-užpildoma iš žemėlapio"
                   />
+                  {!formData.city.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm text-muted-foreground">Pašto kodas</Label>
+                  <Input
+                    value={formData.postcode}
+                    onChange={e => setFormData(d => ({ ...d, postcode: e.target.value }))}
+                    placeholder="LT-XXXXX"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Platuma (auto)</Label>
+                  <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.latitude || ""} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Ilguma (auto)</Label>
+                  <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.longitude || ""} />
                 </div>
               </div>
 
@@ -481,13 +551,45 @@ export default function OwnerFacilities() {
                 </div>
               </div>
 
+              <div className="rounded-xl border p-4 space-y-3">
+                <Label className="text-sm font-semibold">Nuosavybės dokumentas</Label>
+                <p className="text-xs text-muted-foreground">
+                  Įkelkite dokumentą, patvirtinantį, kad esate objekto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins objektą.
+                </p>
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
+                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => docInputRef.current?.click()}
+                    disabled={ownershipDocUploading}
+                    className="gap-2"
+                  >
+                    <FileUp className="w-4 h-4" />
+                    {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
+                  </Button>
+                  {formData.ownershipDocUrl && (
+                    <span className="text-xs text-green-400 flex items-center gap-1">
+                      ✓ Dokumentas įkeltas
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" onClick={() => { setDialogOpen(false); setEditingFacility(null); }} className="flex-1">
                   Atšaukti
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={!formData.name.trim() || createMutation.isPending || updateMutation.isPending}
+                  disabled={!formData.name.trim() || !formData.address.trim() || !formData.city.trim() || createMutation.isPending || updateMutation.isPending}
                   className="flex-1"
                 >
                   {(createMutation.isPending || updateMutation.isPending) ? "Saugoma..." : editingFacility ? "Išsaugoti" : "Sukurti"}

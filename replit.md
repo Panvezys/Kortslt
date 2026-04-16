@@ -45,9 +45,11 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
 - Location & contact section on each court: Google Maps embed with pin, "Get Directions" button, clickable phone number, and opening hours (all 40 courts populated with real/researched data)
 - **Facility-centric owner dashboard** (multi-page architecture):
-  - `/owner` → **Facility Overview** (`owner-facilities.tsx`): card grid of all owner's facilities with photos, verification badges, sport type pills, court counts (active/pending), stats summary row, create/edit/delete facility dialog
-  - `/owner/facility/:id` → **Facility Detail** (`owner-facility-detail.tsx`): facility header (hero photo, address, stats), court card grid within facility, full court CRUD with tabbed form (5 tabs: Pagrindai | Grafikas | Patogumai | Medija | Kontaktai), pricing editor, blocked slots, coach assignment, QR code, Stripe Connect
+  - `/owner` → **Facility Overview** (`owner-facilities.tsx`): card grid of all owner's facilities with photos, verification badges, sport type pills, court counts (active/pending), stats summary row, create/edit/delete facility dialog with LocationPicker (Google Maps) + ownership doc upload, address/city required
+  - `/owner/facility/:id` → **Facility Detail** (`owner-facility-detail.tsx`): facility header (hero photo, address, stats), court card grid within facility, full court CRUD with tabbed form (5 tabs: Pagrindai | Grafikas | Patogumai | Medija | Kontaktai), pricing editor, blocked slots, coach assignment, QR code, Stripe Connect. Courts inherit address/city/lat/lng/postcode from facility (server-side + client defaults).
   - Both routes wrapped in `OwnerRoute` auth guard (requires signed-in + owner role)
+  - Facilities DB schema: latitude, longitude (doublePrecision), postcode (text), ownershipDocUrl (text) on `facilitiesTable`
+  - Ownership doc upload secured with `requireAuth` middleware
   - Old monolithic `owner.tsx` preserved for reference but no longer routed
 - Tabbed court form:
   - **Pagrindai** tab: name, sport type, description, Google Maps location picker, address/city/postcode, lat/lng

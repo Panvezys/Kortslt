@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp,
+  Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock,
   AlertTriangle, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen,
   Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send,
   ArrowLeft, ChevronRight, Images, Upload, Users, CreditCard,
@@ -31,7 +31,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
@@ -454,6 +453,7 @@ interface FacilityData {
   email?: string; verificationStatus: string; photos: string[];
   equipment: string[]; courtCount: number; sportTypes: string[];
   courts: any[];
+  latitude?: number; longitude?: number; postcode?: string;
 }
 
 export default function OwnerFacilityDetail() {
@@ -471,8 +471,6 @@ export default function OwnerFacilityDetail() {
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
-  const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
-  const docInputRef = useRef<HTMLInputElement>(null);
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -520,17 +518,16 @@ export default function OwnerFacilityDetail() {
     resolver: zodResolver(courtSchema),
     defaultValues: {
       name: "", type: "tennis", description: "", address: facility?.address ?? "", city: facility?.city ?? "",
-      latitude: 0, longitude: 0, pricePerHour: 20, peakPricePerHour: undefined, bufferMinutes: 0,
+      latitude: facility?.latitude ?? 0, longitude: facility?.longitude ?? 0,
+      pricePerHour: 20, peakPricePerHour: undefined, bufferMinutes: 0,
       imageUrl: "", ownershipDocUrl: "", ownerName: user?.fullName ?? "Owner",
       ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
-      isIndoor: false, maxPlayers: 4, postcode: "", amenities: [],
+      isIndoor: false, maxPlayers: 4, postcode: facility?.postcode ?? "", amenities: [],
       socialFacebook: "", socialInstagram: "", socialWhatsapp: "", socialWebsite: "",
       facilityId: Number(id), workingHours: undefined,
     },
   });
 
-  const watchedLat = form.watch("latitude") ?? 0;
-  const watchedLng = form.watch("longitude") ?? 0;
 
   const savePricingForCourt = async (courtId: number) => {
     if (localPricingMap.size === 0) return;
@@ -615,20 +612,6 @@ export default function OwnerFacilityDetail() {
     } catch {
       toast({ title: "Klaida trinant kortą", variant: "destructive" });
     }
-  };
-
-  const handleDocUpload = async (file: File) => {
-    setOwnershipDocUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("doc", file);
-      const resp = await fetch(`${BASE_URL}/api/upload/ownership-doc`, { method: "POST", body: fd });
-      if (!resp.ok) throw new Error("Upload failed");
-      const { url } = await resp.json();
-      form.setValue("ownershipDocUrl", url);
-      toast({ title: "Dokumentas įkeltas" });
-    } catch { toast({ title: "Klaida", variant: "destructive" }); }
-    finally { setOwnershipDocUploading(false); }
   };
 
   const handleAmenityPhotoUpload = async (amenityId: string, file: File) => {
@@ -791,11 +774,12 @@ export default function OwnerFacilityDetail() {
                 form.reset({
                   name: "", type: "tennis", description: "",
                   address: facility.address ?? "", city: facility.city ?? "",
-                  latitude: 0, longitude: 0, pricePerHour: 20, bufferMinutes: 0,
+                  latitude: facility.latitude ?? 0, longitude: facility.longitude ?? 0,
+                  pricePerHour: 20, bufferMinutes: 0,
                   imageUrl: "", ownershipDocUrl: "",
                   ownerName: user?.fullName ?? "Owner",
                   ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "",
-                  isIndoor: false, maxPlayers: 4, postcode: "", amenities: [],
+                  isIndoor: false, maxPlayers: 4, postcode: facility.postcode ?? "", amenities: [],
                   facilityId: Number(id), workingHours: undefined,
                 });
                 setMapKey(k => k + 1);
@@ -847,32 +831,8 @@ export default function OwnerFacilityDetail() {
                     <FormField control={form.control} name="description" render={({ field }) => (
                       <FormItem><FormLabel>Aprašymas</FormLabel><FormControl><Textarea rows={2} placeholder="Trumpas korto aprašymas..." {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
                     )} />
-                    <LocationPicker key={mapKey} latitude={Number(watchedLat) || 0} longitude={Number(watchedLng) || 0}
-                      onChange={(result: LocationPickerResult) => {
-                        form.setValue("latitude", result.lat, { shouldValidate: true });
-                        form.setValue("longitude", result.lng, { shouldValidate: true });
-                        if (result.city) form.setValue("city", result.city, { shouldValidate: true });
-                        if (result.address) form.setValue("address", result.address, { shouldValidate: true });
-                        if (result.postcode != null) form.setValue("postcode", result.postcode, { shouldValidate: true });
-                      }} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="address" render={({ field }) => (
-                        <FormItem><FormLabel>Adresas</FormLabel><FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name="city" render={({ field }) => (
-                        <FormItem><FormLabel>Miestas</FormLabel><FormControl><Input placeholder="Auto-užpildoma iš žemėlapio" {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                    </div>
-                    <FormField control={form.control} name="postcode" render={({ field }) => (
-                      <FormItem><FormLabel>Pašto kodas</FormLabel><FormControl><Input placeholder="LT-XXXXX" className="max-w-[180px]" {...field} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="latitude" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs text-muted-foreground">Platuma (auto)</FormLabel><FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="longitude" render={({ field }) => (
-                        <FormItem><FormLabel className="text-xs text-muted-foreground">Ilguma (auto)</FormLabel><FormControl><Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" {...field} /></FormControl></FormItem>
-                      )} />
+                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground">Vieta ir adresas paveldimas iš objekto. Redaguokite objekto nustatymuose.</p>
                     </div>
                   </div>)}
 
@@ -979,20 +939,6 @@ export default function OwnerFacilityDetail() {
                       </FormControl><FormMessage /></FormItem>
                     )} />
                     {editingId && <CourtPhotosSection courtId={editingId} />}
-                    {!editingId && (
-                      <div className="space-y-2">
-                        <Label>Nuosavybės dokumentas</Label>
-                        <p className="text-xs text-muted-foreground">Įkelkite dokumentą, patvirtinantį, kad esate korto savininkas.</p>
-                        <input ref={docInputRef} type="file" accept="image/*,application/pdf" className="hidden"
-                          onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }} />
-                        <div className="flex items-center gap-3">
-                          <Button type="button" variant="outline" size="sm" onClick={() => docInputRef.current?.click()} disabled={ownershipDocUploading} className="gap-2">
-                            <FileUp className="w-4 h-4" /> {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
-                          </Button>
-                          {form.watch("ownershipDocUrl") && <span className="text-xs text-green-400 flex items-center gap-1">✓ Dokumentas įkeltas</span>}
-                        </div>
-                      </div>
-                    )}
                   </div>)}
 
                   {formTab === "amenities" && (<div className="space-y-4">

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { requireAuth } from "../lib/auth";
 
 const uploadDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
 const docsDir = path.resolve(process.cwd(), "../courtbook/public/courts/docs");
@@ -77,7 +78,7 @@ router.post("/upload/amenity-photo", uploadImage.single("image"), (req, res): vo
   res.json({ path: relativePath, url: relativePath });
 });
 
-router.post("/upload/ownership-doc", uploadDoc.single("doc"), (req, res): void => {
+router.post("/upload/ownership-doc", requireAuth, uploadDoc.single("doc"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No document file provided" });
     return;
