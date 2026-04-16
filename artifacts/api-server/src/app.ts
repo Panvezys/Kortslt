@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
@@ -8,6 +9,11 @@ import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
+
+app.get("/sitemap.xml", (_req, res) => {
+  res.type("application/xml");
+  res.sendFile(path.resolve(process.cwd(), "../courtbook/public/sitemap.xml"));
+});
 
 // ─── Stripe webhook — must be registered BEFORE express.json() ───────────────
 app.post(
