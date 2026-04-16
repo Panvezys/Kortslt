@@ -657,10 +657,12 @@ export default function OwnerFacilityDetail() {
           refreshUrl: `${origin}${BASE_URL}/owner/facility/${id}?facility_connect_refresh=1`,
         }),
       });
-      if (!r.ok) throw new Error("Klaida");
-      const { url } = await r.json();
-      window.location.href = url;
-    } catch { toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" }); }
+      const data = await r.json();
+      if (!r.ok) throw new Error(data?.error ?? "Klaida");
+      window.location.href = data.url;
+    } catch (err: any) {
+      toast({ title: "Stripe Connect klaida", description: err?.message, variant: "destructive" });
+    }
   };
 
   useEffect(() => {

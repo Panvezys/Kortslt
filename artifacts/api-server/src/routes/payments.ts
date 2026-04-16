@@ -342,31 +342,41 @@ router.post("/facilities/:id/connect/onboard", requireAuth, async (req, res): Pr
     return;
   }
 
-  let accountId = facility.stripeConnectAccountId;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      country: "LT",
-      email: facility.email ?? undefined,
-      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-      business_profile: { name: facility.name },
-      metadata: { facilityId: String(facility.id), ownerUserId: facility.ownerUserId },
+  try {
+    let accountId = facility.stripeConnectAccountId;
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "LT",
+        email: facility.email ?? undefined,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_profile: { name: facility.name },
+        metadata: { facilityId: String(facility.id), ownerUserId: facility.ownerUserId },
+      });
+      accountId = account.id;
+      await db.update(facilitiesTable)
+        .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
+        .where(eq(facilitiesTable.id, facilityId));
+    }
+
+    const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl ?? `${base}/owner/facility/${facilityId}?connect_refresh=1`,
+      return_url: returnUrl ?? `${base}/owner/facility/${facilityId}?connect_success=1`,
+      type: "account_onboarding",
     });
-    accountId = account.id;
-    await db.update(facilitiesTable)
-      .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
-      .where(eq(facilitiesTable.id, facilityId));
+
+    res.json({ url: accountLink.url });
+  } catch (err: any) {
+    const stripeMessage: string = err?.message ?? "Stripe klaida";
+    const isConnectNotEnabled = stripeMessage.includes("signed up for Connect");
+    res.status(400).json({
+      error: isConnectNotEnabled
+        ? "Stripe Connect neprijungtas prie platformos sąskaitos. Administratorius turi aktyvuoti Connect šioje nuorodoje: https://dashboard.stripe.com/connect"
+        : stripeMessage,
+    });
   }
-
-  const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: refreshUrl ?? `${base}/owner/facility/${facilityId}?connect_refresh=1`,
-    return_url: returnUrl ?? `${base}/owner/facility/${facilityId}?connect_success=1`,
-    type: "account_onboarding",
-  });
-
-  res.json({ url: accountLink.url });
 });
 
 // ─── Facility Stripe Connect: check status ────────────────────────────────────
