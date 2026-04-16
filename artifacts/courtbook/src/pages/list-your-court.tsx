@@ -176,7 +176,7 @@ export default function ListYourCourt() {
             <div className="flex flex-wrap gap-3">
               <Link href="/sign-up">
                 <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base px-8 h-12 rounded-xl gap-2">
-                  Pradėti nemokamai
+                  Join
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
