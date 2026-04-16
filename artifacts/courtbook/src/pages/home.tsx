@@ -402,12 +402,15 @@ export default function Home() {
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
+    queryKey: ["stats", "summary"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts({
+    queryKey: ["stats", "popular-courts"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: courts, isLoading: courtsLoading } = useListCourts(undefined, {
+    queryKey: ["courts"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
 
