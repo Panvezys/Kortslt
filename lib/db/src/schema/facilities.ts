@@ -7,6 +7,16 @@ export const facilitiesTable = pgTable("facilities", {
   name: text("name").notNull(),
   description: text("description"),
   ownerUserId: text("owner_user_id").notNull(),
+  companyName: text("company_name"),
+  registrationCode: text("registration_code"),
+  address: text("address"),
+  city: text("city"),
+  phone: text("phone"),
+  email: text("email"),
+  verificationStatus: text("verification_status").notNull().default("pending"),
+  verificationDocUrl: text("verification_doc_url"),
+  photos: text("photos").array().notNull().default([]),
+  equipment: text("equipment").array().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

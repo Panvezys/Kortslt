@@ -138,6 +138,21 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Admin endpoint: `POST /api/admin/seed-courts` — inserts seed courts if DB is empty; protected by `requireAdmin`.
 - **One-time setup**: After deploying, log in as admin → Admin Dashboard → click "Seed duomenų bazę" button (only visible when 0 courts).
 
+### Owner Onboarding Flow
+- **4-step wizard** at `/owner/onboard` (requires Clerk auth, redirects unauthenticated → sign-in):
+  1. **Company Profile**: companyName, registrationCode, address, city, phone, email
+  2. **Verification**: upload business license/ID document (PDF or image)
+  3. **Facility Setup**: name, description, photos, equipment
+  4. **Court Creation**: add 1+ courts with sport type, surface, pricing, amenities; auto-populates address/city from facility
+- Role promotion to `owner` happens only after step 4 completes (courts created) — prevents premature dashboard access
+- Server-side step-order enforcement: each step validates prerequisites (e.g., step 3 requires verification doc from step 2)
+- Courts created in onboarding get `status: "pending"` (require admin approval)
+- `/list-your-court` CTA buttons use `handleJoin()`: unauthenticated → Clerk sign-in modal; player → `/owner/onboard`; owner → `/owner` dashboard
+- `facilities` table enhanced: `companyName`, `registrationCode`, `address`, `city`, `phone`, `email`, `verificationStatus`, `verificationDocUrl`, `photos`, `equipment`
+- API endpoints: `GET /api/owner/onboard/status`, `POST /api/owner/onboard/step1`–`step4`
+- Upload endpoints: `/api/upload/ownership-doc` (PDF/image), `/api/upload/court-image` (photos)
+- Lithuanian labels throughout the wizard
+
 ### API Routes
 - `GET /api/courts` — list courts (filter by type, city, surface, condition, isIndoor, minPrice, maxPrice)
 - `POST /api/courts` — create court

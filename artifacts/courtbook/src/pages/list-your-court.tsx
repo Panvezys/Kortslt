@@ -1,6 +1,8 @@
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useUser } from "@clerk/react";
+import { useRole } from "@/lib/useRole";
 import {
   CheckCircle2,
   ArrowRight,
@@ -146,6 +148,20 @@ const FAQ = [
 ];
 
 export default function ListYourCourt() {
+  const { isSignedIn } = useUser();
+  const { isOwner } = useRole();
+  const [, setLocation] = useLocation();
+
+  const handleJoin = () => {
+    if (!isSignedIn) {
+      setLocation("/sign-in");
+    } else if (isOwner) {
+      setLocation("/owner");
+    } else {
+      setLocation("/owner/onboard");
+    }
+  };
+
   return (
     <Layout>
       {/* Hero */}
@@ -174,12 +190,10 @@ export default function ListYourCourt() {
               platformos ir pradėkite priimti rezervacijas online jau šiandien.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/sign-up">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base px-8 h-12 rounded-xl gap-2">
-                  Join
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <Button size="lg" onClick={handleJoin} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base px-8 h-12 rounded-xl gap-2">
+                Prisijungti
+                <ArrowRight className="h-4 w-4" />
+              </Button>
               <a href="#how-it-works">
                 <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 font-semibold text-base px-8 h-12 rounded-xl">
                   Kaip tai veikia?
@@ -493,12 +507,10 @@ export default function ListYourCourt() {
             platformą. Registracija nemokama, sutarčių nėra.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
-            <Link href="/sign-up">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base px-10 h-13 rounded-xl gap-2">
-                Registruotis nemokamai
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <Button size="lg" onClick={handleJoin} className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base px-10 h-13 rounded-xl gap-2">
+              Registruotis nemokamai
+              <ArrowRight className="h-4 w-4" />
+            </Button>
             <a href="mailto:info@korts.lt">
               <Button size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/10 font-semibold text-base px-8 h-13 rounded-xl">
                 Susisiekti su mumis

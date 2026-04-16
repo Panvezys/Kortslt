@@ -17,6 +17,7 @@ import courtPhotosRouter from "./court-photos";
 import trainersRouter from "./trainers";
 import tournamentsRouter from "./tournaments";
 import facilitiesRouter from "./facilities";
+import ownerOnboardRouter from "./owner-onboard";
 import sitemapRouter from "./sitemap";
 
 const router: IRouter = Router();
@@ -39,6 +40,7 @@ router.use(courtPhotosRouter);
 router.use(trainersRouter);
 router.use(tournamentsRouter);
 router.use(facilitiesRouter);
+router.use(ownerOnboardRouter);
 router.use(sitemapRouter);
 
 export default router;

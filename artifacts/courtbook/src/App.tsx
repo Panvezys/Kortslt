@@ -30,6 +30,7 @@ import TrainerDetail from "@/pages/trainer-detail";
 import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
 import ListYourCourt from "@/pages/list-your-court";
+import OwnerOnboard from "@/pages/owner-onboard";
 
 const queryClient = new QueryClient();
 
@@ -84,7 +85,7 @@ function OwnerRoute() {
 
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
-  if (!isOwner) return <Redirect to="/" />;
+  if (!isOwner) return <Redirect to="/owner/onboard" />;
   return <OwnerDashboard />;
 }
 
@@ -155,6 +156,7 @@ function Router() {
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route path="/list-your-court" component={ListYourCourt} />
+      <Route path="/owner/onboard" component={OwnerOnboard} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />
