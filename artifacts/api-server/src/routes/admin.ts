@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, count } from "drizzle-orm";
-import { db, courtsTable, notificationsTable } from "@workspace/db";
+import { db, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { z } from "zod";
 import { readFileSync } from "fs";
@@ -91,6 +91,74 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
   }
 
   res.json({ id: court.id, status: court.status, rejectionReason: court.rejectionReason });
+});
+
+// ─── Facility management ─────────────────────────────────────────────────────
+
+/** GET /admin/facilities — all facilities with any verification status */
+router.get("/admin/facilities", requireAdmin, async (_req, res): Promise<void> => {
+  const facilities = await db
+    .select()
+    .from(facilitiesTable)
+    .orderBy(desc(facilitiesTable.createdAt));
+  res.json(facilities);
+});
+
+/** PUT /admin/facilities/:id/approve — set verificationStatus = 'verified' */
+router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({ verificationStatus: "verified", rejectionReason: null })
+    .where(eq(facilitiesTable.id, id))
+    .returning();
+
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+
+  if (facility.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_approved",
+      title: `Objektas patvirtintas: ${facility.name}`,
+      body: "Jūsų objektas patvirtintas. Dabar galite priimti rezervacijas.",
+      link: `/owner/facility/${facility.id}`,
+    }).catch(() => {});
+  }
+
+  res.json({ id: facility.id, verificationStatus: facility.verificationStatus });
+});
+
+/** PUT /admin/facilities/:id/reject — set verificationStatus = 'rejected' */
+const RejectFacilityBody = z.object({ reason: z.string().optional() });
+
+router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectFacilityBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({ verificationStatus: "rejected", rejectionReason: reason })
+    .where(eq(facilitiesTable.id, id))
+    .returning();
+
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+
+  if (facility.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_rejected",
+      title: `Objektas atmestas: ${facility.name}`,
+      body: reason ? `Priežastis: ${reason}` : "Jūsų objektas buvo atmestas.",
+      link: "/owner",
+    }).catch(() => {});
+  }
+
+  res.json({ id: facility.id, verificationStatus: facility.verificationStatus, rejectionReason: facility.rejectionReason });
 });
 
 /** POST /admin/seed-courts — seed courts from JSON file if DB is empty */

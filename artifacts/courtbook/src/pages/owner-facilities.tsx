@@ -15,7 +15,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import {
   Plus, Building2, MapPin, ChevronRight, Trophy, Users,
-  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp,
+  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -61,6 +61,8 @@ interface FacilityWithCourts {
   verificationStatus: string;
   verificationDocUrl?: string;
   ownershipDocUrl?: string;
+  stripeConnectStatus?: string;
+  stripeConnectAccountId?: string;
   photos: string[];
   equipment: string[];
   courtCount: number;
@@ -318,8 +320,17 @@ export default function OwnerFacilities() {
                       </div>
                     )}
 
-                    <div className="absolute top-3 left-3">
+                    <div className="absolute top-3 left-3 flex flex-col gap-1">
                       <VerificationBadge status={facility.verificationStatus} />
+                      {facility.stripeConnectStatus === "active" ? (
+                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 gap-1 text-[10px] px-1.5 py-0">
+                          <CreditCard className="w-2.5 h-2.5" /> Stripe aktyvus
+                        </Badge>
+                      ) : facility.stripeConnectStatus === "pending" ? (
+                        <Badge className="bg-yellow-500/15 text-yellow-300 border-yellow-500/30 gap-1 text-[10px] px-1.5 py-0">
+                          <CreditCard className="w-2.5 h-2.5" /> Stripe laukiama
+                        </Badge>
+                      ) : null}
                     </div>
 
                     <div className="absolute top-3 right-3 flex gap-1">

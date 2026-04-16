@@ -12,6 +12,7 @@ import { customFetch, type Court } from "@workspace/api-client-react";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
+  CreditCard,
 } from "lucide-react";
 import { useRole } from "@/lib/useRole";
 
@@ -536,9 +537,192 @@ function UsersPanel() {
   );
 }
 
+// ─── Facilities panel ─────────────────────────────────────────────────────────
+
+const VERIFICATION_LABEL: Record<string, string> = {
+  pending: "Laukiama",
+  verified: "Patvirtinta",
+  rejected: "Atmesta",
+};
+
+const VERIFICATION_COLOR: Record<string, string> = {
+  pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  verified: "bg-green-500/10 text-green-400 border-green-500/30",
+  rejected: "bg-red-500/10 text-red-400 border-red-500/30",
+};
+
+const CONNECT_LABEL: Record<string, string> = {
+  not_connected: "Neprijungta",
+  pending: "Laukiama",
+  active: "Aktyvus",
+};
+
+const CONNECT_COLOR: Record<string, string> = {
+  not_connected: "bg-muted/50 text-muted-foreground",
+  pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  active: "bg-green-500/10 text-green-400 border-green-500/30",
+};
+
+function FacilitiesPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("all");
+  const [rejectFacilityId, setRejectFacilityId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const { data: facilities = [], isLoading, isError } = useQuery<any[]>({
+    queryKey: ["admin-facilities"],
+    queryFn: async () => {
+      const res = await customFetch("/api/admin/facilities");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => customFetch(`/api/admin/facilities/${id}/approve`, { method: "PUT" }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    onSuccess: () => { toast({ title: "Objektas patvirtintas ✓" }); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
+    onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => customFetch(`/api/admin/facilities/${id}/reject`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    onSuccess: () => { toast({ title: "Objektas atmestas" }); setRejectFacilityId(null); setRejectReason(""); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
+    onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
+  });
+
+  const filtered = filter === "all" ? facilities : facilities.filter(f => f.verificationStatus === filter);
+  const counts = {
+    all: facilities.length,
+    pending:  facilities.filter(f => f.verificationStatus === "pending").length,
+    verified: facilities.filter(f => f.verificationStatus === "verified").length,
+    rejected: facilities.filter(f => f.verificationStatus === "rejected").length,
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all","pending","verified","rejected"] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                filter === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"
+              }`}
+            >
+              {s === "all" ? "Visi" : VERIFICATION_LABEL[s]} ({counts[s]})
+            </button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-facilities"] })}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+        </Button>
+      </div>
+
+      {isLoading && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
+      {isError && <div className="py-12 text-center text-muted-foreground">Nepavyko įkelti objektų.</div>}
+
+      {!isLoading && !isError && (
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-4 py-3 font-medium">Objektas</th>
+                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Savininkas</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Stripe</th>
+                <th className="text-left px-4 py-3 font-medium">Statusas</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Dokumentas</th>
+                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Objektų nerasta</td></tr>
+              )}
+              {filtered.map((f: any) => (
+                <tr key={f.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{f.name}</div>
+                    <div className="text-xs text-muted-foreground">{f.city}{f.address ? `, ${f.address}` : ""}</div>
+                    {f.rejectionReason && <div className="text-xs text-red-400 mt-0.5">❌ {f.rejectionReason}</div>}
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <div className="text-xs text-muted-foreground">{f.ownerUserId?.slice(0, 20)}…</div>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${CONNECT_COLOR[f.stripeConnectStatus ?? "not_connected"]}`}>
+                      <CreditCard className="w-3 h-3" />
+                      {CONNECT_LABEL[f.stripeConnectStatus ?? "not_connected"]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${VERIFICATION_COLOR[f.verificationStatus ?? "pending"]}`}>
+                      {VERIFICATION_LABEL[f.verificationStatus ?? "pending"]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    {f.ownershipDocUrl ? (
+                      <a href={f.ownershipDocUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline text-xs">
+                        <FileText className="w-3.5 h-3.5" /> Peržiūrėti
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      {f.verificationStatus !== "verified" && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-green-400 border-green-500/30 hover:bg-green-500/10"
+                          onClick={() => approveMutation.mutate(f.id)} disabled={approveMutation.isPending}>
+                          <Check className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      {f.verificationStatus !== "rejected" && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-red-400 border-red-500/30 hover:bg-red-500/10"
+                          onClick={() => { setRejectFacilityId(f.id); setRejectReason(""); }} disabled={rejectMutation.isPending}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectFacilityId !== null} onOpenChange={open => { if (!open) { setRejectFacilityId(null); setRejectReason(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><X className="w-5 h-5 text-red-400" /> Atmesti objektą</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis</label>
+              <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Pvz.: Trūksta dokumentų arba netinkama vieta" />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => { setRejectFacilityId(null); setRejectReason(""); }}>Atšaukti</Button>
+              <Button variant="destructive" onClick={() => rejectFacilityId && rejectMutation.mutate({ id: rejectFacilityId, reason: rejectReason })}
+                disabled={rejectMutation.isPending || !rejectReason.trim()}>
+                {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AdminTab = "courts" | "users";
+type AdminTab = "courts" | "users" | "facilities";
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
@@ -569,8 +753,9 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: "courts", label: "Kortai", icon: <Building2 className="w-4 h-4" /> },
-    { id: "users",  label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
+    { id: "courts",     label: "Kortai",     icon: <Building2 className="w-4 h-4" /> },
+    { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: "users",      label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
   ];
 
   return (
@@ -601,8 +786,9 @@ export default function AdminDashboard() {
         </div>
 
         {/* Panel */}
-        {activeTab === "courts" && <CourtsPanel />}
-        {activeTab === "users"  && <UsersPanel />}
+        {activeTab === "courts"     && <CourtsPanel />}
+        {activeTab === "facilities" && <FacilitiesPanel />}
+        {activeTab === "users"      && <UsersPanel />}
       </div>
     </Layout>
   );

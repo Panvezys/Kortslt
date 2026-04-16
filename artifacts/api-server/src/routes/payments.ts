@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db, bookingsTable, courtsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, facilitiesTable } from "@workspace/db";
 import {
   CreateCheckoutSessionBody,
   CreateCheckoutSessionResponse,
@@ -10,7 +10,7 @@ import {
 import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
-import { getCurrentUserId } from "../lib/auth";
+import { getCurrentUserId, requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -320,6 +320,94 @@ router.get("/payments/connect/status/:courtId", async (req, res): Promise<void> 
   }
 
   res.json({ status: newStatus, accountId: court.stripeConnectAccountId, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled });
+});
+
+// ─── Facility Stripe Connect: create/get onboarding link ─────────────────────
+router.post("/facilities/:id/connect/onboard", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = Number(req.params.id);
+  const userId = getCurrentUserId(req);
+  const { returnUrl, refreshUrl } = req.body;
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  if (!facility || facility.ownerUserId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch {
+    res.status(503).json({ error: "Stripe not configured" });
+    return;
+  }
+
+  let accountId = facility.stripeConnectAccountId;
+  if (!accountId) {
+    const account = await stripe.accounts.create({
+      type: "express",
+      country: "LT",
+      email: facility.email ?? undefined,
+      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      business_profile: { name: facility.name },
+      metadata: { facilityId: String(facility.id), ownerUserId: facility.ownerUserId },
+    });
+    accountId = account.id;
+    await db.update(facilitiesTable)
+      .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
+      .where(eq(facilitiesTable.id, facilityId));
+  }
+
+  const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+  const accountLink = await stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: refreshUrl ?? `${base}/owner/facility/${facilityId}?connect_refresh=1`,
+    return_url: returnUrl ?? `${base}/owner/facility/${facilityId}?connect_success=1`,
+    type: "account_onboarding",
+  });
+
+  res.json({ url: accountLink.url });
+});
+
+// ─── Facility Stripe Connect: check status ────────────────────────────────────
+router.get("/facilities/:id/connect/status", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = Number(req.params.id);
+  const userId = getCurrentUserId(req);
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  if (!facility || facility.ownerUserId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (!facility.stripeConnectAccountId) {
+    res.json({ status: "not_connected", accountId: null });
+    return;
+  }
+
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch {
+    res.json({ status: facility.stripeConnectStatus ?? "not_connected", accountId: facility.stripeConnectAccountId });
+    return;
+  }
+
+  const account = await stripe.accounts.retrieve(facility.stripeConnectAccountId);
+  const newStatus = account.details_submitted ? "active" : "pending";
+
+  if (newStatus !== facility.stripeConnectStatus) {
+    await db.update(facilitiesTable)
+      .set({ stripeConnectStatus: newStatus })
+      .where(eq(facilitiesTable.id, facilityId));
+  }
+
+  res.json({
+    status: newStatus,
+    accountId: facility.stripeConnectAccountId,
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+  });
 });
 
 export default router;

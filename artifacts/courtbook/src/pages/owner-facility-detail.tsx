@@ -645,12 +645,31 @@ export default function OwnerFacilityDetail() {
     } catch { toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" }); }
   };
 
+  const handleFacilityConnectStripe = async () => {
+    try {
+      const origin = window.location.origin;
+      const r = await fetch(`${API_URL}/facilities/${id}/connect/onboard`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          returnUrl: `${origin}${BASE_URL}/owner/facility/${id}?facility_connect_success=1`,
+          refreshUrl: `${origin}${BASE_URL}/owner/facility/${id}?facility_connect_refresh=1`,
+        }),
+      });
+      if (!r.ok) throw new Error("Klaida");
+      const { url } = await r.json();
+      window.location.href = url;
+    } catch { toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" }); }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("connect_success") === "1") {
+    if (params.get("connect_success") === "1" || params.get("facility_connect_success") === "1") {
       toast({ title: "Stripe Connect prijungtas!", description: "Dabar galite priimti mokėjimus." });
       window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("connect_refresh") === "1") {
+      queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
+    } else if (params.get("connect_refresh") === "1" || params.get("facility_connect_refresh") === "1") {
       toast({ title: "Stripe Connect neužbaigtas", description: "Bandykite dar kartą." });
       window.history.replaceState({}, "", window.location.pathname);
     }
@@ -762,6 +781,26 @@ export default function OwnerFacilityDetail() {
           </div>
         </div>
 
+        {/* Stripe Connect banner */}
+        {(facility as any).stripeConnectStatus !== "active" && (
+          <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <CreditCard className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="flex-1">
+              <p className="font-medium text-sm text-yellow-300">Stripe Connect reikalingas mokėjimams priimti</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {(facility as any).stripeConnectStatus === "pending"
+                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte pridėti kortus ir priimti mokėjimus."
+                  : "Prijunkite Stripe paskyrą, kad galėtumėte pridėti kortus ir gauti mokėjimus tiesiai į savo sąskaitą."}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 shrink-0"
+              onClick={handleFacilityConnectStripe}>
+              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
+              {(facility as any).stripeConnectStatus === "pending" ? "Tęsti registraciją" : "Prijungti Stripe"}
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Kortai</h2>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
@@ -769,7 +808,11 @@ export default function OwnerFacilityDetail() {
             if (!open) { setEditingId(null); setMapKey(k => k + 1); }
           }}>
             <DialogTrigger asChild>
-              <Button onClick={() => {
+              <Button
+                disabled={(facility as any).stripeConnectStatus !== "active"}
+                title={(facility as any).stripeConnectStatus !== "active" ? "Pirmiausia prijunkite Stripe" : undefined}
+                onClick={() => {
+                if ((facility as any).stripeConnectStatus !== "active") return;
                 setEditingId(null);
                 form.reset({
                   name: "", type: "tennis", description: "",

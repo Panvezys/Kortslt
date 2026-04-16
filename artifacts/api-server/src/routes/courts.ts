@@ -110,11 +110,31 @@ router.get("/courts", async (req, res): Promise<void> => {
   if (params.data.maxPrice != null) conditions.push(lte(courtsTable.pricePerHour, String(params.data.maxPrice)));
   if (params.data.ownerEmail) conditions.push(eq(courtsTable.ownerEmail, params.data.ownerEmail));
 
+  // Public view: courts must belong to a verified facility (or have no facility).
+  // Owner view (ownerUserId set) skips this filter so owners see their unverified courts.
+  if (!params.data.ownerUserId) {
+    // Join with facilities and only include courts from verified facilities (or legacy courts with no facilityId)
+    const rows = await db
+      .select({ court: courtsTable, facilityStatus: facilitiesTable.verificationStatus })
+      .from(courtsTable)
+      .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(and(...conditions));
+
+    const filtered = rows.filter(r =>
+      r.court.facilityId == null || r.facilityStatus === "verified"
+    );
+    res.json(filtered.map(r => ({
+      ...formatCourt(r.court),
+      facilityVerified: r.facilityStatus === "verified",
+    })));
+    return;
+  }
+
   let query = db.select().from(courtsTable).$dynamic();
   if (conditions.length > 0) query = query.where(and(...conditions));
 
   const courts = await query;
-  res.json(ListCourtsResponse.parse(courts.map(formatCourt)));
+  res.json(courts.map(c => formatCourt(c)));
 });
 
 router.post("/courts", requireAuth, async (req, res): Promise<void> => {

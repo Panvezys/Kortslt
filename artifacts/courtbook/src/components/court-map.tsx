@@ -319,7 +319,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
             <span>{court.city}</span>
           </div>
 
-          {/* Sport badge with icon + optional indoor */}
+          {/* Sport badge with icon + optional indoor + verified */}
           <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", alignItems: "center" }}>
             <span style={{
               background: color, color: "white",
@@ -336,6 +336,17 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
                 padding: "3px 8px", borderRadius: "999px", fontSize: "10px", fontWeight: 500,
               }}>
                 Vidaus
+              </span>
+            )}
+            {(court as any).facilityVerified && (
+              <span style={{
+                background: "rgba(59,130,246,0.15)", color: "#60a5fa",
+                border: "1px solid rgba(59,130,246,0.3)",
+                padding: "3px 7px", borderRadius: "999px", fontSize: "10px", fontWeight: 600,
+                display: "inline-flex", alignItems: "center", gap: "4px",
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                Patvirtinta
               </span>
             )}
           </div>

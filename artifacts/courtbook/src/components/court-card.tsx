@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Star, Heart } from "lucide-react";
+import { MapPin, Users, Star, Heart, ShieldCheck } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -130,6 +130,11 @@ export function CourtCard({ court }: { court: Court }) {
               {sportLabel}
             </span>
             <StarRating rating={court.rating} />
+            {(court as any).facilityVerified && (
+              <Badge className="gap-1 text-[10px] px-1.5 py-0 bg-blue-500/15 text-blue-400 border-blue-500/30">
+                <ShieldCheck className="w-2.5 h-2.5" /> Patvirtinta
+              </Badge>
+            )}
           </div>
           <span
             className="font-bold text-lg shrink-0 transition-colors duration-200"

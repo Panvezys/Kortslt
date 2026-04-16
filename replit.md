@@ -122,12 +122,22 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - `stripe` and `stripe-replit-sync` packages installed at workspace root (`-w`).
 - **Player booking flow**: slot selection → `POST /payments/create-checkout` → Stripe Checkout → redirect back → `POST /payments/confirm` → booking confirmed. Uses `{CHECKOUT_SESSION_ID}` template in success_url.
 - **Free bookings**: `POST /payments/confirm-free` (price = 0).
-- **Stripe Connect (owner payouts)**: Express Connect accounts. `POST /payments/connect/onboard` → Stripe onboarding URL. `GET /payments/connect/status/:courtId` checks account status. Owner dashboard has "Prijungti" badge per court (hidden lg column).
-- When a court has a `stripeConnectAccountId`, checkout session applies a 5% platform fee via `transfer_data.destination`.
+- **Stripe Connect (court-level)**: `POST /payments/connect/onboard` → Stripe onboarding URL. `GET /payments/connect/status/:courtId` checks account status.
+- **Stripe Connect (facility-level)**: `POST /api/facilities/:id/connect/onboard` → Express account + onboarding link. `GET /api/facilities/:id/connect/status` — refreshes account status. Required before owner can add courts.
+- When a court/facility has a `stripeConnectAccountId`, checkout session applies a 5% platform fee via `transfer_data.destination`.
 - **Test card**: `4242 4242 4242 4242`, any future expiry, any CVC.
-- `stripeConnectAccountId` and `stripeConnectStatus` columns added to `courts` table.
+- `stripeConnectAccountId` and `stripeConnectStatus` columns on both `courts` and `facilities` tables.
 - `stripe.accounts` table (from stripe-replit-sync webhook sync) creation is non-critical for sandbox testing — webhook sync may fail on first start but all checkout/connect flows work independently.
 - `GET /payments/config` — returns publishable key for frontend (currently unused in UI; key is Stripe test key starting with `pk_test_`).
+
+### Verified Facility Workflow (COMPLETE)
+- **DB columns on `facilities`**: `verificationStatus` ('pending'|'verified'|'rejected'), `rejectionReason`, `stripeConnectAccountId`, `stripeConnectStatus` ('not_connected'|'pending'|'active').
+- **Admin API**: `GET /api/admin/facilities` — list all facilities. `PUT /api/admin/facilities/:id/approve` — set verified. `PUT /api/admin/facilities/:id/reject` — set rejected + reason.
+- **Admin UI**: "Objektai" tab in Admin Dashboard with approve/reject controls, Stripe Connect status, ownership doc link, reject reason dialog.
+- **Public court filter**: `GET /api/courts` joins `facilities` and only returns courts from `verified` facilities (or legacy courts with no `facilityId`). Returns `facilityVerified: true` on each court.
+- **Verified badge**: Blue "Patvirtinta" badge with shield icon on `CourtCard` and map InfoWindow when `court.facilityVerified === true`.
+- **Facility cards (owner)**: Show Stripe Connect status badge (active=blue, pending=yellow) on facility card image overlay.
+- **Stripe Connect gate (owner-facility-detail)**: Yellow banner shown when `stripeConnectStatus !== 'active'`; "Pridėti kortą" button disabled until Stripe Connect is active. Banner has CTA to start/resume onboarding.
 
 ### Email (Resend)
 - Confirmation emails sent via Resend after `POST /api/payments/confirm`.
