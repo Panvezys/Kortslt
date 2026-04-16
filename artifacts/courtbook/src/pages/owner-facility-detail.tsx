@@ -398,10 +398,22 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
   const qc = useQueryClient();
   const [uploading, setUploading] = useState(false);
 
+  const MAX_PHOTOS = 3;
+  const remaining = Math.max(0, MAX_PHOTOS - photos.length);
+
   const handleUpload = async (files: FileList) => {
+    const available = remaining;
+    if (available <= 0) {
+      toast({ title: `Maksimaliai ${MAX_PHOTOS} nuotraukos`, description: "Ištrinkite esamą, kad galėtumėte įkelti naują.", variant: "destructive" });
+      return;
+    }
+    const toUpload = Array.from(files).slice(0, available);
+    if (toUpload.length < files.length) {
+      toast({ title: `Įkeltos tik ${toUpload.length} nuotraukos (limitas ${MAX_PHOTOS})` });
+    }
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of toUpload) {
         const fd = new FormData();
         fd.append("image", file);
         const { url } = await customFetch<{ url: string }>(`${API_URL}/upload/court-image`, { method: "POST", body: fd });
@@ -424,7 +436,10 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
 
   return (
     <div className="space-y-2">
-      <Label>Galerijos nuotraukos</Label>
+      <div className="flex items-center justify-between">
+        <Label>Galerijos nuotraukos</Label>
+        <span className="text-[10px] text-muted-foreground">{photos.length}/{MAX_PHOTOS}</span>
+      </div>
       <div className="grid grid-cols-3 gap-2">
         {photos.map((p: any) => (
           <div key={p.id} className="relative group rounded-lg overflow-hidden aspect-video bg-muted">
@@ -436,13 +451,17 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
           </div>
         ))}
       </div>
-      <label className="cursor-pointer">
-        <input type="file" accept="image/*" multiple className="hidden" disabled={uploading}
-          onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }} />
-        <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:border-primary hover:text-primary transition-colors">
-          <Upload className="w-3 h-3" /> {uploading ? "Keliama..." : "Įkelti nuotraukas"}
-        </span>
-      </label>
+      {remaining > 0 ? (
+        <label className="cursor-pointer">
+          <input type="file" accept="image/*" multiple className="hidden" disabled={uploading}
+            onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }} />
+          <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:border-primary hover:text-primary transition-colors">
+            <Upload className="w-3 h-3" /> {uploading ? "Keliama..." : `Įkelti (dar ${remaining})`}
+          </span>
+        </label>
+      ) : (
+        <p className="text-[11px] text-muted-foreground italic">Maksimalus kiekis pasiektas. Ištrinkite nuotrauką, kad įkeltumėte naują.</p>
+      )}
     </div>
   );
 }

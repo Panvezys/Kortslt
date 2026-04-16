@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable } from "@workspace/db";
+import { asc } from "drizzle-orm";
 import {
   ListCourtsQueryParams,
   CreateCourtBody,
@@ -123,9 +124,26 @@ router.get("/courts", async (req, res): Promise<void> => {
     const filtered = rows.filter(r =>
       r.court.facilityId == null || r.facilityStatus === "verified"
     );
+
+    const courtIds = filtered.map(r => r.court.id);
+    const photoMap = new Map<number, string[]>();
+    if (courtIds.length > 0) {
+      const photos = await db
+        .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+        .from(courtPhotosTable)
+        .where(inArray(courtPhotosTable.courtId, courtIds))
+        .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+      for (const p of photos) {
+        const arr = photoMap.get(p.courtId) ?? [];
+        if (arr.length < 3) arr.push(p.url);
+        photoMap.set(p.courtId, arr);
+      }
+    }
+
     res.json(filtered.map(r => ({
       ...formatCourt(r.court),
       facilityVerified: r.facilityStatus === "verified",
+      photos: photoMap.get(r.court.id) ?? [],
     })));
     return;
   }
@@ -134,7 +152,21 @@ router.get("/courts", async (req, res): Promise<void> => {
   if (conditions.length > 0) query = query.where(and(...conditions));
 
   const courts = await query;
-  res.json(courts.map(c => formatCourt(c)));
+  const courtIds = courts.map(c => c.id);
+  const photoMap = new Map<number, string[]>();
+  if (courtIds.length > 0) {
+    const photos = await db
+      .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+      .from(courtPhotosTable)
+      .where(inArray(courtPhotosTable.courtId, courtIds))
+      .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+    for (const p of photos) {
+      const arr = photoMap.get(p.courtId) ?? [];
+      if (arr.length < 3) arr.push(p.url);
+      photoMap.set(p.courtId, arr);
+    }
+  }
+  res.json(courts.map(c => ({ ...formatCourt(c), photos: photoMap.get(c.id) ?? [] })));
 });
 
 router.post("/courts", requireAuth, async (req, res): Promise<void> => {

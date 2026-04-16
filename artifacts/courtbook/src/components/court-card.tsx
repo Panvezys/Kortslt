@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -51,17 +51,42 @@ function StarRating({ rating }: { rating?: number }) {
   );
 }
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export function CourtCard({ court }: { court: Court }) {
   const t = useT();
   const { isSignedIn } = useUser();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
-  const imageSrc = resolveCourtImage(court.imageUrl, court.type);
+  const [photoIdx, setPhotoIdx] = useState(0);
   const sport = sportConfig[court.type] ?? { color: "#84cc16" };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;
   const favorited = isFavorite(court.id);
+
+  // Build gallery: main imageUrl + up to 3 extra photos from the owner, de-duplicated.
+  const gallery = useMemo(() => {
+    const list: string[] = [];
+    const main = resolveCourtImage(court.imageUrl, court.type);
+    if (main) list.push(main);
+    const extras = ((court as any).photos as string[] | undefined) ?? [];
+    for (const p of extras) {
+      if (!p) continue;
+      const resolved = p.startsWith("http") || p.startsWith("/") ? p : `${BASE}/${p}`;
+      if (!list.includes(resolved)) list.push(resolved);
+      if (list.length >= 3) break;
+    }
+    return list;
+  }, [court.imageUrl, court.type, (court as any).photos]);
+
+  const currentImage = gallery[photoIdx] ?? gallery[0];
+  const cycle = (e: React.MouseEvent) => {
+    if (gallery.length <= 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setPhotoIdx(i => (i + 1) % gallery.length);
+  };
 
   return (
     <Card
@@ -72,17 +97,27 @@ export function CourtCard({ court }: { court: Court }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {imageSrc ? (
-        <div className="w-full h-48 overflow-hidden bg-muted relative">
-          <img
-            src={imageSrc}
-            alt={court.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
-            }}
-          />
-          <div className="absolute top-2 right-2 flex gap-1 items-center">
+      {currentImage ? (
+        <div
+          className="w-full h-48 overflow-hidden bg-muted relative select-none"
+          onClick={cycle}
+          style={{ cursor: gallery.length > 1 ? "pointer" : undefined }}
+          role={gallery.length > 1 ? "button" : undefined}
+          aria-label={gallery.length > 1 ? `${photoIdx + 1} / ${gallery.length}` : undefined}
+        >
+          {gallery.map((src, i) => (
+            <img
+              key={src + i}
+              src={src}
+              alt={court.name}
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+              style={{ opacity: i === photoIdx ? 1 : 0 }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
+              }}
+            />
+          ))}
+          <div className="absolute top-2 right-2 flex gap-1 items-center z-10">
             {court.isIndoor !== undefined && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
                 {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
@@ -103,10 +138,29 @@ export function CourtCard({ court }: { court: Court }) {
               </button>
             )}
           </div>
+
+          {/* Photo bubble indicators */}
+          {gallery.length > 1 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm z-10">
+              {gallery.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPhotoIdx(i); }}
+                  aria-label={`Nuotrauka ${i + 1}`}
+                  className="transition-all duration-200 rounded-full"
+                  style={{
+                    width: i === photoIdx ? 18 : 6,
+                    height: 6,
+                    background: i === photoIdx ? "#fff" : "rgba(255,255,255,0.5)",
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className="w-full h-48 bg-muted flex items-center justify-center text-4xl relative">
-          {sport.emoji}
+          <SportIcon sport={court.type} size={42} strokeWidth={1.5} className="opacity-60" />
           {isSignedIn && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(court.id); }}
@@ -123,8 +177,8 @@ export function CourtCard({ court }: { court: Court }) {
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
             <span
-              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all duration-200 ${hovered ? "text-white" : "bg-muted text-muted-foreground"}`}
-              style={hovered ? { background: sport.color } : undefined}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all duration-200 text-white"
+              style={{ background: sport.color }}
             >
               <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
               {sportLabel}
@@ -147,7 +201,9 @@ export function CourtCard({ court }: { court: Court }) {
           className="transition-colors duration-200 line-clamp-1 text-base"
           style={{ color: hovered ? sport.color : undefined }}
         >
-          {court.name}
+          <Link href={`/courts/${court.id}`} className="hover:underline">
+            {court.name}
+          </Link>
         </CardTitle>
         <CardDescription className="flex items-center text-xs">
           <MapPin className="h-3 w-3 mr-1 shrink-0" />
