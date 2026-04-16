@@ -409,7 +409,7 @@ export function CourtMap({
   const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
   const [mapReady, setMapReady] = useState(false);
   const [internalActiveSports, setInternalActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(true);
 
   const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
 
@@ -726,7 +726,7 @@ export function CourtMap({
               {ALL_SPORTS.map(sport => {
                 const active = internalActiveSports.has(sport);
                 const color = SPORT_COLOR[sport];
-                const count = visibleCourts.filter(c => c.type === sport).length;
+                const count = (Array.isArray(courts) ? courts : []).filter(c => c.type === sport).length;
                 return (
                   <button
                     key={sport}
