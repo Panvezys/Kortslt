@@ -1,4 +1,5 @@
 import { SVGProps } from "react";
+import basketballAsset from "@assets/basketball_1776367660912.png";
 
 type SvgProps = SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number };
 
@@ -33,16 +34,19 @@ export function TennisIcon(props: SvgProps) {
   );
 }
 
-/** Basketball — circle with two vertical curves and a horizontal line */
+/** Basketball — uses provided asset */
 export function BasketballIcon(props: SvgProps) {
-  const sw = props.strokeWidth ?? 1.6;
   return (
-    <Svg {...props}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2 C8.5 6 8.5 18 12 22" strokeWidth={sw} />
-      <path d="M12 2 C15.5 6 15.5 18 12 22" strokeWidth={sw} />
-      <line x1="2" y1="12" x2="22" y2="12" strokeWidth={sw} />
-    </Svg>
+    <img
+      src={basketballAsset}
+      alt=""
+      aria-hidden
+      {...props}
+      style={{
+        ...(props.style ?? {}),
+        filter: "grayscale(1) brightness(0.72) contrast(1.1)",
+      }}
+    />
   );
 }
 
@@ -188,7 +192,7 @@ export function SportIcon({ sport, ...props }: SvgProps & { sport: string }) {
 
 export const sportColor: Record<string, string> = {
   tennis:       "#84cc16",
-  basketball:   "#f97316",
+  basketball:   "#6b7280",
   padel:        "#3b82f6",
   football:     "#22c55e",
   badminton:    "#a855f7",
@@ -201,7 +205,7 @@ export const sportColor: Record<string, string> = {
 
 export const sportAbbr: Record<string, string> = {
   tennis:       "TN",
-  basketball:   "BB",
+  basketball:   "BK",
   padel:        "PD",
   football:     "FT",
   badminton:    "BM",
