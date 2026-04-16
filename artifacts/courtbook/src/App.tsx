@@ -3,6 +3,7 @@ import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wo
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ClerkProvider, Show, useClerk, useAuth } from "@clerk/react";
 import { enUS, ruRU } from "@clerk/localizations";
+import { ltLT } from "@/lib/lt-localization";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -161,7 +162,7 @@ function Router() {
   );
 }
 
-const clerkLocales = { lt: enUS, en: enUS, ru: ruRU } as const;
+const clerkLocales = { lt: ltLT, en: enUS, ru: ruRU } as const;
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
