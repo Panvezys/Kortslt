@@ -144,8 +144,18 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
+
 function Router() {
   return (
+    <>
+    <ScrollToTop />
     <Switch>
       <Route path="/" component={HomeRoute} />
       <Route path="/courts" component={Courts} />
@@ -171,6 +181,7 @@ function Router() {
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
