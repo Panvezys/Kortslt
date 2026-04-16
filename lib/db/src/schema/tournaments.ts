@@ -1,13 +1,15 @@
-import { pgTable, text, serial, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, boolean } from "drizzle-orm/pg-core";
 import { courtsTable } from "./courts";
 
 export const tournamentsTable = pgTable("tournaments", {
   id: serial("id").primaryKey(),
   courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  facilityId: integer("facility_id"),
   ownerUserId: text("owner_user_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   sport: text("sport").notNull(),
+  coverPhotoUrl: text("cover_photo_url"),
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
   registrationDeadline: text("registration_deadline"),
@@ -16,6 +18,8 @@ export const tournamentsTable = pgTable("tournaments", {
   prizeInfo: text("prize_info"),
   status: text("status").notNull().default("draft"),
   format: text("format").notNull().default("single_elimination"),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  featuredUntil: timestamp("featured_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

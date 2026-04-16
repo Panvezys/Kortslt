@@ -32,6 +32,9 @@ import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
 import ListYourCourt from "@/pages/list-your-court";
 import OwnerOnboard from "@/pages/owner-onboard";
+import GamesPage from "@/pages/games";
+import GameDetailPage from "@/pages/game-detail";
+import MessagesPage from "@/pages/messages";
 
 const queryClient = new QueryClient();
 
@@ -175,6 +178,9 @@ function Router() {
       <Route path="/trainers/:id" component={TrainerDetail} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
+      <Route path="/games" component={GamesPage} />
+      <Route path="/games/:id" component={GameDetailPage} />
+      <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />
       <Route path="/owner/onboard" component={OwnerOnboard} />
       <Route path="/sign-in/*?" component={SignInPage} />

@@ -1288,7 +1288,354 @@ export default function OwnerFacilityDetail() {
             </Dialog>
           );
         })()}
+
+        {/* Tournaments Section */}
+        <FacilityTournaments facilityId={Number(id)} facilityCourts={facilityCourts} />
       </div>
     </Layout>
+  );
+}
+
+// ============ Tournaments Section ============
+
+interface FacilityTournament {
+  id: number;
+  courtId: number;
+  name: string;
+  description: string | null;
+  sport: string;
+  startDate: string;
+  endDate: string;
+  registrationDeadline: string | null;
+  maxParticipants: number;
+  entryFee: number | null;
+  prizeInfo: string | null;
+  status: string;
+  format: string;
+  isFeatured: boolean;
+  featuredUntil: string | null;
+  coverPhotoUrl: string | null;
+  registrationCount: number;
+}
+
+function FacilityTournaments({ facilityId, facilityCourts }: { facilityId: number; facilityCourts: any[] }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<FacilityTournament | null>(null);
+
+  const { data: tournaments, isLoading } = useQuery<FacilityTournament[]>({
+    queryKey: ["facility-tournaments", facilityId],
+    queryFn: () => customFetch<FacilityTournament[]>(`${API_URL}/tournaments?facilityId=${facilityId}`),
+    enabled: !!facilityId,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => customFetch(`${API_URL}/tournaments/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["facility-tournaments", facilityId] });
+      toast({ title: "Turnyras ištrintas" });
+    },
+  });
+
+  const promoteMut = useMutation({
+    mutationFn: ({ id, days }: { id: number; days: number }) => customFetch(`${API_URL}/tournaments/${id}/promote`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days }),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["facility-tournaments", facilityId] });
+      toast({ title: "Turnyras reklamuojamas pagrindiniame puslapyje!" });
+    },
+  });
+
+  return (
+    <div className="bg-card border rounded-2xl p-6 mt-8">
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2"><Trophy className="w-5 h-5 text-primary"/>Turnyrai</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Organizuokite turnyrus ir reklamuokite juos pagrindiniame puslapyje.</p>
+        </div>
+        <Button onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={facilityCourts.length === 0}>
+          <Plus className="w-4 h-4 mr-1.5"/>Naujas turnyras
+        </Button>
+      </div>
+
+      {facilityCourts.length === 0 ? (
+        <div className="text-sm text-muted-foreground bg-muted/40 p-4 rounded-lg">
+          Pirmiausia sukurkite bent vieną kortą šiame objekte.
+        </div>
+      ) : isLoading ? (
+        <Skeleton className="h-24 rounded-lg"/>
+      ) : (tournaments ?? []).length === 0 ? (
+        <div className="text-center py-10 rounded-lg border border-dashed border-border">
+          <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-2"/>
+          <p className="text-sm text-muted-foreground">Dar nėra turnyrų.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {tournaments!.map((t) => {
+            const isActiveFeatured = t.isFeatured && t.featuredUntil && new Date(t.featuredUntil) > new Date();
+            return (
+              <div key={t.id} className="flex flex-wrap items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 transition-colors">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-2xl">{SPORT_EMOJIS[t.sport] ?? "🏆"}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold">{t.name}</h3>
+                    {isActiveFeatured && <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">Reklamuojamas</Badge>}
+                    <Badge variant="outline" className="text-[10px]">{t.status}</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {SPORT_LABELS[t.sport]} · {new Date(t.startDate).toLocaleDateString("lt-LT")} – {new Date(t.endDate).toLocaleDateString("lt-LT")} · {t.registrationCount}/{t.maxParticipants} dalyvių
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {!isActiveFeatured && (
+                    <Button size="sm" variant="outline" onClick={() => promoteMut.mutate({ id: t.id, days: 14 })} disabled={promoteMut.isPending}>
+                      📢 Reklamuoti 14d.
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => { setEditing(t); setDialogOpen(true); }}>
+                    <Edit2 className="w-4 h-4"/>
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => {
+                    if (confirm(`Ištrinti turnyrą "${t.name}"?`)) deleteMut.mutate(t.id);
+                  }}>
+                    <Trash2 className="w-4 h-4"/>
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <TournamentDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        facilityId={facilityId}
+        facilityCourts={facilityCourts}
+        editing={editing}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["facility-tournaments", facilityId] });
+          setDialogOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+function TournamentDialog({ open, onOpenChange, facilityId, facilityCourts, editing, onSaved }: {
+  open: boolean; onOpenChange: (v: boolean) => void; facilityId: number; facilityCourts: any[];
+  editing: FacilityTournament | null; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    name: "", description: "", sport: "tennis", courtId: 0,
+    startDate: "", endDate: "", registrationDeadline: "",
+    maxParticipants: 16, entryFee: "", prizeInfo: "",
+    status: "draft", format: "single_elimination", coverPhotoUrl: "",
+    promote: false, promoteDays: 14,
+  });
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        name: editing.name,
+        description: editing.description ?? "",
+        sport: editing.sport,
+        courtId: editing.courtId,
+        startDate: editing.startDate.slice(0, 10),
+        endDate: editing.endDate.slice(0, 10),
+        registrationDeadline: editing.registrationDeadline ? editing.registrationDeadline.slice(0, 10) : "",
+        maxParticipants: editing.maxParticipants,
+        entryFee: editing.entryFee != null ? String(editing.entryFee) : "",
+        prizeInfo: editing.prizeInfo ?? "",
+        status: editing.status,
+        format: editing.format,
+        coverPhotoUrl: editing.coverPhotoUrl ?? "",
+        promote: false, promoteDays: 14,
+      });
+    } else {
+      setForm({
+        name: "", description: "", sport: facilityCourts[0]?.type ?? "tennis", courtId: facilityCourts[0]?.id ?? 0,
+        startDate: "", endDate: "", registrationDeadline: "",
+        maxParticipants: 16, entryFee: "", prizeInfo: "",
+        status: "open", format: "single_elimination", coverPhotoUrl: "",
+        promote: false, promoteDays: 14,
+      });
+    }
+  }, [editing, facilityCourts, open]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        name: form.name,
+        description: form.description || null,
+        sport: form.sport,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        registrationDeadline: form.registrationDeadline || null,
+        maxParticipants: form.maxParticipants,
+        entryFee: form.entryFee ? parseFloat(form.entryFee) : null,
+        prizeInfo: form.prizeInfo || null,
+        status: form.status,
+        format: form.format,
+        coverPhotoUrl: form.coverPhotoUrl || null,
+        facilityId,
+      };
+      let tid: number;
+      if (editing) {
+        await customFetch(`${API_URL}/tournaments/${editing.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        tid = editing.id;
+      } else {
+        if (!form.courtId) throw new Error("Pasirinkite kortą");
+        const res = await customFetch<{ id: number }>(`${API_URL}/courts/${form.courtId}/tournaments`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        tid = res.id;
+      }
+      if (form.promote) {
+        await customFetch(`${API_URL}/tournaments/${tid}/promote`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ days: form.promoteDays }),
+        });
+      }
+    },
+    onSuccess: () => {
+      toast({ title: editing ? "Turnyras atnaujintas" : "Turnyras sukurtas" });
+      onSaved();
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Redaguoti turnyrą" : "Naujas turnyras"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label>Pavadinimas *</Label>
+            <Input className="mt-1" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}/>
+          </div>
+          <div>
+            <Label>Aprašymas</Label>
+            <Textarea className="mt-1" rows={3} value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}/>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Sporto šaka *</Label>
+              <Select value={form.sport} onValueChange={(v) => setForm(f => ({ ...f, sport: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SPORT_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {!editing && (
+              <div>
+                <Label>Kortas *</Label>
+                <Select value={String(form.courtId)} onValueChange={(v) => setForm(f => ({ ...f, courtId: parseInt(v, 10) }))}>
+                  <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                  <SelectContent>
+                    {facilityCourts.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Pradžia *</Label>
+              <Input type="date" className="mt-1" value={form.startDate} onChange={(e) => setForm(f => ({ ...f, startDate: e.target.value }))}/>
+            </div>
+            <div>
+              <Label>Pabaiga *</Label>
+              <Input type="date" className="mt-1" value={form.endDate} onChange={(e) => setForm(f => ({ ...f, endDate: e.target.value }))}/>
+            </div>
+            <div>
+              <Label>Reg. iki</Label>
+              <Input type="date" className="mt-1" value={form.registrationDeadline} onChange={(e) => setForm(f => ({ ...f, registrationDeadline: e.target.value }))}/>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Dalyvių max</Label>
+              <Input type="number" min={2} className="mt-1" value={form.maxParticipants} onChange={(e) => setForm(f => ({ ...f, maxParticipants: parseInt(e.target.value || "16", 10) }))}/>
+            </div>
+            <div>
+              <Label>Dalyv. mokestis (€)</Label>
+              <Input type="number" step="0.01" min={0} className="mt-1" value={form.entryFee} onChange={(e) => setForm(f => ({ ...f, entryFee: e.target.value }))}/>
+            </div>
+            <div>
+              <Label>Statusas</Label>
+              <Select value={form.status} onValueChange={(v) => setForm(f => ({ ...f, status: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Juodraštis</SelectItem>
+                  <SelectItem value="open">Registracija atvira</SelectItem>
+                  <SelectItem value="closed">Uždaryta</SelectItem>
+                  <SelectItem value="completed">Baigtas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Formatas</Label>
+              <Select value={form.format} onValueChange={(v) => setForm(f => ({ ...f, format: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single_elimination">Pašalinimas</SelectItem>
+                  <SelectItem value="double_elimination">Dvigubas pašalinimas</SelectItem>
+                  <SelectItem value="round_robin">Round robin</SelectItem>
+                  <SelectItem value="league">Lyga</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Prizų info</Label>
+              <Input className="mt-1" value={form.prizeInfo} onChange={(e) => setForm(f => ({ ...f, prizeInfo: e.target.value }))}/>
+            </div>
+          </div>
+          <div>
+            <Label>Nuotraukos URL (neprivaloma)</Label>
+            <Input className="mt-1" placeholder="https://..." value={form.coverPhotoUrl} onChange={(e) => setForm(f => ({ ...f, coverPhotoUrl: e.target.value }))}/>
+          </div>
+          {!editing && (
+            <div className="border border-primary/30 bg-primary/5 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <Checkbox checked={form.promote} onCheckedChange={(v) => setForm(f => ({ ...f, promote: !!v }))} className="mt-0.5"/>
+                <div className="flex-1">
+                  <Label className="text-sm font-semibold cursor-pointer" onClick={() => setForm(f => ({ ...f, promote: !f.promote }))}>
+                    📢 Reklamuoti pagrindiniame puslapyje
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Turnyras bus rodomas korts.lt pradžioje matomoje vietoje.</p>
+                  {form.promote && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Label className="text-xs">Dienų skaičius:</Label>
+                      <Input type="number" min={1} max={90} className="w-24 h-8" value={form.promoteDays} onChange={(e) => setForm(f => ({ ...f, promoteDays: parseInt(e.target.value || "14", 10) }))}/>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Atšaukti</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || !form.name || !form.startDate || !form.endDate}>
+            {save.isPending ? "Saugoma..." : editing ? "Atnaujinti" : "Sukurti"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

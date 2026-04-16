@@ -12,6 +12,9 @@ function formatTournament(t: typeof tournamentsTable.$inferSelect, registrationC
     description: t.description ?? null,
     registrationDeadline: t.registrationDeadline ?? null,
     prizeInfo: t.prizeInfo ?? null,
+    coverPhotoUrl: t.coverPhotoUrl ?? null,
+    facilityId: t.facilityId ?? null,
+    featuredUntil: t.featuredUntil ? t.featuredUntil.toISOString() : null,
     createdAt: t.createdAt.toISOString(),
     registrationCount: registrationCount ?? 0,
   };
@@ -26,7 +29,7 @@ function formatReg(r: typeof tournamentRegistrationsTable.$inferSelect) {
   };
 }
 
-// GET /tournaments — list all, optionally ?sport=&status=&courtId=
+// GET /tournaments — list all, optionally ?sport=&status=&courtId=&featured=1&facilityId=
 router.get("/tournaments", async (req, res): Promise<void> => {
   let rows = await db.select().from(tournamentsTable).orderBy(tournamentsTable.startDate);
 
@@ -35,6 +38,17 @@ router.get("/tournaments", async (req, res): Promise<void> => {
   if (req.query.courtId) {
     const cid = parseInt(req.query.courtId as string, 10);
     if (!isNaN(cid)) rows = rows.filter(r => r.courtId === cid);
+  }
+  if (req.query.facilityId) {
+    const fid = parseInt(req.query.facilityId as string, 10);
+    if (!isNaN(fid)) rows = rows.filter(r => r.facilityId === fid);
+  }
+  if (req.query.featured === "1" || req.query.featured === "true") {
+    const now = new Date();
+    rows = rows.filter(r => r.isFeatured && r.featuredUntil && new Date(r.featuredUntil) > now);
+  }
+  if (req.query.ownerUserId) {
+    rows = rows.filter(r => r.ownerUserId === req.query.ownerUserId);
   }
 
   // Attach registration counts
@@ -82,7 +96,7 @@ router.post("/courts/:id/tournaments", requireAuth, async (req, res): Promise<vo
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const userId = getCurrentUserId(req)!;
-  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format } = req.body;
+  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format, coverPhotoUrl, facilityId } = req.body;
 
   if (!name || !sport || !startDate || !endDate) {
     res.status(400).json({ error: "name, sport, startDate, endDate are required" }); return;
@@ -90,10 +104,12 @@ router.post("/courts/:id/tournaments", requireAuth, async (req, res): Promise<vo
 
   const [tournament] = await db.insert(tournamentsTable).values({
     courtId,
+    facilityId: facilityId ?? court.facilityId ?? null,
     ownerUserId: userId,
     name,
     description: description ?? null,
     sport,
+    coverPhotoUrl: coverPhotoUrl ?? null,
     startDate,
     endDate,
     registrationDeadline: registrationDeadline ?? null,
@@ -118,17 +134,18 @@ router.put("/tournaments/:id", requireAuth, async (req, res): Promise<void> => {
   const canEdit = await isOwner(req, t.ownerUserId);
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format } = req.body;
+  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format, coverPhotoUrl } = req.body;
 
   const [updated] = await db.update(tournamentsTable).set({
     ...(name !== undefined && { name }),
     ...(description !== undefined && { description: description ?? null }),
     ...(sport !== undefined && { sport }),
+    ...(coverPhotoUrl !== undefined && { coverPhotoUrl: coverPhotoUrl ?? null }),
     ...(startDate !== undefined && { startDate }),
     ...(endDate !== undefined && { endDate }),
     ...(registrationDeadline !== undefined && { registrationDeadline: registrationDeadline ?? null }),
     ...(maxParticipants !== undefined && { maxParticipants }),
-    entryFee: entryFee != null ? String(entryFee) : null,
+    ...(entryFee !== undefined && { entryFee: entryFee != null ? String(entryFee) : null }),
     ...(prizeInfo !== undefined && { prizeInfo: prizeInfo ?? null }),
     ...(status !== undefined && { status }),
     ...(format !== undefined && { format }),
@@ -140,6 +157,28 @@ router.put("/tournaments/:id", requireAuth, async (req, res): Promise<void> => {
     .where(eq(tournamentRegistrationsTable.tournamentId, id));
 
   res.json(formatTournament(updated, Number(countRow?.count ?? 0)));
+});
+
+// POST /tournaments/:id/promote — activate homepage promotion for N days (owner only)
+router.post("/tournaments/:id/promote", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [t] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, id));
+  if (!t) { res.status(404).json({ error: "Not found" }); return; }
+
+  const canEdit = await isOwner(req, t.ownerUserId);
+  if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const days = parseInt(String(req.body?.days ?? 14), 10);
+  const until = new Date();
+  until.setDate(until.getDate() + (isNaN(days) ? 14 : days));
+
+  const [updated] = await db.update(tournamentsTable).set({
+    isFeatured: true,
+    featuredUntil: until,
+  }).where(eq(tournamentsTable.id, id)).returning();
+
+  res.json(formatTournament(updated));
 });
 
 // DELETE /tournaments/:id (owner only)

@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetStatsSummary, useGetPopularCourts, useListCourts } from "@workspace/api-client-react";
+import { useGetStatsSummary, useGetPopularCourts, useListCourts, customFetch } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
 import { CourtCard } from "@/components/court-card";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -33,6 +34,76 @@ const HERO_IMAGES = [
 ];
 
 type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
+
+interface FeaturedTournament {
+  id: number; name: string; sport: string; startDate: string; endDate: string;
+  maxParticipants: number; entryFee: number | null; status: string;
+  coverPhotoUrl: string | null; registrationCount: number; description: string | null;
+  featuredUntil: string | null; isFeatured: boolean;
+}
+
+function FeaturedTournamentsSection() {
+  const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
+  const { data, isLoading } = useQuery<FeaturedTournament[]>({
+    queryKey: ["featured-tournaments"],
+    queryFn: () => customFetch<FeaturedTournament[]>(`${API_BASE}/tournaments?featured=1`),
+  });
+
+  if (isLoading) return null;
+  const tournaments = (data ?? []).slice(0, 6);
+  if (tournaments.length === 0) return null;
+
+  return (
+    <section className="py-14 md:py-20 container mx-auto px-4">
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/15 text-primary text-[11px] font-bold uppercase tracking-wider mb-3">
+            <Flame className="w-3.5 h-3.5" /> Aktualūs turnyrai
+          </div>
+          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight">Artimiausi turnyrai</h2>
+          <p className="text-sm md:text-base text-muted-foreground mt-2">Registruokis ir varžykis geriausiose Lietuvos aikštelėse.</p>
+        </div>
+        <Link href="/tournaments" className="hidden md:inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2 transition-all">
+          Visi turnyrai <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {tournaments.map((t) => (
+          <Link key={t.id} href={`/tournaments/${t.id}`}>
+            <div className="group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/60 hover:shadow-xl transition-all cursor-pointer h-full">
+              <div className="h-32 bg-gradient-to-br from-primary/30 via-primary/15 to-background relative overflow-hidden">
+                {t.coverPhotoUrl ? (
+                  <img src={t.coverPhotoUrl} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Trophy className="w-16 h-16 text-primary/30" />
+                  </div>
+                )}
+                <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground shadow-md">
+                  <Flame className="w-3 h-3 mr-1"/>Reklamuojamas
+                </Badge>
+              </div>
+              <div className="p-5 space-y-3">
+                <h3 className="font-bold text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors">{t.name}</h3>
+                {t.description && <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>}
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/60">
+                  <div className="flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5"/>{new Date(t.startDate).toLocaleDateString("lt-LT", { month: "short", day: "numeric" })}</div>
+                  <div className="flex items-center gap-1"><Users className="w-3.5 h-3.5"/>{t.registrationCount}/{t.maxParticipants}</div>
+                  {t.entryFee != null && <div className="flex items-center gap-1 font-semibold text-primary"><Euro className="w-3.5 h-3.5"/>{t.entryFee}</div>}
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+      <div className="mt-6 text-center md:hidden">
+        <Link href="/tournaments" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+          Visi turnyrai <ArrowRight className="w-4 h-4" />
+        </Link>
+      </div>
+    </section>
+  );
+}
 
 function StarRatingSmall({ rating }: { rating?: number | null }) {
   const t = useT();
@@ -969,6 +1040,9 @@ export default function Home() {
           </DragScrollRow>
         </div>
       </section>
+
+      {/* Featured Tournaments Section */}
+      <FeaturedTournamentsSection />
 
       {/* Become a Partner Section */}
       <section className="py-20 bg-zinc-950 text-white relative overflow-hidden">

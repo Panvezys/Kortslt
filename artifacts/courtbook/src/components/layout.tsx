@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2 } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, MessageSquare } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -165,6 +165,10 @@ function UserMenu() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocation("/messages")}>
+          <MessageSquare className="mr-2 h-4 w-4" />
+          Žinutės
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
           Mėgstamiausi
@@ -246,6 +250,10 @@ function MobileUserAvatar() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setLocation("/messages")}>
+          <MessageSquare className="mr-2 h-4 w-4" />
+          Žinutės
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
           Mėgstamiausi
@@ -304,6 +312,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Trophy className="w-3.5 h-3.5" />
                 Turnyrai
               </Link>
+              <Link href="/games" className="transition-colors hover:text-primary flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                Partneriai
+              </Link>
               <Link href="/list-your-court" className="transition-colors hover:text-primary flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5" />
                 Kortų savininkai
@@ -352,9 +364,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Trophy className="w-4 h-4" />
               <span>Turnyrai</span>
             </Link>
-            <Link href="/list-your-court" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
-              <Building2 className="w-4 h-4" />
-              <span>Savininkai</span>
+            <Link href="/games" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+              <Users className="w-4 h-4" />
+              <span>Partneriai</span>
             </Link>
           </nav>
         </header>

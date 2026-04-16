@@ -12,3 +12,5 @@ export * from "./notifications";
 export * from "./court-photos";
 export * from "./trainers";
 export * from "./tournaments";
+export * from "./games";
+export * from "./direct-messages";
