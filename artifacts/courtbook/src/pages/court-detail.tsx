@@ -22,6 +22,7 @@ import { format as formatDate } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
+import { openChat } from "@/components/chat-bubble";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -846,6 +847,27 @@ export default function CourtDetail() {
                     </div>
                   </div>
                 </div>
+
+                {/* Message owner card */}
+                {isSignedIn && (court as any).ownerUserId && (court as any).ownerUserId !== user?.id && (
+                  <button
+                    type="button"
+                    onClick={() => openChat({
+                      userId: (court as any).ownerUserId,
+                      userName: (court as any).ownerName || "Savininkas",
+                      ctxType: "court",
+                      ctxId: court.id,
+                    })}
+                    className="flex gap-3 p-4 bg-muted/30 rounded-xl border hover:bg-primary/5 hover:border-primary/30 transition-colors text-left"
+                  >
+                    <MessageSquare className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-muted-foreground font-medium mb-0.5">Klausimas savininkui</p>
+                      <p className="font-semibold text-sm">Parašyti žinutę</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Pokalbis apie šį kortą</p>
+                    </div>
+                  </button>
+                )}
 
                 {/* Phone card */}
                 {court.phone && (

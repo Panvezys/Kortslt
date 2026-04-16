@@ -9,10 +9,62 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { MessageCircle, Send, ArrowLeft, X, MessageSquare } from "lucide-react";
+import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
+
+// --- Sound + browser push helpers ---------------------------------------
+let audioCtx: AudioContext | null = null;
+function playChime() {
+  try {
+    if (typeof window === "undefined") return;
+    const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    gain.connect(ctx.destination);
+    const notes = [880, 1175];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.08);
+      osc.connect(gain);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.25);
+    });
+  } catch { /* ignore */ }
+}
+
+function requestNotificationPermission() {
+  try {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") Notification.requestPermission().catch(() => {});
+  } catch { /* ignore */ }
+}
+
+function showBrowserNotification(title: string, body: string) {
+  try {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (document.visibilityState === "visible") return;
+    const n = new Notification(title, {
+      body,
+      icon: "/icons/tennis-ball.png",
+      tag: "korts-dm",
+      silent: false,
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch { /* ignore */ }
+}
 
 interface Thread {
   otherUserId: string;
@@ -58,6 +110,39 @@ function initials(name: string) {
   return name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 }
 
+interface CtxInfo { label: string; href?: string; Icon: any; }
+
+function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
+  const enabled = !!ctxType && !!ctxId;
+  const { data } = useQuery<any>({
+    queryKey: ["chat-ctx", ctxType, ctxId],
+    queryFn: async () => {
+      if (ctxType === "game") return customFetch<any>(`${API}/games/${ctxId}`);
+      if (ctxType === "court") return customFetch<any>(`${API}/courts/${ctxId}`);
+      if (ctxType === "facility") return customFetch<any>(`${API}/facilities/${ctxId}`);
+      if (ctxType === "tournament") return customFetch<any>(`${API}/tournaments/${ctxId}`);
+      return null;
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+  if (!enabled) return null;
+  if (ctxType === "game") {
+    const name = data?.sport ? `Žaidimas · ${data.city ?? ""}` : `Žaidimas #${ctxId}`;
+    return { label: name, href: `/games/${ctxId}`, Icon: UsersIcon };
+  }
+  if (ctxType === "court") {
+    return { label: data?.name ? `Kortas · ${data.name}` : `Kortas #${ctxId}`, href: `/courts/${ctxId}`, Icon: MapPin };
+  }
+  if (ctxType === "facility") {
+    return { label: data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`, href: `/courts?facility=${ctxId}`, Icon: Building2 };
+  }
+  if (ctxType === "tournament") {
+    return { label: data?.name ? `Turnyras · ${data.name}` : `Turnyras #${ctxId}`, href: `/tournaments/${ctxId}`, Icon: Trophy };
+  }
+  return null;
+}
+
 function ChatThreadView({
   otherUserId, otherUserName, ctxType, ctxId, onBack,
 }: {
@@ -76,6 +161,12 @@ function ChatThreadView({
     queryFn: () => customFetch<DM[]>(`${API}/dm/thread/${otherUserId}`),
     refetchInterval: 8000,
   });
+
+  // Prefer the latest message's context; fall back to opener's context
+  const latestCtx = messages?.slice().reverse().find(m => m.contextType && m.contextId);
+  const effectiveCtxType = latestCtx?.contextType ?? ctxType;
+  const effectiveCtxId = latestCtx?.contextId ?? ctxId;
+  const ctx = useContextInfo(effectiveCtxType ?? undefined, effectiveCtxId ?? undefined);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -110,23 +201,32 @@ function ChatThreadView({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="border-b border-border p-3 flex items-center gap-2 shrink-0">
-        <Button variant="ghost" size="icon" className="h-8 w-8 -ml-1" onClick={onBack} aria-label="Atgal">
-          <ArrowLeft className="w-4 h-4"/>
-        </Button>
-        <Avatar className="h-9 w-9">
-          <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
-            {initials(otherUserName)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-sm truncate">{otherUserName}</div>
-          {ctxType === "game" && ctxId && (
-            <Link href={`/games/${ctxId}`} className="text-[11px] text-primary hover:underline">
-              Apie žaidimą #{ctxId}
-            </Link>
-          )}
+      <div className="border-b border-border shrink-0">
+        <div className="p-3 flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 -ml-1" onClick={onBack} aria-label="Atgal">
+            <ArrowLeft className="w-4 h-4"/>
+          </Button>
+          <Avatar className="h-9 w-9">
+            <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
+              {initials(otherUserName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-sm truncate">{otherUserName}</div>
+            <div className="text-[11px] text-muted-foreground">Sporto partneris</div>
+          </div>
         </div>
+        {ctx && (
+          <Link
+            href={ctx.href ?? "#"}
+            className="block px-3 pb-2 -mt-1"
+          >
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-primary/10 text-primary px-2 py-1 rounded-md hover:bg-primary/15 transition-colors max-w-full">
+              <ctx.Icon className="w-3 h-3 shrink-0" />
+              <span className="truncate">{ctx.label}</span>
+            </div>
+          </Link>
+        )}
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
@@ -257,6 +357,35 @@ function ChatBubbleInner() {
   });
 
   const unreadCount = unread?.count ?? 0;
+
+  // Detect increases in unread count → play chime + browser notification
+  const prevUnreadRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = prevUnreadRef.current;
+    if (prev !== null && unreadCount > prev) {
+      playChime();
+      // Pick latest unread thread for preview text
+      const latest = threads?.find(t => t.unread > 0);
+      if (latest) {
+        showBrowserNotification(
+          `${latest.otherUserName} · Nauja žinutė`,
+          latest.lastMessage.body.slice(0, 140),
+        );
+      } else {
+        showBrowserNotification("Nauja žinutė", "Atidarykite korts.lt, kad atsakytumėte.");
+      }
+    }
+    prevUnreadRef.current = unreadCount;
+  }, [unreadCount, threads]);
+
+  // Ask for notification permission the first time the user opens the bubble
+  const askedPermRef = useRef(false);
+  useEffect(() => {
+    if (open && !askedPermRef.current) {
+      askedPermRef.current = true;
+      requestNotificationPermission();
+    }
+  }, [open]);
 
   // Listen for global "open chat" events dispatched from other pages
   useEffect(() => {
