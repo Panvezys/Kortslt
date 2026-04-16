@@ -953,7 +953,7 @@ export default function Home() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Sporto šaka</span>
                 <button
-                  onClick={() => setActiveSports(allActive ? new Set() : new Set(ALL_SPORTS))}
+                  onClick={() => setActiveSports(allActive ? new Set(ALL_SPORTS) : new Set())}
                   className="text-[10px] font-medium text-primary hover:underline"
                 >
                   {allActive ? "Slėpti visus" : "Visi"}
