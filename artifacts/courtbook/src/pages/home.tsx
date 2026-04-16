@@ -402,15 +402,12 @@ export default function Home() {
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
-    queryKey: ["stats", "summary"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts({
-    queryKey: ["stats", "popular-courts"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: courts, isLoading: courtsLoading } = useListCourts(undefined, {
-    queryKey: ["courts"],
     query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
 
@@ -953,7 +950,7 @@ export default function Home() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Sporto šaka</span>
                 <button
-                  onClick={() => setActiveSports(allActive ? new Set(ALL_SPORTS) : new Set())}
+                  onClick={() => setActiveSports(allActive ? new Set() : new Set(ALL_SPORTS))}
                   className="text-[10px] font-medium text-primary hover:underline"
                 >
                   {allActive ? "Slėpti visus" : "Visi"}

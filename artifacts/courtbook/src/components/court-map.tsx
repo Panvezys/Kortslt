@@ -482,14 +482,14 @@ export function CourtMap({
             position,
             label: {
               text: String(count),
-              color: "#fff",
+              color: "#000",
               fontSize: "12px",
               fontWeight: "700",
             },
             icon: {
               url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
                 `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 42 42">
-                  <circle cx="21" cy="21" r="19" fill="#3f3f46" stroke="white" stroke-width="2.5"/>
+                  <circle cx="21" cy="21" r="19" fill="#adff2f" stroke="white" stroke-width="2.5"/>
                 </svg>`
               )}`,
               scaledSize: new google.maps.Size(42, 42),
