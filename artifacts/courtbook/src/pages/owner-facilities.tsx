@@ -1,0 +1,502 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Layout } from "@/components/layout";
+import { useUser } from "@clerk/react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import {
+  Plus, Building2, MapPin, ChevronRight, Trophy, Users,
+  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, Image as ImageIcon,
+} from "lucide-react";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+const SPORT_EMOJIS: Record<string, string> = {
+  tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽",
+  badminton: "🏸", squash: "🎯", table_tennis: "🏓", golf: "⛳",
+  snooker: "🎱", bowling: "🎳",
+};
+const SPORT_LABELS: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+};
+
+interface FacilityCourt {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+  pricePerHour: string;
+  city: string;
+  address: string;
+  imageUrl: string | null;
+  isIndoor: boolean;
+  rating: number | null;
+}
+
+interface FacilityWithCourts {
+  id: number;
+  name: string;
+  description?: string;
+  companyName?: string;
+  registrationCode?: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  email?: string;
+  verificationStatus: string;
+  verificationDocUrl?: string;
+  photos: string[];
+  equipment: string[];
+  courtCount: number;
+  sportTypes: string[];
+  courts: FacilityCourt[];
+  createdAt: string;
+}
+
+function VerificationBadge({ status }: { status: string }) {
+  if (status === "verified") return (
+    <Badge className="bg-green-500/15 text-green-500 border-green-500/30 gap-1">
+      <ShieldCheck className="w-3 h-3" /> Patvirtinta
+    </Badge>
+  );
+  if (status === "pending") return (
+    <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 gap-1">
+      <Shield className="w-3 h-3" /> Laukiama
+    </Badge>
+  );
+  return (
+    <Badge className="bg-red-500/15 text-red-400 border-red-500/30 gap-1">
+      <ShieldAlert className="w-3 h-3" /> Nepatvirtinta
+    </Badge>
+  );
+}
+
+export default function OwnerFacilities() {
+  const { user } = useUser();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingFacility, setEditingFacility] = useState<FacilityWithCourts | null>(null);
+  const [formData, setFormData] = useState({
+    name: "", description: "", address: "", city: "", phone: "", email: "",
+    companyName: "", registrationCode: "",
+  });
+
+  const { data: facilities, isLoading } = useQuery<FacilityWithCourts[]>({
+    queryKey: ["owner-facilities"],
+    queryFn: () => customFetch<FacilityWithCourts[]>(`${API_URL}/facilities`),
+    enabled: !!user?.id,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: typeof formData) =>
+      customFetch(`${API_URL}/facilities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      toast({ title: "Objektas sukurtas" });
+      setDialogOpen(false);
+      resetForm();
+    },
+    onError: () => toast({ title: "Klaida kuriant objektą", variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: typeof formData }) =>
+      customFetch(`${API_URL}/facilities/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      toast({ title: "Objektas atnaujintas" });
+      setDialogOpen(false);
+      setEditingFacility(null);
+      resetForm();
+    },
+    onError: () => toast({ title: "Klaida atnaujinant", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch(`${API_URL}/facilities/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      toast({ title: "Objektas ištrintas" });
+    },
+    onError: () => toast({ title: "Klaida trinant", variant: "destructive" }),
+  });
+
+  const resetForm = () => {
+    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", companyName: "", registrationCode: "" });
+  };
+
+  const openCreate = () => {
+    setEditingFacility(null);
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEdit = (f: FacilityWithCourts, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingFacility(f);
+    setFormData({
+      name: f.name || "",
+      description: f.description || "",
+      address: f.address || "",
+      city: f.city || "",
+      phone: f.phone || "",
+      email: f.email || "",
+      companyName: f.companyName || "",
+      registrationCode: f.registrationCode || "",
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) return;
+    if (editingFacility) {
+      updateMutation.mutate({ id: editingFacility.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const handleDelete = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("Ar tikrai norite ištrinti šį objektą? Visi kortai liks be objekto.")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const getFacilityImage = (f: FacilityWithCourts): string | null => {
+    if (f.photos && f.photos.length > 0) return f.photos[0];
+    const courtWithImage = (f.courts ?? []).find(c => c.imageUrl);
+    return courtWithImage?.imageUrl || null;
+  };
+
+  const totalCourts = facilities?.reduce((sum, f) => sum + f.courtCount, 0) ?? 0;
+  const totalSports = [...new Set(facilities?.flatMap(f => f.sportTypes) ?? [])].length;
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Mano objektai</h1>
+            <p className="text-muted-foreground mt-1">
+              Tvarkykite savo sporto objektus ir jų kortus
+            </p>
+          </div>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Naujas objektas
+          </Button>
+        </div>
+
+        {!isLoading && facilities && facilities.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <div className="bg-card border rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-primary">{facilities.length}</div>
+              <div className="text-xs text-muted-foreground mt-1">Objektai</div>
+            </div>
+            <div className="bg-card border rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-primary">{totalCourts}</div>
+              <div className="text-xs text-muted-foreground mt-1">Kortai</div>
+            </div>
+            <div className="bg-card border rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-primary">{totalSports}</div>
+              <div className="text-xs text-muted-foreground mt-1">Sporto šakos</div>
+            </div>
+            <div className="bg-card border rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-green-500">
+                {facilities.filter(f => f.verificationStatus === "verified").length}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">Patvirtinta</div>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-card border rounded-2xl overflow-hidden">
+                <Skeleton className="h-48 w-full" />
+                <div className="p-5 space-y-3">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !facilities || facilities.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <Building2 className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Dar neturite objektų</h2>
+            <p className="text-muted-foreground max-w-md mb-6">
+              Sukurkite savo pirmąjį sporto objektą ir pradėkite pridėti kortus,
+              nustatyti kainas ir priimti rezervacijas.
+            </p>
+            <Button onClick={openCreate} size="lg" className="gap-2">
+              <Plus className="w-5 h-5" /> Sukurti pirmąjį objektą
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {facilities.map(facility => {
+              const image = getFacilityImage(facility);
+              const fCourts = facility.courts ?? [];
+              const approvedCourts = fCourts.filter(c => c.status === "approved").length;
+              const pendingCourts = fCourts.filter(c => c.status === "pending").length;
+
+              return (
+                <div
+                  key={facility.id}
+                  onClick={() => navigate(`/owner/facility/${facility.id}`)}
+                  className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5"
+                >
+                  <div className="relative h-48 bg-muted overflow-hidden">
+                    {image ? (
+                      <img
+                        src={image.startsWith("http") ? image : `${BASE_URL}/${image}`}
+                        alt={facility.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
+                        <Building2 className="w-16 h-16 text-primary/30" />
+                      </div>
+                    )}
+
+                    <div className="absolute top-3 left-3">
+                      <VerificationBadge status={facility.verificationStatus} />
+                    </div>
+
+                    <div className="absolute top-3 right-3 flex gap-1">
+                      <button
+                        onClick={(e) => openEdit(facility, e)}
+                        className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
+                        title="Redaguoti"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      {facility.courtCount === 0 && (
+                        <button
+                          onClick={(e) => handleDelete(facility.id, e)}
+                          className="p-1.5 rounded-lg bg-black/50 text-red-400 hover:bg-black/70 transition-colors backdrop-blur-sm"
+                          title="Ištrinti"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {facility.sportTypes.length > 0 && (
+                      <div className="absolute bottom-3 left-3 flex gap-1">
+                        {facility.sportTypes.slice(0, 5).map(sport => (
+                          <span
+                            key={sport}
+                            className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium"
+                          >
+                            {SPORT_EMOJIS[sport] || ""} {SPORT_LABELS[sport] || sport}
+                          </span>
+                        ))}
+                        {facility.sportTypes.length > 5 && (
+                          <span className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium">
+                            +{facility.sportTypes.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-lg leading-tight truncate group-hover:text-primary transition-colors">
+                          {facility.name}
+                        </h3>
+                        {facility.companyName && facility.companyName !== facility.name && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{facility.companyName}</p>
+                        )}
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-1" />
+                    </div>
+
+                    {(facility.address || facility.city) && (
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {[facility.address, facility.city].filter(Boolean).join(", ")}
+                        </span>
+                      </div>
+                    )}
+
+                    {facility.description && (
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{facility.description}</p>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-3 border-t border-border/50">
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <Trophy className="w-4 h-4 text-primary" />
+                        <span className="font-semibold">{facility.courtCount}</span>
+                        <span className="text-muted-foreground">
+                          {facility.courtCount === 1 ? "kortas" : "kortai"}
+                        </span>
+                      </div>
+                      {approvedCourts > 0 && (
+                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
+                          {approvedCourts} aktyvūs
+                        </Badge>
+                      )}
+                      {pendingCourts > 0 && (
+                        <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
+                          {pendingCourts} laukia
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div
+              onClick={openCreate}
+              className="group border-2 border-dashed border-border rounded-2xl min-h-[320px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+            >
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                <Plus className="w-7 h-7 text-primary" />
+              </div>
+              <p className="font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                Pridėti objektą
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Naujas sporto centras ar klubas
+              </p>
+            </div>
+          </div>
+        )}
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                {editingFacility ? "Redaguoti objektą" : "Naujas objektas"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Objekto pavadinimas *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={e => setFormData(d => ({ ...d, name: e.target.value }))}
+                  placeholder="pvz. Vilniaus Teniso Klubas"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Įmonės pavadinimas</Label>
+                  <Input
+                    value={formData.companyName}
+                    onChange={e => setFormData(d => ({ ...d, companyName: e.target.value }))}
+                    placeholder="UAB Sportas"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Įm. kodas</Label>
+                  <Input
+                    value={formData.registrationCode}
+                    onChange={e => setFormData(d => ({ ...d, registrationCode: e.target.value }))}
+                    placeholder="123456789"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Aprašymas</Label>
+                <Textarea
+                  value={formData.description}
+                  onChange={e => setFormData(d => ({ ...d, description: e.target.value }))}
+                  placeholder="Trumpas objekto aprašymas..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Adresas</Label>
+                  <Input
+                    value={formData.address}
+                    onChange={e => setFormData(d => ({ ...d, address: e.target.value }))}
+                    placeholder="Sporto g. 5"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Miestas</Label>
+                  <Input
+                    value={formData.city}
+                    onChange={e => setFormData(d => ({ ...d, city: e.target.value }))}
+                    placeholder="Vilnius"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Telefonas</Label>
+                  <Input
+                    value={formData.phone}
+                    onChange={e => setFormData(d => ({ ...d, phone: e.target.value }))}
+                    placeholder="+370..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">El. paštas</Label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData(d => ({ ...d, email: e.target.value }))}
+                    placeholder="info@klubas.lt"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setDialogOpen(false); setEditingFacility(null); }} className="flex-1">
+                  Atšaukti
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!formData.name.trim() || createMutation.isPending || updateMutation.isPending}
+                  className="flex-1"
+                >
+                  {(createMutation.isPending || updateMutation.isPending) ? "Saugoma..." : editingFacility ? "Išsaugoti" : "Sukurti"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
+}

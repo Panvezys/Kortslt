@@ -18,7 +18,8 @@ import Bookings from "@/pages/bookings";
 import PaymentSuccess from "@/pages/payment-success";
 import PaymentCancel from "@/pages/payment-cancel";
 import BookingConfirmed from "@/pages/booking-confirmed";
-import OwnerDashboard from "@/pages/owner";
+import OwnerFacilities from "@/pages/owner-facilities";
+import OwnerFacilityDetail from "@/pages/owner-facility-detail";
 import Profile from "@/pages/profile";
 import AdminDashboard from "@/pages/admin";
 import SignInPage from "@/pages/sign-in";
@@ -79,14 +80,22 @@ function BookingsRoute() {
   );
 }
 
-function OwnerRoute() {
+function OwnerRoute({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { isOwner, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
   if (!isOwner) return <Redirect to="/owner/onboard" />;
-  return <OwnerDashboard />;
+  return <>{children}</>;
+}
+
+function OwnerFacilitiesRoute() {
+  return <OwnerRoute><OwnerFacilities /></OwnerRoute>;
+}
+
+function OwnerFacilityDetailRoute() {
+  return <OwnerRoute><OwnerFacilityDetail /></OwnerRoute>;
 }
 
 function ProfileRoute() {
@@ -142,7 +151,8 @@ function Router() {
       <Route path="/courts" component={Courts} />
       <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/bookings" component={BookingsRoute} />
-      <Route path="/owner" component={OwnerRoute} />
+      <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
+      <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
       <Route path="/admin" component={AdminRoute} />
       <Route path="/payment-success" component={PaymentSuccess} />

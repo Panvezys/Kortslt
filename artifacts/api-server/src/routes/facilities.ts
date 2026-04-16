@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, facilitiesTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
+import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
@@ -13,7 +13,68 @@ router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const rows = await db.select().from(facilitiesTable).where(eq(facilitiesTable.ownerUserId, userId));
-  res.json(rows.map(f => ({ ...f, description: f.description ?? undefined })));
+
+  const facilitiesWithCourts = await Promise.all(
+    rows.map(async (f) => {
+      const courts = await db
+        .select({
+          id: courtsTable.id,
+          name: courtsTable.name,
+          type: courtsTable.type,
+          status: courtsTable.status,
+          pricePerHour: courtsTable.pricePerHour,
+          city: courtsTable.city,
+          address: courtsTable.address,
+          imageUrl: courtsTable.imageUrl,
+          isIndoor: courtsTable.isIndoor,
+          rating: courtsTable.rating,
+        })
+        .from(courtsTable)
+        .where(eq(courtsTable.facilityId, f.id));
+
+      const sportTypes = [...new Set(courts.map(c => c.type))];
+
+      return {
+        ...f,
+        description: f.description ?? undefined,
+        courtCount: courts.length,
+        sportTypes,
+        courts,
+      };
+    })
+  );
+
+  res.json(facilitiesWithCourts);
+});
+
+router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid facility ID" });
+    return;
+  }
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
+  if (!facility || facility.ownerUserId !== userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const courts = await db.select().from(courtsTable).where(eq(courtsTable.facilityId, facility.id));
+  const sportTypes = [...new Set(courts.map(c => c.type))];
+
+  res.json({
+    ...facility,
+    description: facility.description ?? undefined,
+    courtCount: courts.length,
+    sportTypes,
+    courts,
+  });
 });
 
 router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
@@ -31,7 +92,7 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     .insert(facilitiesTable)
     .values({ ...parsed.data, ownerUserId: userId })
     .returning();
-  res.status(201).json({ ...facility, description: facility.description ?? undefined });
+  res.status(201).json({ ...facility, description: facility.description ?? undefined, courtCount: 0, sportTypes: [], courts: [] });
 });
 
 router.put("/facilities/:id", requireAuth, async (req, res): Promise<void> => {

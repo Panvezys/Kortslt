@@ -44,15 +44,22 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - List view + interactive map view toggle; map legend shows sport emojis + rating color tiers
 - Court detail page with 30-min slot booking grid, duration picker (30min–3h), per-slot pricing, and booking summary
 - Location & contact section on each court: Google Maps embed with pin, "Get Directions" button, clickable phone number, and opening hours (all 40 courts populated with real/researched data)
-- Owner dashboard: courts grouped by facility; tabbed court form (5 tabs: Pagrindai | Grafikas | Patogumai | Medija | Kontaktai)
-  - **Pagrindai** tab: name, sport type, facility selector (inline create), description, Google Maps location picker, address/city/postcode, lat/lng
+- **Facility-centric owner dashboard** (multi-page architecture):
+  - `/owner` → **Facility Overview** (`owner-facilities.tsx`): card grid of all owner's facilities with photos, verification badges, sport type pills, court counts (active/pending), stats summary row, create/edit/delete facility dialog
+  - `/owner/facility/:id` → **Facility Detail** (`owner-facility-detail.tsx`): facility header (hero photo, address, stats), court card grid within facility, full court CRUD with tabbed form (5 tabs: Pagrindai | Grafikas | Patogumai | Medija | Kontaktai), pricing editor, blocked slots, coach assignment, QR code, Stripe Connect
+  - Both routes wrapped in `OwnerRoute` auth guard (requires signed-in + owner role)
+  - Old monolithic `owner.tsx` preserved for reference but no longer routed
+- Tabbed court form:
+  - **Pagrindai** tab: name, sport type, description, Google Maps location picker, address/city/postcode, lat/lng
   - **Grafikas** tab: default price, buffer minutes, per-day working hours editor (open/close/closed toggle), per-slot 30-min pricing grid
   - **Patogumai** tab: max players, indoor toggle, 12-amenity smart buttons (parking, wifi, lockers, café, heating, A/C, first aid, etc.)
   - **Medija** tab: main image upload, photo gallery (on edit), ownership document upload (on create)
   - **Kontaktai** tab: owner name/email, social media links (Facebook, Instagram, WhatsApp, Website)
   - Wizard navigation: Back/Next buttons + direct tab click, Submit only visible on last tab
-- Facilities system: `facilities` DB table; owner can create/select facilities; courts grouped by facility in dashboard table
-  - API: `GET/POST /api/facilities`, `PUT /api/facilities/:id`, `DELETE /api/facilities/:id`
+- Facilities system: `facilities` DB table; owner can create/select facilities; courts belong to facilities via `facilityId` FK
+  - API: `GET/POST /api/facilities`, `GET/PUT/DELETE /api/facilities/:id`
+  - `GET /facilities` returns `courtCount`, `sportTypes[]`, `courts[]` per facility
+  - `GET /facilities/:id` returns full facility detail with all courts
 - Advanced court features: buffer minutes between bookings, smart amenity toggle buttons (12 amenities), rentable equipment items (name + price per booking)
 - Booking history for customers with "Rate" button for confirmed bookings
 - Star rating system (1–5): users submit reviews from the bookings page, ratings aggregate on court cards and detail pages
