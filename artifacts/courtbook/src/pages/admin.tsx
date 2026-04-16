@@ -12,8 +12,10 @@ import { customFetch, type Court } from "@workspace/api-client-react";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
-  CreditCard,
+  CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { useRole } from "@/lib/useRole";
 
 const SPORT_LABELS: Record<string, string> = {
@@ -563,12 +565,269 @@ const CONNECT_COLOR: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/30",
 };
 
+function FacilityReviewDialog({
+  facility,
+  open,
+  onClose,
+  onApprove,
+  onReject,
+  isPendingApprove,
+  isPendingReject,
+}: {
+  facility: any;
+  open: boolean;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+  isPendingApprove: boolean;
+  isPendingReject: boolean;
+}) {
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const photos: string[] = Array.isArray(facility?.photos) ? facility.photos : [];
+
+  if (!facility) return null;
+
+  const isVerified = facility.verificationStatus === "verified";
+  const isRejected = facility.verificationStatus === "rejected";
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setShowRejectForm(false); setRejectReason(""); } }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Header photo / hero */}
+        <div className="relative h-44 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden rounded-t-xl">
+          {photos.length > 0 ? (
+            <>
+              <img src={photos[photoIdx]} alt="" className="w-full h-full object-cover" />
+              {photos.length > 1 && (
+                <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
+                  {photos.map((_: string, i: number) => (
+                    <button key={i} onClick={() => setPhotoIdx(i)}
+                      className={`w-2 h-2 rounded-full transition-all ${i === photoIdx ? "bg-white scale-125" : "bg-white/50"}`} />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Building2 className="w-16 h-16 text-primary/20" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-white leading-tight">{facility.name}</h2>
+              {(facility.city || facility.address) && (
+                <p className="text-white/75 text-xs flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3 h-3" />
+                  {[facility.address, facility.city, facility.postcode].filter(Boolean).join(", ")}
+                </p>
+              )}
+            </div>
+            <span className={`shrink-0 inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium ${VERIFICATION_COLOR[facility.verificationStatus ?? "pending"]}`}>
+              {VERIFICATION_LABEL[facility.verificationStatus ?? "pending"]}
+            </span>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-5">
+          {/* Rejection reason banner */}
+          {isRejected && facility.rejectionReason && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+              <span className="font-medium">Atmetimo priežastis:</span> {facility.rejectionReason}
+            </div>
+          )}
+
+          {/* Description */}
+          {facility.description && (
+            <p className="text-sm text-muted-foreground">{facility.description}</p>
+          )}
+
+          <Separator />
+
+          {/* Company & legal info */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Įmonės duomenys</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {facility.companyName && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Įmonės pavadinimas</div>
+                  <div className="text-sm font-medium">{facility.companyName}</div>
+                </div>
+              )}
+              {facility.registrationCode && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Įmonės kodas</div>
+                  <div className="text-sm font-mono">{facility.registrationCode}</div>
+                </div>
+              )}
+              {facility.phone && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5 flex items-center gap-2">
+                  <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Telefonas</div>
+                    <a href={`tel:${facility.phone}`} className="text-sm hover:text-primary">{facility.phone}</a>
+                  </div>
+                </div>
+              )}
+              {facility.email && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5 flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">El. paštas</div>
+                    <a href={`mailto:${facility.email}`} className="text-sm hover:text-primary break-all">{facility.email}</a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Location */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Vieta</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {facility.city && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Miestas</div>
+                  <div className="text-sm">{facility.city}</div>
+                </div>
+              )}
+              {facility.address && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Adresas</div>
+                  <div className="text-sm">{facility.address}</div>
+                </div>
+              )}
+              {facility.postcode && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Pašto kodas</div>
+                  <div className="text-sm">{facility.postcode}</div>
+                </div>
+              )}
+              {facility.latitude && facility.longitude && (
+                <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Koordinatės</div>
+                  <div className="text-sm font-mono text-xs">{Number(facility.latitude).toFixed(5)}, {Number(facility.longitude).toFixed(5)}</div>
+                </div>
+              )}
+            </div>
+            {facility.latitude && facility.longitude && (
+              <a
+                href={`https://www.google.com/maps?q=${facility.latitude},${facility.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+              >
+                <MapPin className="w-3 h-3" /> Atidaryti Google Maps
+              </a>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Ownership document */}
+          <div>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Nuosavybės dokumentas</h3>
+            {facility.ownershipDocUrl ? (
+              <a
+                href={facility.ownershipDocUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors px-4 py-3"
+              >
+                <FileText className="w-5 h-5 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-primary">Peržiūrėti dokumentą</div>
+                  <div className="text-xs text-muted-foreground truncate">{facility.ownershipDocUrl.split("/").pop()}</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+              </a>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+                <X className="w-5 h-5 text-red-400 shrink-0" />
+                <p className="text-sm text-red-400">Dokumentas nepateiktas</p>
+              </div>
+            )}
+          </div>
+
+          {/* Stripe Connect status */}
+          <div className="flex items-center justify-between rounded-lg bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Stripe Connect</span>
+            </div>
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${CONNECT_COLOR[facility.stripeConnectStatus ?? "not_connected"]}`}>
+              {CONNECT_LABEL[facility.stripeConnectStatus ?? "not_connected"]}
+            </span>
+          </div>
+
+          <Separator />
+
+          {/* Decision area */}
+          {!showRejectForm ? (
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!isVerified && (
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
+                  onClick={onApprove}
+                  disabled={isPendingApprove}
+                >
+                  <Check className="w-4 h-4" />
+                  {isPendingApprove ? "Tvirtinama..." : "Patvirtinti objektą"}
+                </Button>
+              )}
+              {!isRejected && (
+                <Button
+                  variant="outline"
+                  className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
+                  onClick={() => { setShowRejectForm(true); setRejectReason(""); }}
+                >
+                  <X className="w-4 h-4" /> Atmesti objektą
+                </Button>
+              )}
+              {isVerified && isRejected && (
+                <p className="text-sm text-muted-foreground text-center w-full">Šio objekto statusas jau nustatytas.</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis <span className="text-red-400">*</span></label>
+                <Textarea
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Pvz.: Pateikti dokumentai neatitinka reikalavimų. Prašome pateikti galiojantį nuosavybės dokumentą."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowRejectForm(false)}>Atšaukti</Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => onReject(rejectReason)}
+                  disabled={isPendingReject || !rejectReason.trim()}
+                >
+                  {isPendingReject ? "Atmetama..." : "Patvirtinti atmetimą"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function FacilitiesPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("all");
-  const [rejectFacilityId, setRejectFacilityId] = useState<number | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const [reviewFacility, setReviewFacility] = useState<any | null>(null);
 
   const { data: facilities = [], isLoading, isError } = useQuery<any[]>({
     queryKey: ["admin-facilities"],
@@ -577,7 +836,11 @@ function FacilitiesPanel() {
 
   const approveMutation = useMutation({
     mutationFn: (id: number) => customFetch<any>(`/api/admin/facilities/${id}/approve`, { method: "PUT" }),
-    onSuccess: () => { toast({ title: "Objektas patvirtintas ✓" }); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
+    onSuccess: (_, id) => {
+      toast({ title: "Objektas patvirtintas ✓" });
+      qc.invalidateQueries({ queryKey: ["admin-facilities"] });
+      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "verified" } : prev);
+    },
     onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
   });
 
@@ -587,16 +850,20 @@ function FacilitiesPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason }),
     }),
-    onSuccess: () => { toast({ title: "Objektas atmestas" }); setRejectFacilityId(null); setRejectReason(""); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
+    onSuccess: (_, { id, reason }) => {
+      toast({ title: "Objektas atmestas" });
+      qc.invalidateQueries({ queryKey: ["admin-facilities"] });
+      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "rejected", rejectionReason: reason } : prev);
+    },
     onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
   });
 
-  const filtered = filter === "all" ? facilities : facilities.filter(f => f.verificationStatus === filter);
+  const filtered = filter === "all" ? facilities : facilities.filter((f: any) => f.verificationStatus === filter);
   const counts = {
     all: facilities.length,
-    pending:  facilities.filter(f => f.verificationStatus === "pending").length,
-    verified: facilities.filter(f => f.verificationStatus === "verified").length,
-    rejected: facilities.filter(f => f.verificationStatus === "rejected").length,
+    pending:  facilities.filter((f: any) => f.verificationStatus === "pending").length,
+    verified: facilities.filter((f: any) => f.verificationStatus === "verified").length,
+    rejected: facilities.filter((f: any) => f.verificationStatus === "rejected").length,
   };
 
   return (
@@ -629,28 +896,31 @@ function FacilitiesPanel() {
             <thead>
               <tr className="bg-muted/50 border-b">
                 <th className="text-left px-4 py-3 font-medium">Objektas</th>
-                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Savininkas</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Stripe</th>
+                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Stripe</th>
                 <th className="text-left px-4 py-3 font-medium">Statusas</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Dokumentas</th>
-                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
+                <th className="text-right px-4 py-3 font-medium">Peržiūra</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Objektų nerasta</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Objektų nerasta</td></tr>
               )}
               {filtered.map((f: any) => (
-                <tr key={f.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                <tr
+                  key={f.id}
+                  className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => setReviewFacility(f)}
+                >
                   <td className="px-4 py-3">
                     <div className="font-medium">{f.name}</div>
-                    <div className="text-xs text-muted-foreground">{f.city}{f.address ? `, ${f.address}` : ""}</div>
-                    {f.rejectionReason && <div className="text-xs text-red-400 mt-0.5">❌ {f.rejectionReason}</div>}
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3" />{f.city}{f.address ? `, ${f.address}` : ""}
+                    </div>
+                    {f.rejectionReason && (
+                      <div className="text-xs text-red-400 mt-0.5">❌ {f.rejectionReason}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    <div className="text-xs text-muted-foreground">{f.ownerUserId?.slice(0, 20)}…</div>
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell">
                     <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${CONNECT_COLOR[f.stripeConnectStatus ?? "not_connected"]}`}>
                       <CreditCard className="w-3 h-3" />
                       {CONNECT_LABEL[f.stripeConnectStatus ?? "not_connected"]}
@@ -661,30 +931,14 @@ function FacilitiesPanel() {
                       {VERIFICATION_LABEL[f.verificationStatus ?? "pending"]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell">
-                    {f.ownershipDocUrl ? (
-                      <a href={f.ownershipDocUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:underline text-xs">
-                        <FileText className="w-3.5 h-3.5" /> Peržiūrėti
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      {f.verificationStatus !== "verified" && (
-                        <Button size="sm" variant="outline" className="h-7 px-2 text-green-400 border-green-500/30 hover:bg-green-500/10"
-                          onClick={() => approveMutation.mutate(f.id)} disabled={approveMutation.isPending}>
-                          <Check className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      {f.verificationStatus !== "rejected" && (
-                        <Button size="sm" variant="outline" className="h-7 px-2 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                          onClick={() => { setRejectFacilityId(f.id); setRejectReason(""); }} disabled={rejectMutation.isPending}>
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      size="sm" variant="outline"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={e => { e.stopPropagation(); setReviewFacility(f); }}
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -693,25 +947,15 @@ function FacilitiesPanel() {
         </div>
       )}
 
-      {/* Reject Dialog */}
-      <Dialog open={rejectFacilityId !== null} onOpenChange={open => { if (!open) { setRejectFacilityId(null); setRejectReason(""); } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><X className="w-5 h-5 text-red-400" /> Atmesti objektą</DialogTitle></DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis</label>
-              <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Pvz.: Trūksta dokumentų arba netinkama vieta" />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => { setRejectFacilityId(null); setRejectReason(""); }}>Atšaukti</Button>
-              <Button variant="destructive" onClick={() => rejectFacilityId && rejectMutation.mutate({ id: rejectFacilityId, reason: rejectReason })}
-                disabled={rejectMutation.isPending || !rejectReason.trim()}>
-                {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <FacilityReviewDialog
+        facility={reviewFacility}
+        open={reviewFacility !== null}
+        onClose={() => setReviewFacility(null)}
+        onApprove={() => reviewFacility && approveMutation.mutate(reviewFacility.id)}
+        onReject={(reason) => reviewFacility && rejectMutation.mutate({ id: reviewFacility.id, reason })}
+        isPendingApprove={approveMutation.isPending}
+        isPendingReject={rejectMutation.isPending}
+      />
     </div>
   );
 }
