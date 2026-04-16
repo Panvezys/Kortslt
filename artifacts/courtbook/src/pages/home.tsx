@@ -697,7 +697,17 @@ export default function Home() {
                       return format(d, "EEEEE", { locale: dnLocale });
                     });
                     return (
-                      <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ width: 252 }}>
+                      <>
+                        {/* Mobile backdrop */}
+                        <div
+                          className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                          onClick={() => setDateDropdownOpen(false)}
+                        />
+                        <div className="
+                          fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
+                          sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-[252px]
+                          bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden
+                        ">
                         {/* Month header */}
                         <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/8">
                           <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
@@ -766,6 +776,7 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
+                      </>
                     );
                   })()}
                 </div>
@@ -790,7 +801,17 @@ export default function Home() {
                   </button>
 
                   {timeDropdownOpen && (
-                    <div className="absolute top-full right-0 mt-1 bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl p-3 shadow-2xl z-50 w-56">
+                    <>
+                      {/* Mobile backdrop */}
+                      <div
+                        className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                        onClick={() => setTimeDropdownOpen(false)}
+                      />
+                      <div className="
+                        fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
+                        sm:absolute sm:top-full sm:right-0 sm:left-auto sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-56
+                        bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl p-3 shadow-2xl
+                      ">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Pradžios laikas</span>
                         {timeSlider !== null && (
@@ -826,7 +847,8 @@ export default function Home() {
                         style={{ background: accentColor, color: accentFg }}>
                         Patvirtinti
                       </button>
-                    </div>
+                      </div>
+                    </>
                   )}
                 </div>
 
