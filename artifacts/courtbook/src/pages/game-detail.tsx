@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { SportIcon } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
+import { openChat } from "@/components/chat-bubble";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
   MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock,
@@ -220,10 +221,17 @@ export default function GameDetailPage() {
                 </Button>
               )}
               {!isCreator && user?.id && data.creatorUserId !== user.id && (
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/messages?u=${data.creatorUserId}&n=${encodeURIComponent(data.creatorName)}&ctx=game&cid=${data.id}`}>
-                    <MessageCircle className="w-4 h-4 mr-1.5"/>Parašyti organizatoriui
-                  </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openChat({
+                    userId: data.creatorUserId,
+                    userName: data.creatorName,
+                    ctxType: "game",
+                    ctxId: data.id,
+                  })}
+                >
+                  <MessageCircle className="w-4 h-4 mr-1.5"/>Parašyti organizatoriui
                 </Button>
               )}
             </Show>
@@ -278,10 +286,17 @@ export default function GameDetailPage() {
                   </div>
                 </div>
                 {user?.id && user.id !== p.userId && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/messages?u=${p.userId}&n=${encodeURIComponent(p.userName)}&ctx=game&cid=${data.id}`}>
-                      <MessageCircle className="w-4 h-4"/>
-                    </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openChat({
+                      userId: p.userId,
+                      userName: p.userName,
+                      ctxType: "game",
+                      ctxId: data.id,
+                    })}
+                  >
+                    <MessageCircle className="w-4 h-4"/>
                   </Button>
                 )}
               </div>

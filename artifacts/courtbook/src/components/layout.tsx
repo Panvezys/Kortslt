@@ -11,12 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, MessageSquare } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
 import { NotificationBell } from "@/components/notification-bell";
+import { ChatBubble } from "@/components/chat-bubble";
 
 function TennisCourtIcon({ className }: { className?: string }) {
   return (
@@ -165,10 +166,6 @@ function UserMenu() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/messages")}>
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Žinutės
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
           Mėgstamiausi
@@ -249,10 +246,6 @@ function MobileUserAvatar() {
         <DropdownMenuItem onClick={() => setLocation("/bookings")}>
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/messages")}>
-          <MessageSquare className="mr-2 h-4 w-4" />
-          Žinutės
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
@@ -372,6 +365,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 w-full">{children}</main>
+
+        <ChatBubble />
 
         <footer className="border-t bg-muted/20 mt-auto">
           {/* Main footer grid */}
