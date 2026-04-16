@@ -254,6 +254,20 @@ export default function CourtDetail() {
     await toggleFavorite(court!.id);
   };
 
+  // Scroll to the booking widget when the URL has #reserve
+  useEffect(() => {
+    if (!court) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#reserve") return;
+    const el = document.getElementById("reserve");
+    if (!el) return;
+    // Wait a tick so layout settles
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [court?.id]);
+
   const handleShare = async () => {
     if (!court) return;
     const url = window.location.href;
@@ -973,7 +987,7 @@ export default function CourtDetail() {
           </div>
 
           {/* Booking Widget */}
-          <div className="relative">
+          <div className="relative" id="reserve">
             <div className="sticky top-20 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
 
               {/* Widget title header */}

@@ -365,25 +365,52 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
               <span style={{ color: textSecondary, fontSize: "10px", fontWeight: 400, marginRight: "2px" }}>nuo</span>{court.pricePerHour}€
               <span style={{ color: textSecondary, fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
-            <a
-              href={`/courts/${court.id}`}
-              style={{
-                background: color, color: "black",
-                padding: "5px 14px", borderRadius: "8px",
-                fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
-                transition: "filter 0.15s, transform 0.15s",
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.12)";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1.04)";
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
-              }}
-            >
-              Rezervuoti
-            </a>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <a
+                href={`/courts/${court.id}`}
+                aria-label="Peržiūrėti"
+                title="Peržiūrėti"
+                style={{
+                  border: `1px solid ${color}`, color: color,
+                  width: "28px", height: "28px", borderRadius: "8px",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  textDecoration: "none",
+                  transition: "background 0.15s, transform 0.15s",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.background = color + "18";
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1.05)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </a>
+              <a
+                href={`/courts/${court.id}#reserve`}
+                style={{
+                  background: color, color: "black",
+                  padding: "5px 12px", borderRadius: "8px",
+                  fontSize: "11px", fontWeight: 700, textDecoration: "none", display: "inline-block",
+                  transition: "filter 0.15s, transform 0.15s",
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.12)";
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1.04)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)";
+                  (e.currentTarget as HTMLAnchorElement).style.transform = "scale(1)";
+                }}
+              >
+                Rezervuoti
+              </a>
+            </div>
           </div>
         </div>
       </div>

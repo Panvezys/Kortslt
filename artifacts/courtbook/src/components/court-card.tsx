@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Star, Heart, ShieldCheck } from "lucide-react";
+import { MapPin, Users, Star, Heart, ShieldCheck, Eye } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -182,17 +182,26 @@ export function CourtCard({ court }: { court: Court }) {
         )}
       </CardContent>
 
-      <CardFooter className="pt-0">
-        <Link href={`/courts/${court.id}`} className="w-full"
+      <CardFooter className="pt-0 gap-2">
+        <Link href={`/courts/${court.id}`} aria-label={t("card.view")}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 transition-all duration-200 active:scale-[0.98]"
+            title={t("card.view")}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+        </Link>
+        <Link href={`/courts/${court.id}#reserve`} className="flex-1"
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}
         >
           <Button
-            variant="outline"
-            className="w-full transition-all duration-200 active:scale-[0.98]"
-            style={btnHovered ? { backgroundColor: sport.color, borderColor: sport.color, color: "#fff", boxShadow: `0 4px 14px ${sport.color}55` } : undefined}
+            className="w-full transition-all duration-200 active:scale-[0.98] font-semibold"
+            style={{ backgroundColor: sport.color, borderColor: sport.color, color: "#fff", ...(btnHovered ? { boxShadow: `0 4px 14px ${sport.color}55` } : {}) }}
           >
-            {t("card.viewBook")}
+            {t("card.reserve")}
           </Button>
         </Link>
       </CardFooter>

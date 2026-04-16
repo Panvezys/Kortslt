@@ -68,6 +68,8 @@ const translations = {
     "card.perHour": "/val",
     "card.maxPlayers": "iki {n} žaidėjų",
     "card.viewBook": "Peržiūrėti ir rezervuoti",
+    "card.view": "Peržiūrėti",
+    "card.reserve": "Rezervuoti",
     // Court detail
     "detail.back": "Grįžti",
     "detail.indoor": "Vidaus",
@@ -265,6 +267,8 @@ const translations = {
     "card.perHour": "/hr",
     "card.maxPlayers": "up to {n} players",
     "card.viewBook": "View & Book",
+    "card.view": "View",
+    "card.reserve": "Reserve",
     // Court detail
     "detail.back": "Back",
     "detail.indoor": "Indoor",
@@ -462,6 +466,8 @@ const translations = {
     "card.perHour": "/ч",
     "card.maxPlayers": "до {n} игроков",
     "card.viewBook": "Посмотреть и забронировать",
+    "card.view": "Смотреть",
+    "card.reserve": "Забронировать",
     // Court detail
     "detail.back": "Назад",
     "detail.indoor": "В помещении",

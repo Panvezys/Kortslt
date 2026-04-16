@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame, Eye } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -258,17 +258,26 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
         </CardDescription>
       </CardHeader>
 
-      <CardFooter className="pt-0 mt-auto">
-        <Link href={`/courts/${court.id}`} className="w-full"
+      <CardFooter className="pt-0 mt-auto gap-2">
+        <Link href={`/courts/${court.id}`} aria-label={t("card.view")}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 transition-all duration-200 active:scale-[0.98]"
+            title={t("card.view")}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+        </Link>
+        <Link href={`/courts/${court.id}#reserve`} className="flex-1"
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}
         >
           <Button
-            variant="outline"
-            className="w-full transition-all duration-200 active:scale-[0.98]"
-            style={btnHovered ? { backgroundColor: color, borderColor: color, color: "#fff", boxShadow: `0 4px 14px ${color}55` } : undefined}
+            className="w-full transition-all duration-200 active:scale-[0.98] font-semibold"
+            style={{ backgroundColor: color, borderColor: color, color: "#fff", ...(btnHovered ? { boxShadow: `0 4px 14px ${color}55` } : {}) }}
           >
-            {t("card.viewBook")}
+            {t("card.reserve")}
           </Button>
         </Link>
       </CardFooter>
