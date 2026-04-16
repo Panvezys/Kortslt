@@ -572,25 +572,21 @@ function FacilitiesPanel() {
 
   const { data: facilities = [], isLoading, isError } = useQuery<any[]>({
     queryKey: ["admin-facilities"],
-    queryFn: async () => {
-      const res = await customFetch("/api/admin/facilities");
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
+    queryFn: () => customFetch<any[]>("/api/admin/facilities"),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => customFetch(`/api/admin/facilities/${id}/approve`, { method: "PUT" }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    mutationFn: (id: number) => customFetch<any>(`/api/admin/facilities/${id}/approve`, { method: "PUT" }),
     onSuccess: () => { toast({ title: "Objektas patvirtintas ✓" }); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
     onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => customFetch(`/api/admin/facilities/${id}/reject`, {
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => customFetch<any>(`/api/admin/facilities/${id}/reject`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason }),
-    }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    }),
     onSuccess: () => { toast({ title: "Objektas atmestas" }); setRejectFacilityId(null); setRejectReason(""); qc.invalidateQueries({ queryKey: ["admin-facilities"] }); },
     onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
   });
