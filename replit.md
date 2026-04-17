@@ -69,6 +69,32 @@ A Lithuanian sports court booking platform (CourtBook) supporting 6 sport types.
 - Payment checkout (mock mode — auto-confirmed)
 - Clerk authentication (sign in / register)
 
+### Instant Booking & Court Status System (new)
+- **`instantBookingEnabled`** boolean column on courts table (default `true`):
+  - `true` → booking status set to `confirmed` immediately after successful Stripe payment; confirmation email sent to player
+  - `false` → booking stays `pending` after payment; owner must manually approve
+  - Toggle visible per court in `/owner/facility/:id` with a pill-style toggle switch
+- **Owner notification email** (`sendOwnerBookingNotificationEmail`): sent to court owner on every payment (both confirmed and pending flows)
+- **Court status lifecycle** (4 states, stored in `courts.status`):
+  - `draft` → new default; court saved without requiring Stripe; visible only to owner
+  - `pending_review` → owner submitted via "Pateikti peržiūrai" button; awaits admin approval
+  - `active` → admin approved; publicly listed alongside legacy `approved` courts
+  - `hidden` → admin rejected; removed from public listings; owner sees rejection reason
+- **Submit for Review** button per court card in owner detail page; disabled until price + location are set
+- **Admin Approvals page** at `/admin/approvals` (admin-only route):
+  - Lists all `pending_review` courts with photo, details, Stripe status, instant booking flag, and submission date
+  - "Patvirtinti" → sets status to `active`
+  - "Atmesti" → opens textarea for rejection reason, sets status to `hidden`
+  - Stats row: pending count, Stripe-connected count, missing-photo count
+
+### Owner Dashboard (new)
+- `/owner/dashboard` — full-screen layout with collapsible sidebar, no Layout wrapper
+  - Sidebar: Suvestinė, Mano aikštelės, Rezervacijų grafikas, Mokėjimai, Nustatymai
+  - Stats row: Pajamos šį mėnesį, Užimtumas, Rezervacijos, Išmokos likutis (mock data)
+  - 7-day booking grid (08:00–22:00 × 4 courts): blue=booked, grey=maintenance, dashed=free
+  - Quick actions: "Blokuoti kortą" modal, "Rankinė rezervacija" modal (phone bookings)
+  - Right column: occupancy bar chart + "Naujausi užsakymai" feed (last 5 bookings)
+
 ### Court images & photo gallery
 - Existing tennis/basketball courts: `artifacts/courtbook/public/courts/*.png` (AI generated)
 - New sport courts: `artifacts/courtbook/public/courts/{padel,football,badminton,squash}/*.jpg` (stock photos)

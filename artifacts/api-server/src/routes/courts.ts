@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
 import {
@@ -50,6 +50,7 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     facilityId: c.facilityId ?? undefined,
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
+    instantBookingEnabled: c.instantBookingEnabled ?? true,
   };
 }
 
@@ -76,11 +77,13 @@ function generateSlots(): { startTime: string; endTime: string }[] {
   return slots;
 }
 
+const PUBLIC_STATUSES = ["approved", "active"] as const;
+
 router.get("/courts/cities", async (_req, res): Promise<void> => {
   const rows = await db
     .selectDistinct({ city: courtsTable.city })
     .from(courtsTable)
-    .where(eq(courtsTable.status, "approved"))
+    .where(or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active")))
     .orderBy(courtsTable.city);
   res.json(rows.map(r => r.city));
 });
@@ -95,11 +98,11 @@ router.get("/courts", async (req, res): Promise<void> => {
   const conditions: ReturnType<typeof eq>[] = [];
 
   // If ownerUserId filter is supplied, return all statuses for that owner (their dashboard view).
-  // Otherwise, public callers only see approved courts.
+  // Otherwise, public callers only see active/approved courts.
   if (params.data.ownerUserId) {
     conditions.push(eq(courtsTable.ownerUserId, params.data.ownerUserId));
   } else {
-    conditions.push(eq(courtsTable.status, "approved"));
+    conditions.push(inArray(courtsTable.status, ["approved", "active"]));
   }
 
   if (params.data.type) conditions.push(eq(courtsTable.type, params.data.type));
@@ -204,7 +207,8 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       amenities: parsed.data.amenities ?? [],
       condition: (parsed.data.condition ?? "good") as string,
       ownerUserId: userId,
-      status: "pending",
+      status: "draft",
+      instantBookingEnabled: true,
       ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
       facilityId: parsed.data.facilityId ?? null,
       workingHours: parsed.data.workingHours ?? null,
@@ -255,10 +259,17 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // Preserve extra owner-settable fields that aren't in the Zod schema
+  const extraFields: Record<string, unknown> = {};
+  if (typeof (req.body as any).instantBookingEnabled === "boolean") {
+    extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
+  }
+
   const [court] = await db
     .update(courtsTable)
     .set({
       ...body.data,
+      ...extraFields,
       pricePerHour: String(body.data.pricePerHour),
       peakPricePerHour: body.data.peakPricePerHour != null ? String(body.data.peakPricePerHour) : null,
       bufferMinutes: body.data.bufferMinutes ?? 0,
@@ -527,6 +538,87 @@ router.get("/courts/:id/equipment-availability", async (req, res): Promise<void>
   }));
 
   res.json(result);
+});
+
+// ─── Owner: submit court for review ──────────────────────────────────────────
+router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(req.params.id);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Validate required fields
+  const missingFields: string[] = [];
+  if (!court.pricePerHour || Number(court.pricePerHour) <= 0) missingFields.push("kaina");
+  if (!court.address || !court.city) missingFields.push("vieta");
+  if (missingFields.length > 0) {
+    res.status(422).json({ error: `Trūksta privalomų laukų: ${missingFields.join(", ")}` }); return;
+  }
+
+  if (!["draft", "hidden"].includes(court.status)) {
+    res.status(409).json({ error: `Aikštelė jau yra "${court.status}" būsenos` }); return;
+  }
+
+  const [updated] = await db
+    .update(courtsTable)
+    .set({ status: "pending_review", rejectionReason: null })
+    .where(eq(courtsTable.id, courtId))
+    .returning();
+
+  res.json(formatCourt(updated));
+});
+
+// ─── Admin: update court status ───────────────────────────────────────────────
+router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(req.params.id);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const { status, rejectionReason } = req.body as { status?: string; rejectionReason?: string };
+  const ALLOWED = ["draft", "pending_review", "active", "hidden", "approved"];
+  if (!status || !ALLOWED.includes(status)) {
+    res.status(400).json({ error: `status must be one of: ${ALLOWED.join(", ")}` }); return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const [updated] = await db
+    .update(courtsTable)
+    .set({ status, rejectionReason: rejectionReason ?? null })
+    .where(eq(courtsTable.id, courtId))
+    .returning();
+
+  res.json(formatCourt(updated));
+});
+
+// ─── Admin: list courts pending review ───────────────────────────────────────
+router.get("/admin/courts/pending", requireAuth, async (_req, res): Promise<void> => {
+  const courts = await db
+    .select()
+    .from(courtsTable)
+    .where(eq(courtsTable.status, "pending_review"))
+    .orderBy(courtsTable.createdAt);
+
+  const courtIds = courts.map(c => c.id);
+  const photoMap = new Map<number, string[]>();
+  if (courtIds.length > 0) {
+    const photos = await db
+      .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+      .from(courtPhotosTable)
+      .where(inArray(courtPhotosTable.courtId, courtIds))
+      .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+    for (const p of photos) {
+      const arr = photoMap.get(p.courtId) ?? [];
+      if (arr.length < 3) arr.push(p.url);
+      photoMap.set(p.courtId, arr);
+    }
+  }
+
+  res.json(courts.map(c => ({ ...formatCourt(c), photos: photoMap.get(c.id) ?? [] })));
 });
 
 export default router;

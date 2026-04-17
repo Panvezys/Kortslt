@@ -38,6 +38,7 @@ import MessagesPage from "@/pages/messages";
 import FAQPage from "@/pages/faq";
 import OwnersInfoPage from "@/pages/owners-info";
 import OwnerDashboard from "@/pages/owner/dashboard";
+import AdminApprovalsPage from "@/pages/admin/approvals";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
 import ContactPage from "@/pages/contact";
@@ -130,6 +131,16 @@ function AdminRoute() {
   return <AdminDashboard />;
 }
 
+function AdminApprovalsRoute() {
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isAdmin, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <AdminApprovalsPage />;
+}
+
 // Invalidates React Query cache when the signed-in user changes
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -174,6 +185,7 @@ function Router() {
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
+      <Route path="/admin/approvals" component={AdminApprovalsRoute} />
       <Route path="/admin" component={AdminRoute} />
       <Route path="/payment-success" component={PaymentSuccess} />
       <Route path="/booking-confirmed" component={BookingConfirmed} />

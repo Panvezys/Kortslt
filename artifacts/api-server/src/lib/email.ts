@@ -65,6 +65,116 @@ function googleMapsUrl(address: string, city: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
+export interface OwnerBookingNotificationData {
+  ownerName: string;
+  ownerEmail: string;
+  customerName: string;
+  courtName: string;
+  date: Date | string;
+  startTime: string;
+  endTime: string;
+  totalPrice: number;
+  bookingId: number;
+}
+
+export async function sendOwnerBookingNotificationEmail(data: OwnerBookingNotificationData): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    logger.warn("Resend not configured — skipping owner booking notification email");
+    return;
+  }
+
+  const dateFormatted = formatDate(data.date);
+  const start = formatTime(data.startTime);
+  const end = formatTime(data.endTime);
+
+  const html = `
+<!DOCTYPE html>
+<html lang="lt">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#111111;border-radius:16px;border:1px solid #1f1f1f;overflow:hidden;">
+        <tr>
+          <td style="padding:24px 32px;border-bottom:1px solid #1f1f1f;">
+            <a href="${SITE_URL}" style="text-decoration:none;">
+              <span style="background:#adff2f;color:#000;font-weight:800;font-size:14px;padding:5px 10px;border-radius:6px;">K</span>
+              <span style="color:#adff2f;font-weight:800;font-size:18px;margin-left:8px;">korts.lt</span>
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px 0;">
+            <div style="display:inline-block;background:#172554;color:#93c5fd;border:1px solid #1d4ed8;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;margin-bottom:16px;">
+              📅 Nauja rezervacija
+            </div>
+            <h1 style="color:#ffffff;font-size:22px;font-weight:700;margin:0 0 6px;">Sveiki, ${data.ownerName}!</h1>
+            <p style="color:#9ca3af;font-size:14px;margin:0 0 24px;line-height:1.6;">Gautas naujas aikštelės <strong style="color:#ffffff;">${data.courtName}</strong> užsakymas.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:12px;border:1px solid #262626;overflow:hidden;">
+              <tr><td style="background:#1d4ed8;padding:11px 20px;"><span style="color:#fff;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;">Rezervacijos detalės</span></td></tr>
+              <tr><td style="padding:16px 20px;">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr><td style="padding:8px 0;border-bottom:1px solid #262626;">
+                    <table width="100%"><tr>
+                      <td style="color:#6b7280;font-size:13px;width:40%;">Klientas</td>
+                      <td style="color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${data.customerName}</td>
+                    </tr></table>
+                  </td></tr>
+                  <tr><td style="padding:8px 0;border-bottom:1px solid #262626;">
+                    <table width="100%"><tr>
+                      <td style="color:#6b7280;font-size:13px;width:40%;">Data</td>
+                      <td style="color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${dateFormatted}</td>
+                    </tr></table>
+                  </td></tr>
+                  <tr><td style="padding:8px 0;border-bottom:1px solid #262626;">
+                    <table width="100%"><tr>
+                      <td style="color:#6b7280;font-size:13px;width:40%;">Laikas</td>
+                      <td style="color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${start} – ${end}</td>
+                    </tr></table>
+                  </td></tr>
+                  <tr><td style="padding:8px 0;">
+                    <table width="100%"><tr>
+                      <td style="color:#6b7280;font-size:13px;width:40%;">Suma</td>
+                      <td style="color:#adff2f;font-size:18px;font-weight:800;text-align:right;">${data.totalPrice.toFixed(2)} €</td>
+                    </tr></table>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="padding:0 32px 28px;">
+          <a href="${SITE_URL}/owner/dashboard" style="display:inline-block;background:#adff2f;color:#000;font-weight:700;font-size:14px;padding:12px 24px;border-radius:10px;text-decoration:none;">
+            Peržiūrėti rezervacijas →
+          </a>
+        </td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #1f1f1f;">
+          <p style="color:#374151;font-size:12px;margin:0;text-align:center;">© ${new Date().getFullYear()} korts.lt</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`.trim();
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "korts.lt <onboarding@resend.dev>",
+      to: data.ownerEmail,
+      subject: `📅 Nauja rezervacija – ${data.courtName}, ${dateFormatted} ${start}–${end}`,
+      html,
+    });
+    if (error) logger.error({ error }, "Failed to send owner booking notification email");
+    else logger.info({ bookingId: data.bookingId, email: data.ownerEmail }, "Owner booking notification email sent");
+  } catch (err) {
+    logger.error({ err }, "Exception sending owner booking notification email");
+  }
+}
+
 export interface BookingEmailData {
   customerName: string;
   customerEmail: string;

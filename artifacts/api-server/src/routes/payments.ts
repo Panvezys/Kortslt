@@ -8,7 +8,7 @@ import {
   ConfirmPaymentResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
-import { sendBookingConfirmationEmail } from "../lib/email";
+import { sendBookingConfirmationEmail, sendOwnerBookingNotificationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { getCurrentUserId, requireAuth } from "../lib/auth";
 
@@ -113,7 +113,18 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   const { sessionId } = parsed.data;
 
   const rows = await db
-    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: courtsTable.address,
+      courtCity: courtsTable.city,
+      courtPhone: courtsTable.phone,
+      courtImageUrl: courtsTable.imageUrl,
+      ownerName: courtsTable.ownerName,
+      ownerEmail: courtsTable.ownerEmail,
+      instantBookingEnabled: courtsTable.instantBookingEnabled,
+    })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .where(eq(bookingsTable.stripeSessionId, sessionId));
@@ -136,9 +147,13 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     }
   }
 
+  // Instant booking: confirm immediately if enabled, else keep pending for owner approval
+  const instantEnabled = rows[0].instantBookingEnabled !== false;
+  const newStatus = instantEnabled ? "confirmed" : "pending";
+
   const [booking] = await db
     .update(bookingsTable)
-    .set({ status: "confirmed" })
+    .set({ status: newStatus })
     .where(eq(bookingsTable.stripeSessionId, sessionId))
     .returning();
 
@@ -147,16 +162,37 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     .set({ totalBookings: sql`total_bookings + 1` })
     .where(eq(courtsTable.id, rows[0].booking.courtId));
 
-  sendBookingConfirmationEmail({
-    customerName: booking.customerName,
-    customerEmail: booking.customerEmail,
-    courtName: rows[0].courtName ?? "Kortas",
-    date: booking.date,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
-    totalPrice: Number(booking.totalPrice),
-    bookingId: booking.id,
-  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+  if (instantEnabled) {
+    sendBookingConfirmationEmail({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      courtName: rows[0].courtName ?? "Kortas",
+      courtId: rows[0].courtId ?? 0,
+      courtAddress: rows[0].courtAddress ?? "",
+      courtCity: rows[0].courtCity ?? "",
+      courtPhone: rows[0].courtPhone ?? undefined,
+      courtImageUrl: rows[0].courtImageUrl ?? undefined,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+  }
+
+  if (rows[0].ownerEmail) {
+    sendOwnerBookingNotificationEmail({
+      ownerName: rows[0].ownerName ?? "Savininkas",
+      ownerEmail: rows[0].ownerEmail,
+      customerName: booking.customerName,
+      courtName: rows[0].courtName ?? "Kortas",
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendOwnerBookingNotificationEmail failed"));
+  }
 
   res.json(ConfirmPaymentResponse.parse({
     ...booking,
@@ -234,6 +270,22 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     totalPrice: Number(booking.totalPrice),
     bookingId: booking.id,
   }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+
+  const freeCourtOwnerEmail = (await db.select({ ownerEmail: courtsTable.ownerEmail, ownerName: courtsTable.ownerName })
+    .from(courtsTable).where(eq(courtsTable.id, rows[0].booking.courtId)))[0];
+  if (freeCourtOwnerEmail?.ownerEmail) {
+    sendOwnerBookingNotificationEmail({
+      ownerName: freeCourtOwnerEmail.ownerName ?? "Savininkas",
+      ownerEmail: freeCourtOwnerEmail.ownerEmail,
+      customerName: booking.customerName,
+      courtName: rows[0].courtName ?? "Kortas",
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendOwnerBookingNotificationEmail (free) failed"));
+  }
 
   res.json({ ...booking, totalPrice: Number(booking.totalPrice), courtName: rows[0].courtName });
 });

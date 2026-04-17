@@ -130,14 +130,17 @@ const courtSchema = z.object({
 });
 type CourtFormValues = z.infer<typeof courtSchema>;
 
-function StatusBadge({ status }: { status?: string }) {
-  if (!status || status === "approved") return null;
-  if (status === "pending") return (
-    <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30 ml-2">Laukiama</Badge>
-  );
-  return (
-    <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/30 ml-2">Atmesta</Badge>
-  );
+function CourtStatusBadge({ status }: { status?: string }) {
+  if (!status || status === "approved" || status === "active")
+    return <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">Aktyvus</Badge>;
+  if (status === "pending_review")
+    return <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">Peržiūroje</Badge>;
+  if (status === "pending")
+    return <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Laukia</Badge>;
+  if (status === "hidden")
+    return <Badge className="text-xs bg-zinc-500/20 text-zinc-400 border-zinc-500/30">Paslėpta</Badge>;
+  // draft
+  return <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">Juodraštis</Badge>;
 }
 
 interface CourtBlockedSlot {
@@ -790,13 +793,13 @@ export default function OwnerFacilityDetail() {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-500">
-                {facilityCourts.filter(c => c.status === "approved").length}
+                {facilityCourts.filter(c => ["approved","active"].includes((c as any).status ?? "")).length}
               </div>
               <div className="text-xs text-muted-foreground">Aktyvūs</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-yellow-400">
-                {facilityCourts.filter(c => c.status === "pending").length}
+                {facilityCourts.filter(c => ["pending","pending_review","draft"].includes((c as any).status ?? "")).length}
               </div>
               <div className="text-xs text-muted-foreground">Laukia</div>
             </div>
@@ -1174,9 +1177,7 @@ export default function OwnerFacilityDetail() {
                     </div>
                   )}
                   <div className="absolute top-2 left-2">
-                    <Badge className={`text-xs ${court.status === "approved" ? "bg-green-500/20 text-green-400 border-green-500/30" : court.status === "pending" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}`}>
-                      {court.status === "approved" ? "Aktyvus" : court.status === "pending" ? "Laukia" : "Atmesta"}
-                    </Badge>
+                    <CourtStatusBadge status={(court as any).status} />
                   </div>
                   <div className="absolute top-2 right-2">
                     <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs">
@@ -1223,21 +1224,68 @@ export default function OwnerFacilityDetail() {
                     </div>
                   </div>
 
-                  {(court as any).stripeConnectStatus && (court as any).stripeConnectStatus !== "not_connected" ? (
-                    <div className="mt-2 pt-2 border-t">
+                  <div className="mt-2 pt-2 border-t space-y-2">
+                    {/* Stripe status */}
+                    {(court as any).stripeConnectStatus && (court as any).stripeConnectStatus !== "not_connected" ? (
                       <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${(court as any).stripeConnectStatus === "active" ? "text-green-500 bg-green-500/10" : "text-yellow-500 bg-yellow-500/10"}`}>
                         <CreditCard className="w-3 h-3" />
                         {(court as any).stripeConnectStatus === "active" ? "Stripe aktyvus" : "Stripe laukia"}
                       </span>
-                    </div>
-                  ) : (
-                    <div className="mt-2 pt-2 border-t">
+                    ) : (
                       <button onClick={() => handleConnectStripe(court.id)}
                         className="inline-flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded-full transition-colors">
                         <CreditCard className="w-3 h-3" /> Prijungti Stripe
                       </button>
+                    )}
+
+                    {/* Instant booking toggle */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Momentinė rezervacija</span>
+                      <button
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).instantBookingEnabled !== false ? "bg-primary" : "bg-muted-foreground/30"}`}
+                        onClick={() => {
+                          const next = !((court as any).instantBookingEnabled !== false);
+                          customFetch(`${API_URL}/courts/${court.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ ...court, pricePerHour: Number(court.pricePerHour), instantBookingEnabled: next }),
+                          }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", facilityId] }))
+                            .catch(() => toast({ title: "Klaida atnaujinant", variant: "destructive" }));
+                        }}
+                        title="Įjungus – rezervacijos patvirtinamos automatiškai"
+                      >
+                        <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).instantBookingEnabled !== false ? "translate-x-4" : "translate-x-0"}`} />
+                      </button>
                     </div>
-                  )}
+
+                    {/* Submit for review */}
+                    {["draft", "hidden"].includes((court as any).status ?? "draft") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
+                        disabled={
+                          !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city)
+                        }
+                        onClick={() => {
+                          customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
+                            .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", facilityId] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                            .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
+                        }}
+                        title={!(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city) ? "Pildykite: kaina, vieta" : ""}
+                      >
+                        Pateikti peržiūrai
+                      </Button>
+                    )}
+                    {(court as any).status === "pending_review" && (
+                      <p className="text-xs text-blue-400 flex items-center gap-1">
+                        <span>⏳</span> Laukiame administratoriaus patvirtinimo
+                      </p>
+                    )}
+                    {(court as any).status === "rejected" && (court as any).rejectionReason && (
+                      <p className="text-xs text-red-400">Priežastis: {(court as any).rejectionReason}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
