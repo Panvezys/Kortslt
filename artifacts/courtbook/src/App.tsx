@@ -42,6 +42,9 @@ import AdminApprovalsPage from "@/pages/admin/approvals";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
 import ContactPage from "@/pages/contact";
+import WelcomePage from "@/pages/welcome";
+import BecomeCoachPage from "@/pages/become-coach";
+import BecomeOwnerPage from "@/pages/become-owner";
 
 const queryClient = new QueryClient();
 
@@ -141,6 +144,25 @@ function AdminApprovalsRoute() {
   return <AdminApprovalsPage />;
 }
 
+function CoachRoute({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isCoach, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isCoach) return <Redirect to="/become-coach" />;
+  return <>{children}</>;
+}
+
+function WelcomeRoute() {
+  return (
+    <>
+      <Show when="signed-in"><WelcomePage /></Show>
+      <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+    </>
+  );
+}
+
 // Invalidates React Query cache when the signed-in user changes
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -191,8 +213,6 @@ function Router() {
       <Route path="/booking-confirmed" component={BookingConfirmed} />
       <Route path="/payment-cancel" component={PaymentCancel} />
       <Route path="/coaches" component={CoachesPage} />
-      <Route path="/coach/me" component={CoachPage} />
-      <Route path="/coach/:id" component={CoachPage} />
       <Route path="/trainers" component={TrainersPage} />
       <Route path="/trainers/:id" component={TrainerDetail} />
       <Route path="/tournaments" component={TournamentsPage} />
@@ -207,6 +227,13 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/contact" component={ContactPage} />
+      <Route path="/coach/me">
+        {() => <CoachRoute><CoachPage /></CoachRoute>}
+      </Route>
+      <Route path="/coach/:id" component={CoachPage} />
+      <Route path="/welcome" component={WelcomeRoute} />
+      <Route path="/become-coach" component={BecomeCoachPage} />
+      <Route path="/become-owner" component={BecomeOwnerPage} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

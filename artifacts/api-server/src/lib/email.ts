@@ -472,3 +472,98 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
     logger.error({ err }, "Exception sending booking confirmation email");
   }
 }
+
+const ROLE_LABELS: Record<string, string> = {
+  coach: "Treneris",
+  owner: "Aikštelės savininkas",
+};
+
+export async function sendAdminRoleRequestEmail(data: {
+  userId: string;
+  pendingRole: string;
+  requestData: Record<string, unknown>;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@korts.lt";
+  const roleLabel = ROLE_LABELS[data.pendingRole] ?? data.pendingRole;
+  const name = (data.requestData.name as string) || "Nenurodyta";
+  const adminUrl = `${SITE_URL}/admin`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="lt">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Naujas vaidmens prašymas</title></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Inter',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;min-height:100vh;">
+    <tr>
+      <td align="center" style="padding:48px 16px;">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#141414;border-radius:16px;overflow:hidden;border:1px solid #1f1f1f;max-width:600px;">
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a2e0a 0%,#0a1a1a 100%);padding:40px 32px;text-align:center;">
+              <div style="display:inline-block;background:#84cc16;border-radius:12px;padding:10px 20px;margin-bottom:16px;">
+                <span style="color:#000;font-weight:800;font-size:20px;letter-spacing:-0.5px;">korts.lt</span>
+              </div>
+              <h1 style="color:#ffffff;font-size:22px;font-weight:700;margin:0;">Naujas vaidmens prašymas</h1>
+              <p style="color:#84cc16;font-size:14px;margin:8px 0 0;">${roleLabel}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="color:#d1d5db;font-size:15px;margin:0 0 24px;">Vartotojas pateikė prašymą gauti <strong style="color:#84cc16;">${roleLabel}</strong> vaidmenį.</p>
+              <table width="100%" style="background:#0a0a0a;border-radius:12px;border:1px solid #1f1f1f;overflow:hidden;">
+                <tr><td style="padding:16px 20px;border-bottom:1px solid #1f1f1f;">
+                  <span style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Vartotojas</span><br>
+                  <span style="color:#ffffff;font-size:15px;font-weight:600;">${name}</span>
+                </td></tr>
+                <tr><td style="padding:16px 20px;border-bottom:1px solid #1f1f1f;">
+                  <span style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Prašomas vaidmuo</span><br>
+                  <span style="color:#84cc16;font-size:15px;font-weight:600;">${roleLabel}</span>
+                </td></tr>
+                ${data.requestData.bio ? `<tr><td style="padding:16px 20px;border-bottom:1px solid #1f1f1f;">
+                  <span style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Biografija</span><br>
+                  <span style="color:#d1d5db;font-size:14px;">${data.requestData.bio}</span>
+                </td></tr>` : ""}
+                ${data.requestData.sports ? `<tr><td style="padding:16px 20px;border-bottom:1px solid #1f1f1f;">
+                  <span style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Sportas</span><br>
+                  <span style="color:#d1d5db;font-size:14px;">${Array.isArray(data.requestData.sports) ? (data.requestData.sports as string[]).join(", ") : data.requestData.sports}</span>
+                </td></tr>` : ""}
+                <tr><td style="padding:16px 20px;">
+                  <span style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Vartotojo ID</span><br>
+                  <span style="color:#6b7280;font-size:12px;font-family:monospace;">${data.userId}</span>
+                </td></tr>
+              </table>
+              <div style="margin-top:28px;text-align:center;">
+                <a href="${adminUrl}" style="display:inline-block;background:#84cc16;color:#000;font-weight:700;font-size:15px;padding:14px 32px;border-radius:10px;text-decoration:none;">Peržiūrėti prašymą admin skydelyje</a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;border-top:1px solid #1f1f1f;">
+              <p style="color:#374151;font-size:12px;margin:0;text-align:center;">© ${new Date().getFullYear()} korts.lt — Lietuvos sporto aikštelių rezervavimo platforma</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`.trim();
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "korts.lt <onboarding@resend.dev>",
+      to: adminEmail,
+      subject: `🔔 Naujas vaidmens prašymas — ${roleLabel} (${name})`,
+      html,
+    });
+    if (error) {
+      logger.error({ error }, "Failed to send admin role request email");
+    } else {
+      logger.info({ userId: data.userId, pendingRole: data.pendingRole }, "Admin role request email sent");
+    }
+  } catch (err) {
+    logger.error({ err }, "Exception sending admin role request email");
+  }
+}

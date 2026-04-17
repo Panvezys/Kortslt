@@ -11,7 +11,7 @@ import { customFetch } from "@workspace/api-client-react";
 import {
   CheckCircle2, XCircle, MapPin, Euro, User, Building2,
   CreditCard, ChevronLeft, RefreshCw, Image as ImageIcon,
-  Clock, Zap,
+  Clock, Zap, Trophy, Phone, Mail, Euro as EuroIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -189,6 +189,131 @@ function CourtCard({
   );
 }
 
+interface RoleRequest {
+  userId: string;
+  role: string;
+  status: string;
+  pendingRole: string;
+  requestData: string | null;
+  createdAt: string;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  coach: "Treneris",
+  owner: "Aikštelės savininkas",
+};
+
+function RoleRequestCard({
+  req,
+  onApprove,
+  onReject,
+  isApproving,
+  isRejecting,
+}: {
+  req: RoleRequest;
+  onApprove: (userId: string) => void;
+  onReject: (userId: string, reason: string) => void;
+  isApproving: boolean;
+  isRejecting: boolean;
+}) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const data = (() => { try { return req.requestData ? JSON.parse(req.requestData) : {}; } catch { return {}; } })();
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${req.pendingRole === "coach" ? "bg-blue-500/10" : "bg-primary/10"}`}>
+            {req.pendingRole === "coach"
+              ? <Trophy className={`w-5 h-5 text-blue-400`} />
+              : <Building2 className={`w-5 h-5 text-primary`} />}
+          </div>
+          <div>
+            <p className="font-semibold text-foreground">{data.name ?? "Nenurodyta"}</p>
+            <p className="text-xs text-muted-foreground">{data.email ?? req.userId}</p>
+          </div>
+        </div>
+        <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${req.pendingRole === "coach" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : "bg-primary/10 text-primary border-primary/20"}`}>
+          {ROLE_LABELS[req.pendingRole] ?? req.pendingRole}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+        {data.phone && (
+          <div className="flex items-center gap-1.5">
+            <Phone className="w-3 h-3" />{data.phone}
+          </div>
+        )}
+        {data.sports?.length > 0 && (
+          <div className="flex items-center gap-1.5 col-span-2">
+            <Trophy className="w-3 h-3" />
+            <span>{(data.sports as string[]).join(", ")}</span>
+          </div>
+        )}
+        {data.pricePerHour && (
+          <div className="flex items-center gap-1.5">
+            <Euro className="w-3 h-3" />€{data.pricePerHour}/val.
+          </div>
+        )}
+        {data.city && (
+          <div className="flex items-center gap-1.5">
+            <MapPin className="w-3 h-3" />{data.city}
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 col-span-2">
+          <Clock className="w-3 h-3" />Pateikta: {new Date(req.createdAt).toLocaleDateString("lt-LT")}
+        </div>
+      </div>
+
+      {data.bio && (
+        <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 line-clamp-3">{data.bio}</p>
+      )}
+
+      {rejectOpen && (
+        <div className="space-y-2">
+          <Textarea
+            placeholder="Atmetimo priežastis (privaloma)…"
+            value={rejectReason}
+            onChange={e => setRejectReason(e.target.value)}
+            className="text-sm min-h-[60px] resize-none"
+          />
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1 text-xs"
+              disabled={!rejectReason.trim() || isRejecting}
+              onClick={() => { onReject(req.userId, rejectReason); setRejectOpen(false); setRejectReason(""); }}
+            >
+              <XCircle className="h-3.5 w-3.5 mr-1" />Patvirtinti atmetimą
+            </Button>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setRejectOpen(false)}>Atšaukti</Button>
+          </div>
+        </div>
+      )}
+
+      {!rejectOpen && (
+        <div className="flex gap-2">
+          <Button size="sm" className="flex-1 text-xs gap-1.5" disabled={isApproving} onClick={() => onApprove(req.userId)}>
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {isApproving ? "Tvirtinama…" : "Patvirtinti"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/5"
+            disabled={isRejecting}
+            onClick={() => setRejectOpen(true)}
+          >
+            <XCircle className="h-3.5 w-3.5" />Atmesti
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminApprovalsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -196,6 +321,35 @@ export default function AdminApprovalsPage() {
   const { data: courts = [], isLoading, refetch, isFetching } = useQuery<PendingCourt[]>({
     queryKey: ["admin-pending-courts"],
     queryFn: () => customFetch<PendingCourt[]>(`${API_URL}/admin/courts/pending`),
+  });
+
+  const { data: roleRequests = [], refetch: refetchRoleReqs, isFetching: isFetchingRoles } = useQuery<RoleRequest[]>({
+    queryKey: ["admin-role-requests"],
+    queryFn: () => customFetch<RoleRequest[]>(`${API_URL}/admin/role-requests`),
+  });
+
+  const approveRoleMutation = useMutation({
+    mutationFn: (userId: string) =>
+      customFetch(`${API_URL}/admin/role-requests/${userId}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      toast({ title: "✓ Vaidmuo patvirtintas" });
+    },
+    onError: () => toast({ title: "Klaida patvirtinant", variant: "destructive" }),
+  });
+
+  const rejectRoleMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      customFetch(`${API_URL}/admin/role-requests/${userId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      toast({ title: "Prašymas atmestas" });
+    },
+    onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
   });
 
   const approveMutation = useMutation({
@@ -235,20 +389,48 @@ export default function AdminApprovalsPage() {
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold">Aikštelių peržiūra</h1>
-            <p className="text-sm text-muted-foreground">Savininkai pateikė aikšteles patvirtinimui</p>
+            <h1 className="text-2xl font-bold">Patvirtinimai</h1>
+            <p className="text-sm text-muted-foreground">Vaidmenų prašymai ir aikštelės laukiančios peržiūros</p>
           </div>
-          <div className="flex items-center gap-3">
-            {courts.length > 0 && (
-              <span className="bg-primary/10 text-primary text-sm font-semibold px-3 py-1 rounded-full">
-                {courts.length} laukia
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { refetch(); refetchRoleReqs(); }} disabled={isFetching || isFetchingRoles}>
+            <RefreshCw className={`h-3.5 w-3.5 ${(isFetching || isFetchingRoles) ? "animate-spin" : ""}`} />
+            Atnaujinti
+          </Button>
+        </div>
+
+        {/* Role requests section */}
+        {roleRequests.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-lg font-bold">Vaidmenų prašymai</h2>
+              <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold px-2.5 py-1 rounded-full">
+                {roleRequests.length} laukia
               </span>
-            )}
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-              Atnaujinti
-            </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {roleRequests.map(req => (
+                <RoleRequestCard
+                  key={req.userId}
+                  req={req}
+                  onApprove={(userId) => approveRoleMutation.mutate(userId)}
+                  onReject={(userId, reason) => rejectRoleMutation.mutate({ userId, reason })}
+                  isApproving={approveRoleMutation.isPending && approveRoleMutation.variables === req.userId}
+                  isRejecting={rejectRoleMutation.isPending && (rejectRoleMutation.variables as any)?.userId === req.userId}
+                />
+              ))}
+            </div>
+            <Separator className="my-8" />
           </div>
+        )}
+
+        {/* Courts header */}
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-lg font-bold">Aikštelių peržiūra</h2>
+          {courts.length > 0 && (
+            <span className="bg-primary/10 text-primary text-xs font-semibold px-2.5 py-1 rounded-full border border-primary/20">
+              {courts.length} laukia
+            </span>
+          )}
         </div>
 
         {/* Stats bar */}

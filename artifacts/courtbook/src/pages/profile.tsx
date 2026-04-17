@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useSearch } from "wouter";
 import { useT } from "@/lib/i18n";
 import { SportIcon } from "@/components/sport-icon";
+import { useRole } from "@/lib/useRole";
 import {
   CalendarDays,
   Star,
@@ -27,6 +28,10 @@ import {
   Send,
   ArrowLeft,
   ChevronRight,
+  Trophy,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -338,6 +343,7 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>(
     ["bookings", "favorites", "courts", "messages"].includes(initialTab) ? initialTab : "bookings"
   );
+  const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected } = useRole();
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
@@ -359,7 +365,7 @@ export default function Profile() {
   const upcomingBookings = (bookings ?? []).filter(
     (b) => b.status !== "cancelled" && b.date >= today
   );
-  const isOwner = (ownerCourts?.length ?? 0) > 0;
+  const isOwner = roleIsOwner || (ownerCourts?.length ?? 0) > 0;
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -460,6 +466,103 @@ export default function Profile() {
             />
           )}
         </div>
+
+        {/* ── Role & upgrade section ── */}
+        {(() => {
+          const ROLE_LABEL: Record<string, string> = {
+            admin: "Administratorius",
+            owner: "Savininkas",
+            coach: "Treneris",
+            player: "Žaidėjas",
+          };
+          const PENDING_ROLE_LABEL: Record<string, string> = {
+            coach: "Trenerio",
+            owner: "Savininko",
+          };
+          const currentLabel = ROLE_LABEL[role ?? "player"] ?? role;
+
+          return (
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    {isAdmin ? <ShieldCheck className="w-5 h-5 text-primary" /> :
+                     isOwner ? <Building2 className="w-5 h-5 text-primary" /> :
+                     isCoach ? <Trophy className="w-5 h-5 text-blue-400" /> :
+                     <Star className="w-5 h-5 text-muted-foreground" />}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Vaidmuo</p>
+                    <p className="font-bold text-foreground">{currentLabel}</p>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <Badge className="bg-primary/10 text-primary border border-primary/20">Administratorius</Badge>
+                )}
+                {isPending && pendingRole && (
+                  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium">
+                    <Clock className="w-3.5 h-3.5" />
+                    {PENDING_ROLE_LABEL[pendingRole] ?? pendingRole} prašymas laukia
+                  </span>
+                )}
+                {isRejected && (
+                  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Prašymas atmestas
+                  </span>
+                )}
+              </div>
+
+              {isRejected && rejectionReason && (
+                <div className="bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-0.5">Atmetimo priežastis:</p>
+                  <p>{rejectionReason}</p>
+                </div>
+              )}
+
+              {/* Upgrade options for players */}
+              {(role === "player" || isRejected) && !isPending && (
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 border-blue-500/30 text-blue-400 hover:bg-blue-500/5"
+                    asChild
+                  >
+                    <Link href="/become-coach">
+                      <Trophy className="w-4 h-4" />
+                      Tapti treneriu
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                    asChild
+                  >
+                    <Link href="/become-owner">
+                      <Building2 className="w-4 h-4" />
+                      Tapti savininku
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+
+              {/* Coach quick link */}
+              {isCoach && (
+                <Button variant="outline" size="sm" className="w-full gap-1.5" asChild>
+                  <Link href="/coach/me">
+                    <Trophy className="w-4 h-4" />
+                    Trenerio skydelis
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Tabs ── */}
         <div className="space-y-4">

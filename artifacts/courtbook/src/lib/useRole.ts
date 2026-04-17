@@ -2,17 +2,17 @@ import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 
-export type UserRole = "admin" | "owner" | "player";
+export type UserRole = "admin" | "owner" | "coach" | "player";
+export type RoleStatus = "active" | "pending_approval" | "rejected";
 
 interface RoleResponse {
   userId: string;
   role: UserRole;
+  status: RoleStatus;
+  pendingRole: UserRole | null;
+  rejectionReason: string | null;
 }
 
-/**
- * Fetches the current user's role from the DB.
- * Returns null while loading or when signed out.
- */
 export function useRole() {
   const { isSignedIn, isLoaded } = useAuth();
 
@@ -24,11 +24,20 @@ export function useRole() {
     retry: false,
   });
 
+  const role = query.data?.role ?? null;
+  const status = query.data?.status ?? "active";
+
   return {
-    role: query.data?.role ?? null,
+    role,
+    status,
+    pendingRole: query.data?.pendingRole ?? null,
+    rejectionReason: query.data?.rejectionReason ?? null,
     isLoading: !isLoaded || (!!isSignedIn && query.isLoading),
-    isAdmin: query.data?.role === "admin",
-    isOwner: query.data?.role === "owner" || query.data?.role === "admin",
-    isPlayer: query.data?.role === "player",
+    isAdmin: role === "admin",
+    isOwner: role === "owner" || role === "admin",
+    isCoach: role === "coach",
+    isPlayer: role === "player",
+    isPending: status === "pending_approval",
+    isRejected: status === "rejected",
   };
 }

@@ -31,8 +31,9 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
     - **Booking & Review System**: Customer booking history, 1-5 star rating system for confirmed bookings, aggregated ratings, and a dedicated reviews section.
     - **Instant Booking & Court Status**: `instantBookingEnabled` per court (confirmed vs. pending approval). Court lifecycle includes `draft`, `pending_review`, `active`, and `hidden` states.
     - **Photo Gallery System**: `court_photos` DB table for managing court images, with upload, captioning, ordering, and deletion functionalities. Frontend displays full-width carousels.
-    - **Role-Based Access Control (RBAC)**: Three roles (`admin`, `owner`, `player`) stored in `user_roles` table. Route guards enforce access.
-    - **Coaches System**: Users can create coach profiles (`/coach/me`), public coach pages (`/coach/:id`), and owners can assign coaches to courts.
+    - **Role-Based Access Control (RBAC)**: Four roles (`admin`, `owner`, `coach`, `player`) stored in `user_roles` table. Route guards enforce access.
+    - **Role Onboarding System**: New users register as `player`. From profile or `/welcome`, they can apply to upgrade to `coach` or `owner`. Upgrade requests set `status = 'pending_approval'` in `user_roles` and email the admin. Admin approves/rejects from `/admin/approvals`. Approved coaches get a `coaches` table row auto-created from their application data. Routes: `/welcome` (post-signup), `/become-coach` (3-step form), `/become-owner` (single-page form). `sign-up.tsx` redirects to `/welcome` after registration.
+    - **Coaches System**: Users can create coach profiles (`/coach/me`), public coach pages (`/coach/:id`), and owners can assign coaches to courts. Coach dashboard (`/coach/me`) is gated behind the `coach` role.
     - **Slot Availability**: `GET /api/courts/:id/availability` blocks both `pending` and `confirmed` bookings to prevent double-booking.
     - **Production Seeding**: Admin endpoint `POST /api/admin/seed-courts` for one-time seeding of production databases.
 
