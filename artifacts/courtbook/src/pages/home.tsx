@@ -490,7 +490,7 @@ export default function Home() {
             <div className="w-full max-w-2xl space-y-2" ref={searchRef}>
 
               {/* Row 1: Court name with autocomplete */}
-              <div className="relative max-w-md">
+              <div className="relative w-full max-w-sm">
                 <div className="flex items-center gap-3 bg-white/20 backdrop-blur-md border rounded-xl px-4 py-3 transition-all"
                   style={{ borderColor: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.4)" }}
                 >
@@ -564,7 +564,7 @@ export default function Home() {
               <div className="flex gap-2 flex-wrap items-center">
 
                 {/* City combobox */}
-                <div className="relative w-44 shrink-0" ref={cityRef}>
+                <div className="relative w-36 sm:w-40 shrink-0" ref={cityRef}>
                   <div
                     className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-all"
                     style={{ borderColor: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.4)" }}
