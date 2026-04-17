@@ -444,30 +444,16 @@ export default function Home() {
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative bg-zinc-950 text-white pt-24 pb-32">
-        {/* Slideshow background */}
-        <div className="absolute inset-0 z-0">
-          {HERO_IMAGES.map((img, i) => (
-            <img
-              key={img}
-              src={`${base}/${img}`}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{
-                opacity: i === heroIdx ? 1 : 0,
-                transition: "opacity 1.6s ease-in-out",
-                zIndex: i === heroIdx ? 1 : 0,
-              }}
-              aria-hidden
-            />
-          ))}
-          {/* Dark overlay — keeps text readable without being too heavy */}
-          <div className="absolute inset-0 bg-zinc-950/65 z-10" />
-        </div>
-        <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent z-[1]"></div>
-        <div className="container px-4 mx-auto relative z-10">
-          <div className="max-w-3xl">
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance">
+      {/* Hero Section — split layout */}
+      <section className="bg-zinc-950 text-white">
+        <div className="flex min-h-[640px] lg:min-h-[700px]">
+
+          {/* ── LEFT PANEL: search form ── */}
+          <div className="relative z-10 w-full md:w-[460px] lg:w-[520px] xl:w-[560px] flex-shrink-0 flex flex-col justify-center px-6 sm:px-10 lg:px-14 pt-28 pb-16">
+            {/* subtle top-left glow */}
+            <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
+
+            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight mb-4 text-balance leading-tight">
               {(() => {
                 const [line1, line2] = heroLines;
                 const isEnglishTop = line1?.toLowerCase().includes("find your court");
@@ -482,12 +468,12 @@ export default function Home() {
                 );
               })()}
             </h1>
-            <p className="text-lg md:text-xl text-zinc-400 mb-8 max-w-xl">
+            <p className="text-base text-zinc-400 mb-8 max-w-sm leading-relaxed">
               {t("home.hero.subtitle")}
             </p>
 
             {/* Multi-row search widget */}
-            <div className="w-full max-w-2xl space-y-2" ref={searchRef}>
+            <div className="w-full space-y-2.5" ref={searchRef}>
 
               {/* Row 1: Court name with autocomplete */}
               <div className="relative w-full max-w-sm">
@@ -872,6 +858,40 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* ── RIGHT PANEL: rotating court photo ── */}
+          <div className="hidden md:block flex-1 relative overflow-hidden">
+            {HERO_IMAGES.map((img, i) => (
+              <img
+                key={img}
+                src={`${base}/${img}`}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{
+                  opacity: i === heroIdx ? 1 : 0,
+                  transition: "opacity 1.6s ease-in-out",
+                  zIndex: i === heroIdx ? 1 : 0,
+                }}
+                aria-hidden
+              />
+            ))}
+            {/* Gradient fade on the left edge to blend with the search panel */}
+            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-zinc-950 to-transparent z-10 pointer-events-none" />
+            {/* Subtle bottom scrim */}
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-zinc-950/60 to-transparent z-10 pointer-events-none" />
+            {/* Slide indicator dots */}
+            <div className="absolute bottom-6 right-6 z-20 flex gap-1.5">
+              {HERO_IMAGES.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIdx(i)}
+                  className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                  style={{ background: i === heroIdx ? accentColor : "rgba(255,255,255,0.35)", transform: i === heroIdx ? "scale(1.4)" : "scale(1)" }}
+                  aria-label={`Slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
         </div>
       </section>
 
