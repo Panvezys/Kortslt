@@ -5,6 +5,29 @@ import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { sportColor } from "@/components/sport-icon"
 
+const SPORT_ALIASES: Record<string, string> = {
+  tennis: "tennis",
+  tenisas: "tennis",
+  basketball: "basketball",
+  krepšinis: "basketball",
+  padel: "padel",
+  padelis: "padel",
+  football: "football",
+  futbolas: "football",
+  badminton: "badminton",
+  badmintonas: "badminton",
+  squash: "squash",
+  skvošas: "squash",
+  table_tennis: "table_tennis",
+  "stalo tenisas": "table_tennis",
+  golf: "golf",
+  golfas: "golf",
+  snooker: "snooker",
+  snukeris: "snooker",
+  bowling: "bowling",
+  boulingas: "bowling",
+}
+
 const badgeVariants = cva(
   // @replit
   // Whitespace-nowrap: Badges should never wrap.
@@ -38,7 +61,8 @@ export interface BadgeProps
 
 function Badge({ className, variant, ...props }: BadgeProps) {
   const { locale, t } = useI18n()
-  const sport = typeof props.children === "string" ? props.children : null
+  const rawSport = typeof props.children === "string" ? props.children.trim().toLowerCase() : null
+  const sport = rawSport ? SPORT_ALIASES[rawSport] ?? rawSport : null
   const color = sport ? sportColor[sport] : null
   const title = sport ? t(`sports.${sport}`) : null
   return (
@@ -52,7 +76,9 @@ function Badge({ className, variant, ...props }: BadgeProps) {
       title={title ?? undefined}
       style={color ? { backgroundColor: color, color: "#fff" } : undefined}
       {...props}
-    />
+    >
+      {title ?? props.children}
+    </div>
   )
 }
 
