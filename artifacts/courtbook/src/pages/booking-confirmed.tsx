@@ -93,7 +93,7 @@ export default function BookingConfirmed() {
                 <p className="text-muted-foreground text-sm">Bandykite dar kartą arba susisiekite su mumis.</p>
               </div>
               <Button onClick={() => setLocation("/courts")} className="w-full">
-                Grįžti į kortų sąrašą
+                Grįžti į aikštelių sąrašą
               </Button>
             </>
           )}
@@ -111,7 +111,7 @@ export default function BookingConfirmed() {
                 <p className="text-muted-foreground text-sm leading-relaxed">
                   {booking?.totalPrice && booking.totalPrice > 0
                     ? `Mokėjimas €${booking.totalPrice.toFixed(2)} gautas sėkmingai.`
-                    : "Jūsų korto rezervacija sėkmingai patvirtinta."}
+                    : "Jūsų aikštelės rezervacija sėkmingai patvirtinta."}
                   {" "}Patvirtinimo laiškas išsiųstas jūsų el. paštu.
                 </p>
               </div>
@@ -162,7 +162,7 @@ export default function BookingConfirmed() {
                   <ArrowRight className="w-4 h-4" />
                 </Button>
                 <Button variant="outline" onClick={() => setLocation("/courts")} className="flex-1">
-                  Ieškoti kortų
+                  Ieškoti aikštelių
                 </Button>
               </div>
             </>

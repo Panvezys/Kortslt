@@ -162,7 +162,7 @@ function CourtsPanel() {
   const handleApprove = async (id: number) => {
     try {
       await approveMutation.mutateAsync(id);
-      toast({ title: "Kortas patvirtintas" });
+      toast({ title: "Aikštelė patvirtinta" });
     } catch {
       toast({ title: "Klaida patvirtinant", variant: "destructive" });
     }
@@ -172,7 +172,7 @@ function CourtsPanel() {
     if (rejectDialogId === null) return;
     try {
       await rejectMutation.mutateAsync({ id: rejectDialogId, reason: rejectReason || undefined });
-      toast({ title: "Kortas atmestas" });
+      toast({ title: "Aikštelė atmesta" });
       setRejectDialogId(null);
       setRejectReason("");
     } catch {
@@ -235,7 +235,7 @@ function CourtsPanel() {
 
       {isError && (
         <div className="py-12 text-center text-muted-foreground">
-          Nepavyko įkelti kortų.
+          Nepavyko įkelti aikštelių.
         </div>
       )}
 
@@ -244,7 +244,7 @@ function CourtsPanel() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50 border-b">
-                <th className="text-left px-4 py-3 font-medium">Kortas</th>
+                <th className="text-left px-4 py-3 font-medium">Aikštelė</th>
                 <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Savininkas</th>
                 <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Sportas</th>
                 <th className="text-left px-4 py-3 font-medium">Statusas</th>
@@ -256,7 +256,7 @@ function CourtsPanel() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    Kortų nerasta
+                    Aikštelių nerasta
                   </td>
                 </tr>
               )}
@@ -335,7 +335,7 @@ function CourtsPanel() {
         onOpenChange={open => { if (!open) { setRejectDialogId(null); setRejectReason(""); } }}
       >
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Atmesti kortą</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Atmesti aikštelę</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <label className="text-sm font-medium">Atmetimo priežastis (neprivaloma)</label>
@@ -522,8 +522,8 @@ function UsersPanel() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {confirmDialog.newRole === "admin" && "⚠️ Šis vartotojas gaus pilną administravimo prieigą."}
-                {confirmDialog.newRole === "owner" && "Vartotojas galės valdyti kortus savininko skydelyje."}
-                {confirmDialog.newRole === "player" && "Vartotojas neteks specialių teisių ir galės tik rezervuoti kortus."}
+                {confirmDialog.newRole === "owner" && "Vartotojas galės valdyti aikšteles savininko skydelyje."}
+                {confirmDialog.newRole === "player" && "Vartotojas neteks specialių teisių ir galės tik rezervuoti aikšteles."}
               </p>
               <div className="flex gap-3 justify-end">
                 <Button variant="outline" onClick={() => setConfirmDialog(null)}>Atšaukti</Button>
@@ -993,7 +993,7 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: "courts",     label: "Kortai",     icon: <Building2 className="w-4 h-4" /> },
+    { id: "courts",     label: "Aikštelės",  icon: <Building2 className="w-4 h-4" /> },
     { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
     { id: "users",      label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
   ];
@@ -1004,7 +1004,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Administravimas</h1>
-          <p className="text-muted-foreground mt-1">Kortų patvirtinimo ir vartotojų valdymo skydelis.</p>
+          <p className="text-muted-foreground mt-1">Aikštelių patvirtinimo ir vartotojų valdymo skydelis.</p>
         </div>
 
         {/* Top-level tabs */}

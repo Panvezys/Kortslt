@@ -37,15 +37,15 @@ export default function SignUpPage() {
             Lietuvoje.
           </h1>
           <p className="text-white/70 text-base max-w-xs">
-            Registruokitės nemokamai ir pradėkite rezervuoti kortus jau šiandien.
+            Registruokitės nemokamai ir pradėkite rezervuoti aikšteles jau šiandien.
           </p>
         </div>
 
         {/* Benefit pills */}
         <div className="relative z-10 px-10 pb-10 flex flex-col gap-2.5">
           {[
-            { icon: "✓", text: "Rezervuokite kortus internetu 24/7" },
-            { icon: "✓", text: "Išsaugokite mėgstamiausius kortus" },
+            { icon: "✓", text: "Rezervuokite aikšteles internetu 24/7" },
+            { icon: "✓", text: "Išsaugokite mėgstamiausias aikšteles" },
             { icon: "✓", text: "Peržiūrėkite visas rezervacijas vienoje vietoje" },
             { icon: "✓", text: "Raskite trenerius pagal sporto šaką" },
           ].map(b => (

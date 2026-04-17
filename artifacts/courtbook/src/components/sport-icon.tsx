@@ -168,6 +168,28 @@ export function BowlingIcon(props: SvgProps) {
   );
 }
 
+/** Court — generic tennis-style court diagram (outer frame, doubles alleys, net, service boxes) */
+export function CourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  const thin = Math.max(0.7, sw * 0.6);
+  return (
+    <Svg {...props}>
+      {/* Outer baselines + sidelines */}
+      <rect x="4" y="2.5" width="16" height="19" rx="0.5" strokeWidth={sw} />
+      {/* Doubles alleys */}
+      <line x1="6.5" y1="2.5" x2="6.5" y2="21.5" strokeWidth={thin} />
+      <line x1="17.5" y1="2.5" x2="17.5" y2="21.5" strokeWidth={thin} />
+      {/* Net (extends slightly past sidelines for posts) */}
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={sw} />
+      {/* Service lines */}
+      <line x1="6.5" y1="7.5" x2="17.5" y2="7.5" strokeWidth={thin} />
+      <line x1="6.5" y1="16.5" x2="17.5" y2="16.5" strokeWidth={thin} />
+      {/* Center service line */}
+      <line x1="12" y1="7.5" x2="12" y2="16.5" strokeWidth={thin} />
+    </Svg>
+  );
+}
+
 export type SportType = "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash" | "table_tennis" | "golf" | "snooker" | "bowling";
 
 export function SportIcon({ sport, ...props }: SvgProps & { sport: string }) {

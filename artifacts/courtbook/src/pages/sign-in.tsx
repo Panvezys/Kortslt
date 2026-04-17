@@ -33,7 +33,7 @@ export default function SignInPage() {
         <div className="relative z-10 px-10 pb-4">
           <h1 className="text-4xl font-extrabold text-white leading-tight mb-3">
             Raskite ir rezervuokite<br />
-            <span className="text-lime-400">sportinį kortą</span><br />
+            <span className="text-lime-400">sportinę aikštelę</span><br />
             per kelias sekundes.
           </h1>
           <p className="text-white/70 text-base max-w-xs">

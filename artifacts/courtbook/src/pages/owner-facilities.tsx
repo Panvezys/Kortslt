@@ -13,8 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
+import { CourtIcon } from "@/components/sport-icon";
 import {
-  Plus, Building2, MapPin, ChevronRight, Trophy, Users,
+  Plus, Building2, MapPin, ChevronRight, Users,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard,
 } from "lucide-react";
 
@@ -214,7 +215,7 @@ export default function OwnerFacilities() {
 
   const handleDelete = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Ar tikrai norite ištrinti šį objektą? Visi kortai liks be objekto.")) {
+    if (confirm("Ar tikrai norite ištrinti šį objektą? Visos aikštelės liks be objekto.")) {
       deleteMutation.mutate(id);
     }
   };
@@ -235,7 +236,7 @@ export default function OwnerFacilities() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Mano objektai</h1>
             <p className="text-muted-foreground mt-1">
-              Tvarkykite savo sporto objektus ir jų kortus
+              Tvarkykite savo sporto objektus ir jų aikšteles
             </p>
           </div>
           <Button onClick={openCreate} className="gap-2">
@@ -251,7 +252,7 @@ export default function OwnerFacilities() {
             </div>
             <div className="bg-card border rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-primary">{totalCourts}</div>
-              <div className="text-xs text-muted-foreground mt-1">Kortai</div>
+              <div className="text-xs text-muted-foreground mt-1">Aikštelės</div>
             </div>
             <div className="bg-card border rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-primary">{totalSports}</div>
@@ -286,7 +287,7 @@ export default function OwnerFacilities() {
             </div>
             <h2 className="text-xl font-semibold mb-2">Dar neturite objektų</h2>
             <p className="text-muted-foreground max-w-md mb-6">
-              Sukurkite savo pirmąjį sporto objektą ir pradėkite pridėti kortus,
+              Sukurkite savo pirmąjį sporto objektą ir pradėkite pridėti aikšteles,
               nustatyti kainas ir priimti rezervacijas.
             </p>
             <Button onClick={openCreate} size="lg" className="gap-2">
@@ -399,10 +400,10 @@ export default function OwnerFacilities() {
 
                     <div className="flex items-center gap-3 pt-3 border-t border-border/50">
                       <div className="flex items-center gap-1.5 text-sm">
-                        <Trophy className="w-4 h-4 text-primary" />
+                        <CourtIcon size={16} className="text-primary" />
                         <span className="font-semibold">{facility.courtCount}</span>
                         <span className="text-muted-foreground">
-                          {facility.courtCount === 1 ? "kortas" : "kortai"}
+                          {facility.courtCount === 1 ? "aikštelė" : "aikštelės"}
                         </span>
                       </div>
                       {approvedCourts > 0 && (

@@ -175,7 +175,7 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
       <p className="text-xs text-muted-foreground">
         Pasirinkite adresą iš sąrašo arba{" "}
         <MapPin className="w-3 h-3 inline mx-0.5 text-primary" />
-        spauskite žemėlapyje, kad pažymėtumėte kortą
+        spauskite žemėlapyje, kad pažymėtumėte aikštelę
       </p>
 
       {!isLoaded ? (

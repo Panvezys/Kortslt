@@ -1093,7 +1093,7 @@ function OwnerTrainersSection({ courts, ownerUserId }: { courts: { id: number; n
       ) : trainers.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border py-16 text-center text-muted-foreground">
           <p className="font-medium">Trenerių dar nėra</p>
-          <p className="text-sm mt-1">Pridėkite pirmąjį trenerį savo kortui</p>
+          <p className="text-sm mt-1">Pridėkite pirmąjį trenerį savo aikštelei</p>
         </div>
       ) : (
         <div className="bg-card border rounded-xl overflow-hidden">
@@ -1101,7 +1101,7 @@ function OwnerTrainersSection({ courts, ownerUserId }: { courts: { id: number; n
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead>Vardas</TableHead>
-                <TableHead className="hidden md:table-cell">Kortas</TableHead>
+                <TableHead className="hidden md:table-cell">Aikštelė</TableHead>
                 <TableHead className="hidden sm:table-cell">Sportas</TableHead>
                 <TableHead className="hidden md:table-cell">Kaina/val</TableHead>
                 <TableHead className="text-right">Veiksmai</TableHead>
@@ -1152,7 +1152,7 @@ function OwnerTrainersSection({ courts, ownerUserId }: { courts: { id: number; n
           <div className="space-y-4 pt-2">
             {!editingTrainer && courts.length > 1 && (
               <div className="space-y-1">
-                <Label className="text-xs">Kortas *</Label>
+                <Label className="text-xs">Aikštelė *</Label>
                 <Select value={String(form.courtId)} onValueChange={v => setForm(f => ({ ...f, courtId: Number(v) }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{courts.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
@@ -1351,7 +1351,7 @@ function OwnerTournamentsSection({ courts, ownerUserId }: { courts: { id: number
             <TableHeader className="bg-muted/50">
               <TableRow>
                 <TableHead>Pavadinimas</TableHead>
-                <TableHead className="hidden md:table-cell">Kortas</TableHead>
+                <TableHead className="hidden md:table-cell">Aikštelė</TableHead>
                 <TableHead className="hidden sm:table-cell">Data</TableHead>
                 <TableHead>Būsena</TableHead>
                 <TableHead className="hidden md:table-cell">Dalyviai</TableHead>
@@ -1434,7 +1434,7 @@ function OwnerTournamentsSection({ courts, ownerUserId }: { courts: { id: number
           <div className="space-y-4 pt-2">
             {!editingT && courts.length > 1 && (
               <div className="space-y-1">
-                <Label className="text-xs">Kortas *</Label>
+                <Label className="text-xs">Aikštelė *</Label>
                 <Select value={String(form.courtId)} onValueChange={v => setForm(f => ({ ...f, courtId: Number(v) }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{courts.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
@@ -1643,11 +1643,11 @@ export default function OwnerDashboard() {
       if (editingId) {
         await updateCourt.mutateAsync({ id: editingId, data: payload });
         await savePricingForCourt(editingId);
-        toast({ title: "Kortas atnaujintas" });
+        toast({ title: "Aikštelė atnaujinta" });
       } else {
         const newCourt = await createCourt.mutateAsync({ data: payload });
         await savePricingForCourt((newCourt as any).id);
-        toast({ title: "Kortas sukurtas — laukia patvirtinimo" });
+        toast({ title: "Aikštelė sukurta — laukia patvirtinimo" });
       }
       setIsDialogOpen(false);
       setRentableItems([]);
@@ -1655,7 +1655,7 @@ export default function OwnerDashboard() {
       setFormTab("info");
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
     } catch {
-      toast({ title: "Klaida išsaugant kortą", variant: "destructive" });
+      toast({ title: "Klaida išsaugant aikštelę", variant: "destructive" });
     }
   };
 
@@ -1756,7 +1756,7 @@ export default function OwnerDashboard() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Ar tikrai norite ištrinti šį kortą?")) return;
+    if (!confirm("Ar tikrai norite ištrinti šią aikštelę?")) return;
     try {
       await deleteCourt.mutateAsync({ id });
       toast({ title: "Court deleted" });
@@ -1806,7 +1806,7 @@ export default function OwnerDashboard() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Valdymo skydelis</h1>
-            <p className="text-muted-foreground mt-1">Tvarkykite savo kortus, trenerius ir turnyrus.</p>
+            <p className="text-muted-foreground mt-1">Tvarkykite savo aikšteles, trenerius ir turnyrus.</p>
           </div>
 
           <div className="flex gap-2">
@@ -1830,12 +1830,12 @@ export default function OwnerDashboard() {
                 form.reset();
                 setMapKey(k => k + 1);
               }}>
-                <Plus className="w-4 h-4 mr-2" /> Pridėti kortą
+                <Plus className="w-4 h-4 mr-2" /> Pridėti aikštelę
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingId ? "Redaguoti kortą" : "Pridėti naują kortą"}</DialogTitle>
+                <DialogTitle>{editingId ? "Redaguoti aikštelę" : "Pridėti naują aikštelę"}</DialogTitle>
               </DialogHeader>
 
               {/* Form section tabs */}
@@ -1863,7 +1863,7 @@ export default function OwnerDashboard() {
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Korto pavadinimas</FormLabel>
+                        <FormLabel>Aikštelės pavadinimas</FormLabel>
                         <FormControl><Input {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1900,7 +1900,7 @@ export default function OwnerDashboard() {
                       <Building2 className="w-4 h-4 text-primary" />
                       <span className="text-sm font-semibold">Objektas (neprivaloma)</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">Jei šis kortas priklauso sporto centrui ar klubui, susiekite jį su objektu.</p>
+                    <p className="text-xs text-muted-foreground">Jei ši aikštelė priklauso sporto centrui ar klubui, susiekite ją su objektu.</p>
                     <FormField control={form.control} name="facilityId" render={({ field }) => (
                       <FormItem>
                         <div className="flex flex-wrap gap-2 items-center">
@@ -1966,7 +1966,7 @@ export default function OwnerDashboard() {
                   <FormField control={form.control} name="description" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Aprašymas</FormLabel>
-                      <FormControl><Textarea rows={2} placeholder="Trumpas korto aprašymas..." {...field} value={field.value ?? ""} /></FormControl>
+                      <FormControl><Textarea rows={2} placeholder="Trumpas aikštelės aprašymas..." {...field} value={field.value ?? ""} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -2220,7 +2220,7 @@ export default function OwnerDashboard() {
                     <div className="space-y-2">
                       <Label>Nuosavybės dokumentas</Label>
                       <p className="text-xs text-muted-foreground">
-                        Įkelkite dokumentą, patvirtinantį, kad esate korto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins kortą.
+                        Įkelkite dokumentą, patvirtinantį, kad esate aikštelės savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins aikštelę.
                       </p>
                       <input
                         ref={docInputRef}
@@ -2268,7 +2268,7 @@ export default function OwnerDashboard() {
                           <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                         </FormControl>
                         <div>
-                          <FormLabel>Patalpų kortas</FormLabel>
+                          <FormLabel>Vidaus aikštelė</FormLabel>
                         </div>
                       </FormItem>
                     )} />
@@ -2530,7 +2530,7 @@ export default function OwnerDashboard() {
                       }}>Toliau →</Button>
                     ) : (
                       <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending}>
-                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti kortą"}
+                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti aikštelę"}
                       </Button>
                     )}
                   </div>
@@ -2545,7 +2545,7 @@ export default function OwnerDashboard() {
         {/* Tab Navigation */}
         <div className="flex gap-1 border-b border-border mb-6">
           {(["courts", "trainers", "tournaments"] as const).map(tab => {
-            const labels = { courts: "Kortai", trainers: "Treneriai", tournaments: "Turnyrai" };
+            const labels = { courts: "Aikštelės", trainers: "Treneriai", tournaments: "Turnyrai" };
             const icons = { courts: "🏟️", trainers: "💪", tournaments: "🏆" };
             return (
               <button
@@ -2697,7 +2697,7 @@ export default function OwnerDashboard() {
             <TableFrame>
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  {user?.id ? "Kortų nerasta. Sukurkite pirmąjį kortą." : "Prisijunkite norėdami matyti savo kortus."}
+                  {user?.id ? "Aikštelių nerasta. Sukurkite pirmąją aikštelę." : "Prisijunkite norėdami matyti savo aikšteles."}
                 </TableCell>
               </TableRow>
             </TableFrame>
@@ -2773,7 +2773,7 @@ export default function OwnerDashboard() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-primary" />
-                Korto treneriai
+                Aikštelės treneriai
               </DialogTitle>
             </DialogHeader>
             {coachesCourtId !== null && (
@@ -2822,7 +2822,7 @@ export default function OwnerDashboard() {
             ctx.fillText("korts.lt", 200, 400);
             ctx.fillStyle = "#71717a";
             ctx.font = "13px sans-serif";
-            ctx.fillText("Rezervuokite kortą online", 200, 424);
+            ctx.fillText("Rezervuokite aikštelę online", 200, 424);
             ctx.fillText(courtUrl, 200, 446);
             URL.revokeObjectURL(url);
             const link = document.createElement("a");
@@ -2856,7 +2856,7 @@ export default function OwnerDashboard() {
             <div class="sport">${sportEmojis[qrCourt.type] ?? ""} ${sportNames[qrCourt.type] ?? qrCourt.type}</div>
             <div class="court-name">${qrCourt.name}</div>
             <div class="qr-wrap">${document.getElementById("court-qr-svg")?.outerHTML ?? ""}</div>
-            <div class="headline">Rezervuokite kortą internetu</div>
+            <div class="headline">Rezervuokite aikštelę internetu</div>
             <div class="sub">Nuskensuokite QR kodą telefonu</div>
             <div class="url">${courtUrl}</div>
             <div class="divider"></div>
@@ -2903,7 +2903,7 @@ export default function OwnerDashboard() {
                   />
                 </div>
 
-                <div className="text-sm font-semibold text-foreground mb-1">Rezervuokite kortą internetu</div>
+                <div className="text-sm font-semibold text-foreground mb-1">Rezervuokite aikštelę internetu</div>
                 <div className="text-xs text-muted-foreground mb-3">Nuskensuokite QR kodą telefonu</div>
 
                 <div className="w-full text-[10px] text-muted-foreground bg-muted rounded-lg px-3 py-2 break-all font-mono">

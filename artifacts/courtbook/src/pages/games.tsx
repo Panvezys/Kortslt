@@ -202,7 +202,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             </div>
             <div>
               <Label>Vieta (neprivaloma)</Label>
-              <Input className="mt-1" placeholder="pvz. Forum Palace kortai" value={form.placeName}
+              <Input className="mt-1" placeholder="pvz. Forum Palace aikštelės" value={form.placeName}
                 onChange={(e) => setForm(f => ({ ...f, placeName: e.target.value }))} />
             </div>
           </div>

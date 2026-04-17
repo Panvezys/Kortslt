@@ -132,7 +132,7 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
     return { label: name, href: `/games/${ctxId}`, Icon: UsersIcon };
   }
   if (ctxType === "court") {
-    return { label: data?.name ? `Kortas · ${data.name}` : `Kortas #${ctxId}`, href: `/courts/${ctxId}`, Icon: MapPin };
+    return { label: data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`, href: `/courts/${ctxId}`, Icon: MapPin };
   }
   if (ctxType === "facility") {
     return { label: data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`, href: `/courts?facility=${ctxId}`, Icon: Building2 };
@@ -298,7 +298,7 @@ function ChatThreadsList({
         <div className="p-6 text-center text-muted-foreground">
           <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-50"/>
           <p className="text-sm font-medium">Kol kas nėra pokalbių</p>
-          <p className="text-xs mt-1">Parašykite žinutę iš žaidimo arba korto puslapio.</p>
+          <p className="text-xs mt-1">Parašykite žinutę iš žaidimo arba aikštelės puslapio.</p>
         </div>
       ) : (
         <div>

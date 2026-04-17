@@ -311,7 +311,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
               <Link href="/list-your-court" className="transition-colors hover:text-primary flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5" />
-                Kortų savininkai
+                Aikštelių savininkai
               </Link>
             </nav>
 
@@ -378,7 +378,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 korts.lt
               </Link>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-                Lietuva pirmaujanti sporto kortų rezervacijos platforma. Raskite, palyginkite ir užsisakykite kortą vos per kelias sekundes.
+                Lietuva pirmaujanti sporto aikštelių rezervacijos platforma. Raskite, palyginkite ir užsisakykite aikštelę vos per kelias sekundes.
               </p>
               <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-1">
                 <a href="mailto:info@korts.lt" className="flex items-center gap-2 hover:text-foreground transition-colors">
@@ -433,10 +433,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Platforma</h4>
               <nav className="flex flex-col gap-2 text-sm">
                 {[
-                  { href: "/courts", label: "Rasti kortą" },
+                  { href: "/courts", label: "Rasti aikštelę" },
                   { href: "/coaches", label: "Treneriai" },
                   { href: "/tournaments", label: "Turnyrai" },
-                  { href: "/list-your-court", label: "Pridėti kortą" },
+                  { href: "/list-your-court", label: "Pridėti aikštelę" },
                   { href: "/bookings", label: "Mano rezervacijos" },
                   { href: "/profile", label: "Profilis" },
                 ].map(l => (
@@ -472,7 +472,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <nav className="flex flex-col gap-2 text-sm">
                 {[
                   { href: "#", label: "D.U.K." },
-                  { href: "#", label: "Kortų savininkams" },
+                  { href: "#", label: "Aikštelių savininkams" },
                   { href: "#", label: "Privatumo politika" },
                   { href: "#", label: "Naudojimo taisyklės" },
                   { href: "#", label: "Kontaktai" },

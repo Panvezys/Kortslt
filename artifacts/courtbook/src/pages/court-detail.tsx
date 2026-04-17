@@ -534,7 +534,7 @@ export default function CourtDetail() {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="text-3xl font-bold mb-4">Kortas nerastas</h1>
+          <h1 className="text-3xl font-bold mb-4">Aikštelė nerasta</h1>
           <Button onClick={() => setLocation("/courts")}>Grįžti</Button>
         </div>
       </Layout>
@@ -681,7 +681,7 @@ export default function CourtDetail() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-semibold mb-4">Apie kortą</h2>
+              <h2 className="text-2xl font-semibold mb-4">Apie aikštelę</h2>
               <p className="text-lg leading-relaxed text-muted-foreground">
                 {court.description || "Aukštos kokybės sporto aikštelė, tinkama varžyboms, treniruotėms ir draugiškoms rungtynėms."}
               </p>
@@ -812,7 +812,7 @@ export default function CourtDetail() {
               {/* Map embed */}
               <div className="rounded-xl overflow-hidden border h-56 w-full relative group">
                 <iframe
-                  title="Korto vieta"
+                  title="Aikštelės vieta"
                   src={`https://maps.google.com/maps?q=${encodeURIComponent(`${court.address}, ${court.city}, Lietuva`)}&hl=lt&z=16&output=embed`}
                   className="w-full h-full transition-[filter] duration-300"
                   style={theme === "dark" ? { filter: "invert(90%) hue-rotate(180deg) saturate(0.85) brightness(0.9)" } : undefined}
@@ -878,7 +878,7 @@ export default function CourtDetail() {
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground font-medium mb-0.5">Klausimas savininkui</p>
                       <p className="font-semibold text-sm">Parašyti žinutę</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Pokalbis apie šį kortą</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Pokalbis apie šią aikštelę</p>
                     </div>
                   </button>
                 )}
@@ -993,7 +993,7 @@ export default function CourtDetail() {
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-primary" />
-                <h3 className="font-semibold text-sm">Rezervuoti kortą</h3>
+                <h3 className="font-semibold text-sm">Rezervuoti aikštelę</h3>
               </div>
 
               <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
@@ -1246,7 +1246,7 @@ export default function CourtDetail() {
                     <span className="font-medium">{selectedSlotRange.durationLabel}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Kortas</span>
+                    <span className="text-muted-foreground">Aikštelė</span>
                     <span className="font-medium">{selectedSlotRange.courtPrice.toFixed(2)} €</span>
                   </div>
                   {equipmentTotal > 0 && (
@@ -1344,7 +1344,7 @@ export default function CourtDetail() {
                     </div>
                     {courtBookings.length === 0 ? (
                       <div className="rounded-xl border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                        Šioje kortoje rezervacijų nėra.
+                        Šioje aikštelėje rezervacijų nėra.
                       </div>
                     ) : (
                       <div className="space-y-2">

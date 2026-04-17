@@ -244,7 +244,7 @@ export default function TournamentDetail() {
                     </div>
                   </div>
                   <Link href={`/courts/${court.id}`}>
-                    <Button variant="outline" size="sm">Peržiūrėti kortą</Button>
+                    <Button variant="outline" size="sm">Peržiūrėti aikštelę</Button>
                   </Link>
                 </div>
               </div>

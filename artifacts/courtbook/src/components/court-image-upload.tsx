@@ -71,7 +71,7 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
       <div className="relative rounded-lg overflow-hidden border border-border group">
         <img
           src={resolvedImage}
-          alt="Korto nuotrauka"
+          alt="Aikštelės nuotrauka"
           className="w-full h-48 object-cover"
         />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">

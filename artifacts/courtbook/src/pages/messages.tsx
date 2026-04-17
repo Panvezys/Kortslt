@@ -201,7 +201,7 @@ export default function MessagesPage() {
                   <div className="p-8 text-center text-muted-foreground">
                     <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-50"/>
                     <p className="text-sm">Kol kas nėra pokalbių.</p>
-                    <p className="text-xs mt-1">Parašykite žinutę iš žaidimo arba korto puslapio.</p>
+                    <p className="text-xs mt-1">Parašykite žinutę iš žaidimo arba aikštelės puslapio.</p>
                   </div>
                 ) : (
                   <div>
@@ -251,7 +251,7 @@ export default function MessagesPage() {
                   <div>
                     <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50"/>
                     <p className="font-medium">Pasirinkite pokalbį kairėje</p>
-                    <p className="text-sm mt-1">Arba pradėkite naują iš žaidimo ar korto puslapio.</p>
+                    <p className="text-sm mt-1">Arba pradėkite naują iš žaidimo ar aikštelės puslapio.</p>
                   </div>
                 </div>
               )}

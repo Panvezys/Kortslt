@@ -150,7 +150,7 @@ export default function TrainerDetail() {
             {court && (
               <Link href={`/courts/${court.id}`}>
                 <div className="rounded-xl border border-border bg-card p-4 hover:border-primary/60 transition-colors cursor-pointer">
-                  <p className="text-xs text-muted-foreground mb-1">Dirba korte</p>
+                  <p className="text-xs text-muted-foreground mb-1">Dirba aikštelėje</p>
                   <p className="font-semibold text-sm">{court.name}</p>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                     <MapPin className="w-3 h-3" />
@@ -215,7 +215,7 @@ export default function TrainerDetail() {
             {/* CTA */}
             <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-3">
               <p className="text-sm font-semibold">Norite rezervuoti treniruotę?</p>
-              <p className="text-xs text-muted-foreground">Susisiekite su treneriu tiesiogiai arba rezervuokite kortą.</p>
+              <p className="text-xs text-muted-foreground">Susisiekite su treneriu tiesiogiai arba rezervuokite aikštelę.</p>
               <div className="flex flex-wrap gap-2">
                 {trainer.phone && (
                   <a href={`tel:${trainer.phone}`}>
@@ -237,7 +237,7 @@ export default function TrainerDetail() {
                   <Link href={`/courts/${court.id}`}>
                     <Button size="sm" className="gap-1.5">
                       <MapPin className="w-3.5 h-3.5" />
-                      Rezervuoti kortą
+                      Rezervuoti aikštelę
                     </Button>
                   </Link>
                 )}

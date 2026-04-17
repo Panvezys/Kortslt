@@ -88,7 +88,7 @@ const STEPS = [
   { num: 1, label: "Įmonės profilis", icon: Building2 },
   { num: 2, label: "Verifikacija", icon: FileUp },
   { num: 3, label: "Aikštelės info", icon: Camera },
-  { num: 4, label: "Kortų kūrimas", icon: Plus },
+  { num: 4, label: "Aikštelių kūrimas", icon: Plus },
 ];
 
 export default function OwnerOnboard() {
@@ -272,7 +272,7 @@ export default function OwnerOnboard() {
   const handleStep4 = useCallback(async () => {
     const valid = courts.every(c => c.name && c.type && c.pricePerHour);
     if (!valid || !facilityId) {
-      toast({ title: "Užpildykite visų kortų privalomus laukus", variant: "destructive" });
+      toast({ title: "Užpildykite visų aikštelių privalomus laukus", variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -297,7 +297,7 @@ export default function OwnerOnboard() {
         }),
       });
       if (!res.ok) { const data = await res.json(); throw new Error(data.error); }
-      toast({ title: "Kortai sukurti sėkmingai! 🎉" });
+      toast({ title: "Aikštelės sukurtos sėkmingai! 🎉" });
       setLocation("/owner");
     } catch (err: any) {
       toast({ title: "Klaida", description: err.message, variant: "destructive" });
@@ -584,9 +584,9 @@ export default function OwnerOnboard() {
                 <div className="space-y-6">
                   <div className="bg-background rounded-2xl border p-6 md:p-8">
                     <div className="mb-6">
-                      <h2 className="text-xl font-bold mb-1">Kortų kūrimas</h2>
+                      <h2 className="text-xl font-bold mb-1">Aikštelių kūrimas</h2>
                       <p className="text-sm text-muted-foreground">
-                        Pridėkite kortus, kuriuos norite siūlyti klientams. Galite pridėti kelis skirtingų sporto šakų kortus.
+                        Pridėkite aikšteles, kurias norite siūlyti klientams. Galite pridėti kelias skirtingų sporto šakų aikšteles.
                       </p>
                     </div>
 
@@ -594,7 +594,7 @@ export default function OwnerOnboard() {
                       {courts.map((court, idx) => (
                         <div key={court.id} className="border rounded-xl p-5 space-y-4 relative">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-sm">Kortas #{idx + 1}</h3>
+                            <h3 className="font-semibold text-sm">Aikštelė #{idx + 1}</h3>
                             {courts.length > 1 && (
                               <Button variant="ghost" size="sm" onClick={() => removeCourt(court.id)} className="text-destructive hover:text-destructive h-8">
                                 <Trash2 className="h-4 w-4 mr-1" />
@@ -605,11 +605,11 @@ export default function OwnerOnboard() {
 
                           <div className="grid sm:grid-cols-2 gap-4">
                             <div>
-                              <Label>Korto pavadinimas *</Label>
+                              <Label>Aikštelės pavadinimas *</Label>
                               <Input
                                 value={court.name}
                                 onChange={e => updateCourt(court.id, "name", e.target.value)}
-                                placeholder="pvz., Kortas Nr. 1"
+                                placeholder="pvz., Aikštelė Nr. 1"
                                 className="mt-1.5"
                               />
                             </div>
@@ -693,12 +693,12 @@ export default function OwnerOnboard() {
 
                     <Button variant="outline" onClick={addCourt} className="mt-4 gap-2 w-full">
                       <Plus className="h-4 w-4" />
-                      Pridėti dar vieną kortą
+                      Pridėti dar vieną aikštelę
                     </Button>
                   </div>
 
                   <div className="bg-muted/50 rounded-xl p-4 text-sm text-muted-foreground">
-                    <p>💡 <strong>Patarimas:</strong> Galėsite bet kada redaguoti kortų informaciją, pridėti nuotraukas ir keisti kainas iš savininko valdymo pulto.</p>
+                    <p>💡 <strong>Patarimas:</strong> Galėsite bet kada redaguoti aikštelių informaciją, pridėti nuotraukas ir keisti kainas iš savininko valdymo pulto.</p>
                   </div>
 
                   <div className="flex justify-between">

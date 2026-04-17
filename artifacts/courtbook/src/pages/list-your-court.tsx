@@ -36,12 +36,12 @@ const STEPS = [
     step: "01",
     icon: Settings,
     title: "Sukurkite paskyrą",
-    description: "Užsiregistruokite kaip korto savininkas. Procesas užtrunka vos 2 minutes — jokių sudėtingų formų ar dokumentų.",
+    description: "Užsiregistruokite kaip aikštelės savininkas. Procesas užtrunka vos 2 minutes — jokių sudėtingų formų ar dokumentų.",
   },
   {
     step: "02",
     icon: Camera,
-    title: "Pridėkite savo kortą",
+    title: "Pridėkite savo aikštelę",
     description: "Įkelkite nuotraukas, nurodykite sporto tipą, adresą, patogumus ir darbo valandas. Mes viską patvirtiname per 24 valandas.",
   },
   {
@@ -54,7 +54,7 @@ const STEPS = [
     step: "04",
     icon: Calendar,
     title: "Priimkite rezervacijas",
-    description: "Klientai randa jūsų kortą, pasirenka laiką ir sumoka online. Jūs gaunate patvirtinimą ir mokėjimą automatiškai.",
+    description: "Klientai randa jūsų aikštelę, pasirenka laiką ir sumoka online. Jūs gaunate patvirtinimą ir mokėjimą automatiškai.",
   },
 ];
 
@@ -62,7 +62,7 @@ const BENEFITS = [
   {
     icon: Users,
     title: "450+ aktyvių žaidėjų",
-    description: "Prieiga prie augančios Lietuvos sporto bendruomenės. Jūsų kortas matomas tūkstančiams ieškančių žaidėjų.",
+    description: "Prieiga prie augančios Lietuvos sporto bendruomenės. Jūsų aikštelė matoma tūkstančiams ieškančių žaidėjų.",
     color: "#84cc16",
   },
   {
@@ -92,7 +92,7 @@ const BENEFITS = [
   {
     icon: Globe,
     title: "Daugiakalbė platforma",
-    description: "Jūsų kortas pasiekiamas lietuvių, anglų ir rusų kalbomis. Pritraukite tarptautinius klientus be jokio papildomo darbo.",
+    description: "Jūsų aikštelė pasiekiama lietuvių, anglų ir rusų kalbomis. Pritraukite tarptautinius klientus be jokio papildomo darbo.",
     color: "#06b6d4",
   },
   {
@@ -104,12 +104,12 @@ const BENEFITS = [
   {
     icon: Star,
     title: "Atsiliepimai ir reitingai",
-    description: "Geri atsiliepimai pritraukia daugiau klientų. Mūsų reitingų sistema padeda jūsų kortui išsiskirti.",
+    description: "Geri atsiliepimai pritraukia daugiau klientų. Mūsų reitingų sistema padeda jūsų aikštelei išsiskirti.",
     color: "#ca8a04",
   },
   {
     icon: QrCode,
-    title: "QR kodas kiekvienam kortui",
+    title: "QR kodas kiekvienai aikštelei",
     description: "Sugeneruokite profesionalų QR kodą, išspausdinkite ir pakabinkite ant tvoros. Žaidėjai nuskeanuoja ir iš karto rezervuoja.",
     color: "#84cc16",
   },
@@ -118,7 +118,7 @@ const BENEFITS = [
 const SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"] as const;
 
 const STATS = [
-  { value: "450+", label: "Registruotų kortų" },
+  { value: "450+", label: "Registruotų aikštelių" },
   { value: "24+", label: "Lietuvos miestų" },
   { value: "10", label: "Sporto šakų" },
   { value: "0%", label: "Komisinis mokestis*" },
@@ -130,7 +130,7 @@ const FAQ = [
     a: "Registracija yra visiškai nemokama. Mes taikome mažą komisinį mokestį tik nuo sėkmingų rezervacijų — jokių mėnesinių mokesčių ar paslėptų išlaidų.",
   },
   {
-    q: "Ar galiu valdyti savo korto grafiką?",
+    q: "Ar galiu valdyti savo aikštelės grafiką?",
     a: "Taip! Jūs turite pilną kontrolę — galite blokuoti laikus, keisti kainas, pridėti šventines dienas ir valdyti viską iš savo valdymo pulto.",
   },
   {
@@ -138,8 +138,8 @@ const FAQ = [
     a: "Klientai moka online per saugią Stripe sistemą. Pinigai pervedami į jūsų sąskaitą automatiškai kas savaitę.",
   },
   {
-    q: "Ar galiu turėti kelis kortus?",
-    a: "Žinoma! Galite pridėti neribotą skaičių kortų — skirtingų sporto šakų, skirtingose vietose. Visi valdomi iš vieno pulto.",
+    q: "Ar galiu turėti kelias aikšteles?",
+    a: "Žinoma! Galite pridėti neribotą skaičių aikštelių — skirtingų sporto šakų, skirtingose vietose. Visos valdomos iš vieno pulto.",
   },
   {
     q: "Kokias sporto šakas palaikote?",
@@ -186,7 +186,7 @@ export default function ListYourCourt() {
               <span className="text-primary">korts.lt</span>
             </h1>
             <p className="text-lg md:text-xl text-zinc-400 mb-8 max-w-xl leading-relaxed">
-              Pridėkite savo kortą prie Lietuvos didžiausios sporto aikštelių
+              Pridėkite savo aikštelę prie Lietuvos didžiausios sporto aikštelių
               platformos ir pradėkite priimti rezervacijas online jau šiandien.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -244,11 +244,11 @@ export default function ListYourCourt() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-              Jūsų kortas — tūkstančių akių centre
+              Jūsų aikštelė — tūkstančių akių centre
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
               Klientai randa jūsų aikštelę per paiešką, žemėlapį ar filtrą.
-              Kiekvienas kortas gauna profesionalų profilį su nuotraukomis,
+              Kiekviena aikštelė gauna profesionalų profilį su nuotraukomis,
               atsiliepimais ir realaus laiko kainomis.
             </p>
           </div>
@@ -256,7 +256,7 @@ export default function ListYourCourt() {
             <div className="group relative rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-shadow">
               <img
                 src={`${base}/screenshots/courts-listing.jpg`}
-                alt="Kortų sąrašas"
+                alt="Aikštelių sąrašas"
                 className="w-full h-auto"
               />
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-6">
@@ -267,11 +267,11 @@ export default function ListYourCourt() {
             <div className="group relative rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-shadow">
               <img
                 src={`${base}/screenshots/court-detail.jpg`}
-                alt="Korto profilis"
+                alt="Aikštelės profilis"
                 className="w-full h-auto"
               />
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                <span className="text-sm font-semibold text-primary">Korto profilis</span>
+                <span className="text-sm font-semibold text-primary">Aikštelės profilis</span>
                 <p className="text-white text-sm mt-1">Kalendorius, kainodara, atsiliepimai ir online rezervacija</p>
               </div>
             </div>
@@ -359,7 +359,7 @@ export default function ListYourCourt() {
                 <span className="text-primary">iš vienos vietos</span>
               </h2>
               <p className="text-zinc-400 leading-relaxed mb-8 max-w-lg">
-                Valdykite savo kortus, stebėkite pajamas, tvarkykite
+                Valdykite savo aikšteles, stebėkite pajamas, tvarkykite
                 rezervacijas ir komunikuokite su klientais iš patogaus valdymo
                 pulto. Veikia tiek kompiuteryje, tiek telefone.
               </p>
@@ -369,7 +369,7 @@ export default function ListYourCourt() {
                   "Pajamų ir užimtumo statistika",
                   "Laiko blokavimas ir kainų valdymas",
                   "Klientų atsiliepimai ir komunikacija",
-                  "Kelių kortų valdymas vienoje vietoje",
+                  "Kelių aikštelių valdymas vienoje vietoje",
                 ].map(item => (
                   <div key={item} className="flex items-center gap-3">
                     <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
@@ -412,8 +412,8 @@ export default function ListYourCourt() {
               {[
                 {
                   icon: MapPin,
-                  title: "Klientas randa jūsų kortą",
-                  desc: "Per paiešką, žemėlapį ar filtrus klientas atranda jūsų aikštelę tarp 450+ kortų visoje Lietuvoje.",
+                  title: "Klientas randa jūsų aikštelę",
+                  desc: "Per paiešką, žemėlapį ar filtrus klientas atranda jūsų aikštelę tarp 450+ aikštelių visoje Lietuvoje.",
                   color: "#84cc16",
                 },
                 {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { Layout } from "@/components/layout";
+import { CourtIcon } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
   useGetCourtPricing, useSetCourtPricing, customFetch,
@@ -570,11 +571,11 @@ export default function OwnerFacilityDetail() {
       if (editingId) {
         await updateCourt.mutateAsync({ id: editingId, data: payload });
         await savePricingForCourt(editingId);
-        toast({ title: "Kortas atnaujintas" });
+        toast({ title: "Aikštelė atnaujinta" });
       } else {
         const newCourt = await createCourt.mutateAsync({ data: payload });
         await savePricingForCourt((newCourt as any).id);
-        toast({ title: "Kortas sukurtas — laukia patvirtinimo" });
+        toast({ title: "Aikštelė sukurta — laukia patvirtinimo" });
       }
       setIsDialogOpen(false);
       setRentableItems([]);
@@ -584,7 +585,7 @@ export default function OwnerFacilityDetail() {
       queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
     } catch {
-      toast({ title: "Klaida išsaugant kortą", variant: "destructive" });
+      toast({ title: "Klaida išsaugant aikštelę", variant: "destructive" });
     }
   };
 
@@ -621,15 +622,15 @@ export default function OwnerFacilityDetail() {
   };
 
   const handleDelete = async (courtId: number) => {
-    if (!confirm("Ar tikrai norite ištrinti šį kortą?")) return;
+    if (!confirm("Ar tikrai norite ištrinti šią aikštelę?")) return;
     try {
       await deleteCourt.mutateAsync({ id: courtId });
-      toast({ title: "Kortas ištrintas" });
+      toast({ title: "Aikštelė ištrinta" });
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
       queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
     } catch {
-      toast({ title: "Klaida trinant kortą", variant: "destructive" });
+      toast({ title: "Klaida trinant aikštelę", variant: "destructive" });
     }
   };
 
@@ -779,7 +780,7 @@ export default function OwnerFacilityDetail() {
           <div className="px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">{facilityCourts.length}</div>
-              <div className="text-xs text-muted-foreground">Kortai</div>
+              <div className="text-xs text-muted-foreground">Aikštelės</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-primary">
@@ -810,8 +811,8 @@ export default function OwnerFacilityDetail() {
               <p className="font-medium text-sm text-yellow-300">Stripe Connect reikalingas mokėjimams priimti</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {(facility as any).stripeConnectStatus === "pending"
-                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte pridėti kortus ir priimti mokėjimus."
-                  : "Prijunkite Stripe paskyrą, kad galėtumėte pridėti kortus ir gauti mokėjimus tiesiai į savo sąskaitą."}
+                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte pridėti aikšteles ir priimti mokėjimus."
+                  : "Prijunkite Stripe paskyrą, kad galėtumėte pridėti aikšteles ir gauti mokėjimus tiesiai į savo sąskaitą."}
               </p>
             </div>
             <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 shrink-0"
@@ -823,7 +824,7 @@ export default function OwnerFacilityDetail() {
         )}
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">Kortai</h2>
+          <h2 className="text-xl font-bold">Aikštelės</h2>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) { setEditingId(null); setMapKey(k => k + 1); }
@@ -851,12 +852,12 @@ export default function OwnerFacilityDetail() {
                 setRentableItems([]);
                 setAmenityPhotos({});
               }} className="gap-2">
-                <Plus className="w-4 h-4" /> Pridėti kortą
+                <Plus className="w-4 h-4" /> Pridėti aikštelę
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingId ? "Redaguoti kortą" : "Pridėti naują kortą"}</DialogTitle>
+                <DialogTitle>{editingId ? "Redaguoti aikštelę" : "Pridėti naują aikštelę"}</DialogTitle>
               </DialogHeader>
 
               <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
@@ -877,7 +878,7 @@ export default function OwnerFacilityDetail() {
                   {formTab === "info" && (<div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="name" render={({ field }) => (
-                        <FormItem><FormLabel>Korto pavadinimas</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem><FormLabel>Aikštelės pavadinimas</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
                       <FormField control={form.control} name="type" render={({ field }) => (
                         <FormItem><FormLabel>Sporto šaka</FormLabel>
@@ -893,7 +894,7 @@ export default function OwnerFacilityDetail() {
                       )} />
                     </div>
                     <FormField control={form.control} name="description" render={({ field }) => (
-                      <FormItem><FormLabel>Aprašymas</FormLabel><FormControl><Textarea rows={2} placeholder="Trumpas korto aprašymas..." {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                      <FormItem><FormLabel>Aprašymas</FormLabel><FormControl><Textarea rows={2} placeholder="Trumpas aikštelės aprašymas..." {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
                     )} />
                     <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30">
                       <p className="text-xs text-muted-foreground">Vieta ir adresas paveldimas iš objekto. Redaguokite objekto nustatymuose.</p>
@@ -1013,7 +1014,7 @@ export default function OwnerFacilityDetail() {
                       <FormField control={form.control} name="isIndoor" render={({ field }) => (
                         <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3 h-[62px]">
                           <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                          <div><FormLabel>Patalpų kortas</FormLabel></div>
+                          <div><FormLabel>Vidaus aikštelė</FormLabel></div>
                         </FormItem>
                       )} />
                     </div>
@@ -1144,7 +1145,7 @@ export default function OwnerFacilityDetail() {
                       }}>Toliau →</Button>
                     ) : (
                       <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending}>
-                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti kortą"}
+                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti aikštelę"}
                       </Button>
                     )}
                   </div>
@@ -1156,9 +1157,9 @@ export default function OwnerFacilityDetail() {
 
         {facilityCourts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center bg-card border rounded-2xl">
-            <Trophy className="w-12 h-12 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Dar nėra kortų</h3>
-            <p className="text-sm text-muted-foreground mb-4">Pridėkite pirmąjį kortą prie šio objekto</p>
+            <CourtIcon size={48} className="text-muted-foreground/30 mb-4" strokeWidth={1.4} />
+            <h3 className="text-lg font-semibold mb-2">Dar nėra aikštelių</h3>
+            <p className="text-sm text-muted-foreground mb-4">Pridėkite pirmąją aikštelę prie šio objekto</p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1259,7 +1260,7 @@ export default function OwnerFacilityDetail() {
 
         <Dialog open={coachesCourtId !== null} onOpenChange={(open) => { if (!open) setCoachesCourtId(null); }}>
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" /> Korto treneriai</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" /> Aikštelės treneriai</DialogTitle></DialogHeader>
             {coachesCourtId !== null && <CoachAssignModal courtId={coachesCourtId} onClose={() => setCoachesCourtId(null)} />}
           </DialogContent>
         </Dialog>
@@ -1381,7 +1382,7 @@ function FacilityTournaments({ facilityId, facilityCourts }: { facilityId: numbe
 
       {facilityCourts.length === 0 ? (
         <div className="text-sm text-muted-foreground bg-muted/40 p-4 rounded-lg">
-          Pirmiausia sukurkite bent vieną kortą šiame objekte.
+          Pirmiausia sukurkite bent vieną aikštelę šiame objekte.
         </div>
       ) : isLoading ? (
         <Skeleton className="h-24 rounded-lg"/>
@@ -1512,7 +1513,7 @@ function TournamentDialog({ open, onOpenChange, facilityId, facilityCourts, edit
         });
         tid = editing.id;
       } else {
-        if (!form.courtId) throw new Error("Pasirinkite kortą");
+        if (!form.courtId) throw new Error("Pasirinkite aikštelę");
         const res = await customFetch<{ id: number }>(`${API_URL}/courts/${form.courtId}/tournaments`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -1560,7 +1561,7 @@ function TournamentDialog({ open, onOpenChange, facilityId, facilityCourts, edit
             </div>
             {!editing && (
               <div>
-                <Label>Kortas *</Label>
+                <Label>Aikštelė *</Label>
                 <Select value={String(form.courtId)} onValueChange={(v) => setForm(f => ({ ...f, courtId: parseInt(v, 10) }))}>
                   <SelectTrigger className="mt-1"><SelectValue/></SelectTrigger>
                   <SelectContent>

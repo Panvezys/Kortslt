@@ -121,7 +121,7 @@ function ChatPane({
         </div>
         <div>
           <p className="font-semibold text-sm leading-tight">{thread.courtName}</p>
-          <p className="text-xs text-muted-foreground">Korto žinutės</p>
+          <p className="text-xs text-muted-foreground">Aikštelės žinutės</p>
         </div>
       </div>
 
@@ -223,7 +223,7 @@ function MessagesInbox({ userId, userName, userEmail }: { userId: string; userNa
                 <MessageSquare className="w-10 h-10 opacity-20" />
                 <p>Dar nėra pokalbių.</p>
                 <Button variant="outline" size="sm" asChild className="mt-2">
-                  <Link href="/courts">Naršyti kortus</Link>
+                  <Link href="/courts">Naršyti aikšteles</Link>
                 </Button>
               </div>
             ) : (
@@ -520,7 +520,7 @@ export default function Profile() {
                             href={`/courts/${booking.courtId}`}
                             className="font-medium hover:text-primary hover:underline truncate block"
                           >
-                            {booking.courtName || `Kortas #${booking.courtId}`}
+                            {booking.courtName || `Aikštelė #${booking.courtId}`}
                           </Link>
                           <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
                             <CalendarDays className="w-3 h-3 shrink-0" />

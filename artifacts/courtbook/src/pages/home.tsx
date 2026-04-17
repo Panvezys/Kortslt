@@ -497,7 +497,7 @@ export default function Home() {
                   <Search className="h-4 w-4 shrink-0" style={{ color: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.5)" }} />
                   <input
                     type="text"
-                    placeholder="Ieškoti korto pagal pavadinimą..."
+                    placeholder="Ieškoti aikštelės pagal pavadinimą..."
                     value={searchName}
                     onChange={e => { setSearchName(e.target.value); setDropdownOpen(true); }}
                     onFocus={() => setDropdownOpen(true)}
@@ -1017,12 +1017,12 @@ export default function Home() {
                 <Heart className="h-5 w-5 fill-red-500 text-red-500" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight">Mėgstamiausi kortai</h2>
-                <p className="text-sm text-muted-foreground">Jūsų išsaugoti kortai</p>
+                <h2 className="text-2xl font-bold tracking-tight">Mėgstamiausios aikštelės</h2>
+                <p className="text-sm text-muted-foreground">Jūsų išsaugotos aikštelės</p>
               </div>
               <Link href="/courts" className="ml-auto">
                 <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
-                  Visi kortai <ArrowRight className="h-3.5 w-3.5" />
+                  Visos aikštelės <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>
             </div>
@@ -1088,7 +1088,7 @@ export default function Home() {
                 Tapkite partneriu
               </div>
               <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
-                Turite sportinį kortą?
+                Turite sportinę aikštelę?
                 <br />
                 <span className="text-primary">Uždirbkite daugiau.</span>
               </h2>
@@ -1115,7 +1115,7 @@ export default function Home() {
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link href="/list-your-court" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors">
-                  Registruoti kortą <ArrowRight className="h-4 w-4" />
+                  Registruoti aikštelę <ArrowRight className="h-4 w-4" />
                 </Link>
                 <a href="mailto:info@korts.lt" className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl border border-white/20 text-white font-semibold text-sm hover:bg-white/10 transition-colors">
                   <Mail className="h-4 w-4" /> Susisiekti su mumis
