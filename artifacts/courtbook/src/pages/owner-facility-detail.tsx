@@ -1246,7 +1246,7 @@ export default function OwnerFacilityDetail() {
                             method: "PUT",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({ ...court, pricePerHour: Number(court.pricePerHour), instantBookingEnabled: next }),
-                          }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", facilityId] }))
+                          }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
                             .catch(() => toast({ title: "Klaida atnaujinant", variant: "destructive" }));
                         }}
                         title="Įjungus – rezervacijos patvirtinamos automatiškai"
@@ -1266,7 +1266,7 @@ export default function OwnerFacilityDetail() {
                         }
                         onClick={() => {
                           customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                            .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", facilityId] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                            .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
                             .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
                         }}
                         title={!(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city) ? "Pildykite: kaina, vieta" : ""}

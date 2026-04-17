@@ -17,7 +17,7 @@ const OnboardStep1Body = z.object({
 
 const OnboardStep2Body = z.object({
   facilityId: z.number(),
-  verificationDocUrl: z.string().min(1),
+  verificationDocUrl: z.string().optional(),
 });
 
 const OnboardStep3Body = z.object({
@@ -163,9 +163,7 @@ router.post("/owner/onboard/step3", requireAuth, async (req, res): Promise<void>
   if (!existing || existing.ownerUserId !== userId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
-  if (!existing.verificationDocUrl) {
-    res.status(400).json({ error: "Complete step 2 first" }); return;
-  }
+  // verificationDocUrl is optional — owners can add it later
 
   const [facility] = await db
     .update(facilitiesTable)

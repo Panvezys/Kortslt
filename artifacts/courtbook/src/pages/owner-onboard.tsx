@@ -199,8 +199,8 @@ export default function OwnerOnboard() {
   }, [toast]);
 
   const handleStep2 = useCallback(async () => {
-    if (!verificationDocUrl || !facilityId) {
-      toast({ title: "Įkelkite verifikacijos dokumentą", variant: "destructive" });
+    if (!facilityId) {
+      toast({ title: "Klaida: objektas nerastas", variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -486,6 +486,7 @@ export default function OwnerOnboard() {
                       <li>Verslo licencija</li>
                       <li>Asmens dokumentas (pasas arba tapatybės kortelė)</li>
                     </ul>
+                    <p className="mt-2 text-xs opacity-70">Dokumentą galite įkelti vėliau — jis reikalingas aikštelių patvirtinimui.</p>
                   </div>
 
                   <div className="flex justify-between">
@@ -493,7 +494,7 @@ export default function OwnerOnboard() {
                       <ArrowLeft className="h-4 w-4" />
                       Atgal
                     </Button>
-                    <Button onClick={handleStep2} disabled={loading || !verificationDocUrl} className="gap-2">
+                    <Button onClick={handleStep2} disabled={loading} className="gap-2">
                       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                       Toliau
                       <ArrowRight className="h-4 w-4" />
