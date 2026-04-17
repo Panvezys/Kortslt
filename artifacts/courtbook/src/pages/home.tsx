@@ -854,10 +854,11 @@ export default function Home() {
             ))}
             {/* Gradient fade on the left edge to blend with the search panel */}
             <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
-            {/* Subtle bottom scrim */}
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background/60 dark:from-zinc-950/60 to-transparent z-10 pointer-events-none" />
-            <div className="absolute left-8 bottom-10 z-20 max-w-lg">
-              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight mb-4 text-balance leading-tight">
+            {/* Dark scrim over the bottom ~60% so text is always readable */}
+            <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/75 via-black/30 to-transparent z-10 pointer-events-none" />
+            {/* Heading + subtitle — always white since it sits over the photo */}
+            <div className="absolute left-8 right-8 bottom-12 z-20">
+              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight mb-3 text-white text-balance leading-tight drop-shadow-lg">
                 {(() => {
                   const [line1, line2] = heroLines;
                   const isEnglishTop = line1?.toLowerCase().includes("find your court");
@@ -872,7 +873,7 @@ export default function Home() {
                   );
                 })()}
               </h1>
-              <p className="text-base text-muted-foreground max-w-sm leading-relaxed">
+              <p className="text-sm text-white/75 max-w-sm leading-relaxed drop-shadow">
                 {t("home.hero.subtitle")}
               </p>
             </div>
