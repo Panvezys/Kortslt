@@ -490,11 +490,11 @@ export default function Home() {
             <div className="w-full max-w-2xl space-y-2" ref={searchRef}>
 
               {/* Row 1: Court name with autocomplete */}
-              <div className="relative">
-                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md border rounded-xl px-4 py-3 transition-all"
-                  style={{ borderColor: dropdownOpen || searchName ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
+              <div className="relative max-w-md">
+                <div className="flex items-center gap-3 bg-white/20 backdrop-blur-md border rounded-xl px-4 py-3 transition-all"
+                  style={{ borderColor: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.4)" }}
                 >
-                  <Search className="h-4 w-4 shrink-0" style={{ color: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.5)" }} />
+                  <Search className="h-4 w-4 shrink-0" style={{ color: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.75)" }} />
                   <input
                     type="text"
                     placeholder="Ieškoti aikštelės pagal pavadinimą..."
@@ -502,7 +502,7 @@ export default function Home() {
                     onChange={e => { setSearchName(e.target.value); setDropdownOpen(true); }}
                     onFocus={() => setDropdownOpen(true)}
                     onKeyDown={e => e.key === "Enter" && handleSearch()}
-                    className="bg-transparent flex-1 text-white placeholder:text-white/40 outline-none text-sm"
+                    className="bg-transparent flex-1 text-white placeholder:text-white/65 outline-none text-sm"
                   />
                   {searchName && (
                     <button onClick={() => setSearchName("")} className="text-white/40 hover:text-white/70 text-lg leading-none">×</button>
@@ -564,13 +564,13 @@ export default function Home() {
               <div className="flex gap-2 flex-wrap items-center">
 
                 {/* City combobox */}
-                <div className="relative flex-1 min-w-[140px]" ref={cityRef}>
+                <div className="relative w-44 shrink-0" ref={cityRef}>
                   <div
-                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-all"
-                    style={{ borderColor: cityDropdownOpen || searchCity ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
+                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-all"
+                    style={{ borderColor: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.4)" }}
                     onClick={() => setCityDropdownOpen(true)}
                   >
-                    <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.5)" }} />
+                    <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.75)" }} />
                     <input
                       type="text"
                       value={searchCity ? searchCity : cityInput}
@@ -581,7 +581,7 @@ export default function Home() {
                         setSearchCity("");
                         setCityDropdownOpen(true);
                       }}
-                      className="bg-transparent text-sm text-white/80 placeholder:text-white/40 outline-none flex-1 w-full min-w-0"
+                      className="bg-transparent text-sm text-white placeholder:text-white/65 outline-none flex-1 w-full min-w-0"
                     />
                     {searchCity && (
                       <button
@@ -676,11 +676,11 @@ export default function Home() {
                 <div className="relative" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                    style={{ borderColor: dateDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
+                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: dateDropdownOpen ? accentColor : "rgba(255,255,255,0.4)" }}
                   >
-                    <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.5)" }} />
-                    <span className="text-sm text-white/80">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.75)" }} />
+                    <span className="text-sm text-white">
                       {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
                     </span>
                     {searchDateObj && (
@@ -794,11 +794,11 @@ export default function Home() {
                 <div className="relative" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                    style={{ borderColor: timeDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
+                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: timeDropdownOpen ? accentColor : "rgba(255,255,255,0.4)" }}
                   >
-                    <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: timeDropdownOpen || timeSlider !== null ? accentColor : "rgba(255,255,255,0.5)" }} />
-                    <span className="text-sm text-white/80">
+                    <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: timeDropdownOpen || timeSlider !== null ? accentColor : "rgba(255,255,255,0.75)" }} />
+                    <span className="text-sm text-white">
                       {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
                     </span>
                     {timeSlider !== null && (
