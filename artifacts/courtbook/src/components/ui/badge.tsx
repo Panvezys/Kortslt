@@ -62,9 +62,9 @@ export interface BadgeProps
 function Badge({ className, variant, ...props }: BadgeProps) {
   const { locale, t } = useI18n()
   const rawSport = typeof props.children === "string" ? props.children.trim().toLowerCase() : null
-  const sport = rawSport ? SPORT_ALIASES[rawSport] ?? rawSport : null
+  const sport = rawSport ? SPORT_ALIASES[rawSport] ?? null : null
   const color = sport ? sportColor[sport] : null
-  const title = sport ? t(`sports.${sport}`) : null
+  const title = color ? t(`sports.${sport}`) : null
   return (
     <div
       className={cn(

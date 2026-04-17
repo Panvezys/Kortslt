@@ -37,6 +37,7 @@ import GameDetailPage from "@/pages/game-detail";
 import MessagesPage from "@/pages/messages";
 import FAQPage from "@/pages/faq";
 import OwnersInfoPage from "@/pages/owners-info";
+import OwnerDashboard from "@/pages/owner/dashboard";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
 import ContactPage from "@/pages/contact";
@@ -169,6 +170,7 @@ function Router() {
       <Route path="/courts" component={Courts} />
       <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/bookings" component={BookingsRoute} />
+      <Route path="/owner/dashboard" component={OwnerDashboard} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
