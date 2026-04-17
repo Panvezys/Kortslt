@@ -471,15 +471,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pagalba</h4>
               <nav className="flex flex-col gap-2 text-sm">
                 {[
-                  { href: "/#duk", label: "D.U.K." },
-                  { href: "/#aiksteliu-savininkams", label: "Aikštelių savininkams" },
-                  { href: "/#privatumo-politika", label: "Privatumo politika" },
-                  { href: "/#naudojimo-taisykles", label: "Naudojimo taisyklės" },
-                  { href: "/#kontaktai", label: "Kontaktai" },
+                  { href: "/faq", label: "D.U.K." },
+                  { href: "/owners", label: "Aikštelių savininkams" },
+                  { href: "/privacy", label: "Privatumo politika" },
+                  { href: "/terms", label: "Naudojimo taisyklės" },
+                  { href: "/contact", label: "Kontaktai" },
                 ].map(l => (
-                  <a key={l.label} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                  <Link key={l.label} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
                     {l.label}
-                  </a>
+                  </Link>
                 ))}
               </nav>
             </div>

@@ -35,6 +35,11 @@ import OwnerOnboard from "@/pages/owner-onboard";
 import GamesPage from "@/pages/games";
 import GameDetailPage from "@/pages/game-detail";
 import MessagesPage from "@/pages/messages";
+import FAQPage from "@/pages/faq";
+import OwnersInfoPage from "@/pages/owners-info";
+import PrivacyPage from "@/pages/privacy";
+import TermsPage from "@/pages/terms";
+import ContactPage from "@/pages/contact";
 
 const queryClient = new QueryClient();
 
@@ -183,6 +188,11 @@ function Router() {
       <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />
       <Route path="/owner/onboard" component={OwnerOnboard} />
+      <Route path="/faq" component={FAQPage} />
+      <Route path="/owners" component={OwnersInfoPage} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/contact" component={ContactPage} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />
