@@ -429,7 +429,7 @@ export default function CourtDetail() {
       selectedEquipment.forEach((qty, name) => {
         if (qty > 0) {
           const item = availableEquipment.find(e => e.name === name);
-          if (item) rentedItemsPayload.push({ name, pricePerBooking: item.pricePerBooking, quantity: qty });
+          if (item) rentedItemsPayload.push({ name, pricePerBooking: item.pricePerSlot, quantity: qty });
         }
       });
       const booking = await createBooking.mutateAsync({
@@ -898,7 +898,7 @@ export default function CourtDetail() {
                         </a>
                         <button
                           type="button"
-                          onClick={() => handleCopyContact("phone", court.phone)}
+                          onClick={() => handleCopyContact("phone", court.phone ?? "")}
                           className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                           aria-label="Kopijuoti telefoną"
                         >
@@ -1008,7 +1008,7 @@ export default function CourtDetail() {
                   <Calendar
                     mode="single"
                     selected={date}
-                    onSelect={(d) => {
+                    onSelect={(d: Date | undefined) => {
                       if (d) {
                         vibrateTap();
                         setDate(d);

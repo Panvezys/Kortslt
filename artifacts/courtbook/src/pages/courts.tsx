@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
 import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
-import { ListCourtsType } from "@workspace/api-client-react/src/generated/api.schemas";
+import { ListCourtsType } from "@workspace/api-client-react";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { useFavoritesContext } from "@/lib/FavoritesContext";

@@ -64,7 +64,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
   const rawSport = typeof props.children === "string" ? props.children.trim().toLowerCase() : null
   const sport = rawSport ? SPORT_ALIASES[rawSport] ?? null : null
   const color = sport ? sportColor[sport] : null
-  const title = color ? t(`sports.${sport}`) : null
+  const title = color ? t(`sports.${sport}` as Parameters<typeof t>[0]) : null
   return (
     <div
       className={cn(

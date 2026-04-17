@@ -86,7 +86,7 @@ export default function SignUpPage() {
               routing="path"
               path={`${basePath}/sign-up`}
               signInUrl={`${basePath}/sign-in`}
-              afterSignUpUrl={`${basePath}/welcome`}
+              fallbackRedirectUrl={`${basePath}/welcome`}
               appearance={{
                 layout: {
                   showOptionalFields: false,

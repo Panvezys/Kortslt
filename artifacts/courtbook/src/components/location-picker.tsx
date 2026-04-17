@@ -194,7 +194,7 @@ export function LocationPicker({ latitude, longitude, onChange }: LocationPicker
               clickableIcons: false,
               cursor: "crosshair",
               styles: theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT,
-            }}
+            } as google.maps.MapOptions}
           >
             {markerPos && (
               <Marker

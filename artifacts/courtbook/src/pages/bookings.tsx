@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Clock, XCircle, Star } from "lucide-react";
-import { ListBookingsStatus } from "@workspace/api-client-react/src/generated/api.schemas";
+import { ListBookingsStatus } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import {
   Dialog,

@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useFavorites } from "./useFavorites";
-import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Court } from "@workspace/api-client-react";
 
 interface FavoritesContextValue {
   favorites: Court[];

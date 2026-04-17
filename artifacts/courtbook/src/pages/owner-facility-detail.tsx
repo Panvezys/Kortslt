@@ -1167,7 +1167,7 @@ export default function OwnerFacilityDetail() {
               <div key={court.id} className="bg-card border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative h-36 bg-muted overflow-hidden">
                   {court.imageUrl ? (
-                    <img src={resolveCourtImage(court.imageUrl)} alt={court.name} className="w-full h-full object-cover" />
+                    <img src={resolveCourtImage(court.imageUrl) ?? undefined} alt={court.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/15">
                       <span className="text-4xl">{SPORT_EMOJIS[court.type] || "🏟️"}</span>

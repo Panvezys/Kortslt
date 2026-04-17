@@ -68,7 +68,7 @@ export default function CoachPage() {
   const isOwn = isOwnProfileRoute || (coach?.userId && user?.id === coach.userId);
 
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Partial<Coach & { pricePerHour?: string }>>({});
+  const [form, setForm] = useState<Partial<Omit<Coach, 'pricePerHour'> & { pricePerHour?: string }>>({});
 
   useEffect(() => {
     if (coach) {

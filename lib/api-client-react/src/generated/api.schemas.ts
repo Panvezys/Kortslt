@@ -18,6 +18,10 @@ export const CourtType = {
   football: "football",
   badminton: "badminton",
   squash: "squash",
+  table_tennis: "table_tennis",
+  golf: "golf",
+  snooker: "snooker",
+  bowling: "bowling",
 } as const;
 
 export type CourtCondition =
@@ -58,6 +62,12 @@ export interface Court {
   status?: CourtStatus;
   ownershipDocUrl?: string;
   rejectionReason?: string;
+  peakPricePerHour?: number;
+  rentableItems?: string;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialWhatsapp?: string;
+  socialWebsite?: string;
   createdAt: string;
 }
 
@@ -71,6 +81,10 @@ export const CreateCourtBodyType = {
   football: "football",
   badminton: "badminton",
   squash: "squash",
+  table_tennis: "table_tennis",
+  golf: "golf",
+  snooker: "snooker",
+  bowling: "bowling",
 } as const;
 
 export type CreateCourtBodyCondition =
@@ -100,6 +114,12 @@ export interface CreateCourtBody {
   surface?: string;
   condition?: CreateCourtBodyCondition;
   ownershipDocUrl?: string;
+  peakPricePerHour?: number;
+  rentableItems?: string;
+  socialFacebook?: string;
+  socialInstagram?: string;
+  socialWhatsapp?: string;
+  socialWebsite?: string;
 }
 
 export interface TimeSlot {
@@ -161,9 +181,11 @@ export interface CreateBookingBody {
   courtId: number;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   date: string;
   startTime: string;
   endTime: string;
+  rentedItems?: string;
 }
 
 export interface CreateCheckoutBody {

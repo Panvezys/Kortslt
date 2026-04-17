@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { GoogleMap, useJsApiLoader, InfoWindowF } from "@react-google-maps/api";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
-import { Court } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Court } from "@workspace/api-client-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { MapPin } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR } from "@/components/sport-icon";

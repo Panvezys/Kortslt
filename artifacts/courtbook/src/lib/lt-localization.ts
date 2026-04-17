@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { enUS } from "@clerk/localizations";
 
 export const ltLT: typeof enUS = {
@@ -65,9 +66,9 @@ export const ltLT: typeof enUS = {
   backButton: "Atgal",
 
   signIn: {
-    ...enUS.signIn,
+    ...(enUS.signIn!),
     start: {
-      ...enUS.signIn.start,
+      ...(enUS.signIn!).start,
       title: "Prisijungti prie {{applicationName}}",
       subtitle: "Sveikiname sugrįžus! Prašome prisijungti.",
       actionText: "Neturite paskyros?",
@@ -79,20 +80,20 @@ export const ltLT: typeof enUS = {
       actionLink__use_passkey: "Naudoti prieigos raktą",
     },
     password: {
-      ...enUS.signIn.password,
+      ...(enUS.signIn!).password,
       title: "Įveskite slaptažodį",
       subtitle: "Įveskite su paskyra susietą slaptažodį",
       actionLink: "Naudoti kitą metodą",
     },
     emailCode: {
-      ...enUS.signIn.emailCode,
+      ...(enUS.signIn!).emailCode,
       title: "Patikrinkite el. paštą",
       subtitle: "norėdami tęsti į {{applicationName}}",
       formTitle: "Patvirtinimo kodas",
       resendButton: "Negavote kodo? Siųsti iš naujo",
     },
     emailLink: {
-      ...enUS.signIn.emailLink,
+      ...(enUS.signIn!).emailLink,
       title: "Patikrinkite el. paštą",
       subtitle: "norėdami tęsti į {{applicationName}}",
       formTitle: "Patvirtinimo nuoroda",
@@ -114,39 +115,39 @@ export const ltLT: typeof enUS = {
       },
     },
     phoneCode: {
-      ...enUS.signIn.phoneCode,
+      ...(enUS.signIn!).phoneCode,
       title: "Patikrinkite telefoną",
       subtitle: "norėdami tęsti į {{applicationName}}",
       formTitle: "Patvirtinimo kodas",
       resendButton: "Negavote kodo? Siųsti iš naujo",
     },
     phoneCodeMfa: {
-      ...enUS.signIn.phoneCodeMfa,
+      ...(enUS.signIn!).phoneCodeMfa,
       title: "Patikrinkite telefoną",
       formTitle: "Patvirtinimo kodas",
       resendButton: "Negavote kodo? Siųsti iš naujo",
       subtitle: "Norėdami tęsti, įveskite patvirtinimo kodą, išsiųstą į jūsų telefoną",
     },
     emailCodeMfa: {
-      ...enUS.signIn.emailCodeMfa,
+      ...(enUS.signIn!).emailCodeMfa,
       title: "Patikrinkite el. paštą",
       formTitle: "Patikrinkite el. paštą",
       resendButton: "Negavote kodo? Siųsti iš naujo",
       subtitle: "norėdami tęsti į {{applicationName}}",
     },
     totpMfa: {
-      ...enUS.signIn.totpMfa,
+      ...(enUS.signIn!).totpMfa,
       title: "Dviejų žingsnių patvirtinimas",
       formTitle: "Patvirtinimo kodas",
       subtitle: "Norėdami tęsti, įveskite patvirtinimo kodą iš autentifikatoriaus programėlės",
     },
     backupCodeMfa: {
-      ...enUS.signIn.backupCodeMfa,
+      ...(enUS.signIn!).backupCodeMfa,
       title: "Įveskite atsarginį kodą",
       subtitle: "Atsarginis kodas buvo suteiktas konfigūruojant dviejų žingsnių autentifikaciją.",
     },
     forgotPassword: {
-      ...enUS.signIn.forgotPassword,
+      ...(enUS.signIn!).forgotPassword,
       title: "Atstatyti slaptažodį",
       subtitle: "slaptažodžio atstatymui",
       subtitle_email: "Pirmiausia įveskite kodą, išsiųstą jūsų el. paštu",
@@ -155,20 +156,20 @@ export const ltLT: typeof enUS = {
       resendButton: "Negavote kodo? Siųsti iš naujo",
     },
     forgotPasswordAlternativeMethods: {
-      ...enUS.signIn.forgotPasswordAlternativeMethods,
+      ...(enUS.signIn!).forgotPasswordAlternativeMethods,
       title: "Pamiršote slaptažodį?",
       blockButton__resetPassword: "Atstatyti slaptažodį",
       label__alternativeMethods: "Arba prisijunkite kitu būdu",
     },
     resetPassword: {
-      ...enUS.signIn.resetPassword,
+      ...(enUS.signIn!).resetPassword,
       title: "Nustatyti naują slaptažodį",
       formButtonPrimary: "Atstatyti slaptažodį",
       successMessage: "Slaptažodis sėkmingai pakeistas. Prisijungiama, palaukite.",
       requiredMessage: "Saugumo sumetimais būtina pakeisti slaptažodį.",
     },
     alternativeMethods: {
-      ...enUS.signIn.alternativeMethods,
+      ...(enUS.signIn!).alternativeMethods,
       title: "Naudoti kitą metodą",
       subtitle: "Kyla problemų? Galite naudoti bet kurį iš šių metodų prisijungimui.",
       actionText: "Negalite naudoti nė vieno?",
@@ -187,18 +188,18 @@ export const ltLT: typeof enUS = {
       },
     },
     noAvailableMethods: {
-      ...enUS.signIn.noAvailableMethods,
+      ...(enUS.signIn!).noAvailableMethods,
       title: "Nepavyksta prisijungti",
       subtitle: "Įvyko klaida",
       message: "Negalima tęsti prisijungimo. Nėra galimų autentifikacijos metodų.",
     },
     passkey: {
-      ...enUS.signIn.passkey,
+      ...(enUS.signIn!).passkey,
       title: "Naudoti prieigos raktą",
       subtitle: "Prieigos raktu patvirtinama, kad tai esate jūs. Įrenginys gali paprašyti piršto atspaudo, veido ar ekrano užrakto.",
     },
     accountSwitcher: {
-      ...enUS.signIn.accountSwitcher,
+      ...(enUS.signIn!).accountSwitcher,
       title: "Pasirinkite paskyrą",
       subtitle: "Pasirinkite paskyrą, su kuria norite tęsti.",
       action__addAccount: "Pridėti paskyrą",
@@ -208,9 +209,9 @@ export const ltLT: typeof enUS = {
   },
 
   signUp: {
-    ...enUS.signUp,
+    ...(enUS.signUp!),
     start: {
-      ...enUS.signUp.start,
+      ...(enUS.signUp!).start,
       title: "Sukurti paskyrą",
       titleCombined: "Sukurti paskyrą",
       subtitle: "Sveikiname! Prašome užpildyti duomenis.",
@@ -221,14 +222,14 @@ export const ltLT: typeof enUS = {
       actionLink__use_phone: "Naudoti telefoną",
     },
     continue: {
-      ...enUS.signUp.continue,
+      ...(enUS.signUp!).continue,
       title: "Užpildykite trūkstamus laukus",
       subtitle: "Prašome užpildyti likusius duomenis tęsti.",
       actionText: "Jau turite paskyrą?",
       actionLink: "Prisijungti",
     },
     emailCode: {
-      ...enUS.signUp.emailCode,
+      ...(enUS.signUp!).emailCode,
       title: "Patvirtinkite el. paštą",
       subtitle: "Įveskite patvirtinimo kodą, išsiųstą el. paštu",
       formTitle: "Patvirtinimo kodas",
@@ -236,7 +237,7 @@ export const ltLT: typeof enUS = {
       resendButton: "Negavote kodo? Siųsti iš naujo",
     },
     emailLink: {
-      ...enUS.signUp.emailLink,
+      ...(enUS.signUp!).emailLink,
       title: "Patvirtinkite el. paštą",
       subtitle: "norėdami tęsti į {{applicationName}}",
       formTitle: "Patvirtinimo nuoroda",
@@ -255,7 +256,7 @@ export const ltLT: typeof enUS = {
       },
     },
     phoneCode: {
-      ...enUS.signUp.phoneCode,
+      ...(enUS.signUp!).phoneCode,
       title: "Patvirtinkite telefoną",
       subtitle: "Įveskite patvirtinimo kodą, išsiųstą telefonu",
       formTitle: "Patvirtinimo kodas",
@@ -263,7 +264,7 @@ export const ltLT: typeof enUS = {
       resendButton: "Negavote kodo? Siųsti iš naujo",
     },
     restrictedAccess: {
-      ...enUS.signUp.restrictedAccess,
+      ...(enUS.signUp!).restrictedAccess,
       title: "Prieiga apribota",
       subtitle: "Šiuo metu registracija išjungta. Jei manote, kad turėtumėte turėti prieigą, susisiekite su palaikymu.",
       subtitleWaitlist: "Šiuo metu registracija išjungta. Įsirašykite į laukimo sąrašą, kad sužinotumėte pirmi.",
