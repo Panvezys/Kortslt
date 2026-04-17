@@ -814,8 +814,8 @@ export default function OwnerFacilityDetail() {
               <p className="font-medium text-sm text-yellow-300">Stripe Connect reikalingas mokėjimams priimti</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {(facility as any).stripeConnectStatus === "pending"
-                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte pridėti aikšteles ir priimti mokėjimus."
-                  : "Prijunkite Stripe paskyrą, kad galėtumėte pridėti aikšteles ir gauti mokėjimus tiesiai į savo sąskaitą."}
+                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte priimti mokėjimus."
+                  : "Aikšteles galite pridėti jau dabar. Prijunkite Stripe paskyrą, kad galėtumėte priimti mokėjimus tiesiai į savo sąskaitą."}
               </p>
             </div>
             <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 shrink-0"
@@ -834,10 +834,7 @@ export default function OwnerFacilityDetail() {
           }}>
             <DialogTrigger asChild>
               <Button
-                disabled={(facility as any).stripeConnectStatus !== "active"}
-                title={(facility as any).stripeConnectStatus !== "active" ? "Pirmiausia prijunkite Stripe" : undefined}
                 onClick={() => {
-                if ((facility as any).stripeConnectStatus !== "active") return;
                 setEditingId(null);
                 form.reset({
                   name: "", type: "tennis", description: "",
