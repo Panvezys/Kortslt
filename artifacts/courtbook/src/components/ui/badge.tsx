@@ -1,7 +1,9 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
+import { useLocale } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { sportColor } from "@/components/sport-icon"
 
 const badgeVariants = cva(
   // @replit
@@ -35,8 +37,22 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
+  const { locale, t } = useLocale()
+  const sport = typeof props.children === "string" ? props.children : null
+  const color = sport ? sportColor[sport] : null
+  const title = sport ? t(`sports.${sport}`) : null
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div
+      className={cn(
+        badgeVariants({ variant }),
+        color ? "border-transparent text-white" : null,
+        className,
+      )}
+      lang={locale}
+      title={title ?? undefined}
+      style={color ? { backgroundColor: color, color: "#fff" } : undefined}
+      {...props}
+    />
   )
 }
 
