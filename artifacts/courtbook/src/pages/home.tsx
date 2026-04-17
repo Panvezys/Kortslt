@@ -445,7 +445,7 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Section — split layout */}
-      <section className="bg-zinc-950 text-white">
+      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white">
         <div className="flex min-h-[640px] lg:min-h-[700px]">
 
           {/* ── LEFT PANEL: search form ── */}
@@ -468,7 +468,7 @@ export default function Home() {
                 );
               })()}
             </h1>
-            <p className="text-base text-zinc-400 mb-8 max-w-sm leading-relaxed">
+            <p className="text-base text-muted-foreground mb-8 max-w-sm leading-relaxed">
               {t("home.hero.subtitle")}
             </p>
 
@@ -477,10 +477,10 @@ export default function Home() {
 
               {/* Row 1: Court name with autocomplete */}
               <div className="relative w-full max-w-sm">
-                <div className="flex items-center gap-3 bg-white/20 backdrop-blur-md border rounded-xl px-4 py-3 transition-all"
-                  style={{ borderColor: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.4)" }}
+                <div className="flex items-center gap-3 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-4 py-3 transition-all"
+                  style={{ borderColor: (dropdownOpen || searchName) ? accentColor : undefined }}
                 >
-                  <Search className="h-4 w-4 shrink-0" style={{ color: dropdownOpen || searchName ? accentColor : "rgba(255,255,255,0.75)" }} />
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dropdownOpen || searchName) ? accentColor : undefined }} />
                   <input
                     type="text"
                     placeholder="Ieškoti aikštelės pagal pavadinimą..."
@@ -488,33 +488,33 @@ export default function Home() {
                     onChange={e => { setSearchName(e.target.value); setDropdownOpen(true); }}
                     onFocus={() => setDropdownOpen(true)}
                     onKeyDown={e => e.key === "Enter" && handleSearch()}
-                    className="bg-transparent flex-1 text-white placeholder:text-white/65 outline-none text-sm"
+                    className="bg-transparent flex-1 text-foreground dark:text-white placeholder:text-muted-foreground dark:placeholder:text-white/65 outline-none text-sm"
                   />
                   {searchName && (
-                    <button onClick={() => setSearchName("")} className="text-white/40 hover:text-white/70 text-lg leading-none">×</button>
+                    <button onClick={() => setSearchName("")} className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none">×</button>
                   )}
                 </div>
                 {/* Autocomplete dropdown */}
                 {dropdownOpen && filteredCourts.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900/95 backdrop-blur border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-zinc-900/95 backdrop-blur border border-border dark:border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
                     {filteredCourts.map(court => (
                       <Link
                         key={court.id}
                         href={`/courts/${court.id}`}
                         onClick={() => { setSearchName(""); setDropdownOpen(false); }}
                       >
-                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors cursor-pointer border-b border-white/5 last:border-b-0">
+                        <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted dark:hover:bg-white/10 transition-colors cursor-pointer border-b border-border dark:border-white/5 last:border-b-0">
                           <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${sportColor[court.type] ?? "#84cc16"}22` }}>
                             <SportIcon sport={court.type} size={14} strokeWidth={2} style={{ color: sportColor[court.type] ?? "#84cc16" }} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{court.name}</p>
-                            <p className="text-xs text-white/45">{court.city}</p>
+                            <p className="text-sm font-medium text-foreground dark:text-white truncate">{court.name}</p>
+                            <p className="text-xs text-muted-foreground dark:text-white/45">{court.city}</p>
                           </div>
                           {court.rating != null && (
                             <div className="flex items-center gap-1 shrink-0">
                               <span className="text-yellow-400 text-xs">★</span>
-                              <span className="text-xs text-white/60 font-medium">{Number(court.rating).toFixed(1)}</span>
+                              <span className="text-xs text-muted-foreground dark:text-white/60 font-medium">{Number(court.rating).toFixed(1)}</span>
                             </div>
                           )}
                         </div>
@@ -533,11 +533,8 @@ export default function Home() {
                     <button
                       key={sport}
                       onClick={() => setSearchSport(active ? "" : sport)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                      style={active
-                        ? { background: color, borderColor: color, color: "#000" }
-                        : { borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)" }
-                      }
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border dark:border-white/20 text-muted-foreground dark:text-white/70 transition-all"
+                      style={active ? { background: color, borderColor: color, color: "#000" } : undefined}
                     >
                       <SportIcon sport={sport} size={11} strokeWidth={2} />
                       {sportLithuanian[sport]}
@@ -552,11 +549,11 @@ export default function Home() {
                 {/* City combobox */}
                 <div className="relative w-36 sm:w-40 shrink-0" ref={cityRef}>
                   <div
-                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 cursor-text transition-all"
-                    style={{ borderColor: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.4)" }}
+                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 cursor-text transition-all"
+                    style={{ borderColor: (cityDropdownOpen || searchCity) ? accentColor : undefined }}
                     onClick={() => setCityDropdownOpen(true)}
                   >
-                    <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: cityDropdownOpen || searchCity ? accentColor : "rgba(255,255,255,0.75)" }} />
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (cityDropdownOpen || searchCity) ? accentColor : undefined }} />
                     <input
                       type="text"
                       value={searchCity ? searchCity : cityInput}
@@ -567,24 +564,24 @@ export default function Home() {
                         setSearchCity("");
                         setCityDropdownOpen(true);
                       }}
-                      className="bg-transparent text-sm text-white placeholder:text-white/65 outline-none flex-1 w-full min-w-0"
+                      className="bg-transparent text-sm text-foreground dark:text-white placeholder:text-muted-foreground dark:placeholder:text-white/65 outline-none flex-1 w-full min-w-0"
                     />
                     {searchCity && (
                       <button
                         onClick={e => { e.stopPropagation(); setSearchCity(""); setCityInput(""); }}
-                        className="text-white/40 hover:text-white/70 text-lg leading-none shrink-0"
+                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none shrink-0"
                       >×</button>
                     )}
                   </div>
 
                   {cityDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-zinc-900/96 backdrop-blur border border-border dark:border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto">
                       {/* All cities option */}
                       <button
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => { setSearchCity(""); setCityInput(""); setCityDropdownOpen(false); }}
-                        className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center gap-2"
-                        style={{ color: !searchCity && !cityInput ? accentColor : "rgba(255,255,255,0.6)", fontWeight: !searchCity && !cityInput ? "600" : "400" }}
+                        className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-muted dark:hover:bg-white/10 flex items-center gap-2 text-muted-foreground dark:text-white/60"
+                        style={{ color: !searchCity && !cityInput ? accentColor : undefined, fontWeight: !searchCity && !cityInput ? "600" : "400" }}
                       >
                         <MapPin className="h-3.5 w-3.5 shrink-0" />
                         Visi miestai
@@ -593,7 +590,7 @@ export default function Home() {
                       {/* Popular cities */}
                       {filteredPopular.length > 0 && (
                         <>
-                          <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
+                          <div className="px-4 py-1 text-[10px] font-semibold text-muted-foreground/50 dark:text-white/30 uppercase tracking-widest border-t border-border dark:border-white/5">
                             Populiariausi
                           </div>
                           {filteredPopular.map(city => (
@@ -601,11 +598,11 @@ export default function Home() {
                               key={city}
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
-                              className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
-                              style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
+                              className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-muted dark:hover:bg-white/10 flex items-center justify-between text-foreground dark:text-white/80"
+                              style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : undefined}
                             >
                               <span>{city}</span>
-                              <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                              <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
                             </button>
                           ))}
                         </>
@@ -616,7 +613,7 @@ export default function Home() {
                         <>
                           {(showMoreCities || cityInput.length > 0) ? (
                             <>
-                              <div className="px-4 py-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest border-t border-white/5">
+                              <div className="px-4 py-1 text-[10px] font-semibold text-muted-foreground/50 dark:text-white/30 uppercase tracking-widest border-t border-border dark:border-white/5">
                                 Kiti miestai
                               </div>
                               {filteredOther.map(city => (
@@ -624,17 +621,17 @@ export default function Home() {
                                   key={city}
                                   onMouseDown={e => e.preventDefault()}
                                   onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
-                                  className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
-                                  style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
+                                  className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-muted dark:hover:bg-white/10 flex items-center justify-between text-foreground dark:text-white/80"
+                                  style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : undefined}
                                 >
                                   <span>{city}</span>
-                                  <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                                  <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
                                 </button>
                               ))}
                               <button
                                 onMouseDown={e => e.preventDefault()}
                                 onClick={() => setShowMoreCities(false)}
-                                className="w-full text-left px-4 py-2 text-xs text-white/30 hover:text-white/60 border-t border-white/5 flex items-center gap-1"
+                                className="w-full text-left px-4 py-2 text-xs text-muted-foreground/50 hover:text-muted-foreground dark:text-white/30 dark:hover:text-white/60 border-t border-border dark:border-white/5 flex items-center gap-1"
                               >
                                 <ChevronDown className="h-3 w-3 rotate-180" /> Mažiau
                               </button>
@@ -643,7 +640,7 @@ export default function Home() {
                             <button
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => setShowMoreCities(true)}
-                              className="w-full text-left px-4 py-2.5 text-xs text-white/40 hover:text-white/70 border-t border-white/5 flex items-center gap-1 transition-colors"
+                              className="w-full text-left px-4 py-2.5 text-xs text-muted-foreground/50 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 border-t border-border dark:border-white/5 flex items-center gap-1 transition-colors"
                             >
                               <ChevronDown className="h-3 w-3" /> Daugiau miestų ({filteredOther.length})
                             </button>
@@ -652,7 +649,7 @@ export default function Home() {
                       )}
 
                       {filteredPopular.length === 0 && filteredOther.length === 0 && (
-                        <div className="px-4 py-3 text-sm text-white/40 text-center">Nerasta miestų</div>
+                        <div className="px-4 py-3 text-sm text-muted-foreground dark:text-white/40 text-center">Nerasta miestų</div>
                       )}
                     </div>
                   )}
@@ -662,17 +659,17 @@ export default function Home() {
                 <div className="relative" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                    style={{ borderColor: dateDropdownOpen ? accentColor : "rgba(255,255,255,0.4)" }}
+                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: dateDropdownOpen ? accentColor : undefined }}
                   >
-                    <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.75)" }} />
-                    <span className="text-sm text-white">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dateDropdownOpen || searchDateObj) ? accentColor : undefined }} />
+                    <span className="text-sm text-foreground dark:text-white">
                       {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
                     </span>
                     {searchDateObj && (
                       <span
                         onClick={e => { e.stopPropagation(); setSearchDateObj(undefined); setSearchDate(""); }}
-                        className="text-white/40 hover:text-white/70 text-lg leading-none ml-1"
+                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1"
                       >×</span>
                     )}
                   </button>
@@ -780,17 +777,17 @@ export default function Home() {
                 <div className="relative" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-white/20 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                    style={{ borderColor: timeDropdownOpen ? accentColor : "rgba(255,255,255,0.4)" }}
+                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    style={{ borderColor: timeDropdownOpen ? accentColor : undefined }}
                   >
-                    <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: timeDropdownOpen || timeSlider !== null ? accentColor : "rgba(255,255,255,0.75)" }} />
-                    <span className="text-sm text-white">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (timeDropdownOpen || timeSlider !== null) ? accentColor : undefined }} />
+                    <span className="text-sm text-foreground dark:text-white">
                       {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
                     </span>
                     {timeSlider !== null && (
                       <span
                         onClick={e => { e.stopPropagation(); setTimeSlider(null); setSearchTime(""); }}
-                        className="text-white/40 hover:text-white/70 text-lg leading-none ml-1"
+                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1"
                       >×</span>
                     )}
                   </button>
@@ -875,9 +872,9 @@ export default function Home() {
               />
             ))}
             {/* Gradient fade on the left edge to blend with the search panel */}
-            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-zinc-950 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
             {/* Subtle bottom scrim */}
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-zinc-950/60 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background/60 dark:from-zinc-950/60 to-transparent z-10 pointer-events-none" />
             {/* Slide indicator dots */}
             <div className="absolute bottom-6 right-6 z-20 flex gap-1.5">
               {HERO_IMAGES.map((_, i) => (
