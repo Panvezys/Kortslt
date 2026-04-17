@@ -1076,7 +1076,7 @@ export default function Home() {
       <FeaturedTournamentsSection />
 
       {/* Become a Partner Section */}
-      <section className="py-20 bg-zinc-950 text-white relative overflow-hidden">
+      <section id="aiksteliu-savininkams" className="py-20 bg-zinc-950 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,_rgba(132,204,22,0.08)_0%,_transparent_60%)] pointer-events-none" />
         <div className="container mx-auto px-4 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -1229,6 +1229,51 @@ export default function Home() {
               </div>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      <section id="duk" className="py-16 md:py-24 container mx-auto px-4 border-t border-border/50">
+        <div className="max-w-4xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/15 text-primary text-[11px] font-bold uppercase tracking-wider mb-4">D.U.K.</div>
+          <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3">Dažniausiai užduodami klausimai</h2>
+          <div className="grid gap-4 md:grid-cols-2 mt-8">
+            {[
+              { q: "Kaip rezervuoti aikštelę?", a: "Pasirinkite aikštelę, laiką ir patvirtinkite rezervaciją keliais paspaudimais." },
+              { q: "Ar galiu pridėti savo aikštelę?", a: "Taip — eikite į savininkų skiltį ir užpildykite registracijos formą." },
+              { q: "Ar mokėjimai saugūs?", a: "Taip, platforma naudoja saugius mokėjimo sprendimus." },
+              { q: "Ar galiu susisiekti su komanda?", a: "Taip, rašykite mums kontaktų skiltyje žemiau." },
+            ].map(item => (
+              <div key={item.q} className="rounded-2xl border bg-card p-5">
+                <h3 className="font-semibold mb-2">{item.q}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="privatumo-politika" className="py-16 md:py-24 bg-muted/30 border-t border-border/50">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Privatumo politika</h2>
+          <p className="text-muted-foreground leading-relaxed">Mes tvarkome tik tuos duomenis, kurių reikia rezervacijoms, paskyroms ir pranešimams. Duomenys nenaudojami neatskleistiems tikslams.</p>
+        </div>
+      </section>
+
+      <section id="naudojimo-taisykles" className="py-16 md:py-24 container mx-auto px-4 border-t border-border/50">
+        <div className="max-w-4xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Naudojimo taisyklės</h2>
+          <p className="text-muted-foreground leading-relaxed">Naudodamiesi platforma sutinkate rezervuoti atsakingai, laikytis aikštelės taisyklių ir gerbti kitus vartotojus.</p>
+        </div>
+      </section>
+
+      <section id="kontaktai" className="py-16 md:py-24 bg-muted/30 border-t border-border/50">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Kontaktai</h2>
+          <div className="grid gap-3 text-sm text-muted-foreground">
+            <p>El. paštas: hello@korts.lt</p>
+            <p>Telefonas: +370 600 00000</p>
+            <p>Adresas: Lietuva</p>
           </div>
         </div>
       </section>
