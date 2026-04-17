@@ -452,26 +452,7 @@ export default function Home() {
           <div className="relative z-10 w-full md:w-[460px] lg:w-[520px] xl:w-[560px] flex-shrink-0 flex flex-col justify-center px-6 sm:px-10 lg:px-14 pt-28 pb-16">
             {/* subtle top-left glow */}
             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
-
-            <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight mb-4 text-balance leading-tight">
-              {(() => {
-                const [line1, line2] = heroLines;
-                const isEnglishTop = line1?.toLowerCase().includes("find your court");
-                const top = isEnglishTop ? line2 : line1;
-                const bottom = isEnglishTop ? line1 : line2;
-                return (
-                  <>
-                    {top}
-                    <br />
-                    <span className="text-primary">{bottom}</span>
-                  </>
-                );
-              })()}
-            </h1>
-            <p className="text-base text-muted-foreground mb-8 max-w-sm leading-relaxed">
-              {t("home.hero.subtitle")}
-            </p>
-
+            
             {/* Multi-row search widget */}
             <div className="w-full space-y-2.5" ref={searchRef}>
 
@@ -875,6 +856,26 @@ export default function Home() {
             <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
             {/* Subtle bottom scrim */}
             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background/60 dark:from-zinc-950/60 to-transparent z-10 pointer-events-none" />
+            <div className="absolute left-8 bottom-10 z-20 max-w-lg">
+              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight mb-4 text-balance leading-tight">
+                {(() => {
+                  const [line1, line2] = heroLines;
+                  const isEnglishTop = line1?.toLowerCase().includes("find your court");
+                  const top = isEnglishTop ? line2 : line1;
+                  const bottom = isEnglishTop ? line1 : line2;
+                  return (
+                    <>
+                      {top}
+                      <br />
+                      <span className="text-primary">{bottom}</span>
+                    </>
+                  );
+                })()}
+              </h1>
+              <p className="text-base text-muted-foreground max-w-sm leading-relaxed">
+                {t("home.hero.subtitle")}
+              </p>
+            </div>
             {/* Slide indicator dots */}
             <div className="absolute bottom-6 right-6 z-20 flex gap-1.5">
               {HERO_IMAGES.map((_, i) => (
