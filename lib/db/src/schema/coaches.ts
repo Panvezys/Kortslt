@@ -13,6 +13,8 @@ export const coachesTable = pgTable("coaches", {
   sports: text("sports").array().notNull().default([]),
   availabilityDescription: text("availability_description"),
   phone: text("phone"),
+  status: text("status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

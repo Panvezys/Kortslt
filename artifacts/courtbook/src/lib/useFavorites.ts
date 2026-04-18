@@ -65,3 +65,83 @@ export function useFavorites() {
 
   return { favorites, favoriteIds, loading, toggleFavorite, isFavorite: (id: number) => favoriteIds.has(id) };
 }
+
+export interface CoachFavoriteItem {
+  id: number;
+  userId: string;
+  name: string;
+  email: string;
+  bio: string | null;
+  photoUrl: string | null;
+  sports: string[];
+  pricePerHour: number | null;
+  phone: string | null;
+  status: string;
+}
+
+export function useCoachFavorites() {
+  const { user, isSignedIn } = useUser();
+  const [coachFavoriteIds, setCoachFavoriteIds] = useState<Set<number>>(new Set());
+  const [coachFavorites, setCoachFavorites] = useState<CoachFavoriteItem[]>([]);
+  const [loadingCoachFav, setLoadingCoachFav] = useState(false);
+
+  const fetchCoachFavorites = useCallback(async () => {
+    if (!isSignedIn || !user) return;
+    setLoadingCoachFav(true);
+    try {
+      const res = await fetch(`${API}/favorites/coaches?userId=${encodeURIComponent(user.id)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data: CoachFavoriteItem[] = await res.json();
+      setCoachFavorites(data);
+      setCoachFavoriteIds(new Set(data.map(c => c.id)));
+    } finally {
+      setLoadingCoachFav(false);
+    }
+  }, [isSignedIn, user]);
+
+  useEffect(() => {
+    fetchCoachFavorites();
+  }, [fetchCoachFavorites]);
+
+  const addCoachFavorite = useCallback(async (coachId: number) => {
+    if (!isSignedIn || !user) return;
+    setCoachFavoriteIds(prev => new Set([...prev, coachId]));
+    await fetch(`${API}/favorites/coaches/${coachId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id }),
+    });
+    await fetchCoachFavorites();
+  }, [isSignedIn, user, fetchCoachFavorites]);
+
+  const removeCoachFavorite = useCallback(async (coachId: number) => {
+    if (!isSignedIn || !user) return;
+    setCoachFavoriteIds(prev => {
+      const next = new Set(prev);
+      next.delete(coachId);
+      return next;
+    });
+    setCoachFavorites(prev => prev.filter(c => c.id !== coachId));
+    await fetch(`${API}/favorites/coaches/${coachId}?userId=${encodeURIComponent(user.id)}`, {
+      method: "DELETE",
+    });
+  }, [isSignedIn, user]);
+
+  const toggleCoachFavorite = useCallback(async (coachId: number) => {
+    if (coachFavoriteIds.has(coachId)) {
+      await removeCoachFavorite(coachId);
+    } else {
+      await addCoachFavorite(coachId);
+    }
+  }, [coachFavoriteIds, addCoachFavorite, removeCoachFavorite]);
+
+  return {
+    coachFavorites,
+    coachFavoriteIds,
+    loadingCoachFav,
+    toggleCoachFavorite,
+    isCoachFavorite: (id: number) => coachFavoriteIds.has(id),
+  };
+}

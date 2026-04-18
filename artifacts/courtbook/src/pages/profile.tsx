@@ -32,6 +32,7 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
+  GraduationCap,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -359,7 +360,8 @@ export default function Profile() {
     { query: { enabled: !!email } }
   );
 
-  const { favorites, loading: favoritesLoading } = useFavoritesContext();
+  const { favorites, loading: favoritesLoading, coachFavorites, loadingCoachFav } = useFavoritesContext();
+  const [favSubTab, setFavSubTab] = useState<"courts" | "coaches">("courts");
 
   const today = new Date().toISOString().split("T")[0];
   const upcomingBookings = (bookings ?? []).filter(
@@ -452,7 +454,7 @@ export default function Profile() {
           <StatCard
             icon={<Heart className="w-5 h-5" />}
             label={t("profile.stat.favorites")}
-            value={favoritesLoading ? "–" : favorites.length}
+            value={(favoritesLoading || loadingCoachFav) ? "–" : favorites.length + coachFavorites.length}
             color="text-rose-500"
             onClick={() => setActiveTab("favorites")}
           />
@@ -648,75 +650,151 @@ export default function Profile() {
 
           {/* Favorites tab */}
           {activeTab === "favorites" && (
-            <div>
-              {favoritesLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-40 rounded-xl" />
-                  ))}
-                </div>
-              ) : favorites.length === 0 ? (
-                <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
-                  <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>{t("profile.noFavorites")}</p>
-                  <Button variant="outline" size="sm" className="mt-4" asChild>
-                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {favorites.map((court) => {
-                    const color = SPORT_COLOR[court.type] ?? "#84cc16";
-                    return (
-                      <Link key={court.id} href={`/courts/${court.id}`}>
-                        <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
-                          <div
-                            className="h-28 bg-muted relative overflow-hidden"
-                            style={
-                              court.imageUrl
-                                ? { backgroundImage: `url(${court.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
-                                : {}
-                            }
-                          >
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                            <div className="absolute top-2.5 left-2.5">
-                              <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center"
-                                style={{ background: color }}
-                              >
-                                <SportIcon sport={court.type} size={14} strokeWidth={2} className="text-white" />
+            <div className="space-y-5">
+              {/* Sub-tabs */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFavSubTab("courts")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    favSubTab === "courts"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border hover:bg-muted/60"
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  Aikštelės
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "courts" ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                    {favorites.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setFavSubTab("coaches")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    favSubTab === "coaches"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border hover:bg-muted/60"
+                  }`}
+                >
+                  <GraduationCap className="w-4 h-4" />
+                  Treneriai
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "coaches" ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                    {coachFavorites.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Courts sub-tab */}
+              {favSubTab === "courts" && (
+                favoritesLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+                  </div>
+                ) : favorites.length === 0 ? (
+                  <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
+                    <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p>{t("profile.noFavorites")}</p>
+                    <Button variant="outline" size="sm" className="mt-4" asChild>
+                      <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {favorites.map((court) => {
+                      const color = SPORT_COLOR[court.type] ?? "#84cc16";
+                      return (
+                        <Link key={court.id} href={`/courts/${court.id}`}>
+                          <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
+                            <div
+                              className="h-28 bg-muted relative overflow-hidden"
+                              style={court.imageUrl ? { backgroundImage: `url(${court.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                              <div className="absolute top-2.5 left-2.5">
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: color }}>
+                                  <SportIcon sport={court.type} size={14} strokeWidth={2} className="text-white" />
+                                </div>
+                              </div>
+                              {court.rating && (
+                                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5">
+                                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                  {court.rating.toFixed(1)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-3.5">
+                              <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{court.name}</p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3 shrink-0" />{court.city}
+                              </p>
+                              <div className="flex items-center justify-between mt-2.5">
+                                <span className="text-sm font-bold" style={{ color }}>
+                                  {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span>
+                                </span>
+                                <Badge variant="outline" className="text-xs">
+                                  {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
+                                </Badge>
                               </div>
                             </div>
-                            {court.rating && (
-                              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5">
-                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                {court.rating.toFixed(1)}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+
+              {/* Coaches sub-tab */}
+              {favSubTab === "coaches" && (
+                loadingCoachFav ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
+                  </div>
+                ) : coachFavorites.length === 0 ? (
+                  <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
+                    <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p>Nėra mėgstamų trenerių.</p>
+                    <Button variant="outline" size="sm" className="mt-4" asChild>
+                      <Link href="/coaches">Naršyti trenerius</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {coachFavorites.map((coach) => (
+                      <Link key={coach.id} href={`/coaches/${coach.id}`}>
+                        <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
+                          <div className="h-28 bg-muted relative overflow-hidden">
+                            {coach.photoUrl ? (
+                              <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-primary/5">
+                                <GraduationCap className="w-10 h-10 text-primary/20" />
                               </div>
                             )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                           </div>
                           <div className="p-3.5">
-                            <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
-                              {court.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <MapPin className="w-3 h-3 shrink-0" />
-                              {court.city}
-                            </p>
+                            <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{coach.name}</p>
+                            {coach.sports.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">{coach.sports.join(", ")}</p>
+                            )}
                             <div className="flex items-center justify-between mt-2.5">
-                              <span className="text-sm font-bold" style={{ color }}>
-                                {court.pricePerHour}€
-                                <span className="text-xs font-normal text-muted-foreground">/val</span>
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
+                              {coach.pricePerHour != null ? (
+                                <span className="text-sm font-bold text-primary">
+                                  {coach.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span>
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Kaina derinama</span>
+                              )}
+                              <Badge variant="outline" className="text-xs gap-1">
+                                <GraduationCap className="w-3 h-3" /> Treneris
                               </Badge>
                             </div>
                           </div>
                         </div>
                       </Link>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           )}

@@ -13,6 +13,7 @@ import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
   CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
+  GraduationCap, Star,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -140,8 +141,7 @@ function CourtsPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-  const [rejectDialogId, setRejectDialogId] = useState<number | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const [reviewCourt, setReviewCourt] = useState<any | null>(null);
 
   const { data: courts, isLoading, isError } = useAdminCourts();
   const approveMutation = useApproveCourt();
@@ -159,61 +159,28 @@ function CourtsPanel() {
     rejected: courts?.filter(c => c.status === "rejected").length ?? 0,
   };
 
-  const handleApprove = async (id: number) => {
-    try {
-      await approveMutation.mutateAsync(id);
-      toast({ title: "Aikštelė patvirtinta" });
-    } catch {
-      toast({ title: "Klaida patvirtinant", variant: "destructive" });
-    }
-  };
-
-  const handleReject = async () => {
-    if (rejectDialogId === null) return;
-    try {
-      await rejectMutation.mutateAsync({ id: rejectDialogId, reason: rejectReason || undefined });
-      toast({ title: "Aikštelė atmesta" });
-      setRejectDialogId(null);
-      setRejectReason("");
-    } catch {
-      toast({ title: "Klaida atmetant", variant: "destructive" });
-    }
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Refresh + filter row */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-2 flex-wrap">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
           {(["all", "pending", "approved", "rejected"] as FilterStatus[]).map(s => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                filterStatus === s
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border hover:border-primary/50"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                filterStatus === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"
               }`}
             >
-              {s === "all" && `Visi (${counts.all})`}
-              {s === "pending" && `Laukiama (${counts.pending})`}
-              {s === "approved" && `Patvirtinta (${counts.approved})`}
-              {s === "rejected" && `Atmesta (${counts.rejected})`}
+              {s === "all" ? `Visi (${counts.all})` : s === "pending" ? `Laukiama (${counts.pending})` : s === "approved" ? `Patvirtinta (${counts.approved})` : `Atmesta (${counts.rejected})`}
             </button>
           ))}
         </div>
         <div className="flex gap-2">
           {counts.all === 0 && (
-            <Button
-              variant="outline"
-              size="sm"
+            <Button variant="outline" size="sm"
               onClick={async () => {
-                try {
-                  const result = await seedMutation.mutateAsync();
-                  toast({ title: result.message });
-                } catch {
-                  toast({ title: "Klaida seeding duomenų", variant: "destructive" });
-                }
+                try { const r = await seedMutation.mutateAsync(); toast({ title: r.message }); }
+                catch { toast({ title: "Klaida seeding duomenų", variant: "destructive" }); }
               }}
               disabled={seedMutation.isPending}
             >
@@ -227,17 +194,8 @@ function CourtsPanel() {
         </div>
       </div>
 
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-        </div>
-      )}
-
-      {isError && (
-        <div className="py-12 text-center text-muted-foreground">
-          Nepavyko įkelti aikštelių.
-        </div>
-      )}
+      {isLoading && <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
+      {isError && <div className="py-12 text-center text-muted-foreground">Nepavyko įkelti aikštelių.</div>}
 
       {!isLoading && !isError && (
         <div className="rounded-xl border overflow-hidden">
@@ -246,25 +204,22 @@ function CourtsPanel() {
               <tr className="bg-muted/50 border-b">
                 <th className="text-left px-4 py-3 font-medium">Aikštelė</th>
                 <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Savininkas</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Sportas</th>
                 <th className="text-left px-4 py-3 font-medium">Statusas</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Dokumentas</th>
-                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
+                <th className="text-right px-4 py-3 font-medium">Peržiūra</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    Aikštelių nerasta
-                  </td>
-                </tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Aikštelių nerasta</td></tr>
               )}
               {filtered.map(court => (
-                <tr key={court.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                <tr key={court.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => setReviewCourt(court)}>
                   <td className="px-4 py-3">
                     <div className="font-medium">{court.name}</div>
-                    <div className="text-xs text-muted-foreground">{court.city}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3" />{court.city}{court.address ? `, ${court.address}` : ""}
+                    </div>
                     {court.rejectionReason && (
                       <div className="text-xs text-red-400 mt-0.5">❌ {court.rejectionReason}</div>
                     )}
@@ -273,54 +228,14 @@ function CourtsPanel() {
                     <div className="text-sm">{court.ownerName}</div>
                     <div className="text-xs text-muted-foreground">{court.ownerEmail}</div>
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
-                    {SPORT_LABELS[court.type] ?? court.type}
-                  </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={court.status} />
                   </td>
-                  <td className="px-4 py-3 hidden lg:table-cell">
-                    {court.ownershipDocUrl ? (
-                      <a
-                        href={court.ownershipDocUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-primary hover:underline text-xs"
-                      >
-                        <FileText className="w-3.5 h-3.5" /> Peržiūrėti
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      {court.status !== "approved" && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-green-400 border-green-500/30 hover:bg-green-500/10"
-                          onClick={() => handleApprove(court.id)}
-                          disabled={approveMutation.isPending}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      {court.status !== "rejected" && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                          onClick={() => setRejectDialogId(court.id)}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm" variant="ghost" className="h-7 px-2"
-                        onClick={() => window.open(`/courts/${court.id}`, "_blank")}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                  <td className="px-4 py-3 text-right">
+                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
+                      onClick={e => { e.stopPropagation(); setReviewCourt(court); }}>
+                      <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -329,33 +244,31 @@ function CourtsPanel() {
         </div>
       )}
 
-      {/* Reject dialog */}
-      <Dialog
-        open={rejectDialogId !== null}
-        onOpenChange={open => { if (!open) { setRejectDialogId(null); setRejectReason(""); } }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Atmesti aikštelę</DialogTitle></DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Atmetimo priežastis (neprivaloma)</label>
-              <Input
-                placeholder="pvz. Trūksta dokumentų..."
-                value={rejectReason}
-                onChange={e => setRejectReason(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => { setRejectDialogId(null); setRejectReason(""); }}>
-                Atšaukti
-              </Button>
-              <Button variant="destructive" onClick={handleReject} disabled={rejectMutation.isPending}>
-                {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CourtReviewDialog
+        court={reviewCourt}
+        open={reviewCourt !== null}
+        onClose={() => setReviewCourt(null)}
+        onApprove={async () => {
+          if (!reviewCourt) return;
+          try {
+            await approveMutation.mutateAsync(reviewCourt.id);
+            toast({ title: "Aikštelė patvirtinta ✓" });
+            qc.invalidateQueries({ queryKey: ["admin-courts"] });
+            setReviewCourt((prev: any) => prev ? { ...prev, status: "approved" } : prev);
+          } catch { toast({ title: "Klaida tvirtinant", variant: "destructive" }); }
+        }}
+        onReject={async (reason) => {
+          if (!reviewCourt) return;
+          try {
+            await rejectMutation.mutateAsync({ id: reviewCourt.id, reason: reason || undefined });
+            toast({ title: "Aikštelė atmesta" });
+            qc.invalidateQueries({ queryKey: ["admin-courts"] });
+            setReviewCourt((prev: any) => prev ? { ...prev, status: "rejected", rejectionReason: reason } : prev);
+          } catch { toast({ title: "Klaida atmetant", variant: "destructive" }); }
+        }}
+        isPendingApprove={approveMutation.isPending}
+        isPendingReject={rejectMutation.isPending}
+      />
     </div>
   );
 }
@@ -536,6 +449,126 @@ function UsersPanel() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── Court review dialog ──────────────────────────────────────────────────────
+
+function CourtReviewDialog({
+  court,
+  open,
+  onClose,
+  onApprove,
+  onReject,
+  isPendingApprove,
+  isPendingReject,
+}: {
+  court: any;
+  open: boolean;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+  isPendingApprove: boolean;
+  isPendingReject: boolean;
+}) {
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  if (!court) return null;
+  const isApproved = court.status === "approved";
+  const isRejected = court.status === "rejected";
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setShowRejectForm(false); setRejectReason(""); } }}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Hero */}
+        <div className="relative h-40 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden rounded-t-xl">
+          {court.imageUrl ? (
+            <img src={court.imageUrl} alt={court.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ImageIcon className="w-14 h-14 text-primary/20" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-white leading-tight">{court.name}</h2>
+              <p className="text-white/75 text-xs flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3" />{court.city}{court.address ? `, ${court.address}` : ""}
+              </p>
+            </div>
+            <StatusBadge status={court.status} />
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {isRejected && court.rejectionReason && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+              <span className="font-medium">Atmetimo priežastis:</span> {court.rejectionReason}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Sportas", value: SPORT_LABELS[court.type] ?? court.type },
+              { label: "Kaina", value: `${court.pricePerHour}€/val` },
+              { label: "Savininkas", value: court.ownerName },
+              { label: "El. paštas", value: court.ownerEmail },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-lg bg-muted/30 px-3 py-2.5">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{label}</div>
+                <div className="text-sm font-medium truncate">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {court.ownershipDocUrl && (
+            <a href={court.ownershipDocUrl} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors px-4 py-3">
+              <FileText className="w-5 h-5 text-primary shrink-0" />
+              <span className="text-sm font-medium text-primary">Peržiūrėti nuosavybės dokumentą</span>
+              <ChevronRight className="w-4 h-4 text-primary ml-auto shrink-0" />
+            </a>
+          )}
+
+          <Separator />
+
+          {!showRejectForm ? (
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!isApproved && (
+                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2" onClick={onApprove} disabled={isPendingApprove}>
+                  <Check className="w-4 h-4" />
+                  {isPendingApprove ? "Tvirtinama..." : "Patvirtinti aikštelę"}
+                </Button>
+              )}
+              {!isRejected && (
+                <Button variant="outline" className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
+                  onClick={() => { setShowRejectForm(true); setRejectReason(""); }}>
+                  <X className="w-4 h-4" /> Atmesti aikštelę
+                </Button>
+              )}
+              {isApproved && <Button variant="ghost" size="sm" onClick={() => window.open(`/courts/${court.id}`, "_blank")} className="w-full gap-2"><Eye className="w-4 h-4" /> Peržiūrėti puslapyje</Button>}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis <span className="text-red-400">*</span></label>
+                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Pvz.: Trūksta dokumentų..." rows={3} className="resize-none" />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowRejectForm(false)}>Atšaukti</Button>
+                <Button variant="destructive" className="flex-1" onClick={() => onReject(rejectReason)}
+                  disabled={isPendingReject || !rejectReason.trim()}>
+                  {isPendingReject ? "Atmetama..." : "Patvirtinti atmetimą"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -960,13 +993,294 @@ function FacilitiesPanel() {
   );
 }
 
+// ─── Coach review dialog ──────────────────────────────────────────────────────
+
+function CoachReviewDialog({
+  coach,
+  open,
+  onClose,
+  onApprove,
+  onReject,
+  isPendingApprove,
+  isPendingReject,
+}: {
+  coach: any;
+  open: boolean;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+  isPendingApprove: boolean;
+  isPendingReject: boolean;
+}) {
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  if (!coach) return null;
+  const isApproved = coach.status === "approved";
+  const isRejected = coach.status === "rejected";
+
+  const statusColors: Record<string, string> = {
+    pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+    approved: "bg-green-500/10 text-green-400 border-green-500/30",
+    rejected: "bg-red-500/10 text-red-400 border-red-500/30",
+  };
+  const statusLabels: Record<string, string> = {
+    pending: "Laukiama", approved: "Patvirtinta", rejected: "Atmesta",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setShowRejectForm(false); setRejectReason(""); } }}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto p-0">
+        {/* Hero */}
+        <div className="relative h-40 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden rounded-t-xl">
+          {coach.photoUrl ? (
+            <img src={coach.photoUrl} alt={coach.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <GraduationCap className="w-14 h-14 text-primary/20" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+          <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-white leading-tight">{coach.name}</h2>
+              {coach.sports?.length > 0 && (
+                <p className="text-white/75 text-xs flex items-center gap-1 mt-0.5">
+                  <Star className="w-3 h-3" />{coach.sports.join(", ")}
+                </p>
+              )}
+            </div>
+            <span className={`shrink-0 inline-flex items-center text-xs px-2.5 py-1 rounded-full border font-medium ${statusColors[coach.status ?? "pending"]}`}>
+              {statusLabels[coach.status ?? "pending"]}
+            </span>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {isRejected && coach.rejectionReason && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+              <span className="font-medium">Atmetimo priežastis:</span> {coach.rejectionReason}
+            </div>
+          )}
+
+          {coach.bio && <p className="text-sm text-muted-foreground">{coach.bio}</p>}
+
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "El. paštas", value: coach.email, icon: <Mail className="w-3.5 h-3.5" /> },
+              { label: "Telefonas", value: coach.phone ?? "—", icon: <Phone className="w-3.5 h-3.5" /> },
+              { label: "Kaina", value: coach.pricePerHour ? `${coach.pricePerHour}€/val` : "—", icon: null },
+              { label: "Sporto šakos", value: coach.sports?.join(", ") || "—", icon: null },
+            ].map(({ label, value, icon }) => (
+              <div key={label} className="rounded-lg bg-muted/30 px-3 py-2.5">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5 flex items-center gap-1">
+                  {icon}{label}
+                </div>
+                <div className="text-sm font-medium truncate">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {coach.availabilityDescription && (
+            <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Prieinamumas</div>
+              <p className="text-sm">{coach.availabilityDescription}</p>
+            </div>
+          )}
+
+          <Separator />
+
+          {!showRejectForm ? (
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!isApproved && (
+                <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2" onClick={onApprove} disabled={isPendingApprove}>
+                  <Check className="w-4 h-4" />
+                  {isPendingApprove ? "Tvirtinama..." : "Patvirtinti trenerį"}
+                </Button>
+              )}
+              {!isRejected && (
+                <Button variant="outline" className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
+                  onClick={() => { setShowRejectForm(true); setRejectReason(""); }}>
+                  <X className="w-4 h-4" /> Atmesti trenerį
+                </Button>
+              )}
+              {isApproved && isRejected && (
+                <p className="text-sm text-muted-foreground text-center w-full">Šio trenerio statusas jau nustatytas.</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis <span className="text-red-400">*</span></label>
+                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                  placeholder="Pvz.: Pateikta informacija neatitinka reikalavimų..." rows={3} className="resize-none" />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setShowRejectForm(false)}>Atšaukti</Button>
+                <Button variant="destructive" className="flex-1" onClick={() => onReject(rejectReason)}
+                  disabled={isPendingReject || !rejectReason.trim()}>
+                  {isPendingReject ? "Atmetama..." : "Patvirtinti atmetimą"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Coaches panel ────────────────────────────────────────────────────────────
+
+function CoachesPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [reviewCoach, setReviewCoach] = useState<any | null>(null);
+
+  const { data: coaches = [], isLoading, isError } = useQuery<any[]>({
+    queryKey: ["admin-coaches"],
+    queryFn: () => customFetch<any[]>("/api/admin/coaches"),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => customFetch<any>(`/api/admin/coaches/${id}/approve`, { method: "PUT" }),
+    onSuccess: (_, id) => {
+      toast({ title: "Treneris patvirtintas ✓" });
+      qc.invalidateQueries({ queryKey: ["admin-coaches"] });
+      setReviewCoach((prev: any) => prev?.id === id ? { ...prev, status: "approved" } : prev);
+    },
+    onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      customFetch<any>(`/api/admin/coaches/${id}/reject`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: (_, { id, reason }) => {
+      toast({ title: "Treneris atmestas" });
+      qc.invalidateQueries({ queryKey: ["admin-coaches"] });
+      setReviewCoach((prev: any) => prev?.id === id ? { ...prev, status: "rejected", rejectionReason: reason } : prev);
+    },
+    onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
+  });
+
+  const statusLabels: Record<string, string> = { pending: "Laukiama", approved: "Patvirtinta", rejected: "Atmesta" };
+  const statusColors: Record<string, string> = {
+    pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+    approved: "bg-green-500/10 text-green-400 border-green-500/30",
+    rejected: "bg-red-500/10 text-red-400 border-red-500/30",
+  };
+
+  const filtered = filter === "all" ? coaches : coaches.filter((c: any) => c.status === filter);
+  const counts = {
+    all: coaches.length,
+    pending:  coaches.filter((c: any) => c.status === "pending").length,
+    approved: coaches.filter((c: any) => c.status === "approved").length,
+    rejected: coaches.filter((c: any) => c.status === "rejected").length,
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "pending", "approved", "rejected"] as const).map(s => (
+            <button key={s} onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                filter === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"
+              }`}>
+              {s === "all" ? "Visi" : statusLabels[s]} ({counts[s]})
+            </button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-coaches"] })}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+        </Button>
+      </div>
+
+      {isLoading && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
+      {isError && <div className="py-12 text-center text-muted-foreground">Nepavyko įkelti trenerių.</div>}
+
+      {!isLoading && !isError && (
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-4 py-3 font-medium">Treneris</th>
+                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Sportas</th>
+                <th className="text-left px-4 py-3 font-medium">Statusas</th>
+                <th className="text-right px-4 py-3 font-medium">Peržiūra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Trenerių nerasta</td></tr>
+              )}
+              {filtered.map((c: any) => (
+                <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => setReviewCoach(c)}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {c.photoUrl ? (
+                        <img src={c.photoUrl} alt={c.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <GraduationCap className="w-4 h-4 text-primary/50" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-muted-foreground">{c.email}</div>
+                        {c.rejectionReason && (
+                          <div className="text-xs text-red-400 mt-0.5">❌ {c.rejectionReason}</div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-muted-foreground text-xs">
+                    {c.sports?.join(", ") || "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${statusColors[c.status ?? "pending"]}`}>
+                      {statusLabels[c.status ?? "pending"]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
+                      onClick={e => { e.stopPropagation(); setReviewCoach(c); }}>
+                      <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <CoachReviewDialog
+        coach={reviewCoach}
+        open={reviewCoach !== null}
+        onClose={() => setReviewCoach(null)}
+        onApprove={() => reviewCoach && approveMutation.mutate(reviewCoach.id)}
+        onReject={(reason) => reviewCoach && rejectMutation.mutate({ id: reviewCoach.id, reason })}
+        isPendingApprove={approveMutation.isPending}
+        isPendingReject={rejectMutation.isPending}
+      />
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AdminTab = "courts" | "users" | "facilities";
+type AdminTab = "courts" | "users" | "facilities" | "coaches";
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
-  const [activeTab, setActiveTab] = useState<AdminTab>("courts");
+  const [activeTab, setActiveTab] = useState<AdminTab>("facilities");
 
   if (roleLoading) {
     return (
@@ -993,8 +1307,9 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: "courts",     label: "Aikštelės",  icon: <Building2 className="w-4 h-4" /> },
     { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: "courts",     label: "Aikštelės",  icon: <Building2 className="w-4 h-4" /> },
+    { id: "coaches",    label: "Treneriai",  icon: <GraduationCap className="w-4 h-4" /> },
     { id: "users",      label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
   ];
 
@@ -1004,16 +1319,16 @@ export default function AdminDashboard() {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Administravimas</h1>
-          <p className="text-muted-foreground mt-1">Aikštelių patvirtinimo ir vartotojų valdymo skydelis.</p>
+          <p className="text-muted-foreground mt-1">Objektų, aikštelių, trenerių patvirtinimas ir vartotojų valdymas.</p>
         </div>
 
         {/* Top-level tabs */}
-        <div className="flex gap-1 border-b">
+        <div className="flex gap-1 border-b overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 activeTab === tab.id
                   ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1026,8 +1341,9 @@ export default function AdminDashboard() {
         </div>
 
         {/* Panel */}
-        {activeTab === "courts"     && <CourtsPanel />}
         {activeTab === "facilities" && <FacilitiesPanel />}
+        {activeTab === "courts"     && <CourtsPanel />}
+        {activeTab === "coaches"    && <CoachesPanel />}
         {activeTab === "users"      && <UsersPanel />}
       </div>
     </Layout>

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, count } from "drizzle-orm";
-import { db, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
+import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { z } from "zod";
 import { readFileSync } from "fs";
@@ -159,6 +159,77 @@ router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promi
   }
 
   res.json({ id: facility.id, verificationStatus: facility.verificationStatus, rejectionReason: facility.rejectionReason });
+});
+
+// ─── Coach management ─────────────────────────────────────────────────────────
+
+/** GET /admin/coaches — all coaches with any status */
+router.get("/admin/coaches", requireAdmin, async (_req, res): Promise<void> => {
+  const coaches = await db.select().from(coachesTable).orderBy(desc(coachesTable.createdAt));
+  res.json(coaches.map(c => ({
+    ...c,
+    pricePerHour: c.pricePerHour != null ? Number(c.pricePerHour) : null,
+    bio: c.bio ?? null,
+    photoUrl: c.photoUrl ?? null,
+    rejectionReason: c.rejectionReason ?? null,
+  })));
+});
+
+/** PUT /admin/coaches/:id/approve */
+router.put("/admin/coaches/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ status: "approved", rejectionReason: null })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  if (coach.userId) {
+    await db.insert(notificationsTable).values({
+      userId: coach.userId,
+      type: "coach_approved",
+      title: `Trenerio profilis patvirtintas`,
+      body: "Jūsų trenerio profilis patvirtintas ir dabar matomas klientams.",
+      link: "/coaches",
+    }).catch(() => {});
+  }
+
+  res.json({ id: coach.id, status: coach.status });
+});
+
+/** PUT /admin/coaches/:id/reject */
+const RejectCoachBody = z.object({ reason: z.string().optional() });
+
+router.put("/admin/coaches/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectCoachBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ status: "rejected", rejectionReason: reason })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  if (coach.userId) {
+    await db.insert(notificationsTable).values({
+      userId: coach.userId,
+      type: "coach_rejected",
+      title: `Trenerio profilis atmestas`,
+      body: reason ? `Priežastis: ${reason}` : "Jūsų trenerio profilis buvo atmestas administratoriaus.",
+      link: "/become-coach",
+    }).catch(() => {});
+  }
+
+  res.json({ id: coach.id, status: coach.status, rejectionReason: coach.rejectionReason });
 });
 
 /** POST /admin/seed-courts — seed courts from JSON file if DB is empty */
