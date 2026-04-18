@@ -650,34 +650,51 @@ export default function Profile() {
 
           {/* Favorites tab */}
           {activeTab === "favorites" && (
-            <div className="space-y-5">
+            <div className="space-y-6">
+              {/* Section header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold">Mano mėgstami</h2>
+                    <p className="text-xs text-muted-foreground">
+                      {favorites.length + coachFavorites.length === 0
+                        ? "Dar nėra mėgstamų"
+                        : `${favorites.length + coachFavorites.length} išsaugota`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Sub-tabs */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 border-b pb-0">
                 <button
                   onClick={() => setFavSubTab("courts")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                     favSubTab === "courts"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border hover:bg-muted/60"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Building2 className="w-4 h-4" />
                   Aikštelės
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "courts" ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "courts" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                     {favorites.length}
                   </span>
                 </button>
                 <button
                   onClick={() => setFavSubTab("coaches")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                     favSubTab === "coaches"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border hover:bg-muted/60"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <GraduationCap className="w-4 h-4" />
                   Treneriai
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "coaches" ? "bg-primary-foreground/20" : "bg-muted"}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${favSubTab === "coaches" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
                     {coachFavorites.length}
                   </span>
                 </button>
