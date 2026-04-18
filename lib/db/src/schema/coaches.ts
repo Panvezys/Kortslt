@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, primaryKey } from "drizzle-orm/pg-core";
 import { courtsTable } from "./courts";
 
 export const coachesTable = pgTable("coaches", {
@@ -13,8 +13,18 @@ export const coachesTable = pgTable("coaches", {
   sports: text("sports").array().notNull().default([]),
   availabilityDescription: text("availability_description"),
   phone: text("phone"),
+  approvalStatus: text("approval_status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const coachFavoritesTable = pgTable("coach_favorites", {
+  userId: text("user_id").notNull(),
+  coachId: integer("coach_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.coachId] }),
+}));
 
 export const courtCoachesTable = pgTable("court_coaches", {
   id: serial("id").primaryKey(),

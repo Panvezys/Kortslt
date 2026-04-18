@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, count } from "drizzle-orm";
-import { db, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
+import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { z } from "zod";
 import { readFileSync } from "fs";
@@ -159,6 +159,69 @@ router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promi
   }
 
   res.json({ id: facility.id, verificationStatus: facility.verificationStatus, rejectionReason: facility.rejectionReason });
+});
+
+/** GET /admin/coaches — all coaches with any status */
+router.get("/admin/coaches", requireAdmin, async (_req, res): Promise<void> => {
+  const coaches = await db
+    .select()
+    .from(coachesTable)
+    .orderBy(desc(coachesTable.createdAt));
+
+  res.json(coaches.map(c => ({
+    ...c,
+    pricePerHour: c.pricePerHour != null ? Number(c.pricePerHour) : null,
+  })));
+});
+
+/** PUT /admin/coaches/:id/approve */
+router.put("/admin/coaches/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ approvalStatus: "approved", rejectionReason: null })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  await db.insert(notificationsTable).values({
+    userId: coach.userId,
+    type: "coach_approved",
+    title: "Trenerio profilis patvirtintas",
+    body: `Jūsų trenerio profilis „${coach.name}" patvirtintas.`,
+    isRead: false,
+  }).onConflictDoNothing();
+
+  res.json({ id: coach.id, approvalStatus: coach.approvalStatus });
+});
+
+/** PUT /admin/coaches/:id/reject */
+router.put("/admin/coaches/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { reason } = req.body as { reason?: string };
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ approvalStatus: "rejected", rejectionReason: reason ?? null })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  await db.insert(notificationsTable).values({
+    userId: coach.userId,
+    type: "coach_rejected",
+    title: "Trenerio profilis atmestas",
+    body: reason ? `Jūsų trenerio profilis atmestas. Priežastis: ${reason}` : "Jūsų trenerio profilis atmestas.",
+    isRead: false,
+  }).onConflictDoNothing();
+
+  res.json({ id: coach.id, approvalStatus: coach.approvalStatus, rejectionReason: coach.rejectionReason });
 });
 
 /** POST /admin/seed-courts — seed courts from JSON file if DB is empty */
