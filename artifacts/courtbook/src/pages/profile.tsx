@@ -448,92 +448,10 @@ export default function Profile() {
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
 
-        {/* ── Tabs ── */}
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-1 bg-muted p-1 rounded-lg w-fit">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  activeTab === tab.key
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* ── Favorites ── */}
+        <div className="space-y-5">
 
-          {/* Bookings tab */}
-          {activeTab === "bookings" && (
-            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-              {bookingsLoading ? (
-                <div className="divide-y">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="px-5 py-4 flex gap-4 items-center">
-                      <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-6 w-20 rounded-full" />
-                    </div>
-                  ))}
-                </div>
-              ) : !bookings || bookings.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground text-sm">
-                  <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>{t("profile.noBookings")}</p>
-                  <Button variant="outline" size="sm" className="mt-4" asChild>
-                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {bookings.map((booking) => {
-                    return (
-                      <div
-                        key={booking.id}
-                        className="px-5 py-4 flex gap-4 items-center hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                          #{booking.id}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <Link
-                            href={`/courts/${booking.courtId}`}
-                            className="font-medium hover:text-primary hover:underline truncate block"
-                          >
-                            {booking.courtName || `Aikštelė #${booking.courtId}`}
-                          </Link>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                            <CalendarDays className="w-3 h-3 shrink-0" />
-                            {format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}
-                            <span className="text-muted-foreground/50">·</span>
-                            {booking.startTime} – {booking.endTime}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold text-muted-foreground hidden sm:block">
-                            {booking.totalPrice}€
-                          </span>
-                          <StatusBadge status={booking.status} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Favorites tab */}
-          {activeTab === "favorites" && (
-            <div className="space-y-5">
-              {/* Sub-tabs */}
+          {/* Sub-tabs */}
               <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
                 <button
                   onClick={() => setFavSubTab("courts")}
@@ -680,16 +598,8 @@ export default function Profile() {
                   )}
                 </>
               )}
-            </div>
-          )}
-
-          {/* Messages tab */}
-          {activeTab === "messages" && userId && (
-            <MessagesInbox userId={userId} userName={displayName} userEmail={email} />
-          )}
-
-          {/* My Courts tab (owner only) */}
-          {activeTab === "courts" && isOwner && (
+        </div>
+        {false && isOwner && (
             <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
               {courtsLoading ? (
                 <div className="divide-y">
@@ -763,7 +673,6 @@ export default function Profile() {
             </div>
           )}
         </div>
-      </div>
     </Layout>
   );
 }
