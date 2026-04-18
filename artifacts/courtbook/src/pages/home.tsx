@@ -10,14 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame, Eye } from "lucide-react";
+import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame, Eye, X } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isBefore, addMonths, subMonths } from "date-fns";
+import { format } from "date-fns";
+import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const HERO_IMAGES = [
@@ -322,7 +323,6 @@ export default function Home() {
   const timeRef = useRef<HTMLDivElement>(null);
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
-  const [calMonth, setCalMonth] = useState(() => startOfMonth(new Date()));
   const dateRef = useRef<HTMLDivElement>(null);
   const [showMoreCities, setShowMoreCities] = useState(false);
   const { locale } = useI18n();
@@ -655,103 +655,21 @@ export default function Home() {
                     )}
                   </button>
 
-                  {dateDropdownOpen && (() => {
-                    const dnLocale = locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS;
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    const monthStart = startOfMonth(calMonth);
-                    const monthEnd = endOfMonth(calMonth);
-                    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-                    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-                    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-                    // 7 short weekday names starting Monday
-                    const refMon = new Date(2024, 3, 1);
-                    const dayLabels = Array.from({ length: 7 }, (_, i) => {
-                      const d = new Date(refMon); d.setDate(d.getDate() + i);
-                      return format(d, "EEEEE", { locale: dnLocale });
-                    });
-                    return (
-                      <>
-                        {/* Mobile backdrop */}
-                        <div
-                          className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                          onClick={() => setDateDropdownOpen(false)}
+                  {dateDropdownOpen && (
+                    <>
+                      <div className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setDateDropdownOpen(false)} />
+                      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))] sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-[252px]">
+                        <DateCalendar
+                          selected={searchDateObj}
+                          onSelect={(d) => { setSearchDateObj(d); setSearchDate(format(d, "yyyy-MM-dd")); setDateDropdownOpen(false); }}
+                          onClose={() => setDateDropdownOpen(false)}
+                          accentColor={accentColor}
+                          accentFg={accentFg}
+                          locale={locale}
                         />
-                        <div className="
-                          fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
-                          sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-[252px]
-                          bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden
-                        ">
-                        {/* Month header */}
-                        <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/8">
-                          <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-                            <ChevronLeft className="h-4 w-4" />
-                          </button>
-                          <span className="text-sm font-semibold text-white capitalize tracking-wide">
-                            {format(calMonth, "LLLL yyyy", { locale: dnLocale })}
-                          </span>
-                          <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-
-                        <div className="p-2">
-                          {/* Day-of-week header */}
-                          <div className="grid grid-cols-7 mb-1">
-                            {dayLabels.map((label, i) => (
-                              <div key={i} className="text-center text-[10px] font-semibold py-1"
-                                style={{ color: i >= 5 ? accentColor + "88" : "rgba(255,255,255,0.3)" }}>
-                                {label}
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Day grid */}
-                          <div className="grid grid-cols-7 gap-y-0.5">
-                            {days.map(day => {
-                              const inMonth = isSameMonth(day, calMonth);
-                              const isPast = isBefore(day, today);
-                              const isSelected = searchDateObj ? isSameDay(day, searchDateObj) : false;
-                              const isTodayDay = isToday(day);
-                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                              return (
-                                <button
-                                  key={day.toISOString()}
-                                  onMouseDown={e => e.preventDefault()}
-                                  onClick={() => {
-                                    if (isPast) return;
-                                    setSearchDateObj(day);
-                                    setSearchDate(format(day, "yyyy-MM-dd"));
-                                    setDateDropdownOpen(false);
-                                  }}
-                                  disabled={isPast}
-                                  className={[
-                                    "relative h-8 w-full rounded-lg text-xs font-medium transition-all duration-100 flex items-center justify-center",
-                                    !inMonth ? "text-white/15" :
-                                    isSelected ? "font-bold shadow-md" :
-                                    isPast ? "text-white/18 cursor-not-allowed" :
-                                    isTodayDay ? "bg-white/12 text-white ring-1 ring-white/20 hover:bg-white/20" :
-                                    "hover:bg-white/10",
-                                  ].join(" ")}
-                                  style={
-                                    isSelected ? { background: accentColor, color: accentFg } :
-                                    (!isPast && !isTodayDay && inMonth && isWeekend) ? { color: accentColor + "bb" } :
-                                    (!isPast && !isTodayDay && inMonth) ? { color: "rgba(255,255,255,0.8)" } :
-                                    undefined
-                                  }
-                                >
-                                  {format(day, "d")}
-                                  {isTodayDay && !isSelected && (
-                                    <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: accentColor }} />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
                       </div>
-                      </>
-                    );
-                  })()}
+                    </>
+                  )}
                 </div>
 
                 {/* Time slider popover */}
@@ -783,17 +701,22 @@ export default function Home() {
                       <div className="
                         fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
                         sm:absolute sm:top-full sm:right-0 sm:left-auto sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-56
-                        bg-zinc-900/96 backdrop-blur border border-white/10 rounded-xl p-3 shadow-2xl
+                        bg-popover text-popover-foreground border border-border rounded-xl p-3 shadow-2xl
                       ">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest">Pradžios laikas</span>
-                        {timeSlider !== null && (
-                          <button onClick={() => { setTimeSlider(null); setSearchTime(""); }} className="text-[10px] hover:underline" style={{ color: accentColor }}>Išvalyti</button>
-                        )}
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Pradžios laikas</span>
+                        <div className="flex items-center gap-1.5">
+                          {timeSlider !== null && (
+                            <button onClick={() => { setTimeSlider(null); setSearchTime(""); }} className="text-[10px] hover:underline" style={{ color: accentColor }}>Išvalyti</button>
+                          )}
+                          <button onClick={() => setTimeDropdownOpen(false)} className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="text-center mb-2">
-                        <span className="text-2xl font-bold text-white tabular-nums">
+                        <span className="text-2xl font-bold tabular-nums">
                           {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "--:--"}
                         </span>
                       </div>
@@ -804,13 +727,13 @@ export default function Home() {
                           onChange={e => { const h = Number(e.target.value); setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
                           onMouseDown={() => { if (timeSlider === null) setTimeSlider(9); }}
                           className="time-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                          style={{ background: timeSlider !== null ? `linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, rgba(255,255,255,0.15) 100%)` : "rgba(255,255,255,0.15)" }}
+                          style={{ background: timeSlider !== null ? `linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, hsl(var(--muted)) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, hsl(var(--muted)) 100%)` : "hsl(var(--muted))" }}
                         />
                         <div className="flex justify-between mt-1.5">
                           {[6, 10, 14, 18, 22].map(h => (
                             <button key={h} onClick={() => { setTimeSlider(h); setSearchTime(`${String(h).padStart(2, "0")}:00`); }}
-                              className="text-[9px] tabular-nums transition-colors"
-                              style={{ color: timeSlider === h ? accentColor : "rgba(255,255,255,0.3)", fontWeight: timeSlider === h ? "700" : "400" }}
+                              className="text-[9px] tabular-nums transition-colors text-muted-foreground"
+                              style={{ color: timeSlider === h ? accentColor : undefined, fontWeight: timeSlider === h ? "700" : "400" }}
                             >{h}:00</button>
                           ))}
                         </div>

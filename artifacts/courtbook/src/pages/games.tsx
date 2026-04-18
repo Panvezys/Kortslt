@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SportIcon } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Shield, Lock, Search } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Shield, Lock, Search, X } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -278,78 +278,99 @@ export default function GamesPage() {
       (g.placeName ?? "").toLowerCase().includes(s) || (g.description ?? "").toLowerCase().includes(s);
   });
 
+  const activeFilters = (sport !== "all" ? 1 : 0) + (city !== "all" ? 1 : 0) + (search ? 1 : 0);
+  const resetFilters = () => { setSearch(""); setSport("all"); setCity("all"); };
+
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-6 sm:py-10 max-w-6xl">
-        {/* Hero */}
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-border p-6 sm:p-10 mb-8">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0">
-              <Users className="w-7 h-7 text-primary" />
+      <div className="min-h-screen bg-background">
+        {/* Photo Hero */}
+        <div className="relative h-52 sm:h-64 md:h-72 overflow-hidden">
+          <img
+            src="/coaches/coach_banner_2.png"
+            alt="Partneriai"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/70" />
+          <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-xl bg-primary/20 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+                <Users className="w-4.5 h-4.5 text-white" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white drop-shadow">Partneriai</h1>
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Rasti žaidimo partnerį</h1>
-              <p className="text-sm sm:text-base text-muted-foreground mt-1.5 max-w-2xl">
-                Prisijunk prie kitų žaidėjų kuriamų žaidimų arba sukurk savo ir pakviesk partnerius.
-              </p>
+            <p className="text-white/80 text-sm sm:text-base max-w-xl drop-shadow-sm">
+              Prisijunk prie kitų žaidėjų kuriamų žaidimų arba sukurk savo ir pakviesk partnerius.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Show when="signed-in">
+                <Button size="sm" onClick={() => setCreateOpen(true)} className="backdrop-blur-sm bg-white/20 hover:bg-white/30 text-white border border-white/30">
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />Sukurti žaidimą
+                </Button>
+              </Show>
+              <Show when="signed-out">
+                <Button size="sm" asChild className="backdrop-blur-sm bg-white/20 hover:bg-white/30 text-white border border-white/30">
+                  <Link href="/sign-in">Prisijungti, kad sukurtum</Link>
+                </Button>
+              </Show>
             </div>
-            <Show when="signed-in">
-              <Button size="lg" className="shrink-0" onClick={() => setCreateOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />Sukurti žaidimą
-              </Button>
-            </Show>
-            <Show when="signed-out">
-              <Button size="lg" asChild className="shrink-0">
-                <Link href="/sign-in">Prisijungti, kad sukurtum</Link>
-              </Button>
-            </Show>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-          <div className="sm:col-span-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Ieškoti..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
+          {/* Sticky filter bar */}
+          <div className="sticky top-[6.5rem] z-30 -mx-4 px-4 py-2 bg-background/90 backdrop-blur border-b border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="sm:col-span-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input className="pl-9 h-9 text-sm" placeholder="Ieškoti..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <Select value={sport} onValueChange={setSport}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Visos sporto šakos"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Visos sporto šakos</SelectItem>
+                  {SPORTS.map(s => <SelectItem key={s} value={s}>{SPORT_LABELS[s]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Select value={city} onValueChange={setCity}>
+                  <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Visi miestai"/></SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="all">Visi miestai</SelectItem>
+                    {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {activeFilters > 0 && (
+                  <button onClick={resetFilters} className="flex items-center gap-1 px-2.5 h-9 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          <Select value={sport} onValueChange={setSport}>
-            <SelectTrigger><SelectValue placeholder="Visos sporto šakos"/></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Visos sporto šakos</SelectItem>
-              {SPORTS.map(s => <SelectItem key={s} value={s}>{SPORT_LABELS[s]}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={city} onValueChange={setCity}>
-            <SelectTrigger><SelectValue placeholder="Visi miestai"/></SelectTrigger>
-            <SelectContent className="max-h-72">
-              <SelectItem value="all">Visi miestai</SelectItem>
-              {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
+
+          {/* Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 rounded-2xl border border-dashed border-border">
+              <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <h3 className="font-semibold text-lg">Kol kas nėra atvirų žaidimų</h3>
+              <p className="text-sm text-muted-foreground mt-1 mb-5">Būkite pirmas — sukurkite žaidimą ir kvieskite partnerius!</p>
+              <Show when="signed-in">
+                <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2"/>Sukurti žaidimą</Button>
+              </Show>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map(g => <GameCard key={g.id} g={g} />)}
+            </div>
+          )}
+
+          {user && <CreateGameDialog open={createOpen} onOpenChange={setCreateOpen} />}
         </div>
-
-        {/* Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 rounded-2xl border border-dashed border-border">
-            <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <h3 className="font-semibold text-lg">Kol kas nėra atvirų žaidimų</h3>
-            <p className="text-sm text-muted-foreground mt-1 mb-5">Būkite pirmas — sukurkite žaidimą ir kvieskite partnerius!</p>
-            <Show when="signed-in">
-              <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2"/>Sukurti žaidimą</Button>
-            </Show>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(g => <GameCard key={g.id} g={g} />)}
-          </div>
-        )}
-
-        {user && <CreateGameDialog open={createOpen} onOpenChange={setCreateOpen} />}
       </div>
     </Layout>
   );

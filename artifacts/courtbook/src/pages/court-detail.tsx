@@ -6,7 +6,7 @@ import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
+import { DateCalendar } from "@/components/ui/date-calendar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -1005,23 +1005,15 @@ export default function CourtDetail() {
                   Pasirinkite datą
                 </p>
                 <div className="border rounded-xl bg-background flex justify-center py-2 pb-3">
-                  <Calendar
-                    mode="single"
+                  <DateCalendar
                     selected={date}
-                    onSelect={(d: Date | undefined) => {
-                      if (d) {
-                        vibrateTap();
-                        setDate(d);
-                        setSelectedStart(null);
-                        setSelectedEnd(null);
-                        setSelectedEquipment(new Map());
-                      }
+                    onSelect={(d) => {
+                      vibrateTap();
+                      setDate(d);
+                      setSelectedStart(null);
+                      setSelectedEnd(null);
+                      setSelectedEquipment(new Map());
                     }}
-                    disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))}
-                    fixedWeeks
-                    showOutsideDays={false}
-                    className="rounded-md [--cell-size:2rem] w-full"
-                    classNames={{ root: "w-full" }}
                   />
                 </div>
               </div>

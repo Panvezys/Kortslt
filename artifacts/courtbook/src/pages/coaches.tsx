@@ -16,7 +16,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { SportIcon, sportColor } from "@/components/sport-icon";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isBefore, addMonths, subMonths } from "date-fns";
+import { format } from "date-fns";
+import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 import { useI18n } from "@/lib/i18n";
 
@@ -161,7 +162,6 @@ export default function CoachesPage() {
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
   const [searchDate, setSearchDate] = useState("");
-  const [calMonth, setCalMonth] = useState(() => startOfMonth(new Date()));
   const dateRef = useRef<HTMLDivElement>(null);
 
   // Time-of-day accent
@@ -545,86 +545,18 @@ export default function CoachesPage() {
                 )}
               </button>
 
-              {dateDropdownOpen && (() => {
-                const dnLocale = locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS;
-                const today = new Date(); today.setHours(0,0,0,0);
-                const monthStart = startOfMonth(calMonth);
-                const monthEnd = endOfMonth(calMonth);
-                const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-                const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-                const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-                const refMon = new Date(2024, 3, 1);
-                const dayLabels = Array.from({ length: 7 }, (_, i) => {
-                  const d = new Date(refMon); d.setDate(d.getDate() + i);
-                  return format(d, "EEEEE", { locale: dnLocale });
-                });
-                return (
-                  <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden" style={{ width: 252 }}>
-                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/8">
-                      <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <span className="text-sm font-semibold text-white capitalize tracking-wide">
-                        {format(calMonth, "LLLL yyyy", { locale: dnLocale })}
-                      </span>
-                      <button onMouseDown={e => e.preventDefault()} onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors">
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="p-2">
-                      <div className="grid grid-cols-7 mb-1">
-                        {dayLabels.map((label, i) => (
-                          <div key={i} className="text-center text-[10px] font-semibold py-1"
-                            style={{ color: i >= 5 ? accentColor + "88" : "rgba(255,255,255,0.3)" }}>
-                            {label}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="grid grid-cols-7 gap-y-0.5">
-                        {days.map(day => {
-                          const inMonth = isSameMonth(day, calMonth);
-                          const isPast = isBefore(day, today);
-                          const isSelected = searchDateObj ? isSameDay(day, searchDateObj) : false;
-                          const isTodayDay = isToday(day);
-                          const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                          return (
-                            <button
-                              key={day.toISOString()}
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => {
-                                if (isPast) return;
-                                setSearchDateObj(day);
-                                setSearchDate(format(day, "yyyy-MM-dd"));
-                                setDateDropdownOpen(false);
-                              }}
-                              disabled={isPast}
-                              className={[
-                                "relative h-8 w-full rounded-lg text-xs font-medium transition-all duration-100 flex items-center justify-center",
-                                !inMonth ? "text-white/15" :
-                                isSelected ? "font-bold shadow-md" :
-                                isPast ? "text-white/18 cursor-not-allowed" :
-                                isTodayDay ? "bg-white/12 text-white ring-1 ring-white/20 hover:bg-white/20" :
-                                "hover:bg-white/10",
-                              ].join(" ")}
-                              style={
-                                isSelected ? { background: accentColor, color: accentFg } :
-                                (!isPast && !isTodayDay && inMonth && isWeekend) ? { color: accentColor + "bb" } :
-                                (!isPast && !isTodayDay && inMonth) ? { color: "rgba(255,255,255,0.8)" } :
-                                undefined
-                              }
-                            >
-                              {format(day, "d")}
-                              {isTodayDay && !isSelected && (
-                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: accentColor }} />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+              {dateDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 w-[252px]">
+                  <DateCalendar
+                    selected={searchDateObj}
+                    onSelect={(d) => { setSearchDateObj(d); setSearchDate(format(d, "yyyy-MM-dd")); setDateDropdownOpen(false); }}
+                    onClose={() => setDateDropdownOpen(false)}
+                    accentColor={accentColor}
+                    accentFg={accentFg}
+                    locale={locale}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Search button */}
@@ -667,7 +599,7 @@ export default function CoachesPage() {
 
       {/* ── Mobile filter sheet ── */}
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-        <SheetContent side="bottom" className="h-[85dvh] overflow-y-auto rounded-t-2xl pb-safe">
+        <SheetContent side="bottom" className="h-[85dvh] rounded-t-2xl flex flex-col">
           <SheetHeader className="mb-4 flex-row items-center justify-between space-y-0">
             <SheetTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" />
@@ -680,11 +612,11 @@ export default function CoachesPage() {
               </Button>
             )}
           </SheetHeader>
-          {filterControls}
-          <div className="mt-6 pt-4 border-t">
+          <div className="flex-1 overflow-y-auto py-1">{filterControls}</div>
+          <div className="shrink-0 border-t pt-4 pb-2">
             <SheetClose asChild>
               <Button className="w-full" size="lg">
-                Rodyti {total} trenerių
+                Rodyti {total} trener{total === 1 ? "į" : "ių"}
               </Button>
             </SheetClose>
           </div>

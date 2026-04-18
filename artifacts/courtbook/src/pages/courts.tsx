@@ -401,7 +401,7 @@ export default function Courts() {
 
       {/* Mobile filter sheet */}
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-        <SheetContent side="bottom" className="h-[85dvh] overflow-y-auto rounded-t-2xl pb-safe">
+        <SheetContent side="bottom" className="h-[85dvh] rounded-t-2xl flex flex-col">
           <SheetHeader className="mb-4 flex-row items-center justify-between space-y-0">
             <SheetTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" />
@@ -416,11 +416,11 @@ export default function Courts() {
               </Button>
             )}
           </SheetHeader>
-          {filterControls}
-          <div className="mt-6 pt-4 border-t">
+          <div className="flex-1 overflow-y-auto py-1">{filterControls}</div>
+          <div className="shrink-0 border-t pt-4 pb-2">
             <SheetClose asChild>
               <Button className="w-full" size="lg">
-                {t("courts.found", { n: filteredCourts?.length ?? 0 })}
+                {t("courts.found", { n: sortedCourts?.length ?? 0 })}
               </Button>
             </SheetClose>
           </div>

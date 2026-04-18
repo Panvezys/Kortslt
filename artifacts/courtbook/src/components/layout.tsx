@@ -284,6 +284,13 @@ function MobileUserAvatar() {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const t = useT();
+  const [location] = useLocation();
+
+  const isActive = (href: string) => location === href || location.startsWith(href + "/");
+  const navCls = (href: string) =>
+    `transition-colors flex items-center gap-1.5 ${isActive(href) ? "text-primary font-semibold" : "hover:text-primary text-muted-foreground"}`;
+  const mobileNavCls = (href: string) =>
+    `flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${isActive(href) ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-primary text-muted-foreground"}`;
 
   return (
     <ThemeProvider>
@@ -293,23 +300,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <LogoBrand />
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              <Link href="/courts" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/courts" className={navCls("/courts")}>
                 <TennisCourtIcon className="w-3.5 h-3.5" />
                 {t("nav.findCourts")}
               </Link>
-              <Link href="/coaches" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/coaches" className={navCls("/coaches")}>
                 <Dumbbell className="w-3.5 h-3.5" />
                 Treneriai
               </Link>
-              <Link href="/tournaments" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/tournaments" className={navCls("/tournaments")}>
                 <Trophy className="w-3.5 h-3.5" />
                 Turnyrai
               </Link>
-              <Link href="/games" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/games" className={navCls("/games")}>
                 <Users className="w-3.5 h-3.5" />
                 Partneriai
               </Link>
-              <Link href="/list-your-court" className="transition-colors hover:text-primary flex items-center gap-1.5">
+              <Link href="/list-your-court" className={navCls("/list-your-court")}>
                 <Building2 className="w-3.5 h-3.5" />
                 Aikštelių savininkai
               </Link>
@@ -345,19 +352,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           {/* Mobile always-visible nav row */}
           <nav className="md:hidden border-t bg-background/95 flex items-center justify-around px-2 py-1.5 text-xs font-medium">
-            <Link href="/courts" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+            <Link href="/courts" className={mobileNavCls("/courts")}>
               <TennisCourtIcon className="w-4 h-4" />
               <span>{t("nav.findCourts")}</span>
             </Link>
-            <Link href="/coaches" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+            <Link href="/coaches" className={mobileNavCls("/coaches")}>
               <Dumbbell className="w-4 h-4" />
               <span>Treneriai</span>
             </Link>
-            <Link href="/tournaments" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+            <Link href="/tournaments" className={mobileNavCls("/tournaments")}>
               <Trophy className="w-4 h-4" />
               <span>Turnyrai</span>
             </Link>
-            <Link href="/games" className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg hover:bg-accent hover:text-primary transition-colors">
+            <Link href="/games" className={mobileNavCls("/games")}>
               <Users className="w-4 h-4" />
               <span>Partneriai</span>
             </Link>
