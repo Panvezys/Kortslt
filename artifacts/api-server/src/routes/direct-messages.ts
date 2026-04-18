@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { desc, eq, or, and, sql } from "drizzle-orm";
-import { db, directMessagesTable, notificationsTable } from "@workspace/db";
+import { desc, eq, or, and, sql, inArray } from "drizzle-orm";
+import { db, directMessagesTable, notificationsTable, userProfilesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -54,7 +54,23 @@ router.get("/dm/threads", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  res.json([...threadMap.values()]);
+  // Fetch avatars for all other users from userProfilesTable
+  const otherIds = [...threadMap.keys()];
+  const imageMap = new Map<string, string | null>();
+  if (otherIds.length > 0) {
+    const profiles = await db
+      .select({ userId: userProfilesTable.userId, imageUrl: userProfilesTable.imageUrl })
+      .from(userProfilesTable)
+      .where(inArray(userProfilesTable.userId, otherIds));
+    for (const p of profiles) imageMap.set(p.userId, p.imageUrl);
+  }
+
+  const threads = [...threadMap.values()].map(t => ({
+    ...t,
+    otherUserImageUrl: imageMap.get(t.otherUserId) ?? null,
+  }));
+
+  res.json(threads);
 });
 
 // GET /dm/thread/:otherUserId — all messages between me and otherUserId

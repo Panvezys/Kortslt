@@ -6,7 +6,8 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserProfileCard } from "@/components/user-profile-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { SportIcon } from "@/components/sport-icon";
@@ -62,6 +63,16 @@ export default function GameDetailPage() {
     queryFn: () => customFetch<GameDetail>(`${API}/games/${id}${token ? `?token=${token}` : ""}`),
     enabled: !isNaN(id),
   });
+
+  const participantIds = data?.participants.map(p => p.userId) ?? [];
+  const { data: avatarMap } = useQuery<Record<string, string | null>>({
+    queryKey: ["participant-avatars", participantIds.join(",")],
+    queryFn: () => customFetch<Record<string, string | null>>(`${API}/user-profiles/batch?ids=${participantIds.join(",")}`),
+    enabled: participantIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  const [profileView, setProfileView] = useState<{ userId: string; userName: string } | null>(null);
 
   const join = useMutation({
     mutationFn: () => customFetch(`${API}/games/${id}/join`, {
@@ -269,38 +280,47 @@ export default function GameDetailPage() {
             <h2 className="font-bold text-lg">Dalyviai ({data.joinedCount}/{data.playersNeeded})</h2>
           </div>
           <div className="space-y-2">
-            {data.participants.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary/15 text-primary font-semibold">
-                    {p.userName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium flex items-center gap-2">
-                    {p.userName}
-                    {p.userId === data.creatorUserId && <Crown className="w-3.5 h-3.5 text-primary" />}
+            {data.participants.map((p) => {
+              const pImageUrl = avatarMap?.[p.userId] ?? null;
+              return (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <button onClick={() => setProfileView({ userId: p.userId, userName: p.userName })} className="shrink-0">
+                    <Avatar className="h-10 w-10 ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer">
+                      {pImageUrl && <AvatarImage src={pImageUrl} alt={p.userName} />}
+                      <AvatarFallback className="bg-primary/15 text-primary font-semibold">
+                        {p.userName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <button
+                      onClick={() => setProfileView({ userId: p.userId, userName: p.userName })}
+                      className="font-medium flex items-center gap-2 hover:text-primary transition-colors"
+                    >
+                      {p.userName}
+                      {p.userId === data.creatorUserId && <Crown className="w-3.5 h-3.5 text-primary" />}
+                    </button>
+                    <div className="text-xs text-muted-foreground">
+                      Prisijungė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Prisijungė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}
-                  </div>
+                  {user?.id && user.id !== p.userId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openChat({
+                        userId: p.userId,
+                        userName: p.userName,
+                        ctxType: "game",
+                        ctxId: data.id,
+                      })}
+                    >
+                      <MessageCircle className="w-4 h-4"/>
+                    </Button>
+                  )}
                 </div>
-                {user?.id && user.id !== p.userId && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openChat({
-                      userId: p.userId,
-                      userName: p.userName,
-                      ctxType: "game",
-                      ctxId: data.id,
-                    })}
-                  >
-                    <MessageCircle className="w-4 h-4"/>
-                  </Button>
-                )}
-              </div>
-            ))}
+              );
+            })}
             {Array.from({ length: data.slotsLeft }).map((_, i) => (
               <div key={`empty-${i}`} className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-border">
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -312,6 +332,19 @@ export default function GameDetailPage() {
           </div>
         </div>
       </div>
+
+      {profileView && (
+        <UserProfileCard
+          open={!!profileView}
+          onClose={() => setProfileView(null)}
+          userId={profileView.userId}
+          userName={profileView.userName}
+          userImageUrl={avatarMap?.[profileView.userId]}
+          onMessage={user?.id && user.id !== profileView.userId ? () => {
+            openChat({ userId: profileView.userId, userName: profileView.userName, ctxType: "game", ctxId: data?.id });
+          } : undefined}
+        />
+      )}
     </Layout>
   );
 }

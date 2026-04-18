@@ -5,12 +5,13 @@ import { useUser, Show } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { Send, MessageSquare, ArrowLeft, User } from "lucide-react";
+import { UserProfileCard } from "@/components/user-profile-card";
+import { Send, MessageSquare, ArrowLeft } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -18,6 +19,7 @@ const API = `${BASE}/api`;
 interface Thread {
   otherUserId: string;
   otherUserName: string;
+  otherUserImageUrl: string | null;
   lastMessage: { body: string; createdAt: string; senderUserId: string };
   unread: number;
 }
@@ -44,14 +46,16 @@ function timeAgo(iso: string) {
   return d.toLocaleDateString("lt-LT", { month: "short", day: "numeric" });
 }
 
-function MessagesPanel({ otherUserId, otherUserName, ctxType, ctxId }: {
-  otherUserId: string; otherUserName: string; ctxType?: string; ctxId?: number;
+function MessagesPanel({ otherUserId, otherUserName, otherUserImageUrl, ctxType, ctxId }: {
+  otherUserId: string; otherUserName: string; otherUserImageUrl?: string | null;
+  ctxType?: string; ctxId?: number;
 }) {
   const { user } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const { data: messages, isLoading } = useQuery<DM[]>({
     queryKey: ["dm", otherUserId],
@@ -83,21 +87,28 @@ function MessagesPanel({ otherUserId, otherUserName, ctxType, ctxId }: {
     onError: (e: any) => toast({ title: "Nepavyko siųsti", description: e?.message, variant: "destructive" }),
   });
 
+  const initials = otherUserName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="border-b border-border p-4 flex items-center gap-3">
         <Button variant="ghost" size="sm" className="md:hidden -ml-2" asChild>
           <Link href="/messages"><ArrowLeft className="w-4 h-4"/></Link>
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-primary/15 text-primary font-semibold">
-            {otherUserName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <button onClick={() => setProfileOpen(true)} className="shrink-0">
+          <Avatar className="h-10 w-10 ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer">
+            {otherUserImageUrl && <AvatarImage src={otherUserImageUrl} alt={otherUserName} />}
+            <AvatarFallback className="bg-primary/15 text-primary font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
         <div>
-          <div className="font-semibold">{otherUserName}</div>
+          <button onClick={() => setProfileOpen(true)} className="font-semibold hover:text-primary transition-colors text-left">
+            {otherUserName}
+          </button>
           {ctxType === "game" && ctxId && (
-            <Link href={`/games/${ctxId}`} className="text-xs text-primary hover:underline">Apie žaidimą #{ctxId}</Link>
+            <Link href={`/games/${ctxId}`} className="text-xs text-primary hover:underline block">Apie žaidimą #{ctxId}</Link>
           )}
         </div>
       </div>
@@ -148,13 +159,21 @@ function MessagesPanel({ otherUserId, otherUserName, ctxType, ctxId }: {
           <Send className="w-4 h-4"/>
         </Button>
       </form>
+
+      <UserProfileCard
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        userId={otherUserId}
+        userName={otherUserName}
+        userImageUrl={otherUserImageUrl}
+      />
     </div>
   );
 }
 
 export default function MessagesPage() {
   const { user } = useUser();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
 
   const params = new URLSearchParams(window.location.search);
   const activeUserId = params.get("u") ?? "";
@@ -170,8 +189,13 @@ export default function MessagesPage() {
     refetchInterval: 15000,
   });
 
+  const activeThread = threads?.find(t => t.otherUserId === activeUserId);
   const chosen = activeUserId
-    ? { id: activeUserId, name: activeName || threads?.find(t => t.otherUserId === activeUserId)?.otherUserName || "Vartotojas" }
+    ? {
+        id: activeUserId,
+        name: activeName || activeThread?.otherUserName || "Vartotojas",
+        imageUrl: activeThread?.otherUserImageUrl ?? null,
+      }
     : null;
 
   return (
@@ -214,6 +238,7 @@ export default function MessagesPage() {
                         }`}
                       >
                         <Avatar className="h-11 w-11 shrink-0">
+                          {t.otherUserImageUrl && <AvatarImage src={t.otherUserImageUrl} alt={t.otherUserName} />}
                           <AvatarFallback className="bg-primary/15 text-primary font-semibold">
                             {t.otherUserName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -243,6 +268,7 @@ export default function MessagesPage() {
                 <MessagesPanel
                   otherUserId={chosen.id}
                   otherUserName={chosen.name}
+                  otherUserImageUrl={chosen.imageUrl}
                   ctxType={ctxType}
                   ctxId={ctxId}
                 />

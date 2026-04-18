@@ -21,6 +21,7 @@ import directMessagesRouter from "./direct-messages";
 import facilitiesRouter from "./facilities";
 import ownerOnboardRouter from "./owner-onboard";
 import sitemapRouter from "./sitemap";
+import userProfilesRouter from "./user-profiles";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(directMessagesRouter);
 router.use(facilitiesRouter);
 router.use(ownerOnboardRouter);
 router.use(sitemapRouter);
+router.use(userProfilesRouter);
 
 export default router;

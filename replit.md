@@ -37,6 +37,9 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
     - **Coach Favorites**: `coach_favorites` table stores user–coach favorite relationships. Endpoints: `GET /api/favorites/coaches`, `POST /api/favorites/coaches/:coachId`, `DELETE /api/favorites/coaches/:coachId`. `FavoritesContext` exposes both court and coach favorites. The profile Favorites tab has sub-tabs for courts and coaches.
     - **Slot Availability**: `GET /api/courts/:id/availability` blocks both `pending` and `confirmed` bookings to prevent double-booking.
     - **Production Seeding**: Admin endpoint `POST /api/admin/seed-courts` for one-time seeding of production databases.
+    - **Sports Activity & User Profiles**: Two new DB tables (`user_profiles`, `user_sport_profiles`). Each user can add sport profiles with level (beginner/intermediate/advanced/pro), toggle visibility (activityPublic), and stats (gamesPlayed, hoursPlayed) are auto-computed from game_participants + games tables. Image URL is synced from Clerk on profile page load so real avatars appear everywhere.
+    - **UserProfileCard component**: Reusable modal that shows when clicking any avatar in messaging (chat bubble, messages page) or game participants — displays sport profiles, levels, stats, and "Rašyti žinutę" button.
+    - **Real avatars everywhere**: DM thread list, chat bubble, messages page, and game detail participants all show real Clerk profile pictures. The `/api/dm/threads` endpoint now returns `otherUserImageUrl`. A batch endpoint `/api/user-profiles/batch` allows fetching multiple user avatars at once.
 
 ## External Dependencies
 

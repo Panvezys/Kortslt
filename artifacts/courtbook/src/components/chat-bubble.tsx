@@ -4,7 +4,8 @@ import { useUser, Show } from "@clerk/react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserProfileCard } from "@/components/user-profile-card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -69,6 +70,7 @@ function showBrowserNotification(title: string, body: string) {
 interface Thread {
   otherUserId: string;
   otherUserName: string;
+  otherUserImageUrl: string | null;
   lastMessage: { body: string; createdAt: string; senderUserId: string };
   unread: number;
 }
@@ -144,9 +146,9 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
 }
 
 function ChatThreadView({
-  otherUserId, otherUserName, ctxType, ctxId, onBack,
+  otherUserId, otherUserName, otherUserImageUrl, ctxType, ctxId, onBack,
 }: {
-  otherUserId: string; otherUserName: string;
+  otherUserId: string; otherUserName: string; otherUserImageUrl?: string | null;
   ctxType?: string; ctxId?: number;
   onBack: () => void;
 }) {
@@ -155,6 +157,7 @@ function ChatThreadView({
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const { data: messages, isLoading } = useQuery<DM[]>({
     queryKey: ["dm", otherUserId],
@@ -206,13 +209,18 @@ function ChatThreadView({
           <Button variant="ghost" size="icon" className="h-8 w-8 -ml-1" onClick={onBack} aria-label="Atgal">
             <ArrowLeft className="w-4 h-4"/>
           </Button>
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
-              {initials(otherUserName)}
-            </AvatarFallback>
-          </Avatar>
+          <button onClick={() => setProfileOpen(true)} className="shrink-0">
+            <Avatar className="h-9 w-9 ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer">
+              {otherUserImageUrl && <AvatarImage src={otherUserImageUrl} alt={otherUserName} />}
+              <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
+                {initials(otherUserName)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
           <div className="min-w-0 flex-1">
-            <div className="font-semibold text-sm truncate">{otherUserName}</div>
+            <button onClick={() => setProfileOpen(true)} className="font-semibold text-sm truncate block hover:text-primary transition-colors text-left">
+              {otherUserName}
+            </button>
             <div className="text-[11px] text-muted-foreground">Sporto partneris</div>
           </div>
         </div>
@@ -276,6 +284,14 @@ function ChatThreadView({
           <Send className="w-4 h-4"/>
         </Button>
       </form>
+
+      <UserProfileCard
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        userId={otherUserId}
+        userName={otherUserName}
+        userImageUrl={otherUserImageUrl}
+      />
     </div>
   );
 }
@@ -309,6 +325,7 @@ function ChatThreadsList({
               className="w-full text-left p-3 flex gap-3 border-b border-border/60 hover:bg-muted/40 transition-colors"
             >
               <Avatar className="h-10 w-10 shrink-0">
+                {t.otherUserImageUrl && <AvatarImage src={t.otherUserImageUrl} alt={t.otherUserName} />}
                 <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
                   {initials(t.otherUserName)}
                 </AvatarFallback>
@@ -340,7 +357,7 @@ function ChatThreadsList({
 function ChatBubbleInner() {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState<{ userId: string; userName: string; ctxType?: string; ctxId?: number } | null>(null);
+  const [active, setActive] = useState<{ userId: string; userName: string; imageUrl?: string | null; ctxType?: string; ctxId?: number } | null>(null);
 
   const { data: threads, isLoading: threadsLoading } = useQuery<Thread[]>({
     queryKey: ["dm-threads"],
@@ -473,6 +490,7 @@ function ChatBubbleInner() {
             <ChatThreadView
               otherUserId={active.userId}
               otherUserName={active.userName}
+              otherUserImageUrl={active.imageUrl}
               ctxType={active.ctxType}
               ctxId={active.ctxId}
               onBack={() => setActive(null)}
@@ -482,7 +500,7 @@ function ChatBubbleInner() {
               threads={threads}
               isLoading={threadsLoading}
               currentUserId={user?.id}
-              onPick={(t) => setActive({ userId: t.otherUserId, userName: t.otherUserName })}
+              onPick={(t) => setActive({ userId: t.otherUserId, userName: t.otherUserName, imageUrl: t.otherUserImageUrl })}
             />
           )}
         </div>

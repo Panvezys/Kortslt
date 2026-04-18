@@ -14,3 +14,4 @@ export * from "./trainers";
 export * from "./tournaments";
 export * from "./games";
 export * from "./direct-messages";
+export * from "./user-profiles";
