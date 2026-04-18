@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { useUser, useClerk } from "@clerk/react";
 import { useListBookings, useListCourts } from "@workspace/api-client-react";
@@ -32,66 +32,7 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  Dumbbell,
 } from "lucide-react";
-
-interface CoachFav {
-  id: number;
-  name: string;
-  email: string;
-  photoUrl: string | null;
-  sports: string[];
-  pricePerHour: number | null;
-  bio: string | null;
-}
-
-const SPORT_COLOR_COACH: Record<string, string> = {
-  tennis: "#84cc16", basketball: "#f97316", padel: "#3b82f6",
-  football: "#22c55e", badminton: "#a855f7", squash: "#06b6d4",
-};
-
-function useCoachFavorites(userId: string | null) {
-  const [favorites, setFavorites] = useState<CoachFav[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
-  const [loading, setLoading] = useState(false);
-
-  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-  const API = `${BASE}/api`;
-
-  const fetchFavorites = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/favorites/coaches?userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
-      if (!res.ok) return;
-      const data: CoachFav[] = await res.json();
-      setFavorites(data);
-      setFavoriteIds(new Set(data.map(c => c.id)));
-    } finally {
-      setLoading(false);
-    }
-  }, [userId, API]);
-
-  useEffect(() => { fetchFavorites(); }, [fetchFavorites]);
-
-  const toggleFavorite = useCallback(async (coachId: number) => {
-    if (!userId) return;
-    if (favoriteIds.has(coachId)) {
-      setFavoriteIds(prev => { const n = new Set(prev); n.delete(coachId); return n; });
-      setFavorites(prev => prev.filter(c => c.id !== coachId));
-      await fetch(`${API}/favorites/coaches/${coachId}?userId=${encodeURIComponent(userId)}`, { method: "DELETE" });
-    } else {
-      await fetch(`${API}/favorites/coaches/${coachId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-      await fetchFavorites();
-    }
-  }, [userId, favoriteIds, fetchFavorites, API]);
-
-  return { favorites, favoriteIds, loading, toggleFavorite, isFavorite: (id: number) => favoriteIds.has(id) };
-}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -392,19 +333,17 @@ function StatCard({
 }
 
 type Tab = "bookings" | "favorites" | "courts" | "messages";
-type FavSubTab = "courts" | "coaches";
 
 export default function Profile() {
   const { user } = useUser();
   const { openUserProfile } = useClerk();
   const t = useT();
   const search = useSearch();
-  const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "favorites";
+  const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "bookings";
   const [activeTab, setActiveTab] = useState<Tab>(
-    ["bookings", "favorites", "courts", "messages"].includes(initialTab) ? initialTab : "favorites"
+    ["bookings", "favorites", "courts", "messages"].includes(initialTab) ? initialTab : "bookings"
   );
-  const [favSubTab, setFavSubTab] = useState<FavSubTab>("courts");
-  const { isOwner: roleIsOwner } = useRole();
+  const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected } = useRole();
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
@@ -421,13 +360,22 @@ export default function Profile() {
   );
 
   const { favorites, loading: favoritesLoading } = useFavoritesContext();
-  const { favorites: coachFavorites, loading: coachFavLoading } = useCoachFavorites(userId || null);
 
+  const today = new Date().toISOString().split("T")[0];
+  const upcomingBookings = (bookings ?? []).filter(
+    (b) => b.status !== "cancelled" && b.date >= today
+  );
   const isOwner = roleIsOwner || (ownerCourts?.length ?? 0) > 0;
 
+  const initials = user
+    ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+      email[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "favorites", label: t("profile.tab.favorites"), icon: <Heart className="w-4 h-4" /> },
     { key: "bookings", label: t("profile.tab.bookings"), icon: <CalendarDays className="w-4 h-4" /> },
+    { key: "favorites", label: t("profile.tab.favorites"), icon: <Heart className="w-4 h-4" /> },
     { key: "messages", label: "Žinutės", icon: <MessageSquare className="w-4 h-4" /> },
     ...(isOwner
       ? [{ key: "courts" as Tab, label: t("profile.tab.myCourts"), icon: <LayoutDashboard className="w-4 h-4" /> }]
@@ -446,7 +394,175 @@ export default function Profile() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
+      <div className="container mx-auto px-4 py-10 max-w-5xl space-y-8">
+
+        {/* ── Profile hero ── */}
+        <div className="bg-card border rounded-2xl shadow-sm overflow-hidden">
+          <div className="h-28 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent" />
+          <div className="px-6 pb-6 -mt-14 flex flex-col sm:flex-row sm:items-end gap-4">
+            <Avatar className="w-24 h-24 border-4 border-card ring-2 ring-primary/20 shadow-lg shrink-0">
+              <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
+              <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0 sm:mb-1">
+              <h1 className="text-2xl font-bold tracking-tight truncate">
+                {user.fullName || t("nav.account")}
+              </h1>
+              <p className="text-sm text-muted-foreground truncate">{email}</p>
+              {user.createdAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t("profile.memberSince")} {format(new Date(user.createdAt), "MMMM yyyy")}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 sm:mb-1">
+              {isOwner && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/owner">
+                    <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                    {t("nav.ownerDashboard")}
+                  </Link>
+                </Button>
+              )}
+              <Button size="sm" onClick={() => openUserProfile()}>
+                <Pencil className="w-4 h-4 mr-1.5" />
+                {t("profile.editProfile")}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Stats row ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatCard
+            icon={<CalendarDays className="w-5 h-5" />}
+            label={t("profile.stat.totalBookings")}
+            value={bookingsLoading ? "–" : (bookings?.length ?? 0)}
+            onClick={() => setActiveTab("bookings")}
+          />
+          <StatCard
+            icon={<Clock className="w-5 h-5" />}
+            label={t("profile.stat.upcoming")}
+            value={bookingsLoading ? "–" : upcomingBookings.length}
+            color="text-green-500"
+            onClick={() => setActiveTab("bookings")}
+          />
+          <StatCard
+            icon={<Heart className="w-5 h-5" />}
+            label={t("profile.stat.favorites")}
+            value={favoritesLoading ? "–" : favorites.length}
+            color="text-rose-500"
+            onClick={() => setActiveTab("favorites")}
+          />
+          {isOwner && (
+            <StatCard
+              icon={<Building2 className="w-5 h-5" />}
+              label={t("profile.stat.myCourts")}
+              value={courtsLoading ? "–" : (ownerCourts?.length ?? 0)}
+              color="text-blue-500"
+              onClick={() => setActiveTab("courts")}
+            />
+          )}
+        </div>
+
+        {/* ── Role & upgrade section ── */}
+        {(() => {
+          const ROLE_LABEL: Record<string, string> = {
+            admin: "Administratorius",
+            owner: "Savininkas",
+            coach: "Treneris",
+            player: "Žaidėjas",
+          };
+          const PENDING_ROLE_LABEL: Record<string, string> = {
+            coach: "Trenerio",
+            owner: "Savininko",
+          };
+          const currentLabel = ROLE_LABEL[role ?? "player"] ?? role;
+
+          return (
+            <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                    {isAdmin ? <ShieldCheck className="w-5 h-5 text-primary" /> :
+                     isOwner ? <Building2 className="w-5 h-5 text-primary" /> :
+                     isCoach ? <Trophy className="w-5 h-5 text-blue-400" /> :
+                     <Star className="w-5 h-5 text-muted-foreground" />}
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Vaidmuo</p>
+                    <p className="font-bold text-foreground">{currentLabel}</p>
+                  </div>
+                </div>
+                {isAdmin && (
+                  <Badge className="bg-primary/10 text-primary border border-primary/20">Administratorius</Badge>
+                )}
+                {isPending && pendingRole && (
+                  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium">
+                    <Clock className="w-3.5 h-3.5" />
+                    {PENDING_ROLE_LABEL[pendingRole] ?? pendingRole} prašymas laukia
+                  </span>
+                )}
+                {isRejected && (
+                  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Prašymas atmestas
+                  </span>
+                )}
+              </div>
+
+              {isRejected && rejectionReason && (
+                <div className="bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-3 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground mb-0.5">Atmetimo priežastis:</p>
+                  <p>{rejectionReason}</p>
+                </div>
+              )}
+
+              {/* Upgrade options for players */}
+              {(role === "player" || isRejected) && !isPending && (
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 border-blue-500/30 text-blue-400 hover:bg-blue-500/5"
+                    asChild
+                  >
+                    <Link href="/become-coach">
+                      <Trophy className="w-4 h-4" />
+                      Tapti treneriu
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+                    asChild
+                  >
+                    <Link href="/become-owner">
+                      <Building2 className="w-4 h-4" />
+                      Tapti savininku
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              )}
+
+              {/* Coach quick link */}
+              {isCoach && (
+                <Button variant="outline" size="sm" className="w-full gap-1.5" asChild>
+                  <Link href="/coach/me">
+                    <Trophy className="w-4 h-4" />
+                    Trenerio skydelis
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </Button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Tabs ── */}
         <div className="space-y-4">
@@ -532,153 +648,75 @@ export default function Profile() {
 
           {/* Favorites tab */}
           {activeTab === "favorites" && (
-            <div className="space-y-5">
-              {/* Sub-tabs */}
-              <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
-                <button
-                  onClick={() => setFavSubTab("courts")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    favSubTab === "courts"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Building2 className="w-4 h-4" />
-                  Aikštelės
-                  <span className="text-xs opacity-60">({favorites.length})</span>
-                </button>
-                <button
-                  onClick={() => setFavSubTab("coaches")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                    favSubTab === "coaches"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Dumbbell className="w-4 h-4" />
-                  Treneriai
-                  <span className="text-xs opacity-60">({coachFavorites.length})</span>
-                </button>
-              </div>
-
-              {/* Courts sub-tab */}
-              {favSubTab === "courts" && (
-                <>
-                  {favoritesLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
-                    </div>
-                  ) : favorites.length === 0 ? (
-                    <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
-                      <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                      <p>{t("profile.noFavorites")}</p>
-                      <Button variant="outline" size="sm" className="mt-4" asChild>
-                        <Link href="/courts">{t("bookings.browseCourts")}</Link>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {favorites.map((court) => {
-                        const color = SPORT_COLOR[court.type] ?? "#84cc16";
-                        return (
-                          <Link key={court.id} href={`/courts/${court.id}`}>
-                            <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
+            <div>
+              {favoritesLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-40 rounded-xl" />
+                  ))}
+                </div>
+              ) : favorites.length === 0 ? (
+                <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
+                  <Heart className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p>{t("profile.noFavorites")}</p>
+                  <Button variant="outline" size="sm" className="mt-4" asChild>
+                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {favorites.map((court) => {
+                    const color = SPORT_COLOR[court.type] ?? "#84cc16";
+                    return (
+                      <Link key={court.id} href={`/courts/${court.id}`}>
+                        <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
+                          <div
+                            className="h-28 bg-muted relative overflow-hidden"
+                            style={
+                              court.imageUrl
+                                ? { backgroundImage: `url(${court.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+                                : {}
+                            }
+                          >
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                            <div className="absolute top-2.5 left-2.5">
                               <div
-                                className="h-28 bg-muted relative overflow-hidden"
-                                style={court.imageUrl ? { backgroundImage: `url(${court.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
+                                className="w-7 h-7 rounded-full flex items-center justify-center"
+                                style={{ background: color }}
                               >
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                                <div className="absolute top-2.5 left-2.5">
-                                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: color }}>
-                                    <SportIcon sport={court.type} size={14} strokeWidth={2} className="text-white" />
-                                  </div>
-                                </div>
-                                {court.rating && (
-                                  <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5">
-                                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                    {court.rating.toFixed(1)}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="p-3.5">
-                                <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{court.name}</p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                  <MapPin className="w-3 h-3 shrink-0" />{court.city}
-                                </p>
-                                <div className="flex items-center justify-between mt-2.5">
-                                  <span className="text-sm font-bold" style={{ color }}>
-                                    {court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span>
-                                  </span>
-                                  <Badge variant="outline" className="text-xs">
-                                    {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
-                                  </Badge>
-                                </div>
+                                <SportIcon sport={court.type} size={14} strokeWidth={2} className="text-white" />
                               </div>
                             </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Coaches sub-tab */}
-              {favSubTab === "coaches" && (
-                <>
-                  {coachFavLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
-                    </div>
-                  ) : coachFavorites.length === 0 ? (
-                    <div className="bg-card border rounded-xl py-16 text-center text-muted-foreground text-sm shadow-sm">
-                      <Dumbbell className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                      <p>Nėra mėgstamų trenerių</p>
-                      <Button variant="outline" size="sm" className="mt-4" asChild>
-                        <Link href="/coaches">Naršyti trenerius</Link>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {coachFavorites.map((coach) => {
-                        const primarySport = coach.sports[0];
-                        const color = primarySport ? (SPORT_COLOR_COACH[primarySport] ?? "#84cc16") : "#84cc16";
-                        return (
-                          <Link key={coach.id} href={`/coaches/${coach.id}`}>
-                            <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
-                              <div
-                                className="h-28 bg-muted relative overflow-hidden"
-                                style={coach.photoUrl ? { backgroundImage: `url(${coach.photoUrl})`, backgroundSize: "cover", backgroundPosition: "center top" } : {}}
-                              >
-                                {!coach.photoUrl && (
-                                  <div className="absolute inset-0 flex items-center justify-center">
-                                    <Dumbbell className="w-10 h-10 text-muted-foreground/30" />
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                            {court.rating && (
+                              <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 bg-black/60 text-white text-xs rounded-full px-2 py-0.5">
+                                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                {court.rating.toFixed(1)}
                               </div>
-                              <div className="p-3.5">
-                                <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{coach.name}</p>
-                                {coach.sports.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1.5">
-                                    {coach.sports.slice(0, 2).map(s => (
-                                      <Badge key={s} variant="outline" className="text-xs capitalize">{s}</Badge>
-                                    ))}
-                                  </div>
-                                )}
-                                {coach.pricePerHour != null && (
-                                  <p className="text-sm font-bold mt-2" style={{ color }}>
-                                    {coach.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span>
-                                  </p>
-                                )}
-                              </div>
+                            )}
+                          </div>
+                          <div className="p-3.5">
+                            <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                              {court.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 shrink-0" />
+                              {court.city}
+                            </p>
+                            <div className="flex items-center justify-between mt-2.5">
+                              <span className="text-sm font-bold" style={{ color }}>
+                                {court.pricePerHour}€
+                                <span className="text-xs font-normal text-muted-foreground">/val</span>
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {court.isIndoor ? t("card.indoor") : t("card.outdoor")}
+                              </Badge>
                             </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}

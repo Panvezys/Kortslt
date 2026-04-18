@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
-import { db, favoritesTable, courtsTable, coachFavoritesTable, coachesTable } from "@workspace/db";
+import { db, favoritesTable, courtsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -74,56 +74,6 @@ router.delete("/favorites/:courtId", async (req, res): Promise<void> => {
     .delete(favoritesTable)
     .where(and(eq(favoritesTable.userId, userId), eq(favoritesTable.courtId, courtId)));
 
-  res.json({ ok: true });
-});
-
-// ─── Coach favorites ─────────────────────────────────────────────────────────
-
-router.get("/favorites/coaches", async (req, res): Promise<void> => {
-  const { userId } = req.query;
-  if (!userId || typeof userId !== "string") {
-    res.status(400).json({ error: "userId is required" });
-    return;
-  }
-
-  const rows = await db
-    .select({ coachId: coachFavoritesTable.coachId })
-    .from(coachFavoritesTable)
-    .where(eq(coachFavoritesTable.userId, userId));
-
-  const coachIds = rows.map(r => r.coachId);
-
-  if (coachIds.length === 0) {
-    res.json([]);
-    return;
-  }
-
-  const coaches = await db
-    .select()
-    .from(coachesTable)
-    .where(inArray(coachesTable.id, coachIds));
-
-  res.json(coaches.map(c => ({
-    ...c,
-    pricePerHour: c.pricePerHour != null ? Number(c.pricePerHour) : null,
-  })));
-});
-
-router.post("/favorites/coaches/:coachId", async (req, res): Promise<void> => {
-  const coachId = parseInt(req.params.coachId, 10);
-  const { userId } = req.body;
-  if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }
-  if (!userId || typeof userId !== "string") { res.status(400).json({ error: "userId is required" }); return; }
-  await db.insert(coachFavoritesTable).values({ userId, coachId }).onConflictDoNothing();
-  res.json({ ok: true });
-});
-
-router.delete("/favorites/coaches/:coachId", async (req, res): Promise<void> => {
-  const coachId = parseInt(req.params.coachId, 10);
-  const { userId } = req.query;
-  if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }
-  if (!userId || typeof userId !== "string") { res.status(400).json({ error: "userId is required" }); return; }
-  await db.delete(coachFavoritesTable).where(and(eq(coachFavoritesTable.userId, userId), eq(coachFavoritesTable.coachId, coachId)));
   res.json({ ok: true });
 });
 

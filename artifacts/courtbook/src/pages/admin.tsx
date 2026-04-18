@@ -12,7 +12,7 @@ import { customFetch, type Court } from "@workspace/api-client-react";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
-  CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon, Dumbbell,
+  CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -341,252 +341,6 @@ function CourtsPanel() {
               <label className="text-sm font-medium">Atmetimo priežastis (neprivaloma)</label>
               <Input
                 placeholder="pvz. Trūksta dokumentų..."
-                value={rejectReason}
-                onChange={e => setRejectReason(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => { setRejectDialogId(null); setRejectReason(""); }}>
-                Atšaukti
-              </Button>
-              <Button variant="destructive" onClick={handleReject} disabled={rejectMutation.isPending}>
-                {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-// ─── Coaches panel ───────────────────────────────────────────────────────────
-
-const SPORT_LABELS_COACH: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
-
-interface CoachAdmin {
-  id: number;
-  userId: string;
-  name: string;
-  email: string;
-  bio: string | null;
-  photoUrl: string | null;
-  sports: string[];
-  pricePerHour: number | null;
-  approvalStatus: string;
-  rejectionReason: string | null;
-  createdAt: string;
-}
-
-type CoachFilterStatus = "all" | "pending" | "approved" | "rejected";
-
-function CoachStatusBadge({ status }: { status?: string }) {
-  if (status === "approved")
-    return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Patvirtinta</Badge>;
-  if (status === "rejected")
-    return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Atmesta</Badge>;
-  return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Laukiama</Badge>;
-}
-
-function CoachesPanel() {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [filterStatus, setFilterStatus] = useState<CoachFilterStatus>("all");
-  const [rejectDialogId, setRejectDialogId] = useState<number | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-
-  const { data: coaches, isLoading, isError } = useQuery<CoachAdmin[]>({
-    queryKey: ["admin-coaches"],
-    queryFn: () => customFetch<CoachAdmin[]>("/api/admin/coaches", { method: "GET" }),
-    retry: false,
-  });
-
-  const approveMutation = useMutation({
-    mutationFn: (id: number) =>
-      customFetch<{ id: number; approvalStatus: string }>(`/api/admin/coaches/${id}/approve`, { method: "PUT" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-coaches"] }),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-      customFetch<{ id: number; approvalStatus: string }>(`/api/admin/coaches/${id}/reject`, {
-        method: "PUT",
-        body: JSON.stringify({ reason }),
-        headers: { "Content-Type": "application/json" },
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-coaches"] }),
-  });
-
-  const filtered = (coaches ?? []).filter(c =>
-    filterStatus === "all" ? true : c.approvalStatus === filterStatus
-  );
-
-  const counts = {
-    all: coaches?.length ?? 0,
-    pending: coaches?.filter(c => c.approvalStatus === "pending").length ?? 0,
-    approved: coaches?.filter(c => c.approvalStatus === "approved").length ?? 0,
-    rejected: coaches?.filter(c => c.approvalStatus === "rejected").length ?? 0,
-  };
-
-  const handleApprove = async (id: number) => {
-    try {
-      await approveMutation.mutateAsync(id);
-      toast({ title: "Treneris patvirtintas" });
-    } catch {
-      toast({ title: "Klaida patvirtinant", variant: "destructive" });
-    }
-  };
-
-  const handleReject = async () => {
-    if (rejectDialogId === null) return;
-    try {
-      await rejectMutation.mutateAsync({ id: rejectDialogId, reason: rejectReason || undefined });
-      toast({ title: "Treneris atmestas" });
-      setRejectDialogId(null);
-      setRejectReason("");
-    } catch {
-      toast({ title: "Klaida atmetant", variant: "destructive" });
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex gap-2 flex-wrap">
-          {(["all", "pending", "approved", "rejected"] as CoachFilterStatus[]).map(s => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                filterStatus === s
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border hover:border-primary/50"
-              }`}
-            >
-              {s === "all" && `Visi (${counts.all})`}
-              {s === "pending" && `Laukiama (${counts.pending})`}
-              {s === "approved" && `Patvirtinta (${counts.approved})`}
-              {s === "rejected" && `Atmesta (${counts.rejected})`}
-            </button>
-          ))}
-        </div>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-coaches"] })}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
-        </Button>
-      </div>
-
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
-        </div>
-      )}
-
-      {isError && (
-        <div className="py-12 text-center text-muted-foreground">Nepavyko įkelti trenerių.</div>
-      )}
-
-      {!isLoading && !isError && (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50 border-b">
-                <th className="text-left px-4 py-3 font-medium">Treneris</th>
-                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">El. paštas</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Sportas</th>
-                <th className="text-left px-4 py-3 font-medium">Statusas</th>
-                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
-                    Trenerių nerasta
-                  </td>
-                </tr>
-              )}
-              {filtered.map(coach => (
-                <tr key={coach.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {coach.photoUrl ? (
-                        <img src={coach.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                          <Dumbbell className="w-4 h-4 text-muted-foreground" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium">{coach.name}</div>
-                        {coach.pricePerHour && (
-                          <div className="text-xs text-muted-foreground">{coach.pricePerHour}€/val</div>
-                        )}
-                        {coach.rejectionReason && (
-                          <div className="text-xs text-red-400 mt-0.5">❌ {coach.rejectionReason}</div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-sm text-muted-foreground">
-                    {coach.email}
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">
-                    {coach.sports.map(s => SPORT_LABELS_COACH[s] ?? s).join(", ") || "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <CoachStatusBadge status={coach.approvalStatus} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
-                      {coach.approvalStatus !== "approved" && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-green-400 border-green-500/30 hover:bg-green-500/10"
-                          onClick={() => handleApprove(coach.id)}
-                          disabled={approveMutation.isPending}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      {coach.approvalStatus !== "rejected" && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-7 px-2 text-red-400 border-red-500/30 hover:bg-red-500/10"
-                          onClick={() => setRejectDialogId(coach.id)}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm" variant="ghost" className="h-7 px-2"
-                        onClick={() => window.open(`/coaches/${coach.id}`, "_blank")}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <Dialog
-        open={rejectDialogId !== null}
-        onOpenChange={open => { if (!open) { setRejectDialogId(null); setRejectReason(""); } }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Atmesti trenerį</DialogTitle></DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Atmetimo priežastis (neprivaloma)</label>
-              <Input
-                placeholder="pvz. Trūksta informacijos..."
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
               />
@@ -1208,11 +962,11 @@ function FacilitiesPanel() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AdminTab = "facilities" | "courts" | "coaches" | "users";
+type AdminTab = "courts" | "users" | "facilities";
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
-  const [activeTab, setActiveTab] = useState<AdminTab>("facilities");
+  const [activeTab, setActiveTab] = useState<AdminTab>("courts");
 
   if (roleLoading) {
     return (
@@ -1239,9 +993,8 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
     { id: "courts",     label: "Aikštelės",  icon: <Building2 className="w-4 h-4" /> },
-    { id: "coaches",    label: "Treneriai",  icon: <Dumbbell className="w-4 h-4" /> },
+    { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
     { id: "users",      label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
   ];
 
@@ -1273,9 +1026,8 @@ export default function AdminDashboard() {
         </div>
 
         {/* Panel */}
-        {activeTab === "facilities" && <FacilitiesPanel />}
         {activeTab === "courts"     && <CourtsPanel />}
-        {activeTab === "coaches"    && <CoachesPanel />}
+        {activeTab === "facilities" && <FacilitiesPanel />}
         {activeTab === "users"      && <UsersPanel />}
       </div>
     </Layout>
