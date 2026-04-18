@@ -344,6 +344,13 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<Tab>(
     ["bookings", "favorites", "courts", "messages"].includes(initialTab) ? initialTab : "bookings"
   );
+
+  useEffect(() => {
+    const tab = new URLSearchParams(search).get("tab") as Tab | null;
+    const valid: Tab[] = ["bookings", "favorites", "courts", "messages"];
+    setActiveTab(tab && valid.includes(tab) ? tab : "bookings");
+  }, [search]);
+
   const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected } = useRole();
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
