@@ -45,6 +45,7 @@ import ContactPage from "@/pages/contact";
 import WelcomePage from "@/pages/welcome";
 import BecomeCoachPage from "@/pages/become-coach";
 import BecomeOwnerPage from "@/pages/become-owner";
+import FavoritesPage from "@/pages/favorites";
 
 const queryClient = new QueryClient();
 
@@ -116,6 +117,19 @@ function ProfileRoute() {
     <>
       <Show when="signed-in">
         <Profile />
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
+function FavoritesRoute() {
+  return (
+    <>
+      <Show when="signed-in">
+        <FavoritesPage />
       </Show>
       <Show when="signed-out">
         <Redirect to="/sign-in" />
@@ -234,6 +248,7 @@ function Router() {
       <Route path="/welcome" component={WelcomeRoute} />
       <Route path="/become-coach" component={BecomeCoachPage} />
       <Route path="/become-owner" component={BecomeOwnerPage} />
+      <Route path="/favorites" component={FavoritesRoute} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

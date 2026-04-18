@@ -166,7 +166,7 @@ function UserMenu() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
+        <DropdownMenuItem onClick={() => setLocation("/favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
           Mėgstamiausi
         </DropdownMenuItem>
@@ -247,7 +247,7 @@ function MobileUserAvatar() {
           <CalendarDays className="mr-2 h-4 w-4" />
           {t("nav.myBookings")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/profile?tab=favorites")}>
+        <DropdownMenuItem onClick={() => setLocation("/favorites")}>
           <Heart className="mr-2 h-4 w-4 text-red-500" />
           Mėgstamiausi
         </DropdownMenuItem>
