@@ -756,7 +756,7 @@ export default function Home() {
           </div>
 
           {/* ── RIGHT PANEL: rotating court photo ── */}
-          <div className="hidden md:block w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 relative overflow-hidden">
+          <div className="hidden md:block w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 relative overflow-hidden min-h-[560px] lg:min-h-[620px]">
             {HERO_IMAGES.map((img, i) => (
               <img
                 key={img}
