@@ -209,6 +209,23 @@ function ScrollToTop() {
   return null;
 }
 
+function PrefetchPages() {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import("@/pages/courts");
+      import("@/pages/court-detail");
+      import("@/pages/coaches");
+      import("@/pages/trainers");
+      import("@/pages/tournaments");
+      import("@/pages/games");
+      import("@/pages/profile");
+      import("@/pages/bookings");
+    }, 1500);
+    return () => clearTimeout(t);
+  }, []);
+  return null;
+}
+
 function PageLoadingFallback() {
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
@@ -226,6 +243,7 @@ function Router() {
   return (
     <Suspense fallback={<PageLoadingFallback />}>
       <ScrollToTop />
+      <PrefetchPages />
       <Switch>
         <Route path="/" component={HomeRoute} />
         <Route path="/courts" component={Courts} />
