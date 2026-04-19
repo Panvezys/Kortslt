@@ -1127,7 +1127,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
-            <div className="sticky top-0 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1rem)] flex flex-col">
+            <div className="sticky top-[4.25rem] bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
