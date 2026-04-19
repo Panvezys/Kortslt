@@ -57,6 +57,28 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/@clerk/")) return "vendor-clerk";
+          if (
+            id.includes("node_modules/@react-google-maps/") ||
+            id.includes("node_modules/@googlemaps/")
+          )
+            return "vendor-maps";
+          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-"))
+            return "vendor-charts";
+          if (id.includes("node_modules/@radix-ui/")) return "vendor-radix";
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/")
+          )
+            return "vendor-react";
+          if (id.includes("node_modules/")) return "vendor";
+        },
+      },
+    },
   },
   server: {
     port,

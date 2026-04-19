@@ -440,8 +440,8 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Section — split layout */}
-      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white">
-        <div className="flex">
+      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white min-h-[380px] md:min-h-[480px]">
+        <div className="flex min-h-[380px] md:min-h-[480px]">
 
           {/* ── LEFT PANEL: search form ── */}
           <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:px-10 pt-10 pb-12 lg:pt-12 lg:pb-14">
@@ -756,20 +756,28 @@ export default function Home() {
           </div>
 
           {/* ── RIGHT PANEL: rotating court photo ── */}
-          <div className="hidden md:block flex-1 relative overflow-hidden">
-            {HERO_IMAGES.map((img, i) => (
-              <img
-                key={img}
-                src={`${base}/${img}`}
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{
-                  opacity: i === heroIdx ? 1 : 0,
-                  transition: "opacity 1.6s ease-in-out",
-                  zIndex: i === heroIdx ? 1 : 0,
-                }}
-                aria-hidden
-              />
-            ))}
+          <div className="hidden md:block flex-1 relative overflow-hidden bg-muted">
+            {HERO_IMAGES.map((img, i) => {
+              const active = i === heroIdx;
+              const isNext = i === (heroIdx + 1) % HERO_IMAGES.length;
+              if (!active && !isNext) return null;
+              return (
+                <img
+                  key={img}
+                  src={`${base}/${img}`}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{
+                    opacity: active ? 1 : 0,
+                    transition: "opacity 1.6s ease-in-out",
+                    zIndex: active ? 1 : 0,
+                  }}
+                  fetchPriority={i === 0 ? "high" : "low"}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  decoding={i === 0 ? "sync" : "async"}
+                  aria-hidden
+                />
+              );
+            })}
             {/* Gradient fade on the left edge to blend with the search panel */}
             <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
             {/* Dark scrim over the bottom ~60% so text is always readable */}
