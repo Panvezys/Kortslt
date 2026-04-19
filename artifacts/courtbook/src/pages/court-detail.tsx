@@ -543,8 +543,12 @@ export default function CourtDetail() {
 
   return (
     <Layout>
+      <div className="container mx-auto px-4 pt-4 pb-24 md:pb-24">
+        <div className="grid md:grid-cols-3 gap-6 items-start">
+          {/* Left Column: Photo + Main Info */}
+          <div className="md:col-span-2">
       {/* Photo Gallery */}
-      <div className="w-full h-[45vh] min-h-[320px] bg-zinc-900 relative overflow-hidden">
+      <div className="h-[50vh] min-h-[320px] bg-zinc-900 rounded-2xl overflow-hidden relative mb-6">
         {allPhotos.length > 0 ? (
           <img
             key={activePhotoIdx}
@@ -612,11 +616,9 @@ export default function CourtDetail() {
           </>
         )}
       </div>
-      <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-3 gap-8">
 
           {/* Main Info */}
-          <div className="md:col-span-2 space-y-8">
+          <div className="space-y-8">
             <div>
               <div className="flex items-end justify-between gap-4 mb-4">
                 <div className="min-w-0">
@@ -985,6 +987,7 @@ export default function CourtDetail() {
             <CoachesSectionForCourt courtId={courtId} />
 
           </div>
+          </div>{/* end left column */}
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
