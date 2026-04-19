@@ -544,9 +544,9 @@ export default function CourtDetail() {
   return (
     <Layout>
       <div className="container mx-auto px-4 pt-4 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-3 gap-6 items-start">
+        <div className="grid md:grid-cols-3 gap-6">
           {/* Left Column: Photo + Main Info */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 self-start">
       {/* Photo Gallery */}
       <div className="h-[50vh] min-h-[320px] bg-zinc-900 rounded-2xl overflow-hidden relative mb-6">
         {allPhotos.length > 0 ? (
@@ -1366,7 +1366,7 @@ export default function CourtDetail() {
 
               {/* Desktop sticky reserve footer */}
               {selectedSlotRange && (
-                <div className="hidden md:flex sticky bottom-0 items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
+                <div className="hidden md:flex items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
                   <button
                     onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
                     className="w-9 h-9 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors shrink-0"
