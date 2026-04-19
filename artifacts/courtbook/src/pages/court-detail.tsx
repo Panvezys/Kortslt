@@ -550,7 +550,7 @@ export default function CourtDetail() {
             key={activePhotoIdx}
             src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
             alt={court.name}
-            className="w-full h-full object-cover transition-opacity duration-300"
+            className="w-full h-full object-cover object-left transition-opacity duration-300"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
@@ -988,7 +988,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
-            <div className="sticky top-20 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
+            <div className="sticky top-4 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1.5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
