@@ -557,91 +557,12 @@ export default function CourtDetail() {
 
   return (
     <Layout>
-      {/* Photo Gallery — Booking.com style */}
-      <div className="w-full bg-zinc-950">
-        {allPhotos.length === 0 ? (
-          <div className="h-[45vh] min-h-[320px] flex flex-col items-center justify-center text-white/20 gap-3">
-            <Images className="h-16 w-16" />
-            <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
-          </div>
-        ) : (
-          <div className="relative">
-            {/* Desktop: booking.com 5-photo grid */}
-            <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] grid-rows-2 gap-1 h-[62vh] min-h-[420px]">
-              {/* Large primary photo */}
-              <div
-                className="row-span-2 relative cursor-pointer overflow-hidden group"
-                onClick={() => { setActivePhotoIdx(0); setGalleryOpen(true); }}
-              >
-                <img
-                  src={resolveCourtImage(allPhotos[0]) ?? ""}
-                  alt={court.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-              </div>
-              {/* 4 smaller thumbnails */}
-              {[1, 2, 3, 4].map(i => (
-                <div
-                  key={i}
-                  className="relative cursor-pointer overflow-hidden group"
-                  onClick={() => { setActivePhotoIdx(i < allPhotos.length ? i : 0); setGalleryOpen(true); }}
-                >
-                  {allPhotos[i] ? (
-                    <>
-                      <img
-                        src={resolveCourtImage(allPhotos[i]) ?? ""}
-                        alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      {i === 4 && allPhotos.length > 5 && (
-                        <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center text-white gap-1">
-                          <Images className="w-5 h-5" />
-                          <span className="font-bold text-xl">+{allPhotos.length - 5}</span>
-                          <span className="text-xs text-white/80">daugiau</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="w-full h-full bg-zinc-800" />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Mobile: single hero */}
-            <div
-              className="md:hidden h-[50vw] min-h-[240px] max-h-[380px] relative cursor-pointer"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <img
-                src={resolveCourtImage(allPhotos[0]) ?? ""}
-                alt={court.name}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-            </div>
-
-            {/* "Show all photos" button */}
-            {allPhotos.length > 1 && (
-              <button
-                onClick={() => setGalleryOpen(true)}
-                className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm text-zinc-900 dark:text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg border border-white/50 hover:bg-white hover:shadow-xl transition-all z-10"
-              >
-                <Images className="w-3.5 h-3.5" />
-                Visos {allPhotos.length} nuotraukos
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Full-screen Lightbox */}
       {galleryOpen && (
         <div
           className="fixed inset-0 z-[100] bg-black/97 flex flex-col"
           onClick={() => setGalleryOpen(false)}
         >
-          {/* Lightbox header */}
           <div
             className="flex items-center justify-between px-4 py-3 shrink-0"
             onClick={e => e.stopPropagation()}
@@ -655,8 +576,6 @@ export default function CourtDetail() {
               <X className="w-5 h-5" />
             </button>
           </div>
-
-          {/* Main image */}
           <div
             className="flex-1 relative flex items-center justify-center min-h-0 px-12"
             onClick={e => e.stopPropagation()}
@@ -684,8 +603,6 @@ export default function CourtDetail() {
               </>
             )}
           </div>
-
-          {/* Thumbnail strip */}
           <div
             className="shrink-0 py-3 px-4 overflow-x-auto"
             onClick={e => e.stopPropagation()}
@@ -707,11 +624,104 @@ export default function CourtDetail() {
         </div>
       )}
 
-      <div className="container mx-auto px-4 pt-0 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-3 gap-6">
+      <div className="container mx-auto px-4 pt-4 pb-24 md:pb-24">
+        <div className="grid md:grid-cols-3 gap-4 items-start">
 
-          {/* Main Info */}
-          <div className="md:col-span-2 space-y-8 md:-mr-2">
+          {/* Left column: Gallery + Court Info */}
+          <div className="md:col-span-2 space-y-6">
+
+            {/* 3-photo gallery inside the container */}
+            <div className="rounded-2xl overflow-hidden bg-zinc-900 relative h-[48vh] min-h-[320px]">
+              {allPhotos.length === 0 ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+                  <Images className="h-16 w-16" />
+                  <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop: 3-photo grid — 1 large left + 2 stacked right */}
+                  <div className="hidden md:grid grid-cols-[3fr_2fr] grid-rows-2 h-full gap-0.5">
+                    {/* Large primary photo */}
+                    <div
+                      className="row-span-2 relative cursor-pointer overflow-hidden group"
+                      onClick={() => { setActivePhotoIdx(0); setGalleryOpen(true); }}
+                    >
+                      <img
+                        src={resolveCourtImage(allPhotos[0]) ?? ""}
+                        alt={court.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                    {/* Photo 2 (top-right) */}
+                    <div
+                      className="relative cursor-pointer overflow-hidden group"
+                      onClick={() => { setActivePhotoIdx(allPhotos[1] ? 1 : 0); setGalleryOpen(true); }}
+                    >
+                      {allPhotos[1] ? (
+                        <img
+                          src={resolveCourtImage(allPhotos[1]) ?? ""}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-zinc-800" />
+                      )}
+                    </div>
+                    {/* Photo 3 (bottom-right) — "show all" overlay if more */}
+                    <div
+                      className="relative cursor-pointer overflow-hidden group"
+                      onClick={() => { setActivePhotoIdx(allPhotos[2] ? 2 : 0); setGalleryOpen(true); }}
+                    >
+                      {allPhotos[2] ? (
+                        <>
+                          <img
+                            src={resolveCourtImage(allPhotos[2]) ?? ""}
+                            alt=""
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          {allPhotos.length > 3 && (
+                            <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center text-white gap-1 group-hover:bg-black/65 transition-colors">
+                              <Images className="w-5 h-5" />
+                              <span className="font-bold text-lg">+{allPhotos.length - 3}</span>
+                              <span className="text-xs text-white/80">daugiau</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full bg-zinc-800" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mobile: single hero */}
+                  <div
+                    className="md:hidden w-full h-full relative cursor-pointer"
+                    onClick={() => setGalleryOpen(true)}
+                  >
+                    <img
+                      src={resolveCourtImage(allPhotos[0]) ?? ""}
+                      alt={court.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                  </div>
+
+                  {/* "Show all photos" button */}
+                  {allPhotos.length > 1 && (
+                    <button
+                      onClick={() => setGalleryOpen(true)}
+                      className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm text-zinc-900 dark:text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg border border-white/50 hover:bg-white hover:shadow-xl transition-all z-10"
+                    >
+                      <Images className="w-3.5 h-3.5" />
+                      Visos {allPhotos.length} nuotraukos
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Court Info (below gallery in left column) */}
+            <div className="space-y-8">
             <div>
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="min-w-0 flex-1">
@@ -1112,7 +1122,8 @@ export default function CourtDetail() {
             {/* Coaches Section */}
             <CoachesSectionForCourt courtId={courtId} />
 
-          </div>
+          </div>{/* end space-y-8 */}
+          </div>{/* end md:col-span-2 */}
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
