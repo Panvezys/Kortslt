@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2 } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -217,6 +217,20 @@ export default function CourtDetail() {
 
   const [copiedContact, setCopiedContact] = useState<"address" | "phone" | null>(null);
   const [equipmentOpen, setEquipmentOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
+  const { data: meRole } = useQuery<{ role: string }>({
+    queryKey: ["me-role"],
+    queryFn: async () => {
+      const r = await fetch(`${API}/me/role`, { credentials: "include" });
+      if (!r.ok) return { role: "user" };
+      return r.json();
+    },
+    enabled: !!user,
+  });
+  const isAdmin = meRole?.role === "admin";
+  const isOwner = !!user && !!court && user.id === (court as any).ownerUserId;
+  const canEdit = isAdmin || isOwner;
 
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
   interface EquipAvailItem { name: string; pricePerSlot: number; stock: number; available: number; }
@@ -543,90 +557,215 @@ export default function CourtDetail() {
 
   return (
     <Layout>
-      {/* Photo Gallery */}
-      <div className="w-full h-[45vh] min-h-[320px] bg-zinc-900 relative overflow-hidden">
-        {allPhotos.length > 0 ? (
-          <img
-            key={activePhotoIdx}
-            src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
-            alt={court.name}
-            className="w-full h-full object-cover transition-opacity duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+      {/* Photo Gallery — Booking.com style */}
+      <div className="w-full bg-zinc-950">
+        {allPhotos.length === 0 ? (
+          <div className="h-[45vh] min-h-[320px] flex flex-col items-center justify-center text-white/20 gap-3">
             <Images className="h-16 w-16" />
             <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
           </div>
-        )}
-
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent pointer-events-none" />
-
-        {/* Navigation arrows — only if multiple photos */}
-        {allPhotos.length > 1 && (
-          <>
-            <button
-              onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
-              aria-label="Previous photo"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
-              aria-label="Next photo"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-
-            {/* Photo counter badge */}
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
-              <Images className="h-3 w-3" />
-              {activePhotoIdx + 1} / {allPhotos.length}
+        ) : (
+          <div className="relative">
+            {/* Desktop: booking.com 5-photo grid */}
+            <div className="hidden md:grid grid-cols-[2fr_1fr_1fr] grid-rows-2 gap-1 h-[62vh] min-h-[420px]">
+              {/* Large primary photo */}
+              <div
+                className="row-span-2 relative cursor-pointer overflow-hidden group"
+                onClick={() => { setActivePhotoIdx(0); setGalleryOpen(true); }}
+              >
+                <img
+                  src={resolveCourtImage(allPhotos[0]) ?? ""}
+                  alt={court.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              </div>
+              {/* 4 smaller thumbnails */}
+              {[1, 2, 3, 4].map(i => (
+                <div
+                  key={i}
+                  className="relative cursor-pointer overflow-hidden group"
+                  onClick={() => { setActivePhotoIdx(i < allPhotos.length ? i : 0); setGalleryOpen(true); }}
+                >
+                  {allPhotos[i] ? (
+                    <>
+                      <img
+                        src={resolveCourtImage(allPhotos[i]) ?? ""}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {i === 4 && allPhotos.length > 5 && (
+                        <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center text-white gap-1">
+                          <Images className="w-5 h-5" />
+                          <span className="font-bold text-xl">+{allPhotos.length - 5}</span>
+                          <span className="text-xs text-white/80">daugiau</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-full h-full bg-zinc-800" />
+                  )}
+                </div>
+              ))}
             </div>
 
-            {/* Thumbnail strip */}
-            <div className="absolute bottom-6 left-4 flex gap-1.5 max-w-[55%] overflow-x-auto pb-0.5 scrollbar-hide">
+            {/* Mobile: single hero */}
+            <div
+              className="md:hidden h-[50vw] min-h-[240px] max-h-[380px] relative cursor-pointer"
+              onClick={() => setGalleryOpen(true)}
+            >
+              <img
+                src={resolveCourtImage(allPhotos[0]) ?? ""}
+                alt={court.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+            </div>
+
+            {/* "Show all photos" button */}
+            {allPhotos.length > 1 && (
+              <button
+                onClick={() => setGalleryOpen(true)}
+                className="absolute bottom-3 right-3 flex items-center gap-2 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-sm text-zinc-900 dark:text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg border border-white/50 hover:bg-white hover:shadow-xl transition-all z-10"
+              >
+                <Images className="w-3.5 h-3.5" />
+                Visos {allPhotos.length} nuotraukos
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Full-screen Lightbox */}
+      {galleryOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/97 flex flex-col"
+          onClick={() => setGalleryOpen(false)}
+        >
+          {/* Lightbox header */}
+          <div
+            className="flex items-center justify-between px-4 py-3 shrink-0"
+            onClick={e => e.stopPropagation()}
+          >
+            <span className="text-white/60 text-sm tabular-nums">{activePhotoIdx + 1} / {allPhotos.length}</span>
+            <span className="text-white font-semibold text-sm truncate flex-1 text-center px-4">{court.name}</span>
+            <button
+              onClick={() => setGalleryOpen(false)}
+              className="text-white/70 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Main image */}
+          <div
+            className="flex-1 relative flex items-center justify-center min-h-0 px-12"
+            onClick={e => e.stopPropagation()}
+          >
+            <img
+              key={activePhotoIdx}
+              src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
+              alt=""
+              className="max-h-full max-w-full object-contain rounded-lg"
+            />
+            {allPhotos.length > 1 && (
+              <>
+                <button
+                  onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full p-3 transition-all hover:scale-105"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full p-3 transition-all hover:scale-105"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Thumbnail strip */}
+          <div
+            className="shrink-0 py-3 px-4 overflow-x-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex gap-2 w-max mx-auto">
               {allPhotos.map((url, i) => (
                 <button
                   key={i}
                   onClick={() => setActivePhotoIdx(i)}
-                  className={`shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/30 hover:border-white/60"}`}
+                  className={`shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                    i === activePhotoIdx ? "border-white scale-105" : "border-white/20 hover:border-white/50"
+                  }`}
                 >
                   <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Dot indicators (compact, below thumbnails) */}
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
-              {allPhotos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActivePhotoIdx(i)}
-                  className={`rounded-full transition-all ${i === activePhotoIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-      <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24 md:pb-24">
+      <div className="container mx-auto px-4 py-6 pb-24 md:pb-24">
         <div className="grid md:grid-cols-3 gap-8">
 
           {/* Main Info */}
           <div className="md:col-span-2 space-y-8">
             <div>
-              <div className="flex items-end justify-between gap-4 mb-4">
-                <div className="min-w-0">
-                  <div className="flex gap-2 items-center mb-4">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="min-w-0 flex-1">
+                  {/* Badges */}
+                  <div className="flex gap-2 items-center mb-2">
                     <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
                     {court.isIndoor && <Badge variant="secondary">Indoor</Badge>}
                   </div>
-                  <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{court.name}</h1>
+
+                  {/* Review score above name */}
+                  {avgRating && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1.5 bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-2.5 py-1">
+                        <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        <span className="font-bold text-sm text-yellow-600 dark:text-yellow-400">{avgRating.toFixed(1)}</span>
+                        <span className="text-xs text-muted-foreground">({reviews?.length})</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3">{court.name}</h1>
+
+                  {/* Clickable address */}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${court.address}, ${court.city}, Lietuva`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors group"
+                  >
+                    <MapPin className="w-4 h-4 shrink-0 group-hover:text-primary" />
+                    <span className="text-sm group-hover:underline">{court.address}, {court.city}</span>
+                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  </a>
+
+                  <div className="flex items-center gap-1.5 mt-1.5 text-sm text-muted-foreground">
+                    <Users className="w-4 h-4" />
+                    Max {court.maxPlayers} žaidėjai
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 pb-4">
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2 shrink-0 pt-1">
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setLocation("/owner")}
+                      aria-label="Edit court"
+                      title="Redaguoti aikštelę"
+                      className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-primary/60 hover:bg-primary/5 hover:text-primary active:scale-95"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="icon"
@@ -666,17 +805,6 @@ export default function CourtDetail() {
                     <MessageSquare className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-4 text-muted-foreground">
-                <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" />{court.address}, {court.city}</div>
-                <div className="flex items-center"><Users className="w-4 h-4 mr-2" />Max {court.maxPlayers} žaidėjai</div>
-                {avgRating && (
-                  <div className="flex items-center gap-2">
-                    <StarDisplay rating={avgRating} size="md" />
-                    <span className="font-semibold text-foreground">{avgRating.toFixed(1)}</span>
-                    <span className="text-muted-foreground text-sm">({reviews?.length} atsiliepimai)</span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -988,7 +1116,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
-            <div className="sticky top-20 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
+            <div className="sticky top-[4.5rem] bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
@@ -1259,66 +1387,6 @@ export default function CourtDetail() {
                 </p>
               ) : null}
 
-              {/* Step 3: Reserve */}
-              {selectedSlotRange && (
-                <div className="space-y-3">
-                  <p className="text-sm font-semibold flex items-center gap-2">
-                    <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">3</span>
-                    Rezervuoti
-                  </p>
-
-                  {!clerkLoaded ? (
-                    <Skeleton className="h-16 w-full rounded-xl" />
-                  ) : isSignedIn && user ? (
-                    <>
-                      {/* Signed-in user card */}
-                      <div className="flex items-center gap-3 bg-muted/50 border border-border rounded-xl px-4 py-3">
-                        {user.imageUrl ? (
-                          <img src={user.imageUrl} alt={user.fullName ?? "Profilis"} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-primary font-bold text-sm">
-                              {(user.firstName?.[0] ?? user.emailAddresses?.[0]?.emailAddress?.[0] ?? "U").toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate">{displayName}</p>
-                          <p className="text-xs text-muted-foreground truncate">{user.primaryEmailAddress?.emailAddress}</p>
-                        </div>
-                        <CheckCircle2 className="w-4 h-4 text-primary ml-auto flex-shrink-0" />
-                      </div>
-
-                      <Button onClick={() => handleReserve()} className="w-full h-12 text-base font-semibold gap-2 transition-all hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:hover:scale-100" disabled={isPending}>
-                        {isPending ? "Apdorojama..." : "Rezervuoti"}
-                      </Button>
-                      <p className="text-xs text-center text-muted-foreground">Patvirtinimo laiškas bus išsiųstas iš karto</p>
-                    </>
-                  ) : (
-                    <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Norėdami rezervuoti, pirmiausia prisijunkite.
-                      </p>
-                      <div className="flex gap-2">
-                        <Button variant="outline" className="flex-1 gap-1.5" onClick={() => openSignIn()}>
-                          <LogIn className="w-4 h-4" />
-                          Prisijungti
-                        </Button>
-                        <Button variant="default" className="flex-1 gap-1.5" onClick={() => openSignUp()}>
-                          <UserPlus className="w-4 h-4" />
-                          Registruotis
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!selectedSlotRange && (
-                <Button className="w-full h-12 text-base font-semibold opacity-50 cursor-not-allowed" disabled>
-                  Pasirinkite laiką
-                </Button>
-              )}
 
               {/* Past bookings for this court */}
               {user && (
@@ -1361,34 +1429,40 @@ export default function CourtDetail() {
 
               </div>
 
-              {/* Desktop sticky reserve footer */}
-              {selectedSlotRange && (
-                <div className="hidden md:flex items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
-                  <button
-                    onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
-                    className="w-9 h-9 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors shrink-0"
-                    title="Išvalyti pasirinkimą"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
-                    <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
-                  </div>
-                  {!clerkLoaded ? (
-                    <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
-                  ) : isSignedIn ? (
-                    <Button onClick={() => handleReserve()} className="h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
-                      {isPending ? "..." : "Rezervuoti"}
-                    </Button>
-                  ) : (
-                    <Button onClick={() => openSignIn()} className="h-10 px-4 font-semibold gap-1.5 shrink-0">
-                      <LogIn className="w-4 h-4" />
-                      Prisijungti
-                    </Button>
-                  )}
-                </div>
-              )}
+              {/* Desktop sticky reserve footer — always visible */}
+              <div className="hidden md:flex items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
+                {selectedSlotRange ? (
+                  <>
+                    <button
+                      onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
+                      className="w-9 h-9 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors shrink-0"
+                      title="Išvalyti pasirinkimą"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
+                      <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
+                    </div>
+                    {!clerkLoaded ? (
+                      <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
+                    ) : isSignedIn ? (
+                      <Button onClick={() => handleReserve()} className="h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
+                        {isPending ? "..." : "Rezervuoti"}
+                      </Button>
+                    ) : (
+                      <Button onClick={() => openSignIn()} className="h-10 px-4 font-semibold gap-1.5 shrink-0">
+                        <LogIn className="w-4 h-4" />
+                        Prisijungti
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button className="w-full h-10 font-semibold opacity-40 cursor-not-allowed" disabled>
+                    Pasirinkite laiką
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
