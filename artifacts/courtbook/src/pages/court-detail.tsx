@@ -991,7 +991,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
-            <div className="sticky top-4 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1.5rem)] flex flex-col">
+            <div className="sticky top-4 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
@@ -1366,7 +1366,7 @@ export default function CourtDetail() {
 
               {/* Desktop sticky reserve footer */}
               {selectedSlotRange && (
-                <div className="hidden md:flex items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
+                <div className="hidden md:flex sticky bottom-0 items-center gap-3 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0">
                   <button
                     onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}
                     className="w-9 h-9 rounded-xl border border-border bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-destructive hover:border-destructive/40 hover:bg-destructive/10 transition-colors shrink-0"
