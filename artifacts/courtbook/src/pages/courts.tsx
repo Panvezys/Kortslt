@@ -431,21 +431,23 @@ export default function Courts() {
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Filters Sidebar — desktop only */}
           <aside className="hidden md:flex w-64 shrink-0 flex-col sticky top-24 max-h-[calc(100vh-7rem)] pr-1">
-            <div className="space-y-6 overflow-y-auto flex-1 pb-20">
+            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3">
               <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 font-semibold text-sm">
-                <SlidersHorizontal className="h-4 w-4" />
-                {t("courts.filters.title")}
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {t("courts.filters.title")}
+                  {activeFilterCount > 0 && (
+                    <Badge className="ml-1 h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
+                  )}
+                </div>
                 {activeFilterCount > 0 && (
-                  <Badge className="ml-1 h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}>
+                    <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
+                  </Button>
                 )}
               </div>
-              {activeFilterCount > 0 && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}>
-                  <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
-                </Button>
-              )}
-              </div>
+            </div>
+            <div className="space-y-6 overflow-y-auto flex-1 pb-20">
               {filterControls}
             </div>
             <div className="sticky bottom-0 pt-4 mt-auto bg-background/95 backdrop-blur-sm">
