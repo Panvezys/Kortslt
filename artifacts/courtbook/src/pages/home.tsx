@@ -449,12 +449,12 @@ export default function Home() {
         <div className="flex">
 
           {/* ── LEFT PANEL: search form ── */}
-          <div className="relative z-10 w-full md:w-[420px] lg:w-[460px] xl:w-[500px] flex-shrink-0 flex flex-col justify-center px-6 sm:px-8 lg:px-12 pt-24 pb-8">
+          <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-center px-5 sm:px-6 lg:px-10 py-16 lg:py-18">
             {/* subtle top-left glow */}
             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
             
             {/* Multi-row search widget */}
-            <div className="w-full space-y-2.5" ref={searchRef}>
+            <div className="w-full space-y-2" ref={searchRef}>
 
               {/* Row 1: Court name with autocomplete */}
               <div className="relative w-full max-w-sm">
@@ -506,7 +506,7 @@ export default function Home() {
               </div>
 
               {/* Row 2: Sport type pills */}
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap">
                 {ALL_SPORTS.map(sport => {
                   const color = sportColor[sport] ?? "#84cc16";
                   const active = searchSport === sport;
