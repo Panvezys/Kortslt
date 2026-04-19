@@ -432,7 +432,7 @@ export default function Courts() {
           {/* Filters Sidebar — desktop only */}
           <aside className="hidden md:flex w-64 shrink-0 flex-col sticky top-24 max-h-[calc(100vh-7rem)] pr-1">
             <div className="space-y-6 overflow-y-auto flex-1 pb-20">
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-semibold text-sm">
                 <SlidersHorizontal className="h-4 w-4" />
                 {t("courts.filters.title")}
@@ -445,8 +445,8 @@ export default function Courts() {
                   <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
                 </Button>
               )}
-            </div>
-            {filterControls}
+              </div>
+              {filterControls}
             </div>
             <div className="sticky bottom-0 pt-4 mt-auto bg-background/95 backdrop-blur-sm">
               <Button className="w-full h-11 rounded-xl shadow-lg" onClick={() => {}}>
