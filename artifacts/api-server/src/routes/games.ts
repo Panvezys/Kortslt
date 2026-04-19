@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
 import { db, gamesTable, gameParticipantsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { sendNotification } from "../lib/notify";
 import crypto from "node:crypto";
 
 const router: IRouter = Router();
@@ -167,7 +168,30 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Not found" }); return; }
   if (g.creatorUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  // Collect all participants before deleting (except creator)
+  const participants = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+
   await db.delete(gamesTable).where(eq(gamesTable.id, id));
+
+  // Notify participants that the game was cancelled
+  const sportLabel = g.sport.replace(/_/g, " ");
+  const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
+  for (const p of participants) {
+    if (p.userId && p.userId !== userId) {
+      await sendNotification(
+        p.userId,
+        "game_cancelled",
+        "Žaidimas atšauktas",
+        `${sportLabel} žaidimas ${gameDate} (${g.city}) buvo atšauktas organizatoriaus.`,
+        "/games",
+      );
+    }
+  }
+
   res.json({ ok: true });
 });
 
@@ -223,6 +247,18 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
   if (Number(newCountRow?.count ?? 0) >= g.playersNeeded) {
     await db.update(gamesTable).set({ status: "full" }).where(eq(gamesTable.id, id));
+  }
+
+  // Notify game creator if someone else joined
+  if (g.creatorUserId && g.creatorUserId !== userId) {
+    const sportLabel = g.sport.replace(/_/g, " ");
+    await sendNotification(
+      g.creatorUserId,
+      "game_join_request",
+      `${userName} prisijungė prie jūsų žaidimo`,
+      `${userName} prisijungė prie ${sportLabel} žaidimo ${new Date(g.datetime).toLocaleDateString("lt-LT")}.`,
+      `/games/${id}`,
+    );
   }
 
   res.json({ ok: true });

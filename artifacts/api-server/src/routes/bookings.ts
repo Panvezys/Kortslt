@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, notificationsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable } from "@workspace/db";
+import { sendNotification } from "../lib/notify";
 import {
   ListBookingsQueryParams,
   CreateBookingBody,
@@ -156,13 +157,13 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
 
   // Notify court owner about the new booking
   if (court.ownerUserId) {
-    await db.insert(notificationsTable).values({
-      userId: court.ownerUserId,
-      type: "booking_created",
-      title: `Nauja rezervacija — ${court.name}`,
-      body: `${parsed.data.customerName} užrezervavo ${dateStr} ${parsed.data.startTime}–${parsed.data.endTime}.`,
-      link: "/owner",
-    }).catch(() => {});
+    await sendNotification(
+      court.ownerUserId,
+      "booking_created",
+      `Nauja rezervacija — ${court.name}`,
+      `${parsed.data.customerName} užrezervavo ${dateStr} ${parsed.data.startTime}–${parsed.data.endTime}.`,
+      "/owner",
+    );
   }
 
   res.status(201).json(GetBookingResponse.parse(formatBooking(booking, court.name)));

@@ -22,6 +22,7 @@ import facilitiesRouter from "./facilities";
 import ownerOnboardRouter from "./owner-onboard";
 import sitemapRouter from "./sitemap";
 import userProfilesRouter from "./user-profiles";
+import notificationSettingsRouter from "./notification-settings";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(facilitiesRouter);
 router.use(ownerOnboardRouter);
 router.use(sitemapRouter);
 router.use(userProfilesRouter);
+router.use(notificationSettingsRouter);
 
 export default router;

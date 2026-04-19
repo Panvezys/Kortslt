@@ -39,6 +39,8 @@ function typeIcon(type: string) {
     case "booking_cancelled": return "❌";
     case "court_approved": return "✅";
     case "court_rejected": return "🚫";
+    case "game_join_request": return "🏃";
+    case "game_cancelled": return "🚫";
     default: return "🔔";
   }
 }
