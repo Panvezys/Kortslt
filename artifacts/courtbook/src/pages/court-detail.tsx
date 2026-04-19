@@ -563,9 +563,6 @@ export default function CourtDetail() {
           </div>
         )}
 
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent pointer-events-none" />
-
         {/* Navigation arrows — only if multiple photos */}
         {allPhotos.length > 1 && (
           <>
