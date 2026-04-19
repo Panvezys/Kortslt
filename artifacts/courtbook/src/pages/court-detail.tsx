@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2 } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
+import { useRole } from "@/lib/useRole";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -201,6 +202,7 @@ export default function CourtDetail() {
   );
 
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
+  const { isAdmin } = useRole();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { theme } = useTheme();
   const { data: reviews } = useListCourtReviews(courtId, {
@@ -240,6 +242,7 @@ export default function CourtDetail() {
     return urls;
   }, [court?.imageUrl, extraPhotos]);
   const favorited = court ? isFavorite(court.id) : false;
+  const canEdit = isAdmin || (isSignedIn && !!court && (court as any).ownerUserId === user?.id);
   const [localFavorited, setLocalFavorited] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
   const [amenityPopup, setAmenityPopup] = useState<{ label: string; photoUrl: string } | null>(null);
@@ -698,6 +701,18 @@ export default function CourtDetail() {
                   >
                     <MessageSquare className="h-4 w-4" />
                   </Button>
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setLocation("/owner")}
+                      aria-label="Edit court"
+                      title="Redaguoti aikštelę"
+                      className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-amber-400/60 hover:bg-amber-500/5 hover:text-amber-600 active:scale-95"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-muted-foreground">
