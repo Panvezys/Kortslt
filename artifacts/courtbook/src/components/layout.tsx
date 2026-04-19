@@ -89,13 +89,15 @@ function ThemeToggle() {
   );
 }
 
-function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
+function NavLink({ href, icon, children, preload }: { href: string; icon: React.ReactNode; children: React.ReactNode; preload?: () => void }) {
   const [, setLocation] = useLocation();
   const active = useLocation()[0] === href;
   return (
     <Link
       href={href}
       className="flex flex-col items-center gap-1 text-sm font-medium"
+      onMouseEnter={preload}
+      onFocus={preload}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
@@ -333,11 +335,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <LogoBrand />
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
-              <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
-              <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
-              <NavLink href="/games" icon={<Users className="w-3.5 h-3.5" />}>Partneriai</NavLink>
-              <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
+              <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />} preload={() => import("@/pages/courts")}>{t("nav.findCourts")}</NavLink>
+              <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />} preload={() => import("@/pages/coaches")}>Treneriai</NavLink>
+              <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />} preload={() => import("@/pages/tournaments")}>Turnyrai</NavLink>
+              <NavLink href="/games" icon={<Users className="w-3.5 h-3.5" />} preload={() => import("@/pages/games")}>Partneriai</NavLink>
+              <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />} preload={() => import("@/pages/list-your-court")}>Aikštelių savininkai</NavLink>
             </nav>
 
             <div className="flex items-center gap-2">

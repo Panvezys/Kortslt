@@ -209,9 +209,22 @@ function ScrollToTop() {
   return null;
 }
 
+function PageLoadingFallback() {
+  return (
+    <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
+      {/* Navbar skeleton */}
+      <div className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur h-16" />
+      {/* Spinner */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    </div>
+  );
+}
+
 function Router() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PageLoadingFallback />}>
       <ScrollToTop />
       <Switch>
         <Route path="/" component={HomeRoute} />
