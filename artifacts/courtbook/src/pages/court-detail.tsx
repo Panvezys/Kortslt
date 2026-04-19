@@ -1127,7 +1127,7 @@ export default function CourtDetail() {
 
           {/* Booking Widget */}
           <div className="relative" id="reserve">
-            <div className="sticky top-[4.25rem] bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5rem)] flex flex-col">
+            <div className="md:sticky md:top-[4.25rem] bg-card border rounded-2xl shadow-xl md:overflow-hidden md:max-h-[calc(100vh-5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
@@ -1135,7 +1135,7 @@ export default function CourtDetail() {
                 <h3 className="font-semibold text-sm">Rezervuoti aikštelę</h3>
               </div>
 
-              <div className="p-5 space-y-5 overflow-y-auto flex-1 min-h-0">
+              <div className="p-5 space-y-5 md:overflow-y-auto md:flex-1 md:min-h-0">
 
               {/* Step 1: Date */}
               <div>
