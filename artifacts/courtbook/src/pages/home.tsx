@@ -449,7 +449,7 @@ export default function Home() {
         <div className="flex">
 
           {/* ── LEFT PANEL: search form ── */}
-          <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-center px-5 sm:px-6 lg:px-10 py-16 lg:py-18">
+          <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:px-10 pt-10 pb-12 lg:pt-12 lg:pb-14">
             {/* subtle top-left glow */}
             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
             
