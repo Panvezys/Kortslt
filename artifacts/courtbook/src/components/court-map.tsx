@@ -426,10 +426,12 @@ export function CourtMap({
   courts,
   activeSports: activeSportsProp,
   showFilterPanel = false,
+  onNearbySearch,
 }: {
   courts: Court[];
   activeSports?: Set<string>;
   showFilterPanel?: boolean;
+  onNearbySearch?: () => void;
 }) {
   const { theme } = useTheme();
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -720,6 +722,16 @@ export function CourtMap({
           </button>
         ))}
       </div>
+
+      {onNearbySearch && (
+        <button
+          onClick={onNearbySearch}
+          className="absolute top-3 right-3 z-[1000] inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/95 px-3 py-1.5 text-xs font-semibold shadow-md hover:bg-muted transition-colors"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          Netoliese
+        </button>
+      )}
 
       {/* Sport filter panel — shown when showFilterPanel is true */}
       {showFilterPanel && (
