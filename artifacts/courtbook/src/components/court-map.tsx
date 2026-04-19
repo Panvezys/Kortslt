@@ -422,16 +422,27 @@ const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
 const LIBRARIES: ("places")[] = ["places"];
 const ALL_SPORTS = Object.keys(sportLithuanian);
 
+/** Haversine distance in km between two lat/lng points */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const NEARBY_KM = 30;
+
 export function CourtMap({
   courts,
   activeSports: activeSportsProp,
   showFilterPanel = false,
-  onNearbySearch,
 }: {
   courts: Court[];
   activeSports?: Set<string>;
   showFilterPanel?: boolean;
-  onNearbySearch?: () => void;
 }) {
   const { theme } = useTheme();
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -439,6 +450,13 @@ export function CourtMap({
   const [mapReady, setMapReady] = useState(false);
   const [internalActiveSports, setInternalActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
   const [filterPanelOpen, setFilterPanelOpen] = useState(true);
+
+  // Nearby mode
+  const [nearbyMode, setNearbyMode] = useState(false);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const userMarkerRef = useRef<google.maps.Circle | null>(null);
 
   const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
 
@@ -473,10 +491,64 @@ export function CourtMap({
   const clustererRef = useRef<MarkerClusterer | null>(null);
   const iconCacheRef = useRef<ReturnType<typeof buildIconCache> | null>(null);
 
-  const visibleCourts = useMemo(
-    () => (Array.isArray(courts) ? courts : []).filter(c => activeSports.has(c.type)),
-    [courts, activeSports]
-  );
+  const handleNearby = () => {
+    if (nearbyMode) {
+      // Turn off
+      setNearbyMode(false);
+      setUserLocation(null);
+      setNearbyError(null);
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setMap(null);
+        userMarkerRef.current = null;
+      }
+      if (mapRef.current) fitBounds(mapRef.current, (Array.isArray(courts) ? courts : []));
+      return;
+    }
+    if (!navigator.geolocation) {
+      setNearbyError("Jūsų naršyklė nepalaiko geolokacijos.");
+      return;
+    }
+    setNearbyLoading(true);
+    setNearbyError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserLocation(loc);
+        setNearbyMode(true);
+        setNearbyLoading(false);
+        if (mapRef.current) {
+          mapRef.current.panTo(loc);
+          mapRef.current.setZoom(12);
+          // Draw user circle
+          if (userMarkerRef.current) userMarkerRef.current.setMap(null);
+          userMarkerRef.current = new google.maps.Circle({
+            map: mapRef.current,
+            center: loc,
+            radius: NEARBY_KM * 1000,
+            strokeColor: "#adff2f",
+            strokeOpacity: 0.6,
+            strokeWeight: 1.5,
+            fillColor: "#adff2f",
+            fillOpacity: 0.07,
+          });
+        }
+      },
+      (err) => {
+        setNearbyLoading(false);
+        if (err.code === 1) setNearbyError("Leiskite prieigą prie vietos.");
+        else setNearbyError("Nepavyko nustatyti vietos.");
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  };
+
+  const visibleCourts = useMemo(() => {
+    let list = (Array.isArray(courts) ? courts : []).filter(c => activeSports.has(c.type));
+    if (nearbyMode && userLocation) {
+      list = list.filter(c => haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM);
+    }
+    return list;
+  }, [courts, activeSports, nearbyMode, userLocation]);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: API_KEY ?? "",
@@ -723,15 +795,32 @@ export function CourtMap({
         ))}
       </div>
 
-      {onNearbySearch && (
+      <div className="absolute top-3 right-3 z-[1000] flex flex-col items-end gap-1.5">
         <button
-          onClick={onNearbySearch}
-          className="absolute top-3 right-3 z-[1000] inline-flex items-center gap-1.5 rounded-lg border border-border bg-background/95 px-3 py-1.5 text-xs font-semibold shadow-md hover:bg-muted transition-colors"
+          onClick={handleNearby}
+          disabled={nearbyLoading}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-md transition-colors ${
+            nearbyMode
+              ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+              : "bg-background/95 backdrop-blur border-border text-foreground hover:bg-muted"
+          } disabled:opacity-60`}
         >
-          <MapPin className="h-3.5 w-3.5" />
-          Netoliese
+          {nearbyLoading ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <MapPin className="h-3.5 w-3.5" />
+          )}
+          {nearbyMode ? `Netoliese (${visibleCourts.length})` : "Netoliese"}
+          {nearbyMode && <span className="ml-0.5 opacity-70">✕</span>}
         </button>
-      )}
+        {nearbyError && (
+          <span className="rounded-lg bg-destructive/90 text-destructive-foreground text-[11px] px-2.5 py-1 shadow-md max-w-[180px] text-center leading-tight">
+            {nearbyError}
+          </span>
+        )}
+      </div>
 
       {/* Sport filter panel — shown when showFilterPanel is true */}
       {showFilterPanel && (

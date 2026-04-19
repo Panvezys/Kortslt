@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation } from "lucide-react";
 import { ListCourtsType } from "@workspace/api-client-react";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
@@ -21,6 +21,18 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 type ViewMode = "list" | "map";
 
 const PAGE_SIZE = 12;
+
+const NEARBY_KM = 30;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const surfaceKeys = ["clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber"] as const;
 
@@ -63,6 +75,37 @@ export default function Courts() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [bgIdx, setBgIdx] = useState(0);
   const [cityExpanded, setCityExpanded] = useState(false);
+  const [nearbyMode, setNearbyMode] = useState(false);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  const handleNearbyList = () => {
+    if (nearbyMode) {
+      setNearbyMode(false);
+      setUserLocation(null);
+      setNearbyError(null);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setNearbyError("Jūsų naršyklė nepalaiko geolokacijos.");
+      return;
+    }
+    setNearbyLoading(true);
+    setNearbyError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearbyMode(true);
+        setNearbyLoading(false);
+      },
+      (err) => {
+        setNearbyLoading(false);
+        setNearbyError(err.code === 1 ? "Leiskite prieigą prie vietos." : "Nepavyko nustatyti vietos.");
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  };
 
   useEffect(() => {
     const id = setInterval(() => setBgIdx(i => (i + 1) % HERO_IMAGES.length), 5000);
@@ -124,7 +167,8 @@ export default function Courts() {
       c.city.toLowerCase().includes(search.toLowerCase()) ||
       c.address.toLowerCase().includes(search.toLowerCase());
     const matchesCity = selectedCities.size === 0 || selectedCities.has(c.city);
-    return matchesSearch && matchesCity;
+    const matchesNearby = !nearbyMode || !userLocation || haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM;
+    return matchesSearch && matchesCity && matchesNearby;
   });
 
   const sortedCourts = filteredCourts ? [...filteredCourts]
@@ -151,6 +195,7 @@ export default function Courts() {
     isIndoorFilter !== "all",
     maxPrice < 100,
     activeSports.size < ALL_SPORTS.length,
+    nearbyMode,
   ].filter(Boolean).length;
 
   const resetFilters = () => {
@@ -161,6 +206,9 @@ export default function Courts() {
     setSearch("");
     setSortBy("default");
     setActiveSports(new Set(ALL_SPORTS));
+    setNearbyMode(false);
+    setUserLocation(null);
+    setNearbyError(null);
   };
 
   const sportFilterControls = (
@@ -208,6 +256,33 @@ export default function Courts() {
 
   const filterControls = (
     <div className="space-y-6">
+      {/* Nearby location button */}
+      <div>
+        <button
+          onClick={handleNearbyList}
+          disabled={nearbyLoading}
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+            nearbyMode
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border bg-muted/40 hover:bg-muted text-foreground"
+          } disabled:opacity-60`}
+        >
+          {nearbyLoading ? (
+            <svg className="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <Navigation className="h-4 w-4 shrink-0" />
+          )}
+          <span className="flex-1 text-left">
+            {nearbyMode ? `Netoliese (${NEARBY_KM} km) ✕` : "Ieškoti netoliese"}
+          </span>
+        </button>
+        {nearbyError && (
+          <p className="mt-1.5 text-xs text-destructive">{nearbyError}</p>
+        )}
+      </div>
+
       {/* Sport filter (icon buttons) */}
       {sportFilterControls}
 
