@@ -547,72 +547,72 @@ export default function CourtDetail() {
         <div className="grid md:grid-cols-3 gap-6">
           {/* Left Column: Photo + Main Info */}
           <div className="md:col-span-2 self-start">
-      {/* Photo Gallery */}
-      <div className="h-[50vh] min-h-[320px] bg-zinc-900 rounded-2xl overflow-hidden relative mb-6">
-        {allPhotos.length > 0 ? (
-          <img
-            key={activePhotoIdx}
-            src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
-            alt={court.name}
-            className="w-full h-full object-cover object-left transition-opacity duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
-            <Images className="h-16 w-16" />
-            <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
-          </div>
-        )}
-
-        {/* Navigation arrows — only if multiple photos */}
-        {allPhotos.length > 1 && (
-          <>
-            <button
-              onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
-              aria-label="Previous photo"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
-              aria-label="Next photo"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-
-            {/* Photo counter badge */}
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
-              <Images className="h-3 w-3" />
-              {activePhotoIdx + 1} / {allPhotos.length}
-            </div>
-
-            {/* Thumbnail strip */}
-            <div className="absolute bottom-6 left-4 flex gap-1.5 max-w-[55%] overflow-x-auto pb-0.5 scrollbar-hide">
-              {allPhotos.map((url, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActivePhotoIdx(i)}
-                  className={`shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/30 hover:border-white/60"}`}
-                >
-                  <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-
-            {/* Dot indicators (compact, below thumbnails) */}
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
-              {allPhotos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActivePhotoIdx(i)}
-                  className={`rounded-full transition-all ${i === activePhotoIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}
+            {/* Photo Gallery */}
+            <div className="h-[50vh] min-h-[320px] bg-zinc-900 rounded-2xl overflow-hidden relative mb-6">
+              {allPhotos.length > 0 ? (
+                <img
+                  key={activePhotoIdx}
+                  src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
+                  alt={court.name}
+                  className="w-full h-full object-cover object-left transition-opacity duration-300"
                 />
-              ))}
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+                  <Images className="h-16 w-16" />
+                  <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
+                </div>
+              )}
+
+              {/* Navigation arrows — only if multiple photos */}
+              {allPhotos.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+
+                  {/* Photo counter badge */}
+                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                    <Images className="h-3 w-3" />
+                    {activePhotoIdx + 1} / {allPhotos.length}
+                  </div>
+
+                  {/* Thumbnail strip */}
+                  <div className="absolute bottom-6 left-4 flex gap-1.5 max-w-[55%] overflow-x-auto pb-0.5 scrollbar-hide">
+                    {allPhotos.map((url, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActivePhotoIdx(i)}
+                        className={`shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/30 hover:border-white/60"}`}
+                      >
+                        <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Dot indicators (compact, below thumbnails) */}
+                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+                    {allPhotos.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActivePhotoIdx(i)}
+                        className={`rounded-full transition-all ${i === activePhotoIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        )}
-      </div>
 
           {/* Main Info */}
           <div className="space-y-8">
@@ -987,8 +987,8 @@ export default function CourtDetail() {
           </div>{/* end left column */}
 
           {/* Booking Widget */}
-          <div className="relative" id="reserve">
-            <div className="sticky top-4 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1rem)] flex flex-col">
+          <div className="relative md:sticky md:top-4 self-start" id="reserve">
+            <div className="bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-1rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
