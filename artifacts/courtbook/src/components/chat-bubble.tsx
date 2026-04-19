@@ -447,7 +447,7 @@ function ChatBubbleInner() {
       <button
         onClick={toggle}
         aria-label={open ? "Uždaryti žinutes" : "Atidaryti žinutes"}
-        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[60] h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        className="fixed bottom-[5.5rem] right-4 sm:bottom-6 sm:right-6 z-[60] h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
       >
         {open ? <X className="w-6 h-6"/> : <MessageCircle className="w-6 h-6"/>}
         {!open && unreadCount > 0 && (
