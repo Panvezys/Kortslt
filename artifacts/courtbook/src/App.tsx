@@ -209,41 +209,10 @@ function ScrollToTop() {
   return null;
 }
 
-function PrefetchPages() {
-  useEffect(() => {
-    const t = setTimeout(() => {
-      import("@/pages/courts");
-      import("@/pages/court-detail");
-      import("@/pages/coaches");
-      import("@/pages/trainers");
-      import("@/pages/tournaments");
-      import("@/pages/games");
-      import("@/pages/profile");
-      import("@/pages/bookings");
-    }, 1500);
-    return () => clearTimeout(t);
-  }, []);
-  return null;
-}
-
-function PageLoadingFallback() {
-  return (
-    <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
-      {/* Navbar skeleton */}
-      <div className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur h-16" />
-      {/* Spinner */}
-      <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    </div>
-  );
-}
-
 function Router() {
   return (
-    <Suspense fallback={<PageLoadingFallback />}>
+    <Suspense fallback={null}>
       <ScrollToTop />
-      <PrefetchPages />
       <Switch>
         <Route path="/" component={HomeRoute} />
         <Route path="/courts" component={Courts} />

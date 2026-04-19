@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
-    "serve": "node serve.mjs",
+    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
@@ -79,7 +79,6 @@
   "dependencies": {
     "@clerk/localizations": "^4.4.1",
     "@clerk/react": "^6.2.1",
-    "@fontsource-variable/inter": "^5.2.8",
     "@googlemaps/markerclusterer": "^2.6.2",
     "@react-google-maps/api": "^2.20.8",
     "@types/leaflet": "^1.9.21",

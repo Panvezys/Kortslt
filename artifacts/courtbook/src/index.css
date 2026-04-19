@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
 
 /* Pointer cursor on all interactive elements */
 button:not([disabled]),
@@ -167,7 +166,7 @@ summary {
   --chart-4: 43 74% 66%;
   --chart-5: 27 87% 67%;
 
-  --app-font-sans: 'Inter Variable', 'Inter', -apple-system, sans-serif;
+  --app-font-sans: 'Inter', -apple-system, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.5rem; 

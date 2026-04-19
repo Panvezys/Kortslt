@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2 } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
-import { useRole } from "@/lib/useRole";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -202,7 +201,6 @@ export default function CourtDetail() {
   );
 
   const { user, isSignedIn, isLoaded: clerkLoaded } = useUser();
-  const { isAdmin } = useRole();
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { theme } = useTheme();
   const { data: reviews } = useListCourtReviews(courtId, {
@@ -242,11 +240,9 @@ export default function CourtDetail() {
     return urls;
   }, [court?.imageUrl, extraPhotos]);
   const favorited = court ? isFavorite(court.id) : false;
-  const canEdit = isAdmin || (isSignedIn && !!court && (court as any).ownerUserId === user?.id);
   const [localFavorited, setLocalFavorited] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
   const [amenityPopup, setAmenityPopup] = useState<{ label: string; photoUrl: string } | null>(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
   useEffect(() => { setLocalFavorited(favorited); }, [favorited]);
 
   const handleToggleFavorite = async () => {
@@ -547,119 +543,87 @@ export default function CourtDetail() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 pt-4 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Left Column: Photo + Main Info */}
-          <div className="md:col-span-2 self-start">
-            {/* Photo Gallery — Hotel Style */}
-            <div className="mb-6">
-              {/* Main grid: 1 large left + 2 stacked right */}
-              <div className="grid grid-cols-3 gap-1.5 h-[50vh] min-h-[320px] rounded-2xl overflow-hidden">
-                {/* Large main photo */}
-                <div
-                  className="col-span-2 relative cursor-pointer bg-zinc-900 overflow-hidden"
-                  onClick={() => { setActivePhotoIdx(0); setLightboxOpen(true); }}
-                >
-                  {allPhotos.length > 0 ? (
-                    <img
-                      src={resolveCourtImage(allPhotos[0]) ?? ""}
-                      alt={court.name}
-                      className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
-                      <Images className="h-16 w-16" />
-                      <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
-                    </div>
-                  )}
-                </div>
+      {/* Photo Gallery */}
+      <div className="w-full h-[45vh] min-h-[320px] bg-zinc-900 relative overflow-hidden">
+        {allPhotos.length > 0 ? (
+          <img
+            key={activePhotoIdx}
+            src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
+            alt={court.name}
+            className="w-full h-full object-cover transition-opacity duration-300"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+            <Images className="h-16 w-16" />
+            <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
+          </div>
+        )}
 
-                {/* Right column — 2 stacked photos */}
-                <div className="flex flex-col gap-1.5">
-                  {/* Top-right photo */}
-                  <div
-                    className="flex-1 relative cursor-pointer bg-zinc-800 overflow-hidden"
-                    onClick={() => { setActivePhotoIdx(1); setLightboxOpen(true); }}
-                  >
-                    {allPhotos[1] ? (
-                      <img
-                        src={resolveCourtImage(allPhotos[1]) ?? ""}
-                        alt=""
-                        className="w-full h-full object-cover hover:scale-[1.04] transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-zinc-800" />
-                    )}
-                  </div>
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent pointer-events-none" />
 
-                  {/* Bottom-right photo + "more" overlay */}
-                  <div
-                    className="flex-1 relative cursor-pointer bg-zinc-700 overflow-hidden"
-                    onClick={() => { setActivePhotoIdx(2); setLightboxOpen(true); }}
-                  >
-                    {allPhotos[2] ? (
-                      <img
-                        src={resolveCourtImage(allPhotos[2]) ?? ""}
-                        alt=""
-                        className="w-full h-full object-cover hover:scale-[1.04] transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-zinc-700" />
-                    )}
-                    {allPhotos.length > 3 && (
-                      <div
-                        className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center text-white cursor-pointer hover:bg-black/65 transition-colors"
-                        onClick={(e) => { e.stopPropagation(); setActivePhotoIdx(3); setLightboxOpen(true); }}
-                      >
-                        <Images className="w-5 h-5 mb-1 opacity-80" />
-                        <span className="font-bold text-lg leading-none">+{allPhotos.length - 3}</span>
-                        <span className="text-xs opacity-70 mt-0.5">nuotraukos</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {/* Navigation arrows — only if multiple photos */}
+        {allPhotos.length > 1 && (
+          <>
+            <button
+              onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 backdrop-blur-sm text-white rounded-full p-2 transition-all hover:scale-105"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
 
-              {/* Thumbnail strip — shows first 6 thumbnails */}
-              {allPhotos.length > 1 && (
-                <div className="flex gap-2 mt-2 overflow-x-auto scrollbar-hide pb-0.5">
-                  {allPhotos.slice(0, 6).map((url, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setActivePhotoIdx(i); setLightboxOpen(true); }}
-                      className={`shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${i === activePhotoIdx && lightboxOpen ? "border-primary" : "border-transparent"}`}
-                    >
-                      <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                  {allPhotos.length > 6 && (
-                    <button
-                      onClick={() => { setActivePhotoIdx(6); setLightboxOpen(true); }}
-                      className="shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 border-transparent bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground hover:bg-muted/80 transition-colors"
-                    >
-                      +{allPhotos.length - 6}
-                    </button>
-                  )}
-                </div>
-              )}
+            {/* Photo counter badge */}
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              <Images className="h-3 w-3" />
+              {activePhotoIdx + 1} / {allPhotos.length}
             </div>
 
+            {/* Thumbnail strip */}
+            <div className="absolute bottom-6 left-4 flex gap-1.5 max-w-[55%] overflow-x-auto pb-0.5 scrollbar-hide">
+              {allPhotos.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActivePhotoIdx(i)}
+                  className={`shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/30 hover:border-white/60"}`}
+                >
+                  <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+
+            {/* Dot indicators (compact, below thumbnails) */}
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+              {allPhotos.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActivePhotoIdx(i)}
+                  className={`rounded-full transition-all ${i === activePhotoIdx ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/40"}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="container mx-auto px-4 relative -mt-32 z-10 pb-24 md:pb-24">
+        <div className="grid md:grid-cols-3 gap-8">
+
           {/* Main Info */}
-          <div className="space-y-8">
+          <div className="md:col-span-2 space-y-8">
             <div>
               <div className="flex items-end justify-between gap-4 mb-4">
                 <div className="min-w-0">
-                  <div className="flex gap-2 items-center mb-2">
+                  <div className="flex gap-2 items-center mb-4">
                     <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
                     {court.isIndoor && <Badge variant="secondary">Indoor</Badge>}
                   </div>
-                  {avgRating && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <StarDisplay rating={avgRating} size="md" />
-                      <span className="font-semibold text-foreground">{avgRating.toFixed(1)}</span>
-                      <span className="text-muted-foreground text-sm">({reviews?.length} atsiliepimai)</span>
-                    </div>
-                  )}
                   <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{court.name}</h1>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 pb-4">
@@ -701,31 +665,18 @@ export default function CourtDetail() {
                   >
                     <MessageSquare className="h-4 w-4" />
                   </Button>
-                  {canEdit && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setLocation("/owner")}
-                      aria-label="Edit court"
-                      title="Redaguoti aikštelę"
-                      className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-amber-400/60 hover:bg-amber-500/5 hover:text-amber-600 active:scale-95"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 text-muted-foreground">
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${court.address}, ${court.city}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center hover:text-primary transition-colors group"
-                >
-                  <MapPin className="w-4 h-4 mr-2 group-hover:text-primary" />
-                  <span className="underline underline-offset-2 decoration-dotted">{court.address}, {court.city}</span>
-                </a>
+                <div className="flex items-center"><MapPin className="w-4 h-4 mr-2" />{court.address}, {court.city}</div>
                 <div className="flex items-center"><Users className="w-4 h-4 mr-2" />Max {court.maxPlayers} žaidėjai</div>
+                {avgRating && (
+                  <div className="flex items-center gap-2">
+                    <StarDisplay rating={avgRating} size="md" />
+                    <span className="font-semibold text-foreground">{avgRating.toFixed(1)}</span>
+                    <span className="text-muted-foreground text-sm">({reviews?.length} atsiliepimai)</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -776,63 +727,6 @@ export default function CourtDetail() {
             )}
 
             {/* Amenity photo popup */}
-            {/* Photo Lightbox */}
-            {lightboxOpen && allPhotos.length > 0 && (
-              <div
-                className="fixed inset-0 z-50 flex flex-col bg-black/95 backdrop-blur-sm"
-                onClick={() => setLightboxOpen(false)}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-3 shrink-0" onClick={e => e.stopPropagation()}>
-                  <span className="text-white/70 text-sm font-medium">{activePhotoIdx + 1} / {allPhotos.length}</span>
-                  <button
-                    onClick={() => setLightboxOpen(false)}
-                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                  >
-                    <X className="w-5 h-5 text-white" />
-                  </button>
-                </div>
-
-                {/* Main image area */}
-                <div className="flex-1 flex items-center justify-center relative px-4 min-h-0" onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => setActivePhotoIdx(i => (i - 1 + allPhotos.length) % allPhotos.length)}
-                    className="absolute left-2 md:left-6 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center transition-colors"
-                    aria-label="Previous"
-                  >
-                    <ChevronLeft className="w-6 h-6 text-white" />
-                  </button>
-                  <img
-                    key={activePhotoIdx}
-                    src={resolveCourtImage(allPhotos[activePhotoIdx]) ?? ""}
-                    alt={`${court.name} — nuotrauka ${activePhotoIdx + 1}`}
-                    className="max-h-full max-w-full object-contain rounded-lg select-none"
-                    draggable={false}
-                  />
-                  <button
-                    onClick={() => setActivePhotoIdx(i => (i + 1) % allPhotos.length)}
-                    className="absolute right-2 md:right-6 z-10 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 flex items-center justify-center transition-colors"
-                    aria-label="Next"
-                  >
-                    <ChevronRight className="w-6 h-6 text-white" />
-                  </button>
-                </div>
-
-                {/* Thumbnail strip */}
-                <div className="shrink-0 px-4 py-3 flex gap-2 justify-center overflow-x-auto scrollbar-hide" onClick={e => e.stopPropagation()}>
-                  {allPhotos.map((url, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActivePhotoIdx(i)}
-                      className={`shrink-0 w-16 h-11 rounded-md overflow-hidden border-2 transition-all ${i === activePhotoIdx ? "border-white scale-105" : "border-white/20 hover:border-white/50"}`}
-                    >
-                      <img src={resolveCourtImage(url) ?? ""} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {amenityPopup && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
@@ -1091,11 +985,10 @@ export default function CourtDetail() {
             <CoachesSectionForCourt courtId={courtId} />
 
           </div>
-          </div>{/* end left column */}
 
           {/* Booking Widget */}
-          <div className="relative md:sticky md:top-4 self-start" id="reserve">
-            <div className="bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
+          <div className="relative" id="reserve">
+            <div className="sticky top-20 bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
