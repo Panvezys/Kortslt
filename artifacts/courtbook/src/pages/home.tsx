@@ -27,11 +27,6 @@ const HERO_IMAGES = [
   "courts/court_1_seb_arena.png",
   "courts/football/football_futsal_court_2.jpg",
   "courts/court_4_verkiai.png",
-  "courts/badminton/badminton_court_indoor_1.jpg",
-  "courts/court_17_zalgiris.png",
-  "courts/squash/squash_court_1.jpg",
-  "courts/padel/padel_court_indoor_3.jpg",
-  "courts/court_3_lsc_vingis.png",
 ];
 
 type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
@@ -761,7 +756,7 @@ export default function Home() {
           </div>
 
           {/* ── RIGHT PANEL: rotating court photo ── */}
-          <div className="hidden md:block flex-1 relative overflow-hidden">
+          <div className="hidden md:block w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 relative overflow-hidden">
             {HERO_IMAGES.map((img, i) => (
               <img
                 key={img}
