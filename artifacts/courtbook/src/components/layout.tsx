@@ -89,6 +89,31 @@ function ThemeToggle() {
   );
 }
 
+function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
+  const active = useLocation()[0] === href;
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center gap-1 text-sm font-medium"
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        setLocation(href);
+      }}
+    >
+      <span className="flex items-center gap-1.5">
+        {icon}
+        {children}
+      </span>
+      <span
+        className={`h-1.5 w-1.5 rounded-full transition-all ${active ? "bg-primary opacity-100" : "bg-transparent opacity-0"}`}
+        aria-hidden="true"
+      />
+    </Link>
+  );
+}
+
 const LOCALES: { code: Locale; label: string }[] = [
   { code: "lt", label: "LT" },
   { code: "en", label: "EN" },
@@ -308,26 +333,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <LogoBrand />
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-              <Link href="/courts" className={navCls("/courts")}>
-                <TennisCourtIcon className="w-3.5 h-3.5" />
-                {t("nav.findCourts")}
-              </Link>
-              <Link href="/coaches" className={navCls("/coaches")}>
-                <Dumbbell className="w-3.5 h-3.5" />
-                Treneriai
-              </Link>
-              <Link href="/tournaments" className={navCls("/tournaments")}>
-                <Trophy className="w-3.5 h-3.5" />
-                Turnyrai
-              </Link>
-              <Link href="/games" className={navCls("/games")}>
-                <Users className="w-3.5 h-3.5" />
-                Partneriai
-              </Link>
-              <Link href="/list-your-court" className={navCls("/list-your-court")}>
-                <Building2 className="w-3.5 h-3.5" />
-                Aikštelių savininkai
-              </Link>
+              <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
+              <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
+              <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
+              <NavLink href="/games" icon={<Users className="w-3.5 h-3.5" />}>Partneriai</NavLink>
+              <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
             </nav>
 
             <div className="flex items-center gap-2">
