@@ -735,7 +735,7 @@ export function CourtMap({
 
   if (loadError || !API_KEY) {
     return (
-      <div className="w-full h-full rounded-xl overflow-hidden border border-border/50 bg-muted flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-border/50 bg-muted flex flex-col items-center justify-center gap-4 p-6 text-center">
         <MapPin className="w-12 h-12 text-muted-foreground/30" />
         <div>
           <p className="font-semibold text-foreground mb-1">Google Maps nepasiekiamas</p>
@@ -749,14 +749,14 @@ export function CourtMap({
 
   if (!isLoaded) {
     return (
-      <div className="w-full h-full rounded-xl overflow-hidden border border-border/50 bg-muted animate-pulse flex items-center justify-center">
+      <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-border/50 bg-muted animate-pulse flex items-center justify-center">
         <div className="text-muted-foreground text-sm">Kraunamas žemėlapis...</div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full z-0 relative rounded-xl overflow-hidden border border-border/50 shadow-sm">
+    <div className="w-full h-full min-h-[400px] z-0 relative rounded-xl overflow-hidden border border-border/50 shadow-sm">
       <GoogleMap
         mapContainerStyle={MAP_CONTAINER_STYLE}
         center={LITHUANIA_CENTER}

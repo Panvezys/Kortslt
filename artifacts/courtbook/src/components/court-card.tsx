@@ -105,19 +105,18 @@ export function CourtCard({ court }: { court: Court }) {
           role={gallery.length > 1 ? "button" : undefined}
           aria-label={gallery.length > 1 ? `${photoIdx + 1} / ${gallery.length}` : undefined}
         >
-            {currentImage && (
+          {gallery.map((src, i) => (
             <img
-              key={currentImage}
-              src={currentImage}
+              key={src + i}
+              src={src}
               alt={court.name}
-              loading="lazy"
-              decoding="async"
               className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+              style={{ opacity: i === photoIdx ? 1 : 0 }}
               onError={(e) => {
                 (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
               }}
             />
-          )}
+          ))}
           <div className="absolute top-2 right-2 flex gap-1 items-center z-10">
             {court.isIndoor !== undefined && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-black/60 text-white backdrop-blur-sm">

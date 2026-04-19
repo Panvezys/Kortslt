@@ -38,21 +38,6 @@ interface FeaturedTournament {
   featuredUntil: string | null; isFeatured: boolean;
 }
 
-function useLazyMount(ref: React.RefObject<Element | null>, rootMargin = "250px") {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (typeof IntersectionObserver === "undefined") { setMounted(true); return; }
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { setMounted(true); obs.disconnect(); }
-    }, { rootMargin });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-  return mounted;
-}
-
 function FeaturedTournamentsSection() {
   const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
   const { data, isLoading } = useQuery<FeaturedTournament[]>({
@@ -60,24 +45,7 @@ function FeaturedTournamentsSection() {
     queryFn: () => customFetch<FeaturedTournament[]>(`${API_BASE}/tournaments?featured=1`),
   });
 
-  if (isLoading) {
-    return (
-      <section className="py-14 md:py-20 container mx-auto px-4">
-        <div className="flex items-end justify-between mb-8">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-32 rounded-full" />
-            <Skeleton className="h-9 w-64" />
-            <Skeleton className="h-4 w-80" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-52 w-full rounded-xl" />
-          ))}
-        </div>
-      </section>
-    );
-  }
+  if (isLoading) return null;
   const tournaments = (data ?? []).slice(0, 6);
   if (tournaments.length === 0) return null;
 
@@ -319,8 +287,6 @@ export default function Home() {
   const queryClient = useQueryClient();
   const { favorites, loading: favLoading } = useFavoritesContext();
   const [heroIdx, setHeroIdx] = useState(0);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapMounted = useLazyMount(mapContainerRef);
   const ALL_SPORTS = Object.keys(sportLithuanian);
   const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
 
@@ -474,8 +440,8 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Section — split layout */}
-      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white min-h-[380px] md:min-h-[480px]">
-        <div className="flex min-h-[380px] md:min-h-[480px]">
+      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white">
+        <div className="flex">
 
           {/* ── LEFT PANEL: search form ── */}
           <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:px-10 pt-10 pb-12 lg:pt-12 lg:pb-14">
@@ -790,28 +756,20 @@ export default function Home() {
           </div>
 
           {/* ── RIGHT PANEL: rotating court photo ── */}
-          <div className="hidden md:block flex-1 relative overflow-hidden bg-muted">
-            {HERO_IMAGES.map((img, i) => {
-              const active = i === heroIdx;
-              const isNext = i === (heroIdx + 1) % HERO_IMAGES.length;
-              if (!active && !isNext) return null;
-              return (
-                <img
-                  key={img}
-                  src={`${base}/${img}`}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{
-                    opacity: active ? 1 : 0,
-                    transition: "opacity 1.6s ease-in-out",
-                    zIndex: active ? 1 : 0,
-                  }}
-                  fetchPriority={i === 0 ? "high" : "low"}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  decoding={i === 0 ? "sync" : "async"}
-                  aria-hidden
-                />
-              );
-            })}
+          <div className="hidden md:block flex-1 relative overflow-hidden">
+            {HERO_IMAGES.map((img, i) => (
+              <img
+                key={img}
+                src={`${base}/${img}`}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{
+                  opacity: i === heroIdx ? 1 : 0,
+                  transition: "opacity 1.6s ease-in-out",
+                  zIndex: i === heroIdx ? 1 : 0,
+                }}
+                aria-hidden
+              />
+            ))}
             {/* Gradient fade on the left edge to blend with the search panel */}
             <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
             {/* Dark scrim over the bottom ~60% so text is always readable */}
@@ -977,9 +935,9 @@ export default function Home() {
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
-          <div ref={mapContainerRef} className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl overflow-hidden">
-            {!mapMounted || courtsLoading ? (
-              <div className="w-full h-full bg-muted animate-pulse rounded-xl" />
+          <div className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl">
+            {courtsLoading ? (
+              <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
               <CourtMap courts={courts} activeSports={activeSports} />
             ) : null}
