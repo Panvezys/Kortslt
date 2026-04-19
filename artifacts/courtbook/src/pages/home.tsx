@@ -38,6 +38,21 @@ interface FeaturedTournament {
   featuredUntil: string | null; isFeatured: boolean;
 }
 
+function useLazyMount(ref: React.RefObject<Element | null>, rootMargin = "250px") {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setMounted(true); return; }
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setMounted(true); obs.disconnect(); }
+    }, { rootMargin });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return mounted;
+}
+
 function FeaturedTournamentsSection() {
   const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
   const { data, isLoading } = useQuery<FeaturedTournament[]>({
@@ -45,7 +60,24 @@ function FeaturedTournamentsSection() {
     queryFn: () => customFetch<FeaturedTournament[]>(`${API_BASE}/tournaments?featured=1`),
   });
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <section className="py-14 md:py-20 container mx-auto px-4">
+        <div className="flex items-end justify-between mb-8">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32 rounded-full" />
+            <Skeleton className="h-9 w-64" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-52 w-full rounded-xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
   const tournaments = (data ?? []).slice(0, 6);
   if (tournaments.length === 0) return null;
 
@@ -287,6 +319,8 @@ export default function Home() {
   const queryClient = useQueryClient();
   const { favorites, loading: favLoading } = useFavoritesContext();
   const [heroIdx, setHeroIdx] = useState(0);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapMounted = useLazyMount(mapContainerRef);
   const ALL_SPORTS = Object.keys(sportLithuanian);
   const [activeSports, setActiveSports] = useState<Set<string>>(new Set(ALL_SPORTS));
 
@@ -943,9 +977,9 @@ export default function Home() {
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
-          <div className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl">
-            {courtsLoading ? (
-              <Skeleton className="w-full h-full rounded-xl" />
+          <div ref={mapContainerRef} className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl overflow-hidden">
+            {!mapMounted || courtsLoading ? (
+              <div className="w-full h-full bg-muted animate-pulse rounded-xl" />
             ) : courts ? (
               <CourtMap courts={courts} activeSports={activeSports} />
             ) : null}
