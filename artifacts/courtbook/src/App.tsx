@@ -46,6 +46,7 @@ import WelcomePage from "@/pages/welcome";
 import BecomeCoachPage from "@/pages/become-coach";
 import BecomeOwnerPage from "@/pages/become-owner";
 import FavoritesPage from "@/pages/favorites";
+import SettingsPage from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
@@ -249,6 +250,7 @@ function Router() {
       <Route path="/become-coach" component={BecomeCoachPage} />
       <Route path="/become-owner" component={BecomeOwnerPage} />
       <Route path="/favorites" component={FavoritesRoute} />
+      <Route path="/settings" component={SettingsPage} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route component={NotFound} />

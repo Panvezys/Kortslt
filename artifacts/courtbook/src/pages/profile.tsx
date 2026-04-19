@@ -42,8 +42,6 @@ import {
   Dumbbell,
   Gamepad2,
   Timer,
-  Settings,
-  Bell,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -472,118 +470,7 @@ function SportsActivity({ userId }: { userId: string }) {
   );
 }
 
-interface NotifSettings {
-  userId: string;
-  gameJoinRequest: boolean;
-  gameCancelled: boolean;
-  bookingCreated: boolean;
-  bookingCancelled: boolean;
-  courtApproved: boolean;
-  messageReceived: boolean;
-}
-
-const NOTIF_OPTIONS: { key: keyof Omit<NotifSettings, "userId">; label: string; description: string }[] = [
-  {
-    key: "gameJoinRequest",
-    label: "Žaidimo prisijungimas",
-    description: "Kai žaidėjas prisijungia prie jūsų sukurto žaidimo",
-  },
-  {
-    key: "gameCancelled",
-    label: "Žaidimas atšauktas",
-    description: "Kai žaidimas, prie kurio prisijungėte, yra atšauktas",
-  },
-  {
-    key: "bookingCreated",
-    label: "Nauja rezervacija",
-    description: "Kai žaidėjas užrezervuoja jūsų aikštelę (savininkams / treneriams)",
-  },
-  {
-    key: "bookingCancelled",
-    label: "Rezervacija atšaukta",
-    description: "Kai rezervacija jūsų aikštelėje yra atšaukta",
-  },
-  {
-    key: "courtApproved",
-    label: "Aikštelės patvirtinimas",
-    description: "Kai jūsų aikštelė patvirtinta arba atmesta",
-  },
-  {
-    key: "messageReceived",
-    label: "Naujos žinutės",
-    description: "Kai gausite naują privačią žinutę",
-  },
-];
-
-function NotificationSettings({ userId }: { userId: string }) {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery<NotifSettings>({
-    queryKey: ["notification-settings"],
-    queryFn: () => customFetch<NotifSettings>(`${API}/notification-settings`),
-    enabled: !!userId,
-  });
-
-  const update = useMutation({
-    mutationFn: (patch: Partial<NotifSettings>) =>
-      customFetch(`${API}/notification-settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notification-settings"] }),
-  });
-
-  if (isLoading) {
-    return (
-      <div className="bg-card border rounded-xl shadow-sm p-6 space-y-3">
-        {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}
-      </div>
-    );
-  }
-
-  const defaults: Omit<NotifSettings, "userId"> = {
-    gameJoinRequest: true,
-    gameCancelled: true,
-    bookingCreated: true,
-    bookingCancelled: true,
-    courtApproved: true,
-    messageReceived: true,
-  };
-  const settings = { ...defaults, ...data };
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center gap-3 px-5 py-4 border-b">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Bell className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm">Pranešimų nustatymai</p>
-            <p className="text-xs text-muted-foreground">Pasirinkite, kokius pranešimus norite gauti</p>
-          </div>
-        </div>
-        <div className="divide-y">
-          {NOTIF_OPTIONS.map(opt => (
-            <div key={opt.key} className="flex items-center justify-between gap-4 px-5 py-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{opt.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
-              </div>
-              <Switch
-                checked={settings[opt.key]}
-                onCheckedChange={(checked) => update.mutate({ [opt.key]: checked })}
-                disabled={update.isPending}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type Tab = "bookings" | "courts" | "messages" | "sports" | "settings";
+type Tab = "bookings" | "courts" | "messages" | "sports";
 
 export default function Profile() {
   const { user } = useUser();
@@ -592,7 +479,7 @@ export default function Profile() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "bookings";
-  const VALID_TABS: Tab[] = ["bookings", "courts", "messages", "sports", "settings"];
+  const VALID_TABS: Tab[] = ["bookings", "courts", "messages", "sports"];
   const [activeTab, setActiveTab] = useState<Tab>(
     VALID_TABS.includes(initialTab) ? initialTab : "bookings"
   );
@@ -649,7 +536,6 @@ export default function Profile() {
     ...(isOwner
       ? [{ key: "courts" as Tab, label: t("profile.tab.myCourts"), icon: <LayoutDashboard className="w-4 h-4" /> }]
       : []),
-    { key: "settings", label: "Nustatymai", icon: <Settings className="w-4 h-4" /> },
   ];
 
   if (!user) {
@@ -919,11 +805,6 @@ export default function Profile() {
           {/* Sports Activity tab */}
           {activeTab === "sports" && userId && (
             <SportsActivity userId={userId} />
-          )}
-
-          {/* Settings tab */}
-          {activeTab === "settings" && userId && (
-            <NotificationSettings userId={userId} />
           )}
 
           {/* Messages tab */}

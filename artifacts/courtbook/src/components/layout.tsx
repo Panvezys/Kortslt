@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -186,6 +186,10 @@ function UserMenu() {
             Administravimas
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onClick={() => setLocation("/settings")}>
+          <Settings className="mr-2 h-4 w-4" />
+          Nustatymai
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
@@ -267,6 +271,10 @@ function MobileUserAvatar() {
             Administravimas
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onClick={() => setLocation("/settings")}>
+          <Settings className="mr-2 h-4 w-4" />
+          Nustatymai
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
