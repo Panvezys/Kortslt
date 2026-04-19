@@ -1,4 +1,4 @@
-)import { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ClerkProvider, Show, useClerk, useAuth } from "@clerk/react";
