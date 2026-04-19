@@ -26,12 +26,27 @@ if (!basePath) {
   );
 }
 
+function deferMainCssPlugin() {
+  return {
+    name: "defer-main-css",
+    transformIndexHtml(html: string) {
+      return html.replace(
+        /<link rel="stylesheet" crossorigin href="(\/assets\/index-[^"]+\.css)">/g,
+        (_, href) =>
+          `<link rel="preload" as="style" href="${href}" onload="this.onload=null;this.rel='stylesheet'">` +
+          `<noscript><link rel="stylesheet" href="${href}"></noscript>`,
+      );
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    deferMainCssPlugin(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
