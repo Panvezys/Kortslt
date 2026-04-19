@@ -1,6 +1,10 @@
 import { createServer } from "http";
 import { readFile, stat } from "fs/promises";
 import { join, extname } from "path";
+import { gzip, constants as zlibConstants } from "zlib";
+import { promisify } from "util";
+
+const gzipAsync = promisify(gzip);
 
 const DIST = new URL("./dist/public", import.meta.url).pathname;
 const PORT = process.env.PORT;
@@ -26,6 +30,8 @@ const MIME = {
   ".xml":  "application/xml",
   ".txt":  "text/plain",
 };
+
+const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".svg", ".xml", ".txt"]);
 
 function cacheHeader(filePath) {
   if (/index\.html$/.test(filePath)) {
@@ -69,14 +75,28 @@ const server = createServer(async (req, res) => {
   try {
     const body = await readFile(filePath);
     const ext = extname(filePath).toLowerCase();
-    res.writeHead(200, {
-      "Content-Type":            MIME[ext] ?? "application/octet-stream",
-      "Cache-Control":           cacheHeader(filePath),
-      "X-Content-Type-Options":  "nosniff",
-      "X-Frame-Options":         "SAMEORIGIN",
-      "Content-Length":          body.byteLength,
-    });
-    res.end(req.method === "HEAD" ? undefined : body);
+    const acceptsGzip = /\bgzip\b/.test(req.headers["accept-encoding"] ?? "");
+    const canCompress = COMPRESSIBLE.has(ext);
+
+    const headers = {
+      "Content-Type":           MIME[ext] ?? "application/octet-stream",
+      "Cache-Control":          cacheHeader(filePath),
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options":        "SAMEORIGIN",
+      "Vary":                   "Accept-Encoding",
+    };
+
+    if (acceptsGzip && canCompress && req.method !== "HEAD") {
+      const compressed = await gzipAsync(body, { level: zlibConstants.Z_BEST_SPEED });
+      headers["Content-Encoding"] = "gzip";
+      headers["Content-Length"] = compressed.byteLength;
+      res.writeHead(200, headers);
+      res.end(compressed);
+    } else {
+      headers["Content-Length"] = body.byteLength;
+      res.writeHead(200, headers);
+      res.end(req.method === "HEAD" ? undefined : body);
+    }
   } catch {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
