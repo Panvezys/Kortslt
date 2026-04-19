@@ -708,10 +708,10 @@ export default function CourtDetail() {
       )}
 
       <div className="container mx-auto px-4 py-6 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-[380px_minmax(0,1fr)] gap-8 items-start">
+        <div className="grid md:grid-cols-3 gap-8">
 
           {/* Main Info */}
-          <div className="order-2 md:order-1 space-y-8">
+          <div className="md:col-span-2 space-y-8">
             <div>
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="min-w-0 flex-1">
@@ -1115,8 +1115,8 @@ export default function CourtDetail() {
           </div>
 
           {/* Booking Widget */}
-          <div className="order-1 md:order-2 relative md:sticky md:top-[4.5rem] self-start" id="reserve">
-            <div className="bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
+          <div className="relative" id="reserve">
+            <div className="sticky top-[4.5rem] bg-card border rounded-2xl shadow-xl overflow-hidden max-h-[calc(100vh-5.5rem)] flex flex-col">
 
               {/* Widget title header */}
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
