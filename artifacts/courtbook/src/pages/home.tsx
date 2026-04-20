@@ -501,11 +501,11 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Row 2: Sport dropdown */}
-              <div className="flex items-center gap-2">
+              {/* Row 2: Sport + city */}
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/70 dark:bg-white/20 dark:text-white text-sm font-medium transition-colors">
+                    <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/70 dark:bg-white/20 dark:text-white text-sm font-medium transition-colors w-full">
                       <SportIcon sport={searchSport || "tennis"} size={14} strokeWidth={2} />
                       <span className="truncate">
                         {searchSport ? sportLithuanian[searchSport] : "Sporto šaka"}
@@ -539,12 +539,7 @@ export default function Home() {
                     })}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
 
-              {/* Row 3: City + Date + Time + Search */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
-
-                {/* City combobox */}
                 <div className="relative w-full min-w-0" ref={cityRef}>
                   <div
                     className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 cursor-text transition-all"
@@ -652,8 +647,10 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+              </div>
 
-                {/* Date calendar popover */}
+              {/* Row 3: Date + Time */}
+              <div className="grid grid-cols-2 gap-2">
                 <div className="relative w-full min-w-0" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
@@ -691,7 +688,6 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Time slider popover */}
                 <div className="relative w-full min-w-0" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
@@ -768,7 +764,10 @@ export default function Home() {
                     </>
                   )}
                 </div>
+              </div>
 
+              {/* Row 4: Search */}
+              <div className="w-full">
                 <button
                   onClick={handleSearch}
                   className="flex w-full items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0"
