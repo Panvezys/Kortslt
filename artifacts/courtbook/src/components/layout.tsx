@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -100,9 +100,9 @@ function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode
 }
 
 const LOCALES: { code: Locale; label: string }[] = [
-  { code: "lt", label: "LT — Lietuvių" },
-  { code: "en", label: "EN — English" },
-  { code: "ru", label: "RU — Русский" },
+  { code: "lt", label: "LT" },
+  { code: "en", label: "EN" },
+  { code: "ru", label: "RU" },
 ];
 
 function UserMenu() {
@@ -177,13 +177,23 @@ function UserMenu() {
         {/* Language selector */}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-          {LOCALES.map(({ code, label }) => (
-            <DropdownMenuRadioItem key={code} value={code} className="text-sm">
-              {label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        <div className="px-2 pb-1">
+          <div className="grid grid-cols-3 gap-1">
+            {LOCALES.map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => setLocale(code)}
+                className={`h-8 rounded-md border text-xs font-medium transition-colors ${
+                  locale === code
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
@@ -270,13 +280,23 @@ function MobileUserAvatar() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as Locale)}>
-          {LOCALES.map(({ code, label }) => (
-            <DropdownMenuRadioItem key={code} value={code} className="text-sm">
-              {label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        <div className="px-2 pb-1">
+          <div className="grid grid-cols-3 gap-1">
+            {LOCALES.map(({ code, label }) => (
+              <button
+                key={code}
+                onClick={() => setLocale(code)}
+                className={`h-8 rounded-md border text-xs font-medium transition-colors ${
+                  locale === code
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
