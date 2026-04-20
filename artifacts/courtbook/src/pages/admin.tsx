@@ -40,6 +40,8 @@ interface UserRoleRow {
   role: UserRole;
   createdAt: string;
   updatedAt: string;
+  status?: string;
+  pendingRole?: string | null;
   name: string | null;
   email: string | null;
   avatarUrl: string | null;
@@ -357,6 +359,7 @@ function UsersPanel() {
               )}
               {(users ?? []).map(u => {
                 const isSelf = u.userId === currentUser?.id;
+                const displayRole = u.status === "pending_approval" && u.pendingRole ? u.role : u.role;
                 const initials = u.name
                   ? u.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
                   : u.userId.slice(0, 2).toUpperCase();
@@ -394,7 +397,7 @@ function UsersPanel() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <RoleBadge role={u.role as UserRole} />
+                      <RoleBadge role={displayRole as UserRole} />
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
                       {new Date(u.createdAt).toLocaleDateString("lt-LT")}
