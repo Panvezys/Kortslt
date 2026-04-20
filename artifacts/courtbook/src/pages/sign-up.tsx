@@ -104,28 +104,28 @@ export default function SignUpPage() {
                 },
                 elements: {
                   rootBox: "w-full",
-                  card: "shadow-none border border-border/70 bg-background/95 dark:bg-zinc-950/95 rounded-2xl p-4 sm:p-6 w-full backdrop-blur-sm",
+                  card: "shadow-none border border-border/70 bg-background/95 text-foreground dark:bg-zinc-950/95 dark:text-zinc-100 rounded-2xl p-4 sm:p-6 w-full backdrop-blur-sm",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   header: "hidden",
                   socialButtonsBlockButton:
-                    "border border-border bg-muted hover:bg-muted/80 text-foreground rounded-xl h-11 font-medium transition-colors",
+                    "border border-border bg-muted hover:bg-muted/80 text-foreground dark:text-zinc-100 rounded-xl h-11 font-medium transition-colors",
                   socialButtonsBlockButtonText: "font-medium",
                   dividerLine: "bg-border",
-                  dividerText: "text-muted-foreground text-xs",
-                  formFieldLabel: "text-sm font-medium text-foreground",
+                  dividerText: "text-muted-foreground dark:text-zinc-400 text-xs",
+                  formFieldLabel: "text-sm font-medium text-foreground dark:text-zinc-100",
                   formFieldInput:
-                    "bg-muted border border-border rounded-xl h-11 text-foreground placeholder:text-muted-foreground focus:border-lime-500 focus:ring-lime-500/20",
+                    "bg-muted border border-border rounded-xl h-11 text-foreground dark:text-zinc-100 placeholder:text-muted-foreground dark:placeholder:text-zinc-500 focus:border-lime-500 focus:ring-lime-500/20",
                   formButtonPrimary:
                     "bg-lime-500 hover:bg-lime-600 text-black font-semibold rounded-xl h-11 transition-colors",
                   footerAction: { display: "none" },
                   footer: { display: "none" },
-                  identityPreviewText: "text-foreground",
+                  identityPreviewText: "text-foreground dark:text-zinc-100",
                   formResendCodeLink: "text-lime-600 hover:text-lime-700",
                   otpCodeFieldInput:
-                    "border border-border rounded-xl bg-muted text-foreground",
-                  alertText: "text-sm",
-                  formFieldSuccessText: "text-lime-600",
+                    "border border-border rounded-xl bg-muted text-foreground dark:text-zinc-100",
+                  alertText: "text-sm text-foreground dark:text-zinc-100",
+                  formFieldSuccessText: "text-lime-600 dark:text-lime-400",
                   formFieldErrorText: "text-destructive text-xs",
                 },
               }}
