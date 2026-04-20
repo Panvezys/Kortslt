@@ -154,13 +154,17 @@ function CourtsPanel() {
   const rejectMutation = useRejectCourt();
   const seedMutation = useSeedCourts();
 
+  const isPendingStatus = (s: string) => s === "pending" || s === "pending_review";
+
   const filtered = (courts ?? []).filter(c =>
-    filterStatus === "all" ? true : c.status === filterStatus
+    filterStatus === "all" ? true
+    : filterStatus === "pending" ? isPendingStatus(c.status)
+    : c.status === filterStatus
   );
 
   const counts = {
     all: courts?.length ?? 0,
-    pending: courts?.filter(c => c.status === "pending").length ?? 0,
+    pending: courts?.filter(c => isPendingStatus(c.status)).length ?? 0,
     approved: courts?.filter(c => c.status === "approved").length ?? 0,
     rejected: courts?.filter(c => c.status === "rejected").length ?? 0,
   };
