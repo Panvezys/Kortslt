@@ -16,7 +16,7 @@ import { LocationPicker, type LocationPickerResult } from "@/components/location
 import { CourtIcon } from "@/components/sport-icon";
 import {
   Plus, Building2, MapPin, ChevronRight, Users,
-  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard,
+  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -584,7 +584,9 @@ export default function OwnerFacilities() {
                     disabled={ownershipDocUploading}
                     className="gap-2"
                   >
-                    <FileUp className="w-4 h-4" />
+                    {ownershipDocUploading
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <FileUp className="w-4 h-4" />}
                     {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
                   </Button>
                   {formData.ownershipDocUrl && (

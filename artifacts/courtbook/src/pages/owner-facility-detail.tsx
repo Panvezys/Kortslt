@@ -23,7 +23,7 @@ import {
   ArrowLeft, ChevronRight, Images, Upload, Users, CreditCard,
   CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse,
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
-  Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck,
+  Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -392,6 +392,8 @@ function CoachAssignModal({ courtId, onClose }: { courtId: number; onClose: () =
   );
 }
 
+const MAX_GALLERY_PHOTOS = 3;
+
 function CourtPhotosSection({ courtId }: { courtId: number }) {
   const { toast } = useToast();
   const qk = ["court-photos", courtId];
@@ -400,70 +402,135 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
     queryFn: () => customFetch<any[]>(`${API_URL}/courts/${courtId}/photos`),
   });
   const qc = useQueryClient();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
 
-  const MAX_PHOTOS = 3;
-  const remaining = Math.max(0, MAX_PHOTOS - photos.length);
+  const remaining = Math.max(0, MAX_GALLERY_PHOTOS - photos.length);
 
   const handleUpload = async (files: FileList) => {
-    const available = remaining;
-    if (available <= 0) {
-      toast({ title: `Maksimaliai ${MAX_PHOTOS} nuotraukos`, description: "Ištrinkite esamą, kad galėtumėte įkelti naują.", variant: "destructive" });
+    if (remaining <= 0) {
+      toast({ title: "Nuotraukų limitas pasiektas", description: `Ištrinkite esamą, kad galėtumėte įkelti naują (maks. ${MAX_GALLERY_PHOTOS}).`, variant: "destructive" });
       return;
     }
-    const toUpload = Array.from(files).slice(0, available);
+    const toUpload = Array.from(files).slice(0, remaining);
     if (toUpload.length < files.length) {
-      toast({ title: `Įkeltos tik ${toUpload.length} nuotraukos (limitas ${MAX_PHOTOS})` });
+      toast({ title: `Įkeliamos tik ${toUpload.length} nuotraukos`, description: `Limitas: ${MAX_GALLERY_PHOTOS}` });
     }
+
+    const previews = toUpload.map(f => URL.createObjectURL(f));
+    setPendingPreviews(previews);
     setUploading(true);
+    setUploadProgress({ current: 0, total: toUpload.length });
+
     try {
-      for (const file of toUpload) {
+      for (let i = 0; i < toUpload.length; i++) {
+        setUploadProgress({ current: i + 1, total: toUpload.length });
         const fd = new FormData();
-        fd.append("image", file);
-        const { url } = await customFetch<{ url: string }>(`${API_URL}/upload/court-image`, { method: "POST", body: fd });
-        await customFetch(`${API_URL}/courts/${courtId}/photos`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, caption: "" }),
+        fd.append("image", toUpload[i]);
+        const r = await fetch(`${API_URL}/courts/${courtId}/photos`, {
+          method: "POST",
+          body: fd,
+          credentials: "include",
         });
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          throw new Error(errData.error ?? `Klaida (${r.status})`);
+        }
       }
       qc.invalidateQueries({ queryKey: qk });
-      toast({ title: "Nuotraukos įkeltos" });
-    } catch { toast({ title: "Klaida", variant: "destructive" }); }
-    finally { setUploading(false); }
+      toast({ title: toUpload.length === 1 ? "Nuotrauka įkelta" : `${toUpload.length} nuotraukos įkeltos` });
+    } catch (err: any) {
+      toast({ title: "Įkėlimo klaida", description: err.message ?? "Bandykite dar kartą", variant: "destructive" });
+      qc.invalidateQueries({ queryKey: qk });
+    } finally {
+      previews.forEach(URL.revokeObjectURL);
+      setPendingPreviews([]);
+      setUploading(false);
+      setUploadProgress(null);
+    }
   };
+
   const handleDelete = async (photoId: number) => {
     try {
       await customFetch(`${API_URL}/courts/${courtId}/photos/${photoId}`, { method: "DELETE" });
       qc.invalidateQueries({ queryKey: qk });
-    } catch { toast({ title: "Klaida", variant: "destructive" }); }
+    } catch { toast({ title: "Klaida trinant nuotrauką", variant: "destructive" }); }
   };
+
+  const canAddMore = (photos.length + pendingPreviews.length) < MAX_GALLERY_PHOTOS && !uploading;
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <Label>Galerijos nuotraukos</Label>
-        <span className="text-[10px] text-muted-foreground">{photos.length}/{MAX_PHOTOS}</span>
+        <Label className="flex items-center gap-2">
+          <Images className="w-3.5 h-3.5 text-muted-foreground" />
+          Galerijos nuotraukos
+          <span className="text-[10px] text-muted-foreground font-normal">({photos.length}/{MAX_GALLERY_PHOTOS})</span>
+        </Label>
+        {remaining > 0 && (
+          <button
+            type="button"
+            disabled={uploading}
+            onClick={() => !uploading && photoInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading
+              ? <><Loader2 className="w-3 h-3 animate-spin" />{uploadProgress ? `${uploadProgress.current}/${uploadProgress.total} keliama...` : "Keliama..."}</>
+              : <><Upload className="w-3 h-3" />{`Įkelti (dar ${remaining})`}</>
+            }
+          </button>
+        )}
+        <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" disabled={uploading}
+          onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }} />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {photos.map((p: any) => (
-          <div key={p.id} className="relative group rounded-lg overflow-hidden aspect-video bg-muted">
-            <img src={`${BASE_URL}/${p.url}`} alt="" className="w-full h-full object-cover" />
-            <button onClick={() => handleDelete(p.id)}
-              className="absolute top-1 right-1 p-1 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-              <X className="w-3 h-3" />
+
+      {(photos.length > 0 || pendingPreviews.length > 0) && (
+        <div className="grid grid-cols-3 gap-2">
+          {photos.map((p: any) => (
+            <div key={p.id} className="relative group rounded-lg overflow-hidden aspect-video bg-muted border border-border">
+              <img src={resolveCourtImage(p.url) ?? ""} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => handleDelete(p.id)}
+                className="absolute top-1 right-1 p-1 rounded-full bg-black/60 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-all">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {pendingPreviews.map((src, i) => (
+            <div key={`pending-${i}`} className="relative rounded-lg overflow-hidden aspect-video border-2 border-primary/40 animate-pulse">
+              <img src={src} alt="" className="w-full h-full object-cover opacity-50" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <Loader2 className="h-5 w-5 text-white animate-spin" />
+              </div>
+            </div>
+          ))}
+          {canAddMore && (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="aspect-video rounded-lg border border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="text-[10px]">Pridėti</span>
             </button>
-          </div>
-        ))}
-      </div>
-      {remaining > 0 ? (
-        <label className="cursor-pointer">
-          <input type="file" accept="image/*" multiple className="hidden" disabled={uploading}
-            onChange={e => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ""; }} />
-          <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:border-primary hover:text-primary transition-colors">
-            <Upload className="w-3 h-3" /> {uploading ? "Keliama..." : `Įkelti (dar ${remaining})`}
-          </span>
-        </label>
-      ) : (
+          )}
+        </div>
+      )}
+
+      {photos.length === 0 && pendingPreviews.length === 0 && (
+        <button
+          type="button"
+          onClick={() => !uploading && photoInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed rounded-lg py-4 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex flex-col items-center gap-1.5 disabled:opacity-50"
+        >
+          <Images className="h-5 w-5 opacity-40" />
+          Nėra nuotraukų. Spauskite, kad pridėtumėte.
+        </button>
+      )}
+
+      {remaining === 0 && pendingPreviews.length === 0 && (
         <p className="text-[11px] text-muted-foreground italic">Maksimalus kiekis pasiektas. Ištrinkite nuotrauką, kad įkeltumėte naują.</p>
       )}
     </div>
@@ -1056,8 +1123,9 @@ export default function OwnerFacilityDetail() {
                                       <label className="cursor-pointer shrink-0">
                                         <input type="file" accept="image/*" className="hidden" disabled={isUploading}
                                           onChange={e => { const file = e.target.files?.[0]; if (file) handleAmenityPhotoUpload(id, file); e.target.value = ""; }} />
-                                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isUploading ? "opacity-50" : "hover:border-primary hover:text-primary"}`}>
-                                          <Upload className="w-3 h-3" /> {isUploading ? "Keliama..." : "Įkelti"}
+                                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isUploading ? "opacity-70 cursor-not-allowed" : "hover:border-primary hover:text-primary"}`}>
+                                          {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                          {isUploading ? "Keliama..." : "Įkelti"}
                                         </span>
                                       </label>
                                     )}

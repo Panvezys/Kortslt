@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { format, parseISO } from "date-fns";
-import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock, Flame, Building2, ChevronDown, QrCode, Download, Printer } from "lucide-react";
+import { Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock, FileUp, AlertTriangle, Zap, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen, Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send, ArrowLeft, ChevronRight, Images, Upload, ChevronLeft, Users, CreditCard, CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock, Flame, Building2, ChevronDown, QrCode, Download, Printer, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -865,11 +865,15 @@ const BASE_API = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 
 interface CourtPhoto { id: number; url: string; caption: string | null; displayOrder: number; }
 
+const MAX_GALLERY_PHOTOS = 3;
+
 function CourtPhotosSection({ courtId }: { courtId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
 
   const { data: photos = [], isLoading } = useQuery<CourtPhoto[]>({
     queryKey: ["court-photos", courtId],
@@ -882,11 +886,28 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
+
+    const remaining = MAX_GALLERY_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      toast({ title: "Nuotraukų limitas pasiektas", description: `Ištrinkite esamą, kad galėtumėte įkelti naują (maks. ${MAX_GALLERY_PHOTOS}).`, variant: "destructive" });
+      return;
+    }
+
+    const toUpload = Array.from(files).slice(0, remaining);
+    if (toUpload.length < files.length) {
+      toast({ title: `Įkeliamos tik ${toUpload.length} nuotraukos`, description: `Limitas: ${MAX_GALLERY_PHOTOS}` });
+    }
+
+    const previews = toUpload.map(f => URL.createObjectURL(f));
+    setPendingPreviews(previews);
     setUploading(true);
+    setUploadProgress({ current: 0, total: toUpload.length });
+
     try {
-      for (const file of Array.from(files)) {
+      for (let i = 0; i < toUpload.length; i++) {
+        setUploadProgress({ current: i + 1, total: toUpload.length });
         const fd = new FormData();
-        fd.append("image", file);
+        fd.append("image", toUpload[i]);
         const r = await fetch(`${BASE_API}/courts/${courtId}/photos`, {
           method: "POST",
           body: fd,
@@ -898,11 +919,15 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
         }
       }
       await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
-      toast({ title: `${files.length === 1 ? "Nuotrauka įkelta" : `${files.length} nuotraukos įkeltos`}` });
+      toast({ title: toUpload.length === 1 ? "Nuotrauka įkelta" : `${toUpload.length} nuotraukos įkeltos` });
     } catch (err: any) {
       toast({ title: "Įkėlimo klaida", description: err.message ?? "Bandykite dar kartą", variant: "destructive" });
+      await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
     } finally {
+      previews.forEach(URL.revokeObjectURL);
+      setPendingPreviews([]);
       setUploading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -913,27 +938,35 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
     await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
   }
 
+  const confirmedCount = photos.length;
+  const totalShown = confirmedCount + pendingPreviews.length;
+  const canAddMore = totalShown < MAX_GALLERY_PHOTOS && !uploading;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2 text-sm font-medium">
           <Images className="h-4 w-4 text-muted-foreground" />
           Galerijos nuotraukos
-          {photos.length > 0 && (
-            <span className="text-xs text-muted-foreground font-normal">({photos.length})</span>
-          )}
+          <span className="text-xs text-muted-foreground font-normal">
+            ({confirmedCount}/{MAX_GALLERY_PHOTOS})
+          </span>
         </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => photoInputRef.current?.click()}
-          disabled={uploading}
-          className="gap-2 h-8 text-xs"
-        >
-          <Upload className="h-3.5 w-3.5" />
-          {uploading ? "Įkeliama..." : "Pridėti"}
-        </Button>
+        {confirmedCount < MAX_GALLERY_PHOTOS && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => !uploading && photoInputRef.current?.click()}
+            disabled={uploading}
+            className="gap-2 h-8 text-xs"
+          >
+            {uploading
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />{uploadProgress ? `${uploadProgress.current}/${uploadProgress.total} keliama...` : "Keliama..."}</>
+              : <><Upload className="h-3.5 w-3.5" />Pridėti</>
+            }
+          </Button>
+        )}
         <input
           ref={photoInputRef}
           type="file"
@@ -948,11 +981,12 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
         <div className="grid grid-cols-3 gap-2">
           {[0,1,2].map(i => <Skeleton key={i} className="aspect-video rounded-lg" />)}
         </div>
-      ) : photos.length === 0 ? (
+      ) : photos.length === 0 && pendingPreviews.length === 0 ? (
         <button
           type="button"
-          onClick={() => photoInputRef.current?.click()}
-          className="w-full border border-dashed rounded-xl py-6 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex flex-col items-center gap-2"
+          onClick={() => !uploading && photoInputRef.current?.click()}
+          disabled={uploading}
+          className="w-full border border-dashed rounded-xl py-6 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex flex-col items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Images className="h-6 w-6 opacity-40" />
           Nėra papildomų nuotraukų. Spauskite, kad pridėtumėte.
@@ -961,11 +995,7 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
         <div className="grid grid-cols-3 gap-2">
           {photos.map(photo => (
             <div key={photo.id} className="relative group aspect-video rounded-lg overflow-hidden border border-border">
-              <img
-                src={resolveCourtImage(photo.url) ?? ""}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <img src={resolveCourtImage(photo.url) ?? ""} alt="" className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={() => handleDelete(photo.id)}
@@ -976,19 +1006,24 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
             </div>
           ))}
-          {uploading && (
-            <div className="aspect-video rounded-lg border border-dashed border-primary/40 flex items-center justify-center bg-primary/5">
-              <span className="text-xs text-primary animate-pulse">Įkeliama...</span>
+          {pendingPreviews.map((src, i) => (
+            <div key={`pending-${i}`} className="relative aspect-video rounded-lg overflow-hidden border-2 border-primary/40 animate-pulse">
+              <img src={src} alt="" className="w-full h-full object-cover opacity-50" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <Loader2 className="h-6 w-6 text-white animate-spin" />
+              </div>
             </div>
+          ))}
+          {canAddMore && (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="aspect-video rounded-lg border border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="text-[10px]">Pridėti</span>
+            </button>
           )}
-          <button
-            type="button"
-            onClick={() => photoInputRef.current?.click()}
-            className="aspect-video rounded-lg border border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="text-[10px]">Pridėti</span>
-          </button>
         </div>
       )}
     </div>
@@ -2241,7 +2276,9 @@ export default function OwnerDashboard() {
                           disabled={ownershipDocUploading}
                           className="gap-2"
                         >
-                          <FileUp className="w-4 h-4" />
+                          {ownershipDocUploading
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <FileUp className="w-4 h-4" />}
                           {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
                         </Button>
                         {form.watch("ownershipDocUrl") && (

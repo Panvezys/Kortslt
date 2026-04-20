@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
+import { Upload, X, ImageIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
 interface CourtImageUploadProps {
@@ -12,8 +12,10 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadDone, setUploadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -33,8 +35,14 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
 
     setError(null);
     setIsUploading(true);
+    setUploadDone(false);
+    setProgress(0);
 
     const blobUrl = URL.createObjectURL(file);
+
+    const progressInterval = setInterval(() => {
+      setProgress(p => p < 85 ? p + Math.random() * 15 : p);
+    }, 200);
 
     try {
       const formData = new FormData();
@@ -46,17 +54,24 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
         body: formData,
       });
 
+      clearInterval(progressInterval);
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         URL.revokeObjectURL(blobUrl);
         throw new Error(data.error ?? "Įkėlimas nepavyko");
       }
 
+      setProgress(100);
       const data = await res.json();
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(blobUrl);
+      setUploadDone(true);
       onChange(data.path);
+
+      setTimeout(() => setUploadDone(false), 2000);
     } catch (err: any) {
+      clearInterval(progressInterval);
       setError(err.message ?? "Įkėlimas nepavyko");
     } finally {
       setIsUploading(false);
@@ -94,6 +109,13 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
           alt="Aikštelės nuotrauka"
           className="w-full h-48 object-cover"
         />
+        {uploadDone && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 animate-in fade-in duration-200">
+            <div className="bg-white/90 rounded-full p-2">
+              <CheckCircle2 className="w-6 h-6 text-green-500" />
+            </div>
+          </div>
+        )}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
           <button
             type="button"
@@ -129,15 +151,26 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         className={`
-          border-2 border-dashed rounded-lg h-44 flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors
+          relative border-2 border-dashed rounded-lg h-44 flex flex-col items-center justify-center gap-3 transition-colors overflow-hidden
           ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"}
-          ${isUploading ? "cursor-not-allowed opacity-70" : ""}
+          ${isUploading ? "cursor-not-allowed" : "cursor-pointer"}
         `}
       >
         {isUploading ? (
           <>
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-sm text-muted-foreground">Įkeliama...</p>
+            {previewUrl && (
+              <img src={previewUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+            )}
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-sm text-muted-foreground font-medium">Įkeliama...</p>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted">
+              <div
+                className="h-full bg-primary transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </>
         ) : (
           <>
