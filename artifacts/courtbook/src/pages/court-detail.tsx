@@ -1458,18 +1458,18 @@ export default function CourtDetail() {
                     {!clerkLoaded ? (
                       <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
                     ) : isSignedIn ? (
-                      <Button onClick={() => handleReserve()} className="h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
+                      <Button onClick={() => handleReserve()} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
                         {isPending ? "..." : "Rezervuoti"}
                       </Button>
                     ) : (
-                      <Button onClick={() => openSignIn()} className="h-10 px-4 font-semibold gap-1.5 shrink-0">
+                      <Button onClick={() => openSignIn()} className="button-primary h-10 px-4 font-semibold gap-1.5 shrink-0">
                         <LogIn className="w-4 h-4" />
                         Prisijungti
                       </Button>
                     )}
                   </>
                 ) : (
-                  <Button className="w-full h-10 font-semibold opacity-40 cursor-not-allowed" disabled>
+              <Button className="button-primary w-full h-10 font-semibold opacity-40 cursor-not-allowed" disabled>
                     Pasirinkite laiką
                   </Button>
                 )}
@@ -1558,7 +1558,7 @@ export default function CourtDetail() {
             ) : isSignedIn ? (
               <Button
                 onClick={() => handleReserve()}
-                className="h-11 px-6 font-semibold gap-2 shrink-0"
+                className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
                 disabled={isPending}
               >
                 {isPending ? "..." : "Rezervuoti"}
@@ -1566,7 +1566,7 @@ export default function CourtDetail() {
             ) : (
               <Button
                 onClick={() => openSignIn()}
-                className="h-11 px-5 font-semibold gap-1.5 shrink-0"
+                className="button-primary h-11 px-5 font-semibold gap-1.5 shrink-0"
               >
                 <LogIn className="w-4 h-4" />
                 Prisijungti

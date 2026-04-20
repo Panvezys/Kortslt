@@ -583,14 +583,14 @@ export function CourtMap({
             position,
             label: {
               text: String(count),
-              color: "#000",
+              color: "#132D4C",
               fontSize: "12px",
               fontWeight: "700",
             },
             icon: {
               url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
                 `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 42 42">
-                  <circle cx="21" cy="21" r="19" fill="#adff2f" stroke="white" stroke-width="2.5"/>
+                  <circle cx="21" cy="21" r="19" fill="#C5E041" stroke="#FFFFFF" stroke-width="2.5"/>
                 </svg>`
               )}`,
               scaledSize: new google.maps.Size(42, 42),
@@ -644,10 +644,10 @@ export function CourtMap({
         map.data.setStyle((f: google.maps.Data.Feature) => {
           const kind = f.getProperty("kind");
           if (kind === "overlay") {
-            return { fillColor: "#0d0f14", fillOpacity: 0.55, strokeOpacity: 0, clickable: false, zIndex: 1 };
+            return { fillColor: "#132D4C", fillOpacity: 0.35, strokeOpacity: 0, clickable: false, zIndex: 1 };
           }
           if (kind === "border") {
-            return { fillOpacity: 0, strokeColor: "#adff2f", strokeWeight: 1.5, strokeOpacity: 0.45, clickable: false, zIndex: 2 };
+            return { fillOpacity: 0, strokeColor: "#C5E041", strokeWeight: 1.5, strokeOpacity: 0.7, clickable: false, zIndex: 2 };
           }
           return {};
         });
