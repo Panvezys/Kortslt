@@ -70,7 +70,7 @@ function FeaturedTournamentsSection() {
             <div className="group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/60 hover:shadow-xl transition-all cursor-pointer h-full">
               <div className="h-32 bg-gradient-to-br from-primary/30 via-primary/15 to-background relative overflow-hidden">
                 {t.coverPhotoUrl ? (
-                  <img src={t.coverPhotoUrl} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={resolveCourtImage(t.coverPhotoUrl)} alt={t.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Trophy className="w-16 h-16 text-primary/30" />
@@ -786,6 +786,8 @@ export default function Home() {
               <img
                 key={img}
                 src={`${base}/${img}`}
+                loading={i === 0 ? "eager" : "lazy"}
+                decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
                 style={{
                   opacity: i === heroIdx ? 1 : 0,
@@ -839,10 +841,10 @@ export default function Home() {
 
       {/* Stats Bar */}
       <div className="border-b bg-muted/20">
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 text-center divide-x divide-border/50">
+        <div className="container mx-auto px-4 py-3">
+          <div className="grid grid-cols-5 text-center divide-x divide-border/50 overflow-x-auto md:overflow-visible">
             {statsLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full min-w-[110px]" />)
             ) : stats ? (
               <>
                 {[
@@ -862,7 +864,7 @@ export default function Home() {
                   const bgImage = SPORT_IMAGES[imgKey];
                   return (
                   <Link key={label} href={href}
-                    className="group relative overflow-hidden px-4 py-6 cursor-pointer transition-colors"
+                    className="group relative overflow-hidden px-2.5 py-3 cursor-pointer transition-colors min-w-[92px]"
                     onMouseEnter={() => setHoveredStat(label)}
                     onMouseLeave={() => setHoveredStat(null)}
                     onTouchStart={() => setTappedStat(label)}
@@ -872,8 +874,8 @@ export default function Home() {
                       className="transition-opacity duration-200 group-hover:opacity-20"
                       style={{ opacity: tappedStat === label ? 0.2 : undefined }}
                     >
-                      <div className="text-3xl font-bold mb-2 transition-colors" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
-                      <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+                      <div className="text-xl font-bold mb-0.5 transition-colors tabular-nums leading-none" style={{ color: isHovered ? numColor : undefined }}>{count}</div>
+                      <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wide leading-none">
                         {sport === null ? (
                           <Landmark className="h-3.5 w-3.5 shrink-0" />
                         ) : sport === "multi" ? (
@@ -898,7 +900,7 @@ export default function Home() {
                       }}
                     >
                       <Search className="h-5 w-5" style={{ color: numColor ?? "#fff" }} />
-                      <span className="text-sm font-semibold tracking-wide" style={{ color: numColor ?? "#fff" }}>Ieškoti</span>
+                      <span className="text-[10px] font-semibold tracking-wide" style={{ color: numColor ?? "#fff" }}>Ieškoti</span>
                     </div>
                   </Link>
                   );
