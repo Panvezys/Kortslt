@@ -842,9 +842,9 @@ export default function Home() {
       {/* Stats Bar */}
       <div className="border-b bg-muted/20">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex gap-2 overflow-x-auto md:grid md:grid-cols-5 md:gap-0 md:divide-x md:divide-border/50 text-center">
+          <div className="grid grid-cols-2 gap-2 md:grid md:grid-cols-5 md:gap-0 md:divide-x md:divide-border/50 text-center">
             {statsLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-[92px] shrink-0 md:w-full" />)
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
             ) : stats ? (
               <>
                 {[
@@ -864,7 +864,7 @@ export default function Home() {
                   const bgImage = SPORT_IMAGES[imgKey];
                   return (
                   <Link key={label} href={href}
-                    className="group relative overflow-hidden px-2.5 py-3 cursor-pointer transition-colors min-w-[92px] shrink-0 md:min-w-0"
+                    className="group relative overflow-hidden px-2 py-3 cursor-pointer transition-colors"
                     onMouseEnter={() => setHoveredStat(label)}
                     onMouseLeave={() => setHoveredStat(null)}
                     onTouchStart={() => setTappedStat(label)}
