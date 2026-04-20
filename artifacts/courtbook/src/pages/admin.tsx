@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch, type Court } from "@workspace/api-client-react";
+import { Link } from "wouter";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
   CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
-  GraduationCap, Star,
+  GraduationCap, Star, Clock, Trophy,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -1143,6 +1144,12 @@ function CoachesPanel() {
     queryFn: () => customFetch<any[]>("/api/admin/coaches"),
   });
 
+  const { data: roleRequests = [] } = useQuery<any[]>({
+    queryKey: ["admin-role-requests"],
+    queryFn: () => customFetch<any[]>("/api/admin/role-requests"),
+  });
+  const pendingCoachRoleRequests = (roleRequests as any[]).filter((r: any) => r.pendingRole === "coach").length;
+
   const approveMutation = useMutation({
     mutationFn: (id: number) => customFetch<any>(`/api/admin/coaches/${id}/approve`, { method: "PUT" }),
     onSuccess: (_, id) => {
@@ -1185,6 +1192,21 @@ function CoachesPanel() {
 
   return (
     <div className="space-y-5">
+      {pendingCoachRoleRequests > 0 && (
+        <Link href="/admin/approvals">
+          <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-400 cursor-pointer hover:bg-yellow-500/15 transition-colors">
+            <Clock className="w-4 h-4 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">
+                {pendingCoachRoleRequests} trenerio prašymas laukia patvirtinimo
+              </p>
+              <p className="text-xs text-yellow-400/70">Pereiti į patvirtinimų skyrių →</p>
+            </div>
+            <ChevronRight className="w-4 h-4 shrink-0" />
+          </div>
+        </Link>
+      )}
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1.5 flex-wrap">
           {(["all", "pending", "approved", "rejected"] as const).map(s => (

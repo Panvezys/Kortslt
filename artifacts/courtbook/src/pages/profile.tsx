@@ -42,6 +42,7 @@ import {
   Dumbbell,
   Gamepad2,
   Timer,
+  ChevronRight,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -656,10 +657,20 @@ export default function Profile() {
                   <Badge className="bg-primary/10 text-primary border border-primary/20">Administratorius</Badge>
                 )}
                 {isPending && pendingRole && (
-                  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium">
-                    <Clock className="w-3.5 h-3.5" />
-                    {PENDING_ROLE_LABEL[pendingRole] ?? pendingRole} prašymas laukia
-                  </span>
+                  isAdmin ? (
+                    <Link href="/admin/approvals">
+                      <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium cursor-pointer hover:bg-yellow-500/20 transition-colors">
+                        <Clock className="w-3.5 h-3.5" />
+                        {PENDING_ROLE_LABEL[pendingRole] ?? pendingRole} prašymas laukia
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium">
+                      <Clock className="w-3.5 h-3.5" />
+                      {PENDING_ROLE_LABEL[pendingRole] ?? pendingRole} prašymas laukia
+                    </span>
+                  )
                 )}
                 {isRejected && (
                   <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20 font-medium">
