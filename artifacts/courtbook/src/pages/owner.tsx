@@ -427,7 +427,7 @@ type CourtFormValues = z.infer<typeof courtSchema>;
 
 function StatusBadge({ status }: { status?: string }) {
   if (!status || status === "approved") return null;
-  if (status === "pending")
+  if (status === "pending" || status === "pending_review")
     return (
       <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30 ml-2">
         Laukiama
@@ -2602,7 +2602,7 @@ export default function OwnerDashboard() {
                       {court.rejectionReason}
                     </div>
                   )}
-                  {court.status === "pending" && (
+                  {(court.status === "pending" || court.status === "pending_review") && (
                     <div className="text-xs text-muted-foreground mt-0.5">
                       Laukiama administratoriaus patvirtinimo
                     </div>

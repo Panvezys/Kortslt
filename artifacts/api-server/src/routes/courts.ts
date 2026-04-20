@@ -600,7 +600,7 @@ router.get("/admin/courts/pending", requireAuth, async (_req, res): Promise<void
   const courts = await db
     .select()
     .from(courtsTable)
-    .where(eq(courtsTable.status, "pending_review"))
+    .where(inArray(courtsTable.status, ["pending", "pending_review"]))
     .orderBy(courtsTable.createdAt);
 
   const courtIds = courts.map(c => c.id);
