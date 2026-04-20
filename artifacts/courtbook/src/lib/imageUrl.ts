@@ -16,6 +16,7 @@ const STOCK_IMAGES: Record<string, string> = {
 export function resolveCourtImage(imageUrl: string | null | undefined, type?: string): string | null {
   if (imageUrl) {
     if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+    if (imageUrl.startsWith("/")) return imageUrl;
     return `${BASE_URL}/${imageUrl}`;
   }
   if (type && STOCK_IMAGES[type]) return STOCK_IMAGES[type];
