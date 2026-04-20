@@ -16,6 +16,7 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { format } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
@@ -500,23 +501,44 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Row 2: Sport type pills */}
-              <div className="flex gap-1.5 flex-wrap">
-                {ALL_SPORTS.map(sport => {
-                  const color = sportColor[sport] ?? "#84cc16";
-                  const active = searchSport === sport;
-                  return (
-                    <button
-                      key={sport}
-                      onClick={() => setSearchSport(active ? "" : sport)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-border dark:border-white/20 text-muted-foreground dark:text-white/70 transition-all"
-                      style={active ? { background: color, borderColor: color, color: "#000" } : undefined}
-                    >
-                      <SportIcon sport={sport} size={11} strokeWidth={2} />
-                      {sportLithuanian[sport]}
+              {/* Row 2: Sport dropdown */}
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/70 dark:bg-white/20 dark:text-white text-sm font-medium transition-colors">
+                      <SportIcon sport={searchSport || "tennis"} size={14} strokeWidth={2} />
+                      <span className="truncate">
+                        {searchSport ? sportLithuanian[searchSport] : "Sporto šaka"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 opacity-60" />
                     </button>
-                  );
-                })}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuItem onClick={() => setSearchSport("")}>
+                      Visi sportai
+                    </DropdownMenuItem>
+                    {ALL_SPORTS.map(sport => {
+                      const color = sportColor[sport] ?? "#84cc16";
+                      const active = searchSport === sport;
+                      return (
+                        <DropdownMenuItem
+                          key={sport}
+                          onClick={() => setSearchSport(active ? "" : sport)}
+                          className="flex items-center gap-2"
+                        >
+                          <span
+                            className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
+                            style={{ background: color }}
+                          >
+                            <SportIcon sport={sport} size={10} strokeWidth={2} style={{ color: "#fff" }} />
+                          </span>
+                          <span className="flex-1">{sportLithuanian[sport]}</span>
+                          {active && <span className="text-xs text-primary font-semibold">✓</span>}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {/* Row 3: City + Date + Time + Search */}
