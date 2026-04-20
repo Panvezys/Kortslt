@@ -840,7 +840,7 @@ export default function Home() {
       </section>
 
       {/* Stats Bar */}
-      <div className="border-b bg-muted/20">
+      <div className="border-t border-b bg-muted/20">
         <div className="container mx-auto px-4 py-3">
           <div className="grid grid-cols-2 gap-2 md:grid md:grid-cols-5 md:gap-0 md:divide-x md:divide-border/50 text-center">
             {statsLoading ? (
