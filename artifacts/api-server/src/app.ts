@@ -10,6 +10,9 @@ import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
 
+const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
+app.use("/courts/uploads", express.static(uploadsDir, { maxAge: "1d" }));
+
 app.get("/sitemap.xml", (_req, res) => {
   res.type("application/xml");
   res.sendFile(path.resolve(process.cwd(), "../courtbook/public/sitemap.xml"));

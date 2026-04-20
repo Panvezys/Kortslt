@@ -892,12 +892,15 @@ function CourtPhotosSection({ courtId }: { courtId: number }) {
           body: fd,
           credentials: "include",
         });
-        if (!r.ok) throw new Error("Upload failed");
+        if (!r.ok) {
+          const errData = await r.json().catch(() => ({}));
+          throw new Error(errData.error ?? `Klaida (${r.status})`);
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ["court-photos", courtId] });
       toast({ title: `${files.length === 1 ? "Nuotrauka įkelta" : `${files.length} nuotraukos įkeltos`}` });
-    } catch {
-      toast({ title: "Įkėlimo klaida", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Įkėlimo klaida", description: err.message ?? "Bandykite dar kartą", variant: "destructive" });
     } finally {
       setUploading(false);
     }

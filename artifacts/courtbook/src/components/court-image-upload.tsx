@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Upload, X, ImageIcon, Loader2 } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
@@ -13,6 +13,13 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const uploadFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -27,6 +34,8 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
     setError(null);
     setIsUploading(true);
 
+    const blobUrl = URL.createObjectURL(file);
+
     try {
       const formData = new FormData();
       formData.append("image", file);
@@ -39,10 +48,13 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        URL.revokeObjectURL(blobUrl);
         throw new Error(data.error ?? "Įkėlimas nepavyko");
       }
 
       const data = await res.json();
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(blobUrl);
       onChange(data.path);
     } catch (err: any) {
       setError(err.message ?? "Įkėlimas nepavyko");
@@ -64,13 +76,21 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
     if (file) uploadFile(file);
   };
 
-  const resolvedImage = value ? resolveCourtImage(value) : null;
+  const handleClear = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    onClear();
+  };
 
-  if (resolvedImage && !isUploading) {
+  const displaySrc = previewUrl ?? (value ? resolveCourtImage(value) : null);
+
+  if (displaySrc && !isUploading) {
     return (
       <div className="relative rounded-lg overflow-hidden border border-border group">
         <img
-          src={resolvedImage}
+          src={displaySrc}
           alt="Aikštelės nuotrauka"
           className="w-full h-48 object-cover"
         />
@@ -84,7 +104,7 @@ export function CourtImageUpload({ value, onChange, onClear }: CourtImageUploadP
           </button>
           <button
             type="button"
-            onClick={onClear}
+            onClick={handleClear}
             className="bg-destructive/90 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-destructive transition-colors flex items-center gap-1.5"
           >
             <X className="w-3.5 h-3.5" /> Ištrinti
