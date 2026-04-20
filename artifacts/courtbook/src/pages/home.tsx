@@ -542,10 +542,10 @@ export default function Home() {
               </div>
 
               {/* Row 3: City + Date + Time + Search */}
-              <div className="flex gap-2 flex-wrap items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
 
                 {/* City combobox */}
-                <div className="relative w-36 sm:w-40 shrink-0" ref={cityRef}>
+                <div className="relative w-full min-w-0" ref={cityRef}>
                   <div
                     className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 cursor-text transition-all"
                     style={{ borderColor: (cityDropdownOpen || searchCity) ? accentColor : undefined }}
@@ -654,20 +654,22 @@ export default function Home() {
                 </div>
 
                 {/* Date calendar popover */}
-                <div className="relative" ref={dateRef}>
+                <div className="relative w-full min-w-0" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
                     style={{ borderColor: dateDropdownOpen ? accentColor : undefined }}
                   >
-                    <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dateDropdownOpen || searchDateObj) ? accentColor : undefined }} />
-                    <span className="text-sm text-foreground dark:text-white">
-                      {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
+                    <span className="flex items-center gap-2 min-w-0">
+                      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dateDropdownOpen || searchDateObj) ? accentColor : undefined }} />
+                      <span className="text-sm text-foreground dark:text-white truncate">
+                        {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
+                      </span>
                     </span>
                     {searchDateObj && (
                       <span
                         onClick={e => { e.stopPropagation(); setSearchDateObj(undefined); setSearchDate(""); }}
-                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1"
+                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1 shrink-0"
                       >×</span>
                     )}
                   </button>
@@ -690,20 +692,22 @@ export default function Home() {
                 </div>
 
                 {/* Time slider popover */}
-                <div className="relative" ref={timeRef}>
+                <div className="relative w-full min-w-0" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
+                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
                     style={{ borderColor: timeDropdownOpen ? accentColor : undefined }}
                   >
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (timeDropdownOpen || timeSlider !== null) ? accentColor : undefined }} />
-                    <span className="text-sm text-foreground dark:text-white">
-                      {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
+                    <span className="flex items-center gap-2 min-w-0">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (timeDropdownOpen || timeSlider !== null) ? accentColor : undefined }} />
+                      <span className="text-sm text-foreground dark:text-white truncate">
+                        {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
+                      </span>
                     </span>
                     {timeSlider !== null && (
                       <span
                         onClick={e => { e.stopPropagation(); setTimeSlider(null); setSearchTime(""); }}
-                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1"
+                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1 shrink-0"
                       >×</span>
                     )}
                   </button>
@@ -767,7 +771,7 @@ export default function Home() {
 
                 <button
                   onClick={handleSearch}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0"
+                  className="flex w-full items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shrink-0"
                   style={{ background: accentColor, color: accentFg, boxShadow: `0 0 16px ${accentColor}55` }}
                 >
                   <Search className="h-4 w-4" />
