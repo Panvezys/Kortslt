@@ -40,6 +40,9 @@ interface UserRoleRow {
   role: UserRole;
   createdAt: string;
   updatedAt: string;
+  name: string | null;
+  email: string | null;
+  avatarUrl: string | null;
 }
 
 // ─── Status badge ────────────────────────────────────────────────────────────
@@ -338,9 +341,9 @@ function UsersPanel() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50 border-b">
-                <th className="text-left px-4 py-3 font-medium">Vartotojo ID</th>
-                <th className="text-left px-4 py-3 font-medium">Dabartinė rolė</th>
-                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Prisijungė</th>
+                <th className="text-left px-4 py-3 font-medium">Vartotojas</th>
+                <th className="text-left px-4 py-3 font-medium">Rolė</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Prisijungė</th>
                 <th className="text-right px-4 py-3 font-medium">Keisti rolę</th>
               </tr>
             </thead>
@@ -354,24 +357,46 @@ function UsersPanel() {
               )}
               {(users ?? []).map(u => {
                 const isSelf = u.userId === currentUser?.id;
+                const initials = u.name
+                  ? u.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+                  : u.userId.slice(0, 2).toUpperCase();
                 return (
                   <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground">
-                          {u.userId}
-                        </code>
-                        {isSelf && (
-                          <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30">
-                            Jūs
-                          </Badge>
-                        )}
+                      <div className="flex items-center gap-3">
+                        {/* Avatar */}
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                          {u.avatarUrl
+                            ? <img src={u.avatarUrl} alt={u.name ?? ""} className="w-full h-full object-cover" />
+                            : initials}
+                        </div>
+                        {/* Name + email */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-sm truncate">
+                              {u.name ?? <span className="text-muted-foreground italic">Nežinomas</span>}
+                            </span>
+                            {isSelf && (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30 shrink-0">
+                                Jūs
+                              </Badge>
+                            )}
+                          </div>
+                          {u.email && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                              <Mail className="w-3 h-3 shrink-0" />{u.email}
+                            </div>
+                          )}
+                          <code className="text-[10px] text-muted-foreground/50 font-mono mt-0.5 block">
+                            {u.userId.slice(0, 24)}…
+                          </code>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <RoleBadge role={u.role as UserRole} />
                     </td>
-                    <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
+                    <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
                       {new Date(u.createdAt).toLocaleDateString("lt-LT")}
                     </td>
                     <td className="px-4 py-3">

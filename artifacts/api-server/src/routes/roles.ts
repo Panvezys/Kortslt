@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { userRolesTable, userRoleSchema, coachesTable } from "@workspace/db/schema";
 import { requireAuth, requireAdmin, ensureUserRole, getCurrentUserId } from "../lib/auth";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { z } from "zod";
 import { sendAdminRoleRequestEmail } from "../lib/email";
 
@@ -159,13 +159,37 @@ router.post("/admin/role-requests/:userId/reject", requireAdmin, async (req, res
   res.json(row);
 });
 
-/** GET /admin/users — list all users with assigned roles (admin only) */
+/** GET /admin/users — list all users with assigned roles + Clerk profile data (admin only) */
 router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db
     .select()
     .from(userRolesTable)
     .orderBy(userRolesTable.createdAt);
-  res.json(rows);
+
+  if (rows.length === 0) { res.json([]); return; }
+
+  // Enrich with Clerk user data (name, email, avatar)
+  const userIds = rows.map(r => r.userId);
+  let clerkUsers: Record<string, { name: string | null; email: string | null; avatarUrl: string | null }> = {};
+  try {
+    const clerkResp = await clerkClient.users.getUserList({ userId: userIds, limit: 500 });
+    for (const cu of clerkResp.data) {
+      const name = [cu.firstName, cu.lastName].filter(Boolean).join(" ") || null;
+      const email = cu.emailAddresses?.[0]?.emailAddress ?? null;
+      clerkUsers[cu.id] = { name, email, avatarUrl: cu.imageUrl ?? null };
+    }
+  } catch {
+    // If Clerk call fails, proceed without enrichment
+  }
+
+  const enriched = rows.map(r => ({
+    ...r,
+    name: clerkUsers[r.userId]?.name ?? null,
+    email: clerkUsers[r.userId]?.email ?? null,
+    avatarUrl: clerkUsers[r.userId]?.avatarUrl ?? null,
+  }));
+
+  res.json(enriched);
 });
 
 const SetRoleBody = z.object({ role: userRoleSchema });
