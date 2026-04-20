@@ -104,29 +104,32 @@ export default function SignUpPage() {
                 },
                 elements: {
                   rootBox: "w-full",
-                  card: "shadow-none border border-border/70 bg-background/95 text-foreground dark:bg-zinc-950/95 dark:text-zinc-100 rounded-2xl p-4 sm:p-6 w-full backdrop-blur-sm",
+                  card: "shadow-none border border-border/70 bg-white text-slate-900 rounded-2xl p-4 sm:p-6 w-full backdrop-blur-sm",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   header: "hidden",
                   socialButtonsBlockButton:
-                    "border border-border bg-muted hover:bg-muted/80 text-foreground dark:text-zinc-100 rounded-xl h-11 font-medium transition-colors",
-                  socialButtonsBlockButtonText: "font-medium",
+                    "border border-border bg-white hover:bg-muted/60 text-slate-900 rounded-xl h-11 font-medium transition-colors",
+                  socialButtonsBlockButtonText: "font-medium text-slate-900",
                   dividerLine: "bg-border",
-                  dividerText: "text-muted-foreground dark:text-zinc-400 text-xs",
-                  formFieldLabel: "text-sm font-medium text-foreground dark:text-zinc-100",
+                  dividerText: "text-slate-500 text-xs",
+                  formFieldLabel: "text-sm font-medium text-slate-900",
                   formFieldInput:
-                    "bg-muted border border-border rounded-xl h-11 text-foreground dark:text-zinc-100 placeholder:text-muted-foreground dark:placeholder:text-zinc-500 focus:border-lime-500 focus:ring-lime-500/20",
+                    "bg-white border border-border rounded-xl h-11 text-slate-900 placeholder:text-slate-500 focus:border-lime-500 focus:ring-lime-500/20",
                   formButtonPrimary:
                     "bg-lime-500 hover:bg-lime-600 text-black font-semibold rounded-xl h-11 transition-colors",
                   footerAction: { display: "none" },
                   footer: { display: "none" },
-                  identityPreviewText: "text-foreground dark:text-zinc-100",
+                  identityPreviewText: "text-slate-900",
                   formResendCodeLink: "text-lime-600 hover:text-lime-700",
                   otpCodeFieldInput:
-                    "border border-border rounded-xl bg-muted text-foreground dark:text-zinc-100",
-                  alertText: "text-sm text-foreground dark:text-zinc-100",
-                  formFieldSuccessText: "text-lime-600 dark:text-lime-400",
+                    "border border-border rounded-xl bg-white text-slate-900",
+                  alertText: "text-sm text-slate-900",
+                  formFieldSuccessText: "text-lime-600",
                   formFieldErrorText: "text-destructive text-xs",
+                  formFieldInputShowPasswordButton: "text-slate-500 hover:text-slate-700",
+                  formFieldAction: "text-slate-500 hover:text-slate-700",
+                  formFieldHintText: "text-slate-500",
                 },
               }}
             />
