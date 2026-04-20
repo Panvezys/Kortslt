@@ -1176,29 +1176,73 @@ function CoachesPanel() {
     queryKey: ["admin-role-requests"],
     queryFn: () => customFetch<any[]>("/api/admin/role-requests"),
   });
-  const pendingCoachRoleRequests = (roleRequests as any[]).filter((r: any) => r.pendingRole === "coach").length;
+
+  // Synthetic pending coaches from role-request system (not yet in coachesTable)
+  const pendingRoleReqCoaches: any[] = (roleRequests as any[])
+    .filter((r: any) => r.pendingRole === "coach")
+    .map((r: any) => {
+      let rd: any = {};
+      try { rd = r.requestData ? JSON.parse(r.requestData) : {}; } catch {}
+      return {
+        _source: "roleRequest",
+        _userId: r.userId,
+        id: `rr-${r.userId}`,
+        status: "pending",
+        name: rd.name ?? "—",
+        email: rd.email ?? "—",
+        phone: rd.phone ?? null,
+        bio: rd.bio ?? null,
+        photoUrl: rd.photoUrl ?? null,
+        pricePerHour: rd.pricePerHour ?? null,
+        sports: Array.isArray(rd.sports) ? rd.sports : [],
+        availabilityDescription: rd.availabilityDescription ?? null,
+        rejectionReason: null,
+      };
+    });
+
+  // Deduplicate: if userId already has a coachesTable row, prefer that
+  const coachUserIds = new Set((coaches as any[]).map((c: any) => c.userId).filter(Boolean));
+  const dedupedRoleReqs = pendingRoleReqCoaches.filter(r => !coachUserIds.has(r._userId));
+
+  // Unified list for display
+  const allCoaches = [...coaches, ...dedupedRoleReqs];
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => customFetch<any>(`/api/admin/coaches/${id}/approve`, { method: "PUT" }),
-    onSuccess: (_, id) => {
+    mutationFn: (c: any) => {
+      if (c._source === "roleRequest") {
+        return customFetch<any>(`/api/admin/role-requests/${c._userId}/approve`, { method: "POST" });
+      }
+      return customFetch<any>(`/api/admin/coaches/${c.id}/approve`, { method: "PUT" });
+    },
+    onSuccess: (_, c) => {
       toast({ title: "Treneris patvirtintas ✓" });
       qc.invalidateQueries({ queryKey: ["admin-coaches"] });
-      setReviewCoach((prev: any) => prev?.id === id ? { ...prev, status: "approved" } : prev);
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      setReviewCoach((prev: any) => prev?.id === c.id ? { ...prev, status: "approved" } : prev);
     },
     onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      customFetch<any>(`/api/admin/coaches/${id}/reject`, {
+    mutationFn: ({ coach, reason }: { coach: any; reason: string }) => {
+      if (coach._source === "roleRequest") {
+        return customFetch<any>(`/api/admin/role-requests/${coach._userId}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+      }
+      return customFetch<any>(`/api/admin/coaches/${coach.id}/reject`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
-      }),
-    onSuccess: (_, { id, reason }) => {
+      });
+    },
+    onSuccess: (_, { coach, reason }) => {
       toast({ title: "Treneris atmestas" });
       qc.invalidateQueries({ queryKey: ["admin-coaches"] });
-      setReviewCoach((prev: any) => prev?.id === id ? { ...prev, status: "rejected", rejectionReason: reason } : prev);
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      setReviewCoach((prev: any) => prev?.id === coach.id ? { ...prev, status: "rejected", rejectionReason: reason } : prev);
     },
     onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
   });
@@ -1210,31 +1254,16 @@ function CoachesPanel() {
     rejected: "bg-red-500/10 text-red-400 border-red-500/30",
   };
 
-  const filtered = filter === "all" ? coaches : coaches.filter((c: any) => c.status === filter);
+  const filtered = filter === "all" ? allCoaches : allCoaches.filter((c: any) => c.status === filter);
   const counts = {
-    all: coaches.length,
-    pending:  coaches.filter((c: any) => c.status === "pending").length,
-    approved: coaches.filter((c: any) => c.status === "approved").length,
-    rejected: coaches.filter((c: any) => c.status === "rejected").length,
+    all: allCoaches.length,
+    pending:  allCoaches.filter((c: any) => c.status === "pending").length,
+    approved: allCoaches.filter((c: any) => c.status === "approved").length,
+    rejected: allCoaches.filter((c: any) => c.status === "rejected").length,
   };
 
   return (
     <div className="space-y-5">
-      {pendingCoachRoleRequests > 0 && (
-        <Link href="/admin/approvals">
-          <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-400 cursor-pointer hover:bg-yellow-500/15 transition-colors">
-            <Clock className="w-4 h-4 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">
-                {pendingCoachRoleRequests} trenerio prašymas laukia patvirtinimo
-              </p>
-              <p className="text-xs text-yellow-400/70">Pereiti į patvirtinimų skyrių →</p>
-            </div>
-            <ChevronRight className="w-4 h-4 shrink-0" />
-          </div>
-        </Link>
-      )}
-
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1.5 flex-wrap">
           {(["all", "pending", "approved", "rejected"] as const).map(s => (
@@ -1246,7 +1275,10 @@ function CoachesPanel() {
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-coaches"] })}>
+        <Button variant="outline" size="sm" onClick={() => {
+          qc.invalidateQueries({ queryKey: ["admin-coaches"] });
+          qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+        }}>
           <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
         </Button>
       </div>
@@ -1282,7 +1314,14 @@ function CoachesPanel() {
                         </div>
                       )}
                       <div>
-                        <div className="font-medium">{c.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{c.name}</span>
+                          {c._source === "roleRequest" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                              Prašymas
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">{c.email}</div>
                         {c.rejectionReason && (
                           <div className="text-xs text-red-400 mt-0.5">❌ {c.rejectionReason}</div>
@@ -1315,8 +1354,8 @@ function CoachesPanel() {
         coach={reviewCoach}
         open={reviewCoach !== null}
         onClose={() => setReviewCoach(null)}
-        onApprove={() => reviewCoach && approveMutation.mutate(reviewCoach.id)}
-        onReject={(reason) => reviewCoach && rejectMutation.mutate({ id: reviewCoach.id, reason })}
+        onApprove={() => reviewCoach && approveMutation.mutate(reviewCoach)}
+        onReject={(reason) => reviewCoach && rejectMutation.mutate({ coach: reviewCoach, reason })}
         isPendingApprove={approveMutation.isPending}
         isPendingReject={rejectMutation.isPending}
       />

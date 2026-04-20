@@ -7,11 +7,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Menu, X, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Globe, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -72,23 +74,6 @@ function LogoBrand() {
   );
 }
 
-function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme();
-  return (
-    <button
-      onClick={toggleTheme}
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      className="flex items-center justify-center w-8 h-8 rounded-md border border-border hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-    >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4 text-muted-foreground" />
-      ) : (
-        <Moon className="h-4 w-4 text-muted-foreground" />
-      )}
-    </button>
-  );
-}
-
 function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
   const [, setLocation] = useLocation();
   const active = useLocation()[0] === href;
@@ -115,36 +100,10 @@ function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode
 }
 
 const LOCALES: { code: Locale; label: string }[] = [
-  { code: "lt", label: "LT" },
-  { code: "en", label: "EN" },
-  { code: "ru", label: "RU" },
+  { code: "lt", label: "LT — Lietuvių" },
+  { code: "en", label: "EN — English" },
+  { code: "ru", label: "RU — Русский" },
 ];
-
-function LanguageSwitcher() {
-  const { locale, setLocale } = useI18n();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold border border-border hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-          {locale.toUpperCase()}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-28 min-w-0">
-        {LOCALES.map(({ code, label }) => (
-          <DropdownMenuItem
-            key={code}
-            onClick={() => setLocale(code)}
-            className={`text-sm font-medium ${locale === code ? "text-primary font-bold" : ""}`}
-          >
-            {label}
-            {locale === code && <span className="ml-auto text-primary">✓</span>}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 function UserMenu() {
   const { user } = useUser();
@@ -152,6 +111,8 @@ function UserMenu() {
   const [, setLocation] = useLocation();
   const t = useT();
   const { isAdmin, isOwner } = useRole();
+  const { theme, toggleTheme } = useTheme();
+  const { locale, setLocale } = useI18n();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -171,7 +132,7 @@ function UserMenu() {
           </Avatar>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
@@ -186,14 +147,6 @@ function UserMenu() {
         <DropdownMenuItem onClick={() => setLocation("/profile")}>
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/bookings")}>
-          <CalendarDays className="mr-2 h-4 w-4" />
-          {t("nav.myBookings")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/favorites")}>
-          <Heart className="mr-2 h-4 w-4 text-red-500" />
-          Mėgstamiausi
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
           <Trophy className="mr-2 h-4 w-4" />
@@ -216,6 +169,22 @@ function UserMenu() {
           Nustatymai
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        {/* Theme toggle */}
+        <DropdownMenuItem onClick={toggleTheme}>
+          {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
+        </DropdownMenuItem>
+        {/* Language selector */}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+          {LOCALES.map(({ code, label }) => (
+            <DropdownMenuRadioItem key={code} value={code} className="text-sm">
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
           className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
@@ -234,6 +203,8 @@ function MobileUserAvatar() {
   const [, setLocation] = useLocation();
   const t = useT();
   const { isAdmin, isOwner } = useRole();
+  const { theme, toggleTheme } = useTheme();
+  const { locale, setLocale } = useI18n();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -272,14 +243,6 @@ function MobileUserAvatar() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/bookings")}>
-          <CalendarDays className="mr-2 h-4 w-4" />
-          {t("nav.myBookings")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/favorites")}>
-          <Heart className="mr-2 h-4 w-4 text-red-500" />
-          Mėgstamiausi
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
           <Trophy className="mr-2 h-4 w-4" />
           Trenerio profilis
@@ -301,6 +264,20 @@ function MobileUserAvatar() {
           Nustatymai
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={toggleTheme}>
+          {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={locale} onValueChange={(v) => setLocale(v as Locale)}>
+          {LOCALES.map(({ code, label }) => (
+            <DropdownMenuRadioItem key={code} value={code} className="text-sm">
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
           className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
@@ -310,6 +287,24 @@ function MobileUserAvatar() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function NavIconButton({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  const [location] = useLocation();
+  const active = location === href || location.startsWith(href + "/");
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={`flex items-center justify-center w-8 h-8 rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border hover:bg-accent text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}
+    </Link>
   );
 }
 
@@ -341,8 +336,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <LanguageSwitcher />
               <Show when="signed-out">
                 <div className="hidden md:flex items-center gap-2">
                   <Button variant="ghost" size="sm" asChild>
@@ -359,6 +352,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </Show>
               <Show when="signed-in">
+                {/* Favorites + Bookings icon buttons — visible on both mobile and desktop */}
+                <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
+                <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
                 <NotificationBell />
                 <div className="hidden md:block">
                   <UserMenu />

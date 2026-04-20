@@ -439,38 +439,69 @@ export default function Courts() {
         </div>
       </div>
 
-      {/* Mobile top bar: filters button + view toggle */}
-      <div className="md:hidden sticky top-16 z-30 border-b bg-background/95 backdrop-blur px-4 py-2.5 flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 flex-1"
-          onClick={() => setMobileFiltersOpen(true)}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          {t("courts.filters.title")}
-          {activeFilterCount > 0 && (
-            <Badge className="h-5 px-1.5 text-xs ml-1">{activeFilterCount}</Badge>
-          )}
-        </Button>
-        {activeFilterCount > 0 && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground px-2" onClick={resetFilters}>
-            <X className="h-4 w-4" />
+      {/* Mobile top bar: filters button + view toggle + sport chips */}
+      <div className="md:hidden sticky top-[7rem] z-30 border-b bg-background/95 backdrop-blur">
+        {/* Row 1: filters button + view toggle */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 flex-1"
+            onClick={() => setMobileFiltersOpen(true)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {t("courts.filters.title")}
+            {activeFilterCount > 0 && (
+              <Badge className="h-5 px-1.5 text-xs ml-1">{activeFilterCount}</Badge>
+            )}
           </Button>
-        )}
-        <div className="flex gap-1 rounded-md border p-0.5 ml-auto">
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground px-2" onClick={resetFilters}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="flex gap-1 rounded-md border p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            >
+              <Map className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        {/* Row 2: scrollable sport chips */}
+        <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 no-scrollbar">
           <button
-            onClick={() => setViewMode("list")}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            onClick={() => setActiveSports(allSportsActive ? new Set() : new Set(ALL_SPORTS))}
+            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+              allSportsActive ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
+            }`}
           >
-            <List className="h-3.5 w-3.5" />
+            Visi
           </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
-          >
-            <Map className="h-3.5 w-3.5" />
-          </button>
+          {ALL_SPORTS.map(sport => {
+            const active = activeSports.has(sport);
+            const color = sportColor[sport];
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                  active ? "border-transparent text-white" : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+                style={active ? { backgroundColor: color } : {}}
+              >
+                <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                {sportLT[sport]}
+              </button>
+            );
+          })}
         </div>
       </div>
 
