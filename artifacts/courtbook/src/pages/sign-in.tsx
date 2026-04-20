@@ -97,7 +97,7 @@ export default function SignInPage() {
                 },
                 elements: {
                   rootBox: "w-full",
-                  card: "shadow-none border-0 p-0 bg-transparent w-full",
+                  card: "shadow-none border border-border/70 bg-background/95 dark:bg-zinc-950/95 rounded-2xl p-4 sm:p-6 w-full backdrop-blur-sm",
                   headerTitle: "hidden",
                   headerSubtitle: "hidden",
                   header: "hidden",
