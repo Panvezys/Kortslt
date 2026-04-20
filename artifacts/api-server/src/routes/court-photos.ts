@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { db, courtPhotosTable, courtsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
+import { isOwner } from "../lib/auth";
 
 const uploadDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -30,10 +31,10 @@ const uploadPhoto = multer({
 
 const router: IRouter = Router();
 
-async function requireCourtOwner(courtId: number, userId: string): Promise<boolean> {
+async function getCourtOwner(courtId: number): Promise<string | null> {
   const [court] = await db.select({ ownerUserId: courtsTable.ownerUserId })
     .from(courtsTable).where(eq(courtsTable.id, courtId));
-  return court?.ownerUserId === userId;
+  return court?.ownerUserId ?? null;
 }
 
 router.get("/courts/:id/photos", async (req, res): Promise<void> => {
@@ -55,8 +56,8 @@ router.post("/courts/:id/photos", uploadPhoto.single("image"), async (req, res):
   const courtId = parseInt(req.params.id);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
-  const isOwner = await requireCourtOwner(courtId, userId);
-  if (!isOwner) { res.status(403).json({ error: "Forbidden" }); return; }
+  const ownerUserId = await getCourtOwner(courtId);
+  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   if (!req.file) { res.status(400).json({ error: "No image provided" }); return; }
 
@@ -86,8 +87,8 @@ router.patch("/courts/:id/photos/:photoId", async (req, res): Promise<void> => {
   const photoId = parseInt(req.params.photoId);
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const isOwner = await requireCourtOwner(courtId, userId);
-  if (!isOwner) { res.status(403).json({ error: "Forbidden" }); return; }
+  const ownerUserId = await getCourtOwner(courtId);
+  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const updates: { caption?: string | null; displayOrder?: number } = {};
   if (typeof req.body.caption !== "undefined") updates.caption = req.body.caption || null;
@@ -107,8 +108,8 @@ router.delete("/courts/:id/photos/:photoId", async (req, res): Promise<void> => 
   const photoId = parseInt(req.params.photoId);
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const isOwner = await requireCourtOwner(courtId, userId);
-  if (!isOwner) { res.status(403).json({ error: "Forbidden" }); return; }
+  const ownerUserId = await getCourtOwner(courtId);
+  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const [photo] = await db.select().from(courtPhotosTable).where(eq(courtPhotosTable.id, photoId));
   if (photo) {
