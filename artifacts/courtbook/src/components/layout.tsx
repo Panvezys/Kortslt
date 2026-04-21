@@ -346,7 +346,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
+      <div className="min-h-[100dvh] flex flex-col bg-background text-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <LogoBrand />
