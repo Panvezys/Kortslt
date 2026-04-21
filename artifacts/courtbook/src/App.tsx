@@ -35,6 +35,7 @@ import ListYourCourt from "@/pages/list-your-court";
 import OwnerOnboard from "@/pages/owner-onboard";
 import GamesPage from "@/pages/games";
 import GameDetailPage from "@/pages/game-detail";
+import GamesGuidePage from "@/pages/games-guide";
 import MessagesPage from "@/pages/messages";
 import FAQPage from "@/pages/faq";
 import OwnersInfoPage from "@/pages/owners-info";
@@ -235,6 +236,7 @@ function Router() {
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route path="/games" component={GamesPage} />
+      <Route path="/games/guide" component={GamesGuidePage} />
       <Route path="/games/:id" component={GameDetailPage} />
       <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />
