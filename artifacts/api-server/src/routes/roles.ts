@@ -6,6 +6,7 @@ import { requireAuth, requireAdmin, ensureUserRole, getCurrentUserId } from "../
 import { getAuth, clerkClient } from "@clerk/express";
 import { z } from "zod";
 import { sendAdminRoleRequestEmail } from "../lib/email";
+import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -73,6 +74,13 @@ router.post("/me/request-role", requireAuth, async (req, res): Promise<void> => 
     pendingRole,
     requestData: requestData ?? {},
   }).catch(() => {});
+
+  const roleLabel = pendingRole === "coach" ? "trenerio" : "savininko";
+  await sendAdminNotification(
+    `Nauja ${roleLabel} rolės užklausa`,
+    `Vartotojas pateikė prašymą gauti ${roleLabel} teises.`,
+    "/admin/roles",
+  );
 
   res.json(row);
 });

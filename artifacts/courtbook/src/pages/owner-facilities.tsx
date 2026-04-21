@@ -245,24 +245,18 @@ export default function OwnerFacilities() {
         </div>
 
         {!isLoading && facilities && facilities.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-            <div className="bg-card border rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-primary">{facilities.length}</div>
-              <div className="text-xs text-muted-foreground mt-1">Objektai</div>
+          <div className="flex flex-wrap gap-3 mb-6">
+            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
+              <span className="text-sm font-bold text-primary">{facilities.length}</span>
+              <span className="text-xs text-muted-foreground">Objektai</span>
             </div>
-            <div className="bg-card border rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-primary">{totalCourts}</div>
-              <div className="text-xs text-muted-foreground mt-1">Aikštelės</div>
+            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
+              <span className="text-sm font-bold text-primary">{totalCourts}</span>
+              <span className="text-xs text-muted-foreground">Aikštelės</span>
             </div>
-            <div className="bg-card border rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-primary">{totalSports}</div>
-              <div className="text-xs text-muted-foreground mt-1">Sporto šakos</div>
-            </div>
-            <div className="bg-card border rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-green-500">
-                {facilities.filter(f => f.verificationStatus === "verified").length}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">Patvirtinta</div>
+            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
+              <span className="text-sm font-bold text-primary">{totalSports}</span>
+              <span className="text-xs text-muted-foreground">Sporto šakos</span>
             </div>
           </div>
         )}

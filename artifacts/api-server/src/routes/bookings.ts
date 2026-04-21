@@ -11,7 +11,8 @@ import {
   CancelBookingResponse,
   ListBookingsResponse,
 } from "@workspace/api-zod";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, isOwner, getCurrentUserId } from "../lib/auth";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -267,6 +268,47 @@ router.get("/bookings/:id/ics", async (req, res): Promise<void> => {
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="booking-${booking.id}.ics"`);
   res.send(ics);
+});
+
+// ─── Owner: create manual (free) booking ──────────────────────────────────────
+const ManualBookingBody = z.object({
+  courtId: z.number().int(),
+  customerName: z.string().min(1),
+  customerEmail: z.string().email(),
+  customerPhone: z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  note: z.string().optional(),
+});
+
+router.post("/owner/bookings/manual", requireAuth, async (req, res): Promise<void> => {
+  const parsed = ManualBookingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() }); return; }
+
+  const { courtId, customerName, customerEmail, customerPhone, date, startTime, endTime, note } = parsed.data;
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [booking] = await db.insert(bookingsTable).values({
+    courtId,
+    customerName,
+    customerEmail,
+    customerPhone: customerPhone ?? null,
+    date,
+    startTime,
+    endTime,
+    totalPrice: "0",
+    status: "confirmed",
+    rentedItems: note ? `Pastaba: ${note}` : null,
+  }).returning();
+
+  res.status(201).json(formatBooking(booking, court.name));
 });
 
 export default router;

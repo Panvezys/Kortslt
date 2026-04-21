@@ -1,6 +1,8 @@
 import { db, notificationsTable, notificationSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+export const ADMIN_NOTIF_USER = "__ADMIN__";
+
 type NotifType =
   | "game_join_request"
   | "game_cancelled"
@@ -8,19 +10,30 @@ type NotifType =
   | "booking_cancelled"
   | "court_approved"
   | "court_rejected"
+  | "facility_approved"
+  | "facility_rejected"
+  | "coach_approved"
+  | "coach_rejected"
+  | "admin_pending_review"
   | "message";
 
-const TYPE_TO_SETTING: Record<NotifType, keyof typeof notificationSettingsTable.$inferSelect> = {
+const TYPE_TO_SETTING: Partial<Record<NotifType, keyof typeof notificationSettingsTable.$inferSelect>> = {
   game_join_request: "gameJoinRequest",
   game_cancelled: "gameCancelled",
   booking_created: "bookingCreated",
   booking_cancelled: "bookingCancelled",
   court_approved: "courtApproved",
   court_rejected: "courtApproved",
+  facility_approved: "courtApproved",
+  facility_rejected: "courtApproved",
+  coach_approved: "courtApproved",
+  coach_rejected: "courtApproved",
   message: "messageReceived",
 };
 
 async function shouldNotify(userId: string, type: NotifType): Promise<boolean> {
+  // Admin pseudo-user always receives notifications
+  if (userId === ADMIN_NOTIF_USER) return true;
   try {
     const [row] = await db
       .select()
@@ -28,6 +41,7 @@ async function shouldNotify(userId: string, type: NotifType): Promise<boolean> {
       .where(eq(notificationSettingsTable.userId, userId));
     if (!row) return true;
     const field = TYPE_TO_SETTING[type];
+    if (!field) return true;
     return row[field] as boolean;
   } catch {
     return true;
@@ -52,4 +66,13 @@ export async function sendNotification(
       link: link ?? null,
     });
   } catch { /* silent */ }
+}
+
+/** Send a notification to the admin queue (special sentinel user) */
+export async function sendAdminNotification(
+  title: string,
+  body: string,
+  link?: string,
+) {
+  return sendNotification(ADMIN_NOTIF_USER, "admin_pending_review", title, body, link);
 }

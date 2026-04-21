@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useLocation, useParams } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { Layout } from "@/components/layout";
@@ -324,6 +324,90 @@ function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; de
   );
 }
 
+function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const today = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({ date: today, startTime: "09:00", endTime: "10:00", customerName: "", customerEmail: "", customerPhone: "", note: "" });
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!courtId) return;
+    setLoading(true);
+    try {
+      await customFetch(`${API_URL}/owner/bookings/manual`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtId, ...form }),
+      });
+      toast({ title: "Nemokama rezervacija sukurta ✓" });
+      setForm({ date: today, startTime: "09:00", endTime: "10:00", customerName: "", customerEmail: "", customerPhone: "", note: "" });
+      onClose();
+    } catch (err: any) {
+      toast({ title: err?.message ?? "Klaida kuriant rezervaciją", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-500" /> Nemokama rezervacija
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3 pt-1">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Data</label>
+            <input type="date" min={today} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" required />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Pradžia</label>
+              <input type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" required />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Pabaiga</label>
+              <input type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))}
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" required />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Kliento vardas</label>
+            <input type="text" placeholder="Vardas Pavardė" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" required />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">El. paštas</label>
+            <input type="email" placeholder="vardas@example.com" value={form.customerEmail} onChange={e => setForm(f => ({ ...f, customerEmail: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" required />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Tel. numeris (neprivaloma)</label>
+            <input type="tel" placeholder="+370 600 00000" value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Pastaba (neprivaloma)</label>
+            <input type="text" placeholder="pvz. treniruotė, renginys..." value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm" />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={loading}>Atšaukti</Button>
+            <Button type="submit" size="sm" className="bg-green-600 hover:bg-green-700 text-white" disabled={loading}>
+              {loading ? "Kuriama..." : "Sukurti"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CoachAssignModal({ courtId, onClose }: { courtId: number; onClose: () => void }) {
   const { toast } = useToast();
   const qk = ["court-coaches", courtId];
@@ -561,6 +645,7 @@ export default function OwnerFacilityDetail() {
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
+  const [freeBookingCourtId, setFreeBookingCourtId] = useState<number | null>(null);
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -839,6 +924,23 @@ export default function OwnerFacilityDetail() {
                 <Mail className="w-3.5 h-3.5" /> {facility.email}
               </a>
             )}
+            {(facility.latitude != null && facility.longitude != null) ? (
+              <a
+                href={`https://www.google.com/maps?q=${facility.latitude},${facility.longitude}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
+              >
+                <MapPin className="w-3.5 h-3.5" /> Navigacija
+              </a>
+            ) : facility.address ? (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([facility.address, facility.city].filter(Boolean).join(", "))}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
+              >
+                <MapPin className="w-3.5 h-3.5" /> Navigacija
+              </a>
+            ) : null}
             {facility.companyName && (
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Building2 className="w-3.5 h-3.5" /> {facility.companyName}
@@ -1276,8 +1378,18 @@ export default function OwnerFacilityDetail() {
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setCoachesCourtId(court.id)}>
                       <Users className="w-3 h-3" /> Treneriai
                     </Button>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-green-600" onClick={() => setFreeBookingCourtId(court.id)}>
+                      <CheckCircle2 className="w-3 h-3" /> Nemokama
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="QR" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
                       <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8"
+                      title="Peržiūrėti viešą puslapį"
+                      onClick={() => window.open(`/courts/${court.id}`, "_blank")}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <div className="ml-auto flex gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(court)}>
@@ -1322,6 +1434,28 @@ export default function OwnerFacilityDetail() {
                         <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).instantBookingEnabled !== false ? "translate-x-4" : "translate-x-0"}`} />
                       </button>
                     </div>
+
+                    {/* Online/offline toggle */}
+                    {["active", "hidden"].includes((court as any).status ?? "") && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Matoma viešai</span>
+                        <button
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).status === "active" ? "bg-green-500" : "bg-muted-foreground/30"}`}
+                          title={(court as any).status === "active" ? "Slepia aikštelę" : "Parodo aikštelę viešai"}
+                          onClick={() => {
+                            const nextStatus = (court as any).status === "active" ? "hidden" : "active";
+                            customFetch(`${API_URL}/courts/${court.id}/status`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ status: nextStatus }),
+                            }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
+                              .catch(() => toast({ title: "Klaida keičiant statusą", variant: "destructive" }));
+                          }}
+                        >
+                          <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).status === "active" ? "translate-x-4" : "translate-x-0"}`} />
+                        </button>
+                      </div>
+                    )}
 
                     {/* Submit for review */}
                     {["draft", "hidden"].includes((court as any).status ?? "draft") && (
@@ -1377,6 +1511,12 @@ export default function OwnerFacilityDetail() {
             {coachesCourtId !== null && <CoachAssignModal courtId={coachesCourtId} onClose={() => setCoachesCourtId(null)} />}
           </DialogContent>
         </Dialog>
+
+        <FreeBookingDialog
+          courtId={freeBookingCourtId}
+          open={freeBookingCourtId !== null}
+          onClose={() => setFreeBookingCourtId(null)}
+        />
 
         {qrCourt && (() => {
           const courtUrl = `${window.location.origin}${BASE_URL}/courts/${qrCourt.id}`;

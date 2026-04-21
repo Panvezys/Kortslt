@@ -21,7 +21,8 @@ import {
   SetCourtPricingBody,
   SetCourtPricingResponse,
 } from "@workspace/api-zod";
-import { requireAuth, isOwner, getCurrentUserId } from "../lib/auth";
+import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -569,26 +570,52 @@ router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<
     .where(eq(courtsTable.id, courtId))
     .returning();
 
+  await sendAdminNotification(
+    "Nauja aikštelė laukia patvirtinimo",
+    `„${court.name}" pateikta peržiūrai.`,
+    "/admin/courts",
+  );
+
   res.json(formatCourt(updated));
 });
 
-// ─── Admin: update court status ───────────────────────────────────────────────
+// ─── Admin/Owner: update court status ─────────────────────────────────────────
 router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> => {
   const courtId = Number(req.params.id);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
 
   const { status, rejectionReason } = req.body as { status?: string; rejectionReason?: string };
-  const ALLOWED = ["draft", "pending_review", "active", "hidden", "approved"];
-  if (!status || !ALLOWED.includes(status)) {
-    res.status(400).json({ error: `status must be one of: ${ALLOWED.join(", ")}` }); return;
-  }
+  const ALLOWED_ADMIN = ["draft", "pending_review", "active", "hidden", "approved"];
+  const OWNER_TOGGLE = ["active", "hidden"];
+
+  if (!status) { res.status(400).json({ error: "status required" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
+  const userId = getCurrentUserId(req);
+  const role = userId ? await getUserRole(userId) : null;
+  const userIsAdmin = role === "admin";
+  const userIsOwner = await isOwner(req, court.ownerUserId ?? "");
+
+  if (userIsAdmin) {
+    if (!ALLOWED_ADMIN.includes(status)) {
+      res.status(400).json({ error: `status must be one of: ${ALLOWED_ADMIN.join(", ")}` }); return;
+    }
+  } else if (userIsOwner) {
+    if (!OWNER_TOGGLE.includes(status)) {
+      res.status(403).json({ error: "Owners can only toggle between active and hidden" }); return;
+    }
+    if (!OWNER_TOGGLE.includes(court.status)) {
+      res.status(409).json({ error: "Court must be active or hidden to use this toggle" }); return;
+    }
+  } else {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
   const [updated] = await db
     .update(courtsTable)
-    .set({ status, rejectionReason: rejectionReason ?? null })
+    .set({ status, rejectionReason: userIsAdmin ? (rejectionReason ?? null) : court.rejectionReason })
     .where(eq(courtsTable.id, courtId))
     .returning();
 

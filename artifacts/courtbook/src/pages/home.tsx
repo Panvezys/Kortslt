@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin, ArrowRight, Heart, Landmark, Search, Building2, Mail, Phone, Instagram, Facebook, MessageCircle, CalendarDays, Clock, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, CreditCard, Users, BarChart3, CheckCircle2, Euro, Bell, Trophy, Flame, Eye, X } from "lucide-react";
 import { useT, useI18n } from "@/lib/i18n";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
@@ -137,8 +138,7 @@ function DragScrollRow({ children, className }: { children: React.ReactNode; cla
 
   return (
     <div className="relative group/carousel">
-      {/* Left arrow + fade */}
-      <div className="absolute left-0 top-0 bottom-3 w-16 bg-gradient-to-r from-background/80 to-transparent z-10 pointer-events-none rounded-l-xl opacity-0 group-hover/carousel:opacity-100 transition-opacity" />
+      {/* Left arrow only — no fade gradient */}
       <button
         type="button"
         onClick={() => scroll("left")}
@@ -169,8 +169,7 @@ function DragScrollRow({ children, className }: { children: React.ReactNode; cla
         {children}
       </div>
 
-      {/* Right arrow + fade */}
-      <div className="absolute right-0 top-0 bottom-3 w-16 bg-gradient-to-l from-background/80 to-transparent z-10 pointer-events-none rounded-r-xl opacity-0 group-hover/carousel:opacity-100 transition-opacity" />
+      {/* Right arrow only — no fade gradient */}
       <button
         type="button"
         onClick={() => scroll("right")}
@@ -284,6 +283,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
 
 export default function Home() {
   const t = useT();
+  const isMobile = useIsMobile();
   const { isSignedIn } = useUser();
   const queryClient = useQueryClient();
   const { favorites, loading: favLoading } = useFavoritesContext();
@@ -441,7 +441,7 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Section — split layout */}
-      <section className="bg-background text-foreground dark:bg-zinc-950 dark:text-white">
+      <section className="bg-background text-foreground">
         <div className="flex">
 
           {/* ── LEFT PANEL: search form ── */}
@@ -551,8 +551,9 @@ export default function Home() {
                       type="text"
                       value={searchCity ? searchCity : cityInput}
                       placeholder="Miestas"
+                      readOnly={isMobile}
                       onFocus={() => { setCityDropdownOpen(true); if (searchCity) { setCityInput(""); } }}
-                      onChange={e => {
+                      onChange={isMobile ? undefined : e => {
                         setCityInput(e.target.value);
                         setSearchCity("");
                         setCityDropdownOpen(true);
@@ -798,7 +799,7 @@ export default function Home() {
               />
             ))}
             {/* Gradient fade on the left edge to blend with the search panel */}
-            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background dark:from-zinc-950 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
             {/* Dark scrim over the bottom ~60% so text is always readable */}
             <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/75 via-black/30 to-transparent z-10 pointer-events-none" />
             {/* Heading + subtitle — always white since it sits over the photo */}

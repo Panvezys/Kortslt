@@ -31,7 +31,7 @@ router.post("/courts/:id/reviews", async (req, res): Promise<void> => {
     return;
   }
 
-  const { bookingId, rating, reviewText, reviewerName } = req.body;
+  const { bookingId, rating, reviewText, reviewerName, photos } = req.body;
 
   if (!bookingId || !rating || !reviewerName) {
     res.status(400).json({ error: "bookingId, rating, and reviewerName are required" });
@@ -70,6 +70,9 @@ router.post("/courts/:id/reviews", async (req, res): Promise<void> => {
     return;
   }
 
+  // Validate and serialize photos
+  const photoUrls: string[] = Array.isArray(photos) ? photos.slice(0, 3) : [];
+
   // Insert review
   const [review] = await db
     .insert(reviewsTable)
@@ -79,6 +82,7 @@ router.post("/courts/:id/reviews", async (req, res): Promise<void> => {
       rating,
       reviewText: reviewText || null,
       reviewerName,
+      photos: photoUrls.length > 0 ? JSON.stringify(photoUrls) : null,
     })
     .returning();
 

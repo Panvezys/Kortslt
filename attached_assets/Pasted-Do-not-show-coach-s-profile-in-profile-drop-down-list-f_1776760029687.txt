@@ -1,0 +1,20 @@
+Do not show coach's profile in profile drop down list for not coaches. Only for coaches and admin
+Filter for the map sport pins, move them on the bottom right of the map, with a button to hide/show this filter
+Make the bookings section fit within the mobile screen. Remove the court owner email column. Make the future bookings tab, make it the first one. Make the past bookins tab in which there would be an option to rate the court. Allow to upload up to 3 photos to the rating. Allow to press on each booking which would take to that booking's specific booking summary. There you would have info such as court's info, time, date, total price paid. There should also be a phone number, email and chat button for the court. Also, booking unique number. There you could also press a button to reserve again which would take to court's reservation page.
+For notifications, add additional notifications for admin, when coach, facility or court requires for confirmation. Make it clickable taking to admin's approval page.
+On the homepage, remove the soft sides for my favorites and popular courts horizontal scroll sides. 
+On PC screen, on homescreen, in the court search section, make them all equal height.
+On mobile, on the homescreen, in city selection bar - do not allow typing. Only cities drop down list. The search section background is still all black in dark theme, make it same as other section background.
+In dark theme, some of the dark text is not visable.
+In owners dashboard, make the top section showing total number of courts, objects and sports smaller. Remove the confirmed number block.
+Allow owners to upload picture for an object which would only would be visible for them for easier facility identification. 
+In court's dashboard for owners, make additional button which when clicked would show how the court's page looks for other users.
+Allow court owners to add additional comments regarding the facility's directions, PIN code or other information. This info should be also displayed for users when they book the court in the booking confirmation message. Also, in the bookings page for users.
+Modify the owner dashboard so facilities are in list with small icons and main info with edit button. 
+Allow owners to turn the court online/offline.
+Also allow an option to make the booking of the court for free.
+In each court's page, allow court owners to add specific coach for that owner. Coach owners could add a coach from all the coaches list, by searching by name. Coaches could also ask specific court owner for a permission to be that court's coach. This would require permission from court owner. Coaches could be assigned to multiple courts.
+
+
+
+

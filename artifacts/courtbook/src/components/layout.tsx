@@ -110,7 +110,7 @@ function UserMenu() {
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
-  const { isAdmin, isOwner } = useRole();
+  const { isAdmin, isOwner, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useI18n();
 
@@ -148,10 +148,12 @@ function UserMenu() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
-          <Trophy className="mr-2 h-4 w-4" />
-          Trenerio profilis
-        </DropdownMenuItem>
+        {(isCoach || isAdmin) && (
+          <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
+            <Trophy className="mr-2 h-4 w-4" />
+            Trenerio profilis
+          </DropdownMenuItem>
+        )}
         {isOwner && (
           <DropdownMenuItem onClick={() => setLocation("/owner")}>
             <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -212,7 +214,7 @@ function MobileUserAvatar() {
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
-  const { isAdmin, isOwner } = useRole();
+  const { isAdmin, isOwner, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale } = useI18n();
 
@@ -253,10 +255,12 @@ function MobileUserAvatar() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
-          <Trophy className="mr-2 h-4 w-4" />
-          Trenerio profilis
-        </DropdownMenuItem>
+        {(isCoach || isAdmin) && (
+          <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
+            <Trophy className="mr-2 h-4 w-4" />
+            Trenerio profilis
+          </DropdownMenuItem>
+        )}
         {isOwner && (
           <DropdownMenuItem onClick={() => setLocation("/owner")}>
             <LayoutDashboard className="mr-2 h-4 w-4" />

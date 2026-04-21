@@ -822,20 +822,22 @@ export function CourtMap({
         )}
       </div>
 
-      {/* Sport filter panel — shown when showFilterPanel is true */}
+      {/* Sport filter panel — bottom-right with collapse toggle */}
       {showFilterPanel && (
-        <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl text-xs min-w-[130px]">
+        <div className="absolute bottom-8 right-3 z-[1000] bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl text-xs min-w-[130px]">
           <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
             <button
               onClick={() => setFilterPanelOpen(o => !o)}
               className="flex items-center gap-1.5 group"
             >
-              <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition-colors">Sportas</span>
+              <span className="font-semibold text-[10px] text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition-colors">
+                {filterPanelOpen ? "Sportas" : "Filtras"}
+              </span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="10" height="10" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`text-muted-foreground transition-transform duration-200 ${filterPanelOpen ? "rotate-0" : "-rotate-90"}`}
+                className={`text-muted-foreground transition-transform duration-200 ${filterPanelOpen ? "rotate-180" : "rotate-0"}`}
               >
                 <polyline points="6 9 12 15 18 9" />
               </svg>

@@ -9,6 +9,7 @@ export const reviewsTable = pgTable("reviews", {
   rating: integer("rating").notNull(), // 1-5
   reviewText: text("review_text"),
   reviewerName: text("reviewer_name").notNull(),
+  photos: text("photos"), // JSON array of photo URLs
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -507,6 +507,7 @@ export const CreateReviewBody = zod.object({
   rating: zod.number().min(1).max(createReviewBodyRatingMax),
   reviewText: zod.string().optional(),
   reviewerName: zod.string(),
+  photos: zod.array(zod.string()).max(3).optional(),
 });
 
 /**

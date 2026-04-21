@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useLocation } from "wouter";
+import { useRole } from "@/lib/useRole";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
@@ -39,58 +40,91 @@ function typeIcon(type: string) {
     case "booking_cancelled": return "❌";
     case "court_approved": return "✅";
     case "court_rejected": return "🚫";
+    case "facility_approved": return "✅";
+    case "facility_rejected": return "🚫";
+    case "coach_approved": return "✅";
+    case "coach_rejected": return "🚫";
     case "game_join_request": return "🏃";
     case "game_cancelled": return "🚫";
+    case "admin_pending_review": return "🔔";
     default: return "🔔";
   }
 }
 
 export function NotificationBell() {
   const { user, isSignedIn } = useUser();
+  const { isAdmin } = useRole();
   const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [adminNotifs, setAdminNotifs] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const userId = user?.id ?? null;
-  const unread = notifs.filter(n => !n.read).length;
+
+  const allNotifs = isAdmin
+    ? [...adminNotifs.filter(n => !notifs.some(u => u.id === n.id)), ...notifs].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+    : notifs;
+
+  const unread = allNotifs.filter(n => !n.read).length;
 
   async function fetchNotifs() {
     if (!userId) return;
     try {
       const res = await fetch(`${API}/notifications?userId=${encodeURIComponent(userId)}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setNotifs(data);
+      if (res.ok) setNotifs(await res.json());
+    } catch { /* silent */ }
+  }
+
+  async function fetchAdminNotifs() {
+    try {
+      const res = await fetch(`${API}/admin/notifications`, { credentials: "include" });
+      if (res.ok) setAdminNotifs(await res.json());
     } catch { /* silent */ }
   }
 
   useEffect(() => {
     if (!userId) return;
     fetchNotifs();
-    intervalRef.current = setInterval(fetchNotifs, 30000);
+    if (isAdmin) fetchAdminNotifs();
+    intervalRef.current = setInterval(() => {
+      fetchNotifs();
+      if (isAdmin) fetchAdminNotifs();
+    }, 30000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [userId]);
+  }, [userId, isAdmin]);
 
-  async function markRead(id: number) {
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  async function markRead(notif: Notif) {
+    const isAdminNotif = notif.userId === "__ADMIN__";
+    const endpoint = isAdminNotif
+      ? `${API}/admin/notifications/${notif.id}/read`
+      : `${API}/notifications/${notif.id}/read`;
+
+    if (isAdminNotif) {
+      setAdminNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    } else {
+      setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+    }
     try {
-      await fetch(`${API}/notifications/${id}/read`, { method: "PATCH" });
+      await fetch(endpoint, { method: "PATCH", credentials: "include" });
     } catch { /* silent */ }
   }
 
   async function markAllRead() {
     if (!userId) return;
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
       await fetch(`${API}/notifications/read-all?userId=${encodeURIComponent(userId)}`, { method: "POST" });
     } catch { /* silent */ }
   }
 
   async function handleClick(notif: Notif) {
-    await markRead(notif.id);
+    await markRead(notif);
     setOpen(false);
     if (notif.link) setLocation(notif.link);
   }
@@ -125,15 +159,15 @@ export function NotificationBell() {
           )}
         </div>
         <div className="max-h-[420px] overflow-y-auto">
-          {notifs.length === 0 ? (
+          {allNotifs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground text-sm gap-2">
               <Bell className="h-8 w-8 opacity-30" />
               <span>Pranešimų nėra</span>
             </div>
           ) : (
-            notifs.map(n => (
+            allNotifs.map(n => (
               <button
-                key={n.id}
+                key={`${n.userId}-${n.id}`}
                 onClick={() => handleClick(n)}
                 className={`w-full text-left px-4 py-3 border-b last:border-b-0 flex gap-3 hover:bg-accent transition-colors ${
                   n.read ? "opacity-60" : "bg-primary/5"
@@ -150,6 +184,9 @@ export function NotificationBell() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
+                  {n.link && (
+                    <p className="text-xs text-primary/70 mt-0.5 truncate">{n.link}</p>
+                  )}
                   <p className="text-[11px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
                 </div>
               </button>

@@ -15,6 +15,7 @@ import Home from "@/pages/home";
 import Courts from "@/pages/courts";
 import CourtDetail from "@/pages/court-detail";
 import Bookings from "@/pages/bookings";
+import BookingDetail from "@/pages/booking-detail";
 import PaymentSuccess from "@/pages/payment-success";
 import PaymentCancel from "@/pages/payment-cancel";
 import BookingConfirmed from "@/pages/booking-confirmed";
@@ -217,6 +218,7 @@ function Router() {
       <Route path="/" component={HomeRoute} />
       <Route path="/courts" component={Courts} />
       <Route path="/courts/:id" component={CourtDetail} />
+      <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
       <Route path="/owner/dashboard" component={OwnerDashboard} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
