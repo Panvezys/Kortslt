@@ -913,13 +913,13 @@ export default function Home() {
       </div>
 
       {/* Map Section */}
-      <section className="py-12 md:py-24 container mx-auto px-4">
+      <section className="py-8 md:py-14 container mx-auto px-4">
         {/* Desktop: side-by-side layout */}
         <div className="hidden md:flex flex-row gap-6 md:gap-8 items-start">
           <div className="w-full md:w-1/3 flex flex-col">
-            <h2 className="text-3xl font-bold mb-4 tracking-tight">{t("home.map.title")}</h2>
-            <p className="text-muted-foreground mb-6">{t("home.map.description")}</p>
-            <div className="mb-6">
+            <h2 className="text-3xl font-bold mb-3 tracking-tight">{t("home.map.title")}</h2>
+            <p className="text-muted-foreground mb-4">{t("home.map.description")}</p>
+            <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Sporto šaka</span>
                 <button
@@ -961,7 +961,7 @@ export default function Home() {
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
-          <div className="w-full md:w-2/3 h-[500px] bg-muted/20 rounded-xl">
+          <div className="w-full md:w-2/3 h-[440px] bg-muted/20 rounded-xl">
             {courtsLoading ? (
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
@@ -972,7 +972,7 @@ export default function Home() {
 
         {/* Mobile: map-first full-bleed view */}
         <div className="md:hidden">
-          <div className="mb-4">
+          <div className="mb-3">
             <h2 className="text-2xl font-bold tracking-tight">{t("home.map.title")}</h2>
             <p className="text-sm text-muted-foreground mt-1">{t("home.map.description")}</p>
           </div>
@@ -1015,7 +1015,7 @@ export default function Home() {
               })}
             </div>
           </div>
-          <div className="mt-3 flex justify-center">
+          <div className="mt-2 flex justify-center">
             <Link href="/courts" className="inline-flex items-center gap-1.5 text-primary font-medium text-sm hover:underline">
               {t("home.map.viewAll")} <ArrowRight className="w-4 h-4" />
             </Link>

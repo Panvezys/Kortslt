@@ -1,5 +1,5 @@
 # 
- CourtBook App
+ korts.lt App
 
 ## Overview
 
