@@ -4,7 +4,7 @@ import { useUser, useClerk } from "@clerk/react";
 import { useListBookings, useListCourts, customFetch } from "@workspace/api-client-react";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  GraduationCap,
   ExternalLink,
   Plus,
   Trash2,
@@ -44,6 +43,7 @@ import {
   Gamepad2,
   Timer,
   ChevronRight,
+  Swords,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -475,7 +475,180 @@ function SportsActivity({ userId }: { userId: string }) {
   );
 }
 
-type Tab = "bookings" | "courts" | "messages" | "sports";
+interface MyGame {
+  id: number;
+  sport: string;
+  city: string;
+  placeName: string | null;
+  datetime: string;
+  status: string;
+  matchType: string;
+  myTeam: string | null;
+  myResult: "win" | "loss" | "draw" | null;
+  result: { scoreTeamA: number; scoreTeamB: number; status: string } | null;
+  participants: { userId: string; userName: string; team: string | null; elo: number }[];
+}
+
+function eloTier(elo: number) {
+  if (elo >= 1600) return { label: "Diamond", cls: "bg-cyan-500/15 text-cyan-400 border-cyan-400/30" };
+  if (elo >= 1400) return { label: "Gold", cls: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30" };
+  if (elo >= 1200) return { label: "Silver", cls: "bg-slate-400/15 text-slate-400 border-slate-300/30" };
+  return { label: "Bronze", cls: "bg-orange-700/15 text-orange-600 border-orange-500/30" };
+}
+
+function GamesHistory({ userId }: { userId: string }) {
+  const { data: games, isLoading } = useQuery<MyGame[]>({
+    queryKey: ["my-games"],
+    queryFn: () => customFetch<MyGame[]>(`${API}/games/my`),
+    enabled: !!userId,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border rounded-xl shadow-sm divide-y">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="px-5 py-4 flex gap-3 items-center">
+            <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!games || games.length === 0) {
+    return (
+      <div className="bg-card border rounded-xl shadow-sm py-16 flex flex-col items-center text-muted-foreground gap-3">
+        <Gamepad2 className="w-10 h-10 opacity-20" />
+        <p className="text-sm">Dar nėra žaidimų</p>
+        <Button size="sm" variant="outline" asChild>
+          <Link href="/games">
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            Rasti žaidimą
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const now = new Date();
+  const past = games.filter(g => new Date(g.datetime) < now);
+  const upcoming = games.filter(g => new Date(g.datetime) >= now);
+
+  const renderGame = (g: MyGame) => {
+    const isPast = new Date(g.datetime) < now;
+    const isRated = g.matchType === "rated";
+    const opponents = g.participants.filter(p => p.userId !== userId && p.team !== g.myTeam);
+
+    const resultBadge = () => {
+      if (!isPast) return null;
+      if (!g.result) return <Badge variant="secondary" className="text-xs">Rezultatas nepraneštas</Badge>;
+      if (g.result.status === "disputed") return <Badge className="text-xs bg-red-500/15 text-red-500 border-red-400/30">Ginčijamas</Badge>;
+      if (g.result.status === "pending_verification") return <Badge className="text-xs bg-yellow-500/15 text-yellow-500 border-yellow-400/30">Laukiama patvirtinimo</Badge>;
+      if (g.myResult === "win") return <Badge className="text-xs bg-green-500/15 text-green-600 border-green-400/30">✓ Laimėta</Badge>;
+      if (g.myResult === "loss") return <Badge className="text-xs bg-red-500/15 text-red-500 border-red-400/30">Pralaimėta</Badge>;
+      if (g.myResult === "draw") return <Badge className="text-xs bg-slate-400/15 text-slate-400 border-slate-300/30">Lygios</Badge>;
+      return <Badge variant="secondary" className="text-xs">{g.result.scoreTeamA}:{g.result.scoreTeamB}</Badge>;
+    };
+
+    return (
+      <Link href={`/games/${g.id}`} key={g.id}>
+        <div className="px-5 py-4 flex gap-3 items-start hover:bg-muted/30 transition-colors cursor-pointer">
+          {/* Sport icon */}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}>
+            <SportIcon sport={g.sport} className="w-5 h-5 text-white" />
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-sm">{SPORT_LABELS[g.sport] ?? g.sport}</span>
+              {isRated && (
+                <Badge className="text-xs bg-purple-500/15 text-purple-500 border-purple-400/30 gap-1">
+                  <Swords className="w-2.5 h-2.5" />
+                  Reitinginis
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {new Date(g.datetime).toLocaleDateString("lt-LT", { month: "short", day: "numeric", year: "numeric" })}
+                {" · "}{new Date(g.datetime).toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="w-3 h-3 shrink-0" />
+              {g.placeName ?? g.city}
+            </div>
+            {/* Opponents */}
+            {opponents.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                <span className="text-xs text-muted-foreground">vs.</span>
+                {opponents.slice(0, 3).map(p => {
+                  const tier = eloTier(p.elo);
+                  return (
+                    <span key={p.userId} className="flex items-center gap-1">
+                      <span className="text-xs font-medium">{p.userName.split(" ")[0]}</span>
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${tier.cls}`}>{p.elo}</Badge>
+                    </span>
+                  );
+                })}
+                {opponents.length > 3 && <span className="text-xs text-muted-foreground">+{opponents.length - 3}</span>}
+              </div>
+            )}
+            {/* Score */}
+            {g.result && g.result.status === "confirmed" && (
+              <div className="text-xs font-semibold text-foreground">
+                {g.result.scoreTeamA}:{g.result.scoreTeamB}
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 flex flex-col items-end gap-1.5">
+            {resultBadge()}
+            {!isPast && (
+              <Badge className="text-xs bg-green-500/15 text-green-600 border-green-400/30">Artėjantis</Badge>
+            )}
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {upcoming.length > 0 && (
+        <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b bg-muted/30">
+            <Clock className="w-4 h-4 text-green-500" />
+            <span className="font-semibold text-sm">Artėjantys žaidimai</span>
+            <Badge variant="secondary" className="text-xs">{upcoming.length}</Badge>
+          </div>
+          <div className="divide-y">{upcoming.map(renderGame)}</div>
+        </div>
+      )}
+      <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b bg-muted/30">
+          <Trophy className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Žaidimų istorija</span>
+          <Badge variant="secondary" className="text-xs">{past.length}</Badge>
+        </div>
+        {past.length === 0 ? (
+          <div className="py-12 flex flex-col items-center text-muted-foreground gap-2">
+            <Gamepad2 className="w-8 h-8 opacity-20" />
+            <p className="text-sm">Dar nėra praeities žaidimų</p>
+          </div>
+        ) : (
+          <div className="divide-y">{past.map(renderGame)}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type Tab = "sports" | "games";
 
 export default function Profile() {
   const { user } = useUser();
@@ -483,15 +656,15 @@ export default function Profile() {
   const t = useT();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "bookings";
-  const VALID_TABS: Tab[] = ["bookings", "courts", "messages", "sports"];
+  const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "sports";
+  const VALID_TABS: Tab[] = ["sports", "games"];
   const [activeTab, setActiveTab] = useState<Tab>(
-    VALID_TABS.includes(initialTab) ? initialTab : "bookings"
+    VALID_TABS.includes(initialTab) ? initialTab : "sports"
   );
 
   useEffect(() => {
     const tab = new URLSearchParams(search).get("tab") as Tab | null;
-    setActiveTab(tab && VALID_TABS.includes(tab) ? tab : "bookings");
+    setActiveTab(tab && VALID_TABS.includes(tab) ? tab : "sports");
   }, [search]);
 
   const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected } = useRole();
@@ -535,12 +708,8 @@ export default function Profile() {
     : "U";
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "bookings", label: t("profile.tab.bookings"), icon: <CalendarDays className="w-4 h-4" /> },
     { key: "sports", label: "Sporto veikla", icon: <Dumbbell className="w-4 h-4" /> },
-    { key: "messages", label: "Žinutės", icon: <MessageSquare className="w-4 h-4" /> },
-    ...(isOwner
-      ? [{ key: "courts" as Tab, label: t("profile.tab.myCourts"), icon: <LayoutDashboard className="w-4 h-4" /> }]
-      : []),
+    { key: "games", label: "Žaidimai", icon: <Gamepad2 className="w-4 h-4" /> },
   ];
 
   if (!user) {
@@ -601,14 +770,14 @@ export default function Profile() {
             icon={<CalendarDays className="w-5 h-5" />}
             label={t("profile.stat.totalBookings")}
             value={bookingsLoading ? "–" : (bookings?.length ?? 0)}
-            onClick={() => setActiveTab("bookings")}
+            onClick={() => setLocation("/bookings")}
           />
           <StatCard
             icon={<Clock className="w-5 h-5" />}
             label={t("profile.stat.upcoming")}
             value={bookingsLoading ? "–" : upcomingBookings.length}
             color="text-green-500"
-            onClick={() => setActiveTab("bookings")}
+            onClick={() => setLocation("/bookings")}
           />
           <StatCard
             icon={<Heart className="w-5 h-5" />}
@@ -617,13 +786,21 @@ export default function Profile() {
             color="text-rose-500"
             onClick={() => setLocation("/favorites")}
           />
-          {isOwner && (
+          {isOwner ? (
             <StatCard
               icon={<Building2 className="w-5 h-5" />}
               label={t("profile.stat.myCourts")}
               value={courtsLoading ? "–" : (ownerCourts?.length ?? 0)}
               color="text-blue-500"
-              onClick={() => setActiveTab("courts")}
+              onClick={() => setLocation("/owner")}
+            />
+          ) : (
+            <StatCard
+              icon={<Gamepad2 className="w-5 h-5" />}
+              label="Žaidimai"
+              value="–"
+              color="text-purple-500"
+              onClick={() => setActiveTab("games")}
             />
           )}
         </div>
@@ -754,152 +931,14 @@ export default function Profile() {
             ))}
           </div>
 
-          {/* Bookings tab */}
-          {activeTab === "bookings" && (
-            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-              {bookingsLoading ? (
-                <div className="divide-y">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="px-5 py-4 flex gap-4 items-center">
-                      <Skeleton className="h-10 w-10 rounded-lg shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-6 w-20 rounded-full" />
-                    </div>
-                  ))}
-                </div>
-              ) : !bookings || bookings.length === 0 ? (
-                <div className="py-16 text-center text-muted-foreground text-sm">
-                  <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p>{t("profile.noBookings")}</p>
-                  <Button variant="outline" size="sm" className="mt-4" asChild>
-                    <Link href="/courts">{t("bookings.browseCourts")}</Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {bookings.map((booking) => {
-                    return (
-                      <div
-                        key={booking.id}
-                        className="px-5 py-4 flex gap-4 items-center hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
-                          #{booking.id}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <Link
-                            href={`/courts/${booking.courtId}`}
-                            className="font-medium hover:text-primary hover:underline truncate block"
-                          >
-                            {booking.courtName || `Aikštelė #${booking.courtId}`}
-                          </Link>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                            <CalendarDays className="w-3 h-3 shrink-0" />
-                            {format(parseISO(String(booking.date).split("T")[0]), "yyyy-MM-dd")}
-                            <span className="text-muted-foreground/50">·</span>
-                            {booking.startTime} – {booking.endTime}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-semibold text-muted-foreground hidden sm:block">
-                            {booking.totalPrice}€
-                          </span>
-                          <StatusBadge status={booking.status} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Sports Activity tab */}
           {activeTab === "sports" && userId && (
             <SportsActivity userId={userId} />
           )}
 
-          {/* Messages tab */}
-          {activeTab === "messages" && userId && (
-            <DMInbox userId={userId} />
-          )}
-
-          {/* My Courts tab (owner only) */}
-          {activeTab === "courts" && isOwner && (
-            <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
-              {courtsLoading ? (
-                <div className="divide-y">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="px-5 py-4 flex gap-4 items-center">
-                      <Skeleton className="h-12 w-12 rounded-lg shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-48" />
-                        <Skeleton className="h-3 w-32" />
-                      </div>
-                      <Skeleton className="h-8 w-20" />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <div className="divide-y">
-                    {(ownerCourts ?? []).map((court) => {
-                      const color = SPORT_COLOR[court.type] ?? "#84cc16";
-                      return (
-                        <div
-                          key={court.id}
-                          className="px-5 py-4 flex gap-4 items-center hover:bg-muted/30 transition-colors"
-                        >
-                          <div
-                            className="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
-                            style={{ background: `${color}20`, border: `1.5px solid ${color}40` }}
-                          >
-                            <SportIcon sport={court.type} size={22} strokeWidth={1.8} style={{ color }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <Link
-                              href={`/courts/${court.id}`}
-                              className="font-medium hover:text-primary hover:underline truncate block"
-                            >
-                              {court.name}
-                            </Link>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <MapPin className="w-3 h-3 shrink-0" />
-                              {court.address}, {court.city}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="text-right hidden sm:block">
-                              <p className="text-sm font-semibold">{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">/val</span></p>
-                              {court.rating && (
-                                <p className="text-xs text-muted-foreground flex items-center gap-0.5 justify-end">
-                                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                  {court.rating.toFixed(1)}
-                                </p>
-                              )}
-                            </div>
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href="/owner">{t("owner.editCourt")}</Link>
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="px-5 py-3 border-t bg-muted/20 flex justify-end">
-                    <Button size="sm" asChild>
-                      <Link href="/owner">
-                        <LayoutDashboard className="w-4 h-4 mr-1.5" />
-                        {t("nav.ownerDashboard")}
-                      </Link>
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
+          {/* Games tab */}
+          {activeTab === "games" && userId && (
+            <GamesHistory userId={userId} />
           )}
         </div>
       </div>

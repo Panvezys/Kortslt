@@ -277,9 +277,8 @@ export default function GamesGuidePage() {
                     style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}>
                     {s.step}
                   </div>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center"
-                    style={{ background: "linear-gradient(135deg, #132D4C22, #C5E04122)" }}>
-                    <Icon className="w-5 h-5" style={{ color: "#132D4C" }} />
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary/10">
+                    <Icon className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-base mb-1.5">{s.title}</h3>
@@ -388,7 +387,7 @@ export default function GamesGuidePage() {
           <div className="max-w-4xl mx-auto mb-12">
             <div className="grid md:grid-cols-3 gap-4">
               <div className="rounded-2xl border bg-card p-5 text-center">
-                <div className="text-3xl font-bold mb-1" style={{ color: "#132D4C" }}>
+                <div className="text-3xl font-bold mb-1 text-foreground">
                   1200
                 </div>
                 <div className="text-sm font-semibold mb-2">Pradinis reitingas</div>

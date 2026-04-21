@@ -23,6 +23,89 @@ function formatParticipant(p: typeof gameParticipantsTable.$inferSelect) {
   return { ...p, joinedAt: p.joinedAt.toISOString() };
 }
 
+// GET /games/my — games where I'm creator or participant (game history)
+router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+
+  // Games where user is a participant (joined)
+  const participantRows = await db
+    .select({ gameId: gameParticipantsTable.gameId, team: gameParticipantsTable.team })
+    .from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "joined")));
+  const participantGameIds = participantRows.map(r => r.gameId);
+  const myTeamMap = new Map(participantRows.map(r => [r.gameId, r.team]));
+
+  // All games where creator or participant
+  let games = await db.select().from(gamesTable).orderBy(desc(gamesTable.datetime));
+  games = games.filter(g => g.creatorUserId === userId || participantGameIds.includes(g.id));
+
+  if (games.length === 0) { res.json([]); return; }
+
+  const gameIds = games.map(g => g.id);
+
+  // Get all participants for these games
+  const allParticipants = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(eq(gameParticipantsTable.status, "joined"));
+  const participantsByGame = new Map<number, typeof allParticipants>();
+  for (const p of allParticipants) {
+    if (!gameIds.includes(p.gameId)) continue;
+    if (!participantsByGame.has(p.gameId)) participantsByGame.set(p.gameId, []);
+    participantsByGame.get(p.gameId)!.push(p);
+  }
+
+  // Get results for these games
+  const results = await db.select().from(gameResultsTable);
+  const resultByGame = new Map(results.filter(r => gameIds.includes(r.gameId)).map(r => [r.gameId, r]));
+
+  // Get ELO ratings for all participants
+  const ratings = await db.select().from(userRatingsTable);
+  const ratingKey = (userId: string, sport: string) => `${userId}::${sport}`;
+  const ratingMap = new Map(ratings.map(r => [ratingKey(r.userId, r.sport), r.elo]));
+
+  const out = games.map(g => {
+    const participants = participantsByGame.get(g.id) ?? [];
+    const result = resultByGame.get(g.id) ?? null;
+    const myTeam = myTeamMap.get(g.id) ?? null;
+
+    // Determine win/loss/draw for this user
+    let myResult: "win" | "loss" | "draw" | null = null;
+    if (result && result.status === "confirmed" && myTeam) {
+      const teamWon = result.scoreTeamA > result.scoreTeamB ? "A" :
+                      result.scoreTeamB > result.scoreTeamA ? "B" : "draw";
+      if (teamWon === "draw") myResult = "draw";
+      else myResult = teamWon === myTeam ? "win" : "loss";
+    }
+
+    return {
+      id: g.id,
+      sport: g.sport,
+      city: g.city,
+      placeName: g.placeName,
+      datetime: g.datetime.toISOString(),
+      status: g.status,
+      matchType: g.matchType,
+      playersNeeded: g.playersNeeded,
+      myTeam,
+      myResult,
+      result: result ? {
+        scoreTeamA: result.scoreTeamA,
+        scoreTeamB: result.scoreTeamB,
+        status: result.status,
+      } : null,
+      participants: participants.map(p => ({
+        userId: p.userId,
+        userName: p.userName,
+        team: p.team,
+        elo: ratingMap.get(ratingKey(p.userId, g.sport)) ?? 1200,
+      })),
+    };
+  });
+
+  res.json(out);
+});
+
 // GET /games — list all open upcoming games with filters
 router.get("/games", async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
