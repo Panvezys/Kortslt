@@ -819,7 +819,7 @@ export default function Home() {
                   );
                 })()}
               </h1>
-              <p className="text-sm text-white/75 max-w-sm leading-relaxed drop-shadow">
+              <p className="text-sm text-white/85 max-w-sm leading-relaxed drop-shadow">
                 {t("home.hero.subtitle")}
               </p>
             </div>
