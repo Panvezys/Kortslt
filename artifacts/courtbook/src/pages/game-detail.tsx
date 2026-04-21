@@ -20,6 +20,7 @@ import { openChat } from "@/components/chat-bubble";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
   MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield, Search,
+  X, ShieldCheck, ShieldX,
 } from "lucide-react";
 import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
 
@@ -43,14 +44,21 @@ interface Participant {
   id: number; gameId: number; userId: string; userName: string;
   userEmail: string | null; team: string | null; status: string; joinedAt: string; elo?: number;
 }
+interface PendingParticipant {
+  id: number; gameId: number; userId: string; userName: string;
+  userEmail: string | null; joinedAt: string;
+}
 interface GameDetail {
   id: number; creatorUserId: string; creatorName: string; creatorEmail: string | null;
   sport: string; city: string; placeName: string | null;
   courtId: number | null; facilityId: number | null;
   playersNeeded: number; skillLevel: string; datetime: string; durationMinutes: number;
   description: string | null; status: string; matchType: string; isPrivate: boolean;
+  requiresApproval: boolean; teamCount: number;
   inviteToken: string | null; joinedCount: number; slotsLeft: number; isJoined: boolean;
+  isPending: boolean;
   participants: Participant[];
+  pendingParticipants: PendingParticipant[];
 }
 interface GameResult {
   id: number; gameId: number; reportedByUserId: string;
@@ -392,7 +400,7 @@ export default function GameDetailPage() {
   const [profileView, setProfileView] = useState<{ userId: string; userName: string } | null>(null);
 
   const join = useMutation({
-    mutationFn: () => customFetch(`${API}/games/${id}/join`, {
+    mutationFn: () => customFetch<{ ok: boolean; status?: string; alreadyJoined?: boolean }>(`${API}/games/${id}/join`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userName: user?.fullName || user?.firstName || "Žaidėjas",
@@ -400,12 +408,44 @@ export default function GameDetailPage() {
         token: token || undefined,
       }),
     }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["game", id] });
       qc.invalidateQueries({ queryKey: ["games"] });
-      toast({ title: "Prisijungėte prie žaidimo!" });
+      if (res.status === "pending") {
+        toast({ title: "Prašymas išsiųstas!", description: "Laukite organizatoriaus patvirtinimo." });
+      } else {
+        toast({ title: "Prisijungėte prie žaidimo!" });
+      }
     },
     onError: (e: any) => toast({ title: "Nepavyko prisijungti", description: e?.message, variant: "destructive" }),
+  });
+
+  const approveJoin = useMutation({
+    mutationFn: ({ participantId, action }: { participantId: number; action: "approve" | "reject" }) =>
+      customFetch(`${API}/games/${id}/approve-join`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantId, action }),
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["game", id] });
+      toast({
+        title: vars.action === "approve" ? "Žaidėjas patvirtintas!" : "Prašymas atmestas",
+        description: vars.action === "approve" ? "Žaidėjas pridėtas prie dalyvių." : "Žaidėjas informuotas.",
+      });
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  const removePlayer = useMutation({
+    mutationFn: (targetUserId: string) => customFetch(`${API}/games/${id}/remove-player`, {
+      method: "DELETE", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["game", id] });
+      toast({ title: "Žaidėjas pašalintas", description: "Žaidėjas gavo pranešimą." });
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
   });
 
   const leave = useMutation({
@@ -581,11 +621,22 @@ export default function GameDetailPage() {
                 <Button variant="outline" size="sm" onClick={() => leave.mutate()} disabled={leave.isPending}>
                   <UserMinus className="w-4 h-4 mr-1.5"/>Palikti žaidimą
                 </Button>
+              ) : data.isPending ? (
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 border border-yellow-400/30 text-yellow-600 dark:text-yellow-400 text-sm font-medium">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  Laukiama organizatoriaus patvirtinimo
+                </div>
               ) : (
-                <Button size="lg" onClick={() => join.mutate()} disabled={join.isPending || full || isPast}
-                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
+                <Button
+                  size="lg"
+                  onClick={() => join.mutate()}
+                  disabled={join.isPending || full || isPast}
+                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold"
+                >
                   <UserPlus className="w-4 h-4 mr-2"/>
-                  {full ? "Užpildyta" : isPast ? "Pasibaigė" : "Prisijungti prie žaidimo"}
+                  {full ? "Užpildyta" : isPast ? "Pasibaigė"
+                    : data.requiresApproval ? "Prašyti prisijungti"
+                    : "Prisijungti prie žaidimo"}
                 </Button>
               )}
               {!isCreator && user?.id && data.creatorUserId !== user.id && (
@@ -672,11 +723,67 @@ export default function GameDetailPage() {
           </div>
         </div>
 
+        {/* Pending join requests — creator only */}
+        {isCreator && (data.pendingParticipants?.length ?? 0) > 0 && (
+          <div className="rounded-2xl border border-yellow-400/30 bg-yellow-500/5 p-5 sm:p-6 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-yellow-500" />
+              <h2 className="font-bold text-base">
+                Prisijungimo prašymai
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-500 text-white text-xs font-bold">
+                  {data.pendingParticipants.length}
+                </span>
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {data.pendingParticipants.map(p => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl bg-background border border-border">
+                  <div className="w-9 h-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0 font-bold text-primary text-sm">
+                    {p.userName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate">{p.userName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Prašė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white h-8 px-3 gap-1"
+                      onClick={() => approveJoin.mutate({ participantId: p.id, action: "approve" })}
+                      disabled={approveJoin.isPending}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Patvirtinti
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-3 gap-1 border-red-500/40 text-red-500 hover:bg-red-500/10"
+                      onClick={() => approveJoin.mutate({ participantId: p.id, action: "reject" })}
+                      disabled={approveJoin.isPending}
+                    >
+                      <ShieldX className="w-3.5 h-3.5" />
+                      Atmesti
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Participants */}
         <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-5 h-5 text-primary"/>
             <h2 className="font-bold text-lg">Dalyviai ({data.joinedCount}/{data.playersNeeded})</h2>
+            {isCreator && data.requiresApproval && (
+              <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-400/30">
+                <UserCheck className="w-3 h-3"/>Patvirtinimas
+              </span>
+            )}
             {isCreator && data.status === "open" && (
               <div className="ml-auto">
                 <PlayerSearchAdd gameId={data.id} sport={data.sport} onAdded={() => qc.invalidateQueries({ queryKey: ["game", id] })} />
@@ -687,6 +794,14 @@ export default function GameDetailPage() {
             {data.participants.map((p) => {
               const pImageUrl = avatarMap?.[p.userId] ?? null;
               const pElo = p.elo ?? 1200;
+              const teamColors: Record<string, string> = {
+                A: "bg-blue-500/15 text-blue-500",
+                B: "bg-red-500/15 text-red-500",
+                C: "bg-green-500/15 text-green-600",
+                D: "bg-amber-500/15 text-amber-600",
+                E: "bg-purple-500/15 text-purple-500",
+                F: "bg-orange-500/15 text-orange-500",
+              };
               return (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                   <button onClick={() => setProfileView({ userId: p.userId, userName: p.userName })} className="shrink-0">
@@ -709,26 +824,58 @@ export default function GameDetailPage() {
                       <EloBadge elo={pElo} sport={data.sport} />
                       <span>· {new Date(p.joinedAt).toLocaleDateString("lt-LT")}</span>
                       {p.team && (
-                        <span className={`px-1.5 py-0 rounded text-xs font-bold ${p.team === "A" ? "bg-blue-500/15 text-blue-500" : "bg-red-500/15 text-red-500"}`}>
+                        <span className={`px-1.5 py-0 rounded text-xs font-bold ${teamColors[p.team] ?? "bg-muted text-muted-foreground"}`}>
                           Komanda {p.team}
                         </span>
                       )}
                     </div>
                   </div>
-                  {user?.id && user.id !== p.userId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openChat({
-                        userId: p.userId,
-                        userName: p.userName,
-                        ctxType: "game",
-                        ctxId: data.id,
-                      })}
-                    >
-                      <MessageCircle className="w-4 h-4"/>
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {user?.id && user.id !== p.userId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openChat({
+                          userId: p.userId,
+                          userName: p.userName,
+                          ctxType: "game",
+                          ctxId: data.id,
+                        })}
+                      >
+                        <MessageCircle className="w-4 h-4"/>
+                      </Button>
+                    )}
+                    {isCreator && p.userId !== data.creatorUserId && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                          >
+                            <X className="w-4 h-4"/>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Pašalinti {p.userName}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Žaidėjas bus pašalintas iš žaidimo ir gaus pranešimą. Šio veiksmo atšaukti negalima.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Atšaukti</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => removePlayer.mutate(p.userId)}
+                            >
+                              Pašalinti
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
                 </div>
               );
             })}

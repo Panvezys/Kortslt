@@ -282,12 +282,44 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             <Textarea className="mt-1" rows={3} placeholder="Apie žaidimą, taisykles, ką atsinešti..." value={form.description}
               onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
+          {/* Teams configuration */}
+          <div>
+            <Label>Komandų skaičius</Label>
+            <div className="grid grid-cols-4 gap-2 mt-1.5">
+              {[2, 3, 4, 6].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, teamCount: n }))}
+                  className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 transition-all text-sm font-semibold ${
+                    form.teamCount === n
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-border/80 text-muted-foreground"
+                  }`}
+                >
+                  <span className="text-lg leading-none">{n}</span>
+                  <span className="text-[10px] font-normal">
+                    {n === 2 ? "komandos" : n === 3 ? "komandos" : "komandų"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Žaidėjai bus skirstomi į {form.teamCount} komandas.</p>
+          </div>
+
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>
               <Label className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5"/>Privatus žaidimas</Label>
               <p className="text-xs text-muted-foreground mt-0.5">Nebus rodomas sąraše — tik per pakvietimo nuorodą.</p>
             </div>
             <Switch checked={form.isPrivate} onCheckedChange={(v) => setForm(f => ({ ...f, isPrivate: v }))} />
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <Label className="flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5"/>Patvirtinti prisijungimą</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Nauji žaidėjai gaus vietą tik jums patvirtinus.</p>
+            </div>
+            <Switch checked={form.requiresApproval} onCheckedChange={(v) => setForm(f => ({ ...f, requiresApproval: v }))} />
           </div>
         </div>
         <DialogFooter>
