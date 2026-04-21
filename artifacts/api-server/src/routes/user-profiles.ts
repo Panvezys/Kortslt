@@ -6,6 +6,7 @@ import {
   userSportProfilesTable,
   gameParticipantsTable,
   gamesTable,
+  userRatingsTable,
 } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
@@ -96,6 +97,7 @@ router.get("/user-profiles/me/full", requireAuth, async (req, res): Promise<void
     .where(eq(userSportProfilesTable.userId, userId));
 
   const stats = await computeSportStats(userId);
+  const ratings = await db.select().from(userRatingsTable).where(eq(userRatingsTable.userId, userId));
 
   res.json({
     userId,
@@ -107,6 +109,13 @@ router.get("/user-profiles/me/full", requireAuth, async (req, res): Promise<void
       level: sp.level,
     })),
     stats,
+    ratings: ratings.map(r => ({
+      sport: r.sportSlug,
+      elo: r.elo,
+      wins: r.wins,
+      losses: r.losses,
+      draws: r.draws,
+    })),
   });
 });
 

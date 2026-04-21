@@ -49,6 +49,7 @@ import BecomeCoachPage from "@/pages/become-coach";
 import BecomeOwnerPage from "@/pages/become-owner";
 import FavoritesPage from "@/pages/favorites";
 import SettingsPage from "@/pages/settings";
+import RanksPage from "@/pages/ranks";
 
 const queryClient = new QueryClient();
 
@@ -246,6 +247,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/contact" component={ContactPage} />
+      <Route path="/ranks" component={RanksPage} />
       <Route path="/coach/me">
         {() => <CoachRoute><CoachPage /></CoachRoute>}
       </Route>

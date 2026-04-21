@@ -914,12 +914,11 @@ export default function Home() {
 
       {/* Map Section */}
       <section className="py-12 md:py-24 container mx-auto px-4">
-        <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+        {/* Desktop: side-by-side layout */}
+        <div className="hidden md:flex flex-row gap-6 md:gap-8 items-start">
           <div className="w-full md:w-1/3 flex flex-col">
             <h2 className="text-3xl font-bold mb-4 tracking-tight">{t("home.map.title")}</h2>
             <p className="text-muted-foreground mb-6">{t("home.map.description")}</p>
-
-            {/* Sport filter */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Sporto šaka</span>
@@ -958,17 +957,68 @@ export default function Home() {
                 })}
               </div>
             </div>
-
             <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline mt-auto">
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
-          <div className="w-full md:w-2/3 h-[300px] md:h-[500px] bg-muted/20 rounded-xl">
+          <div className="w-full md:w-2/3 h-[500px] bg-muted/20 rounded-xl">
             {courtsLoading ? (
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
               <CourtMap courts={courts} activeSports={activeSports} />
             ) : null}
+          </div>
+        </div>
+
+        {/* Mobile: map-first full-bleed view */}
+        <div className="md:hidden">
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold tracking-tight">{t("home.map.title")}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{t("home.map.description")}</p>
+          </div>
+          <div className="relative rounded-2xl overflow-hidden" style={{ height: "55vh", minHeight: 280 }}>
+            {courtsLoading ? (
+              <Skeleton className="w-full h-full" />
+            ) : courts ? (
+              <CourtMap courts={courts} activeSports={activeSports} />
+            ) : null}
+            {/* Floating chip filter bar */}
+            <div className="absolute bottom-3 left-0 right-0 flex gap-2 overflow-x-auto px-3 pb-0.5 no-scrollbar">
+              <button
+                onClick={() => setActiveSports(allActive ? new Set() : new Set(ALL_SPORTS))}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border backdrop-blur-md shadow-sm transition-all ${
+                  allActive ? "bg-primary text-white border-primary/50" : "bg-background/80 text-foreground border-border"
+                }`}
+              >
+                Visi
+              </button>
+              {ALL_SPORTS.filter(s => (courts ?? []).some(c => c.type === s)).map(sport => {
+                const active = activeSports.has(sport);
+                const color = sportColor[sport] ?? "#84cc16";
+                const count = (courts ?? []).filter(c => c.type === sport).length;
+                return (
+                  <button
+                    key={sport}
+                    onClick={() => toggleSport(sport)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border backdrop-blur-md shadow-sm transition-all"
+                    style={{
+                      background: active ? color + "e6" : "rgba(var(--background)/0.85)",
+                      borderColor: active ? color : "rgba(var(--border))",
+                      color: active ? "#fff" : "inherit",
+                    }}
+                  >
+                    <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "#fff" : color }} />
+                    {sportLithuanian[sport]}
+                    <span className="opacity-70">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="mt-3 flex justify-center">
+            <Link href="/courts" className="inline-flex items-center gap-1.5 text-primary font-medium text-sm hover:underline">
+              {t("home.map.viewAll")} <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>

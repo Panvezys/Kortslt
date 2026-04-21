@@ -15,11 +15,12 @@ import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Nav
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getGetCourtQueryKey, getGetCourtAvailabilityQueryKey } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { format as formatDate } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
@@ -168,6 +169,127 @@ function CoachesSectionForCourt({ courtId }: { courtId: number }) {
   );
 }
 
+interface MembershipPlan {
+  id: number; name: string; description: string | null;
+  pricePerYear: number; weeklySlots: number;
+}
+
+const DAYS_LT = ["Sekmadienis", "Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis"];
+const HOURS = Array.from({ length: 14 }, (_, i) => `${String(8 + i).padStart(2, "0")}:00`);
+
+function CourtMembershipSection({ courtId }: { courtId: number }) {
+  const { user } = useUser();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [subscribePlan, setSubscribePlan] = useState<MembershipPlan | null>(null);
+  const [dayOfWeek, setDayOfWeek] = useState("1");
+  const [startTime, setStartTime] = useState("09:00");
+  const [open, setOpen] = useState(false);
+
+  const { data: plans = [], isLoading } = useQuery<MembershipPlan[]>({
+    queryKey: ["court-memberships", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/courts/${courtId}/memberships`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!courtId,
+  });
+
+  const subscribe = useMutation({
+    mutationFn: () => {
+      if (!subscribePlan) throw new Error("No plan selected");
+      return fetch(`${API}/courts/${courtId}/memberships/${subscribePlan.id}/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayOfWeek: Number(dayOfWeek), startTime }),
+        credentials: "include",
+      }).then(r => r.json());
+    },
+    onSuccess: () => {
+      toast({ title: "Narystė aktyvuota! 🎉", description: `${subscribePlan?.name} — jūsų savaitinis slotą užregistruotas.` });
+      setOpen(false); setSubscribePlan(null);
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message ?? "Bandykite dar kartą", variant: "destructive" }),
+  });
+
+  if (isLoading || plans.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Star className="w-5 h-5 text-cyan-500" />
+        <h2 className="text-xl font-semibold">Narystės planai</h2>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {plans.map(plan => (
+          <div key={plan.id} className="rounded-xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/5 to-primary/5 p-4 space-y-2">
+            <div className="flex items-start gap-2">
+              <Star className="w-4 h-4 text-cyan-500 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm">{plan.name}</div>
+                {plan.description && <div className="text-xs text-muted-foreground">{plan.description}</div>}
+              </div>
+              <div className="text-right shrink-0">
+                <div className="font-bold text-primary text-base">{plan.pricePerYear}€</div>
+                <div className="text-xs text-muted-foreground">per metus</div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {plan.weeklySlots} slotai per savaitę · 12 mėnesių narystė
+            </div>
+            {user ? (
+              <Button size="sm" className="w-full gap-1.5" variant="outline"
+                onClick={() => { setSubscribePlan(plan); setOpen(true); }}>
+                <UserPlus className="w-3.5 h-3.5" /> Tapti nariu
+              </Button>
+            ) : (
+              <Button size="sm" className="w-full" variant="outline" asChild>
+                <a href="/sign-in">Prisijungti ir tapti nariu</a>
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Subscribe dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Pasirinkite savaitinį laiką</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <Label className="text-xs">Savaitės diena</Label>
+              <select className="w-full h-9 rounded-md border bg-background px-3 text-sm" value={dayOfWeek} onChange={e => setDayOfWeek(e.target.value)}>
+                {DAYS_LT.map((d, i) => <option key={i} value={i}>{d}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pradžios laikas</Label>
+              <select className="w-full h-9 rounded-md border bg-background px-3 text-sm" value={startTime} onChange={e => setStartTime(e.target.value)}>
+                {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            {subscribePlan && (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                <div className="font-semibold">{subscribePlan.name}</div>
+                <div className="text-muted-foreground text-xs mt-0.5">{subscribePlan.pricePerYear}€/metai · {DAYS_LT[Number(dayOfWeek)]} {startTime}</div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Atšaukti</Button>
+            <Button className="flex-1" disabled={subscribe.isPending} onClick={() => subscribe.mutate()}>
+              {subscribe.isPending ? "..." : "Patvirtinti narystę"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function CourtDetail() {
   const { id } = useParams();
   const courtId = parseInt(id || "0", 10);
@@ -253,6 +375,18 @@ export default function CourtDetail() {
     for (const p of extraPhotos) urls.push(p.url);
     return urls;
   }, [court?.imageUrl, extraPhotos]);
+
+  interface CourtActivity { lastBookedAt: string | null; todayGameCount: number; }
+  const { data: activity } = useQuery<CourtActivity>({
+    queryKey: ["court-activity", courtId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/courts/${courtId}/activity`);
+      if (!r.ok) return { lastBookedAt: null, todayGameCount: 0 };
+      return r.json();
+    },
+    enabled: !!courtId && !isNaN(courtId),
+    staleTime: 60_000,
+  });
   const favorited = court ? isFavorite(court.id) : false;
   const [localFavorited, setLocalFavorited] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
@@ -926,6 +1060,27 @@ export default function CourtDetail() {
                 );
               } catch { return null; }
             })()}
+
+            {/* Activity Indicators */}
+            {activity && (activity.lastBookedAt || activity.todayGameCount > 0) && (
+              <div className="flex flex-wrap gap-2">
+                {activity.lastBookedAt && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-400/20 text-xs text-green-600 dark:text-green-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Paskutinį kartą rezervuota: {new Date(activity.lastBookedAt).toLocaleDateString("lt-LT", { month: "short", day: "numeric" })}
+                  </div>
+                )}
+                {activity.todayGameCount > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary">
+                    <Users className="w-3.5 h-3.5" />
+                    Šiandien {activity.todayGameCount} {activity.todayGameCount === 1 ? "žaidimas" : "žaidimai"}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Membership Plans */}
+            <CourtMembershipSection courtId={court.id} />
 
             {/* Peak Pricing info */}
             {court.peakPricePerHour && (

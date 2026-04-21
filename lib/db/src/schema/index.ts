@@ -17,3 +17,4 @@ export * from "./direct-messages";
 export * from "./user-profiles";
 export * from "./notification-settings";
 export * from "./sports";
+export * from "./memberships";

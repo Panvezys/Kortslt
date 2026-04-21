@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray, or } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
 import {
   ListCourtsQueryParams,
@@ -662,6 +662,37 @@ router.get("/admin/courts/pending", requireAuth, async (_req, res): Promise<void
   }
 
   res.json(courts.map(c => ({ ...formatCourt(c), photos: photoMap.get(c.id) ?? [] })));
+});
+
+router.get("/courts/:id/activity", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [lastBooking] = await db
+    .select({ startTime: bookingsTable.startTime })
+    .from(bookingsTable)
+    .where(and(eq(bookingsTable.courtId, id), eq(bookingsTable.status, "confirmed")))
+    .orderBy(asc(bookingsTable.startTime))
+    .limit(1);
+
+  const todayGames = await db
+    .select({ id: gamesTable.id })
+    .from(gamesTable)
+    .where(and(
+      eq(gamesTable.courtId, id),
+      gte(gamesTable.datetime, todayStart),
+      lte(gamesTable.datetime, todayEnd),
+    ));
+
+  res.json({
+    lastBookedAt: lastBooking?.startTime ?? null,
+    todayGameCount: todayGames.length,
+  });
 });
 
 export default router;

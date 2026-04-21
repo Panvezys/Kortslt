@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
-import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable } from "@workspace/db";
+import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable, eloHistoryTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { calculateTeamElo } from "../lib/elo";
@@ -167,9 +167,17 @@ router.get("/games/:id", async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   const isJoined = userId ? participants.some(p => p.userId === userId) : false;
 
+  // Fetch ELO ratings for participants
+  const participantRatings = await Promise.all(
+    participants.map(p => db.select().from(userRatingsTable)
+      .where(and(eq(userRatingsTable.userId, p.userId), eq(userRatingsTable.sportSlug, g.sport)))
+      .limit(1).then(rows => ({ userId: p.userId, elo: rows[0]?.elo ?? 1200 })))
+  );
+  const ratingMap = new Map(participantRatings.map(r => [r.userId, r.elo]));
+
   res.json({
     ...formatGame(g, participants.length, isJoined),
-    participants: participants.map(formatParticipant),
+    participants: participants.map(p => ({ ...formatParticipant(p), elo: ratingMap.get(p.userId) ?? 1200 })),
   });
 });
 
@@ -539,6 +547,14 @@ router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> =>
         })
         .where(and(eq(userRatingsTable.userId, change.userId), eq(userRatingsTable.sportSlug, g.sport)));
 
+      await db.insert(eloHistoryTable).values({
+        userId: change.userId,
+        sportSlug: g.sport,
+        elo: change.newElo,
+        delta: change.delta,
+        gameId: id,
+      });
+
       // Notify player of ELO change
       const sign = change.delta > 0 ? "+" : "";
       await sendNotification(
@@ -601,6 +617,82 @@ router.get("/games/:id/result", async (req, res): Promise<void> => {
     autoConfirmAt: result.autoConfirmAt?.toISOString(),
     createdAt: result.createdAt.toISOString(),
   });
+});
+
+// GET /games/h2h?userId1=X&userId2=Y — head-to-head rivalry stats
+router.get("/games/h2h", requireAuth, async (req, res): Promise<void> => {
+  const { userId1, userId2 } = req.query as { userId1: string; userId2: string };
+  if (!userId1 || !userId2) { res.status(400).json({ error: "userId1 and userId2 required" }); return; }
+
+  const p1Games = await db.select({ gameId: gameParticipantsTable.gameId })
+    .from(gameParticipantsTable).where(and(eq(gameParticipantsTable.userId, userId1), eq(gameParticipantsTable.status, "joined")));
+  const p2Games = await db.select({ gameId: gameParticipantsTable.gameId })
+    .from(gameParticipantsTable).where(and(eq(gameParticipantsTable.userId, userId2), eq(gameParticipantsTable.status, "joined")));
+
+  const p1Set = new Set(p1Games.map(g => g.gameId));
+  const sharedGameIds = p2Games.map(g => g.gameId).filter(id => p1Set.has(id));
+
+  if (sharedGameIds.length === 0) { res.json({ user1Wins: 0, user2Wins: 0, draws: 0, total: 0 }); return; }
+
+  let user1Wins = 0, user2Wins = 0, draws = 0;
+  for (const gameId of sharedGameIds) {
+    const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, gameId));
+    const [result] = await db.select().from(gameResultsTable).where(and(eq(gameResultsTable.gameId, gameId), eq(gameResultsTable.status, "confirmed")));
+    if (!result || !game || game.matchType !== "rated") continue;
+
+    const [p1Part] = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, gameId), eq(gameParticipantsTable.userId, userId1), eq(gameParticipantsTable.status, "joined")));
+    if (!p1Part) continue;
+
+    const teamA = result.scoreTeamA;
+    const teamB = result.scoreTeamB;
+    const p1Team = p1Part.team;
+
+    if (teamA === teamB) { draws++; }
+    else if ((p1Team === "A" && teamA > teamB) || (p1Team === "B" && teamB > teamA)) { user1Wins++; }
+    else { user2Wins++; }
+  }
+
+  res.json({ user1Wins, user2Wins, draws, total: sharedGameIds.length });
+});
+
+// GET /users/:userId/elo-history?sport=tennis — ELO history for line chart
+router.get("/users/:userId/elo-history", async (req, res): Promise<void> => {
+  const { userId } = req.params;
+  const sport = String(req.query.sport ?? "");
+  const where = sport
+    ? and(eq(eloHistoryTable.userId, userId), eq(eloHistoryTable.sportSlug, sport))
+    : eq(eloHistoryTable.userId, userId);
+  const history = await db.select().from(eloHistoryTable).where(where)
+    .orderBy(eloHistoryTable.recordedAt).limit(50);
+  res.json(history.map(h => ({ ...h, recordedAt: h.recordedAt.toISOString() })));
+});
+
+// POST /games/:id/add-player — creator adds a player directly by userId
+router.post("/games/:id/add-player", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only creator can add players" }); return; }
+
+  const { targetUserId, targetUserName, team } = req.body as any;
+  if (!targetUserId || !targetUserName) { res.status(400).json({ error: "targetUserId and targetUserName required" }); return; }
+
+  const [existing] = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, targetUserId)));
+  if (existing) { res.status(400).json({ error: "Player already in game" }); return; }
+
+  const [participant] = await db.insert(gameParticipantsTable).values({
+    gameId: id,
+    userId: targetUserId,
+    userName: targetUserName,
+    team: team ?? null,
+    status: "joined",
+  }).returning();
+
+  res.status(201).json({ ...participant, joinedAt: participant.joinedAt.toISOString() });
 });
 
 export default router;

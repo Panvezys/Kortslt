@@ -1,4 +1,4 @@
-import { pgTable, text, serial, boolean, timestamp, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, boolean, timestamp, integer, unique, real } from "drizzle-orm/pg-core";
 import { gamesTable, gameParticipantsTable } from "./games";
 
 export const sportsTable = pgTable("sports", {
@@ -46,7 +46,18 @@ export const gameResultsTable = pgTable("game_results", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const eloHistoryTable = pgTable("elo_history", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sportSlug: text("sport_slug").notNull(),
+  elo: integer("elo").notNull(),
+  delta: integer("delta").notNull().default(0),
+  gameId: integer("game_id").references(() => gamesTable.id, { onDelete: "set null" }),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Sport = typeof sportsTable.$inferSelect;
 export type UserRating = typeof userRatingsTable.$inferSelect;
 export type MatchInvite = typeof matchInvitesTable.$inferSelect;
 export type GameResult = typeof gameResultsTable.$inferSelect;
+export type EloHistory = typeof eloHistoryTable.$inferSelect;

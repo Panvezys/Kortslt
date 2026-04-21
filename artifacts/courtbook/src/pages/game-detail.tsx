@@ -19,8 +19,9 @@ import { customFetch } from "@workspace/api-client-react";
 import { openChat } from "@/components/chat-bubble";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
-  MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield,
+  MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield, Search,
 } from "lucide-react";
+import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -40,7 +41,7 @@ const SKILL_LABELS: Record<string, string> = {
 
 interface Participant {
   id: number; gameId: number; userId: string; userName: string;
-  userEmail: string | null; team: string | null; status: string; joinedAt: string;
+  userEmail: string | null; team: string | null; status: string; joinedAt: string; elo?: number;
 }
 interface GameDetail {
   id: number; creatorUserId: string; creatorName: string; creatorEmail: string | null;
@@ -62,17 +63,96 @@ function formatDateTime(iso: string) {
   return d.toLocaleString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function EloBadge({ elo, tier }: { elo: number; tier: { name: string; color: string } }) {
-  const tierBg: Record<string, string> = {
-    Diamond: "bg-cyan-500/15 text-cyan-400 border-cyan-400/30",
-    Gold: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30",
-    Silver: "bg-slate-400/15 text-slate-400 border-slate-300/30",
-    Bronze: "bg-orange-700/15 text-orange-600 border-orange-500/30",
-  };
+function EloBadge({ elo, sport }: { elo: number; sport?: string }) {
+  const t = getTier(elo);
+  const sportEmoji = sport ? (SPORT_EMOJIS[sport] ?? "🏅") : null;
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${tierBg[tier.name] ?? "bg-muted text-muted-foreground border-border"}`}>
-      <Shield className="w-3 h-3" />{elo} {tier.name}
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${t.bgCls} ${t.cls}`}>
+      {sportEmoji ?? t.emoji} {elo}
     </span>
+  );
+}
+
+interface UserSearchResult { userId: string; userName: string; userEmail: string | null; }
+
+function PlayerSearchAdd({ gameId, sport, onAdded }: { gameId: number; sport: string; onAdded: () => void }) {
+  const { toast } = useToast();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const { data: results, isLoading } = useQuery<UserSearchResult[]>({
+    queryKey: ["user-search", query],
+    queryFn: () => customFetch<UserSearchResult[]>(`${API}/users/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length >= 2,
+  });
+
+  const addPlayer = useMutation({
+    mutationFn: (u: UserSearchResult) => customFetch(`${API}/games/${gameId}/add-player`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: u.userId, targetUserName: u.userName }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Žaidėjas pridėtas!" });
+      setOpen(false);
+      setQuery("");
+      onAdded();
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <Search className="w-3.5 h-3.5" />
+          Ieškoti žaidėjo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Pridėti žaidėją</DialogTitle>
+          <DialogDescription>Suraskite žaidėją pagal vardą ar el. paštą</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Vardas arba el. paštas..."
+              className="pl-9"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              autoFocus
+            />
+          </div>
+          {query.length >= 2 && (
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+              {isLoading && <p className="text-xs text-center text-muted-foreground py-4">Ieškoma...</p>}
+              {!isLoading && (!results || results.length === 0) && (
+                <p className="text-xs text-center text-muted-foreground py-4">Nieko nerasta</p>
+              )}
+              {results?.map(u => (
+                <button
+                  key={u.userId}
+                  onClick={() => addPlayer.mutate(u)}
+                  disabled={addPlayer.isPending}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-xs font-bold text-primary">
+                    {u.userName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{u.userName}</div>
+                    {u.userEmail && <div className="text-xs text-muted-foreground truncate">{u.userEmail}</div>}
+                  </div>
+                  <UserPlus className="w-4 h-4 text-muted-foreground shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -433,7 +513,7 @@ export default function GameDetailPage() {
                 </h1>
                 <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                   {creatorSportRating && (
-                    <EloBadge elo={creatorSportRating.elo} tier={creatorSportRating.tier} />
+                    <EloBadge elo={creatorSportRating.elo} sport={data.sport} />
                   )}
                   <span className="text-white/60 text-sm">
                     {creatorSportRating
@@ -597,10 +677,16 @@ export default function GameDetailPage() {
           <div className="flex items-center gap-2 mb-4">
             <Users className="w-5 h-5 text-primary"/>
             <h2 className="font-bold text-lg">Dalyviai ({data.joinedCount}/{data.playersNeeded})</h2>
+            {isCreator && data.status === "open" && (
+              <div className="ml-auto">
+                <PlayerSearchAdd gameId={data.id} sport={data.sport} onAdded={() => qc.invalidateQueries({ queryKey: ["game", id] })} />
+              </div>
+            )}
           </div>
           <div className="space-y-2">
             {data.participants.map((p) => {
               const pImageUrl = avatarMap?.[p.userId] ?? null;
+              const pElo = p.elo ?? 1200;
               return (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
                   <button onClick={() => setProfileView({ userId: p.userId, userName: p.userName })} className="shrink-0">
@@ -619,8 +705,9 @@ export default function GameDetailPage() {
                       {p.userName}
                       {p.userId === data.creatorUserId && <Crown className="w-3.5 h-3.5 text-primary" />}
                     </button>
-                    <div className="text-xs text-muted-foreground flex items-center gap-2">
-                      <span>Prisijungė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}</span>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                      <EloBadge elo={pElo} sport={data.sport} />
+                      <span>· {new Date(p.joinedAt).toLocaleDateString("lt-LT")}</span>
                       {p.team && (
                         <span className={`px-1.5 py-0 rounded text-xs font-bold ${p.team === "A" ? "bg-blue-500/15 text-blue-500" : "bg-red-500/15 text-red-500"}`}>
                           Komanda {p.team}

@@ -25,6 +25,8 @@ import userProfilesRouter from "./user-profiles";
 import notificationSettingsRouter from "./notification-settings";
 import sportsRouter from "./sports";
 import ratingsRouter from "./ratings";
+import membershipsRouter from "./memberships";
+import userSearchRouter from "./user-search";
 
 const router: IRouter = Router();
 
@@ -54,5 +56,7 @@ router.use(userProfilesRouter);
 router.use(notificationSettingsRouter);
 router.use(sportsRouter);
 router.use(ratingsRouter);
+router.use(membershipsRouter);
+router.use(userSearchRouter);
 
 export default router;
