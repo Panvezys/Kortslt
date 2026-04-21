@@ -35,5 +35,15 @@ export const gameParticipantsTable = pgTable("game_participants", {
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const gameChatTable = pgTable("game_chat", {
+  id: serial("id").primaryKey(),
+  gameId: integer("game_id").notNull().references(() => gamesTable.id, { onDelete: "cascade" }),
+  senderUserId: text("sender_user_id").notNull(),
+  senderName: text("sender_name").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Game = typeof gamesTable.$inferSelect;
 export type GameParticipant = typeof gameParticipantsTable.$inferSelect;
+export type GameChat = typeof gameChatTable.$inferSelect;

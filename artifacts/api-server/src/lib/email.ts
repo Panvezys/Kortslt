@@ -636,3 +636,53 @@ export async function sendMatchInviteEmail(
     logger.error({ err }, "Exception sending match invite email");
   }
 }
+
+export async function sendCoachInviteEmail(data: {
+  toEmail: string;
+  toName: string;
+  courtName: string;
+  acceptLink: string;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) { logger.warn("Resend not configured — skipping coach invite email"); return; }
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f7fa; padding: 32px; }
+  .card { background: #fff; max-width: 520px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #132D4C 0%, #1a3d66 100%); padding: 32px 40px; text-align: center; }
+  .header h1 { color: #C5E041; font-size: 22px; margin: 0; }
+  .body { padding: 32px 40px; }
+  .btn { display: inline-block; background: #C5E041; color: #132D4C; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; margin: 8px 0; }
+  p { color: #334155; line-height: 1.6; }
+  .footer { padding: 20px 40px; background: #f3f7fa; text-align: center; font-size: 12px; color: #94a3b8; }
+</style></head>
+<body>
+<div class="card">
+  <div class="header"><h1>🎾 Trenerio kvietimas</h1></div>
+  <div class="body">
+    <p>Sveiki, <strong>${data.toName}</strong>!</p>
+    <p>Jūs esate pakviesti tapti treneriumi aikštelėje <strong>${data.courtName}</strong> platformoje korts.lt.</p>
+    <p>Spustelėkite mygtuką žemiau, kad priimtumėte kvietimą:</p>
+    <a href="${data.acceptLink}" class="btn">Priimti kvietimą →</a>
+    <p style="font-size:13px;color:#94a3b8;margin-top:24px;">Jei negalite dalyvauti, tiesiog ignoruokite šį laišką.</p>
+  </div>
+  <div class="footer">korts.lt — Sporto aikštelių rezervacija</div>
+</div>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "korts.lt <onboarding@resend.dev>",
+      to: data.toEmail,
+      subject: `🎾 Kvietimas tapti treneriumi — ${data.courtName}`,
+      html,
+    });
+    if (error) logger.error({ error }, "Failed to send coach invite email");
+    else logger.info({ toEmail: data.toEmail }, "Coach invite email sent");
+  } catch (err) {
+    logger.error({ err }, "Exception sending coach invite email");
+  }
+}

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
-import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable, eloHistoryTable } from "@workspace/db";
+import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable, eloHistoryTable, gameChatTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { calculateTeamElo } from "../lib/elo";
@@ -843,6 +843,58 @@ router.post("/games/:id/add-player", requireAuth, async (req, res): Promise<void
   }).returning();
 
   res.status(201).json({ ...participant, joinedAt: participant.joinedAt.toISOString() });
+});
+
+// GET /games/:id/chat — get all chat messages (participants only)
+router.get("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+
+  const isCreator = g.creatorUserId === userId;
+  if (!isCreator) {
+    const [participation] = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "joined")));
+    if (!participation) { res.status(403).json({ error: "Only participants can view chat" }); return; }
+  }
+
+  const messages = await db.select().from(gameChatTable)
+    .where(eq(gameChatTable.gameId, id))
+    .orderBy(gameChatTable.createdAt);
+
+  res.json(messages.map(m => ({ ...m, createdAt: m.createdAt.toISOString() })));
+});
+
+// POST /games/:id/chat — send a message (participants only)
+router.post("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+
+  const isCreator = g.creatorUserId === userId;
+  if (!isCreator) {
+    const [participation] = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "joined")));
+    if (!participation) { res.status(403).json({ error: "Only participants can chat" }); return; }
+  }
+
+  const { senderName, body } = req.body ?? {};
+  if (!senderName || !String(body ?? "").trim()) {
+    res.status(400).json({ error: "senderName and body required" }); return;
+  }
+
+  const [msg] = await db.insert(gameChatTable).values({
+    gameId: id,
+    senderUserId: userId,
+    senderName,
+    body: String(body).trim(),
+  }).returning();
+
+  res.status(201).json({ ...msg, createdAt: msg.createdAt.toISOString() });
 });
 
 export default router;

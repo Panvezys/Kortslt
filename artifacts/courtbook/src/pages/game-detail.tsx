@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation, Link } from "wouter";
 import { useUser, Show } from "@clerk/react";
@@ -466,6 +466,35 @@ export default function GameDetailPage() {
     },
   });
 
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const isParticipantOrCreator = data?.isJoined || data?.creatorUserId === user?.id;
+
+  const { data: chatMessages = [] } = useQuery<any[]>({
+    queryKey: ["game-chat", id],
+    queryFn: () => customFetch<any[]>(`${API}/games/${id}/chat`),
+    enabled: !isNaN(id) && !!user && !!isParticipantOrCreator,
+    refetchInterval: 5000,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages.length]);
+
+  const sendChat = useMutation({
+    mutationFn: (body: string) => customFetch(`${API}/games/${id}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senderName: user?.fullName || user?.firstName || "Žaidėjas", body }),
+    }),
+    onSuccess: () => {
+      setChatInput("");
+      qc.invalidateQueries({ queryKey: ["game-chat", id] });
+    },
+    onError: (e: any) => toast({ title: "Klaida siunčiant žinutę", description: e?.message, variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <Layout>
@@ -890,6 +919,66 @@ export default function GameDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Game Chat — only for participants and creator */}
+      {(data.isJoined || isCreator) && (
+        <div className="glass-card rounded-2xl p-5 mt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <MessageCircle className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold text-base">Žaidimo pokalbiai</h3>
+            <Badge variant="outline" className="text-xs ml-auto">Tik dalyviams</Badge>
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-3 mb-4 pr-1">
+            {chatMessages.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6 italic">
+                Dar nėra žinučių. Pradėkite pokalbį!
+              </p>
+            )}
+            {chatMessages.map((msg: any) => {
+              const isMe = msg.senderUserId === user?.id;
+              return (
+                <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                  <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5">
+                    <AvatarFallback className="text-xs">{msg.senderName?.[0]?.toUpperCase() ?? "?"}</AvatarFallback>
+                  </Avatar>
+                  <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
+                    <span className="text-[11px] text-muted-foreground mb-0.5">{msg.senderName}</span>
+                    <div className={`rounded-xl px-3 py-2 text-sm leading-relaxed ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                      {msg.body}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">
+                      {new Date(msg.createdAt).toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              placeholder="Rašykite žinutę..."
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {
+                  e.preventDefault();
+                  sendChat.mutate(chatInput);
+                }
+              }}
+              className="flex-1"
+              disabled={sendChat.isPending}
+            />
+            <Button
+              size="icon"
+              onClick={() => { if (chatInput.trim()) sendChat.mutate(chatInput); }}
+              disabled={!chatInput.trim() || sendChat.isPending}
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {profileView && (
         <UserProfileCard

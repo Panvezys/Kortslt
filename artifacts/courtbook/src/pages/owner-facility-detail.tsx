@@ -24,13 +24,14 @@ import {
   CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse,
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
   Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
-  Star,
+  Star, Search, UserCheck, XCircle,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CourtImageUpload } from "@/components/court-image-upload";
@@ -409,70 +410,247 @@ function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null;
   );
 }
 
-function CoachAssignModal({ courtId, onClose }: { courtId: number; onClose: () => void }) {
+function CoachManagementModal({ courtId }: { courtId: number }) {
   const { toast } = useToast();
-  const qk = ["court-coaches", courtId];
+  const qc = useQueryClient();
+  const coachesQk = ["court-coaches", courtId];
+  const invitesQk = ["court-coach-invitations", courtId];
+
   const { data: assigned = [] } = useQuery<any[]>({
-    queryKey: qk,
+    queryKey: coachesQk,
     queryFn: () => customFetch<any[]>(`${API_URL}/courts/${courtId}/coaches`),
   });
-  const { data: allCoaches = [] } = useQuery<any[]>({
-    queryKey: ["all-coaches"],
-    queryFn: () => customFetch<any[]>(`${API_URL}/coaches`),
+  const { data: invitations = [] } = useQuery<any[]>({
+    queryKey: invitesQk,
+    queryFn: () => customFetch<any[]>(`${API_URL}/courts/${courtId}/coach-invitations`),
   });
-  const qc = useQueryClient();
-  const assignMutation = useMutation({
-    mutationFn: (coachId: number) => customFetch(`${API_URL}/courts/${courtId}/coaches`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ coachId }),
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); toast({ title: "Treneris priskirtas" }); },
-  });
+
   const removeMutation = useMutation({
     mutationFn: (coachId: number) => customFetch(`${API_URL}/courts/${courtId}/coaches/${coachId}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); toast({ title: "Treneris pašalintas" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: coachesQk }); toast({ title: "Treneris pašalintas" }); },
   });
-  const assignedIds = new Set(assigned.map((a: any) => a.id));
-  const available = allCoaches.filter((c: any) => !assignedIds.has(c.id));
+
+  const respondMutation = useMutation({
+    mutationFn: ({ inviteId, action }: { inviteId: number; action: "approve" | "reject" }) =>
+      customFetch(`${API_URL}/courts/${courtId}/coach-invitations/${inviteId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: coachesQk });
+      qc.invalidateQueries({ queryKey: invitesQk });
+      toast({ title: vars.action === "approve" ? "Treneris patvirtintas!" : "Paraiška atmesta" });
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  const [inviteMode, setInviteMode] = useState<"idle" | "search" | "email">("idle");
+  const [searchQ, setSearchQ] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+
+  const { data: searchResults = [] } = useQuery<any[]>({
+    queryKey: ["user-search-coaches", searchQ],
+    queryFn: () => customFetch<any[]>(`${API_URL}/users/search?q=${encodeURIComponent(searchQ)}`),
+    enabled: searchQ.trim().length >= 2,
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: (payload: { targetUserId?: string; targetEmail?: string; targetName?: string }) =>
+      customFetch(`${API_URL}/courts/${courtId}/coach-invite`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: invitesQk });
+      setInviteMode("idle");
+      setSearchQ("");
+      setInviteEmail("");
+      setInviteName("");
+      toast({ title: "Kvietimas išsiųstas!" });
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message ?? "Bandykite dar kartą", variant: "destructive" }),
+  });
+
+  const pending = invitations.filter((i: any) => i.status === "pending");
+  const pendingApps = pending.filter((i: any) => i.initiatedBy === "coach");
+  const pendingInvites = pending.filter((i: any) => i.initiatedBy === "owner");
 
   return (
-    <div className="space-y-4">
-      {assigned.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Priskirti treneriai</p>
+    <div className="space-y-2">
+      <Tabs defaultValue="coaches">
+        <TabsList className="w-full">
+          <TabsTrigger value="coaches" className="flex-1">
+            Treneriai {assigned.length > 0 && <Badge variant="secondary" className="ml-1 text-xs">{assigned.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="flex-1">
+            Prašymai {pendingApps.length > 0 && <Badge className="ml-1 text-xs bg-yellow-500 text-black">{pendingApps.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="invite" className="flex-1">Pakviesti</TabsTrigger>
+        </TabsList>
+
+        {/* ── Current coaches ── */}
+        <TabsContent value="coaches" className="space-y-3 pt-3">
+          {assigned.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6 italic">Dar nėra priskirtų trenerių.</p>
+          )}
           {assigned.map((c: any) => (
-            <div key={c.id} className="flex items-center justify-between bg-primary/5 rounded-lg px-3 py-2">
-              <div>
-                <span className="text-sm font-medium">{c.name}</span>
-                {c.sports && <span className="text-xs text-muted-foreground ml-2">{c.sports.join(", ")}</span>}
+            <div key={c.id} className="flex items-start gap-3 bg-primary/5 rounded-xl p-3">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 text-lg font-bold text-primary">
+                {c.name?.[0]?.toUpperCase() ?? "T"}
               </div>
-              <Button variant="ghost" size="icon" onClick={() => removeMutation.mutate(c.id)}>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate">{c.name}</p>
+                {c.sports?.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{c.sports.join(", ")}</p>
+                )}
+                {c.bio && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{c.bio}</p>}
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {c.pricePerHour && (
+                    <span className="text-xs bg-primary/10 text-primary rounded px-1.5 py-0.5">{c.pricePerHour}€/val</span>
+                  )}
+                  {c.phone && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-0.5"><Phone className="w-3 h-3"/>{c.phone}</span>
+                  )}
+                  {c.email && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-0.5"><Mail className="w-3 h-3"/>{c.email}</span>
+                  )}
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => removeMutation.mutate(c.id)}>
                 <UserMinus className="w-3.5 h-3.5 text-destructive" />
               </Button>
             </div>
           ))}
-        </div>
-      )}
-      {available.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Galimi treneriai</p>
-          {available.map((c: any) => (
-            <div key={c.id} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2">
-              <div>
-                <span className="text-sm font-medium">{c.name}</span>
-                {c.pricePerHour && <span className="text-xs text-muted-foreground ml-2">{c.pricePerHour}€/val</span>}
+        </TabsContent>
+
+        {/* ── Applications + sent invites ── */}
+        <TabsContent value="requests" className="space-y-4 pt-3">
+          {pendingApps.length === 0 && pendingInvites.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6 italic">Nėra laukiančių prašymų.</p>
+          )}
+          {pendingApps.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trenerių paraiškos</p>
+              {pendingApps.map((inv: any) => (
+                <div key={inv.id} className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">{inv.targetName ?? inv.targetEmail ?? "Nežinomas"}</p>
+                      {inv.message && <p className="text-xs text-muted-foreground mt-0.5 italic">„{inv.message}"</p>}
+                      <p className="text-xs text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString("lt-LT")}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                      onClick={() => respondMutation.mutate({ inviteId: inv.id, action: "approve" })}
+                      disabled={respondMutation.isPending}>
+                      <UserCheck className="w-3.5 h-3.5 mr-1" />Patvirtinti
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1 h-8 text-xs border-red-500/40 text-red-500 hover:bg-red-500/10"
+                      onClick={() => respondMutation.mutate({ inviteId: inv.id, action: "reject" })}
+                      disabled={respondMutation.isPending}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" />Atmesti
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingInvites.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Išsiųsti kvietimai</p>
+              {pendingInvites.map((inv: any) => (
+                <div key={inv.id} className="flex items-center justify-between bg-muted/30 rounded-xl px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{inv.targetName ?? inv.targetEmail ?? "Vartotojas"}</p>
+                    {inv.targetEmail && <p className="text-xs text-muted-foreground">{inv.targetEmail}</p>}
+                    <p className="text-xs text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString("lt-LT")}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-500/40">Laukiama</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Invite form ── */}
+        <TabsContent value="invite" className="pt-3 space-y-3">
+          <div className="flex gap-2">
+            <Button
+              size="sm" variant={inviteMode === "search" ? "default" : "outline"}
+              className="flex-1 text-xs h-9"
+              onClick={() => setInviteMode(inviteMode === "search" ? "idle" : "search")}
+            >
+              <Search className="w-3.5 h-3.5 mr-1" />Ieškoti vartotojo
+            </Button>
+            <Button
+              size="sm" variant={inviteMode === "email" ? "default" : "outline"}
+              className="flex-1 text-xs h-9"
+              onClick={() => setInviteMode(inviteMode === "email" ? "idle" : "email")}
+            >
+              <Mail className="w-3.5 h-3.5 mr-1" />El. paštu
+            </Button>
+          </div>
+
+          {inviteMode === "search" && (
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={searchQ}
+                  onChange={e => setSearchQ(e.target.value)}
+                  placeholder="Ieškoti pagal vardą arba el. paštą..."
+                  className="pl-9 text-sm h-9"
+                />
               </div>
-              <Button variant="ghost" size="icon" onClick={() => assignMutation.mutate(c.id)}>
-                <UserPlus className="w-3.5 h-3.5 text-primary" />
+              {searchQ.length >= 2 && searchResults.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">Vartotojų nerasta</p>
+              )}
+              {searchResults.map((u: any) => (
+                <div key={u.userId} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{u.userName}</p>
+                    <p className="text-xs text-muted-foreground">{u.userEmail}</p>
+                  </div>
+                  <Button size="sm" className="h-7 text-xs"
+                    onClick={() => inviteMutation.mutate({ targetUserId: u.userId, targetName: u.userName, targetEmail: u.userEmail })}
+                    disabled={inviteMutation.isPending}>
+                    <UserPlus className="w-3 h-3 mr-1" />Pakviesti
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {inviteMode === "email" && (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-xs mb-1">Vardas</Label>
+                <Input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder="Trenerio vardas" className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs mb-1">El. paštas</Label>
+                <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="treneris@example.com" className="h-9 text-sm" />
+              </div>
+              <Button
+                className="w-full h-9 text-sm"
+                onClick={() => inviteMutation.mutate({ targetEmail: inviteEmail, targetName: inviteName || undefined })}
+                disabled={!inviteEmail.includes("@") || inviteMutation.isPending}
+              >
+                {inviteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                Siųsti kvietimą
               </Button>
             </div>
-          ))}
-        </div>
-      )}
-      {available.length === 0 && assigned.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4">Dar nėra registruotų trenerių.</p>
-      )}
-      <Button variant="outline" onClick={onClose} className="w-full">Uždaryti</Button>
+          )}
+
+          {inviteMode === "idle" && (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              Pasirinkite kaip pakviesti trenerį — ieškokite pagal vardą arba siųskite kvietimą el. paštu.
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -1612,9 +1790,9 @@ export default function OwnerFacilityDetail() {
         </Dialog>
 
         <Dialog open={coachesCourtId !== null} onOpenChange={(open) => { if (!open) setCoachesCourtId(null); }}>
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" /> Aikštelės treneriai</DialogTitle></DialogHeader>
-            {coachesCourtId !== null && <CoachAssignModal courtId={coachesCourtId} onClose={() => setCoachesCourtId(null)} />}
+            {coachesCourtId !== null && <CoachManagementModal courtId={coachesCourtId} />}
           </DialogContent>
         </Dialog>
 

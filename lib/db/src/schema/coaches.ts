@@ -25,5 +25,18 @@ export const courtCoachesTable = pgTable("court_coaches", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const courtCoachInvitationsTable = pgTable("court_coach_invitations", {
+  id: serial("id").primaryKey(),
+  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  targetUserId: text("target_user_id"),
+  targetEmail: text("target_email"),
+  targetName: text("target_name"),
+  initiatedBy: text("initiated_by").notNull().default("owner"),
+  status: text("status").notNull().default("pending"),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Coach = typeof coachesTable.$inferSelect;
 export type CourtCoach = typeof courtCoachesTable.$inferSelect;
+export type CourtCoachInvitation = typeof courtCoachInvitationsTable.$inferSelect;

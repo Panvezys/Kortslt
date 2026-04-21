@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
-import { db, coachesTable, courtCoachesTable, courtsTable } from "@workspace/db";
+import { eq, and, inArray, desc } from "drizzle-orm";
+import { db, coachesTable, courtCoachesTable, courtCoachInvitationsTable, courtsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
+import { sendNotification } from "../lib/notify";
+import { sendCoachInviteEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -212,6 +214,175 @@ router.delete("/courts/:id/coaches/:coachId", requireAuth, async (req, res): Pro
 
   await db.delete(courtCoachesTable)
     .where(and(eq(courtCoachesTable.courtId, courtId), eq(courtCoachesTable.coachId, coachId)));
+
+  res.json({ ok: true });
+});
+
+// GET /courts/:id/coach-invitations — list all invitations + applications (owner only)
+router.get("/courts/:id/coach-invitations", requireAuth, async (req, res): Promise<void> => {
+  const courtId = parseInt(req.params.id, 10);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const canEdit = await isOwner(req, court.ownerUserId);
+  if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const invitations = await db.select().from(courtCoachInvitationsTable)
+    .where(eq(courtCoachInvitationsTable.courtId, courtId))
+    .orderBy(desc(courtCoachInvitationsTable.createdAt));
+
+  res.json(invitations.map(inv => ({ ...inv, createdAt: inv.createdAt.toISOString() })));
+});
+
+// POST /courts/:id/coach-invite — owner invites a user (by userId) or by email
+router.post("/courts/:id/coach-invite", requireAuth, async (req, res): Promise<void> => {
+  const courtId = parseInt(req.params.id, 10);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const canEdit = await isOwner(req, court.ownerUserId);
+  if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { targetUserId, targetEmail, targetName } = req.body ?? {};
+  if (!targetUserId && !targetEmail) {
+    res.status(400).json({ error: "targetUserId or targetEmail required" }); return;
+  }
+
+  if (targetUserId) {
+    const [existingPending] = await db.select().from(courtCoachInvitationsTable)
+      .where(and(
+        eq(courtCoachInvitationsTable.courtId, courtId),
+        eq(courtCoachInvitationsTable.targetUserId, targetUserId),
+        eq(courtCoachInvitationsTable.status, "pending"),
+      ));
+    if (existingPending) { res.status(409).json({ error: "Already invited" }); return; }
+  }
+
+  const [invitation] = await db.insert(courtCoachInvitationsTable).values({
+    courtId,
+    targetUserId: targetUserId ?? null,
+    targetEmail: targetEmail ?? null,
+    targetName: targetName ?? null,
+    initiatedBy: "owner",
+    status: "pending",
+  }).returning();
+
+  if (targetUserId) {
+    await sendNotification(targetUserId, "coach_invite",
+      "Kvietimas tapti treneriumi",
+      `Jūs esate pakviesti prisijungti prie „${court.name}" kaip treneris`,
+      `/courts/${courtId}`
+    ).catch(() => {});
+  } else if (targetEmail) {
+    const siteUrl = process.env.SITE_URL || "https://korts.lt";
+    await sendCoachInviteEmail({
+      toEmail: targetEmail,
+      toName: targetName ?? targetEmail,
+      courtName: court.name,
+      acceptLink: `${siteUrl}/courts/${courtId}`,
+    }).catch(() => {});
+  }
+
+  res.status(201).json({ ...invitation, createdAt: invitation.createdAt.toISOString() });
+});
+
+// POST /courts/:id/coach-apply — a user applies to be a coach at this court
+router.post("/courts/:id/coach-apply", requireAuth, async (req, res): Promise<void> => {
+  const courtId = parseInt(req.params.id, 10);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
+
+  const userId = getCurrentUserId(req)!;
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const [existingPending] = await db.select().from(courtCoachInvitationsTable)
+    .where(and(
+      eq(courtCoachInvitationsTable.courtId, courtId),
+      eq(courtCoachInvitationsTable.targetUserId, userId),
+      eq(courtCoachInvitationsTable.initiatedBy, "coach"),
+      eq(courtCoachInvitationsTable.status, "pending"),
+    ));
+  if (existingPending) { res.status(409).json({ error: "Application already submitted" }); return; }
+
+  const { message, name, email } = req.body ?? {};
+
+  const [application] = await db.insert(courtCoachInvitationsTable).values({
+    courtId,
+    targetUserId: userId,
+    targetEmail: email ?? null,
+    targetName: name ?? null,
+    initiatedBy: "coach",
+    status: "pending",
+    message: message ?? null,
+  }).returning();
+
+  await sendNotification(court.ownerUserId, "coach_application",
+    "Trenerio paraiška",
+    `${name ?? "Vartotojas"} prašo prisijungti prie „${court.name}" kaip treneris`,
+    `/owner/facilities`
+  ).catch(() => {});
+
+  res.status(201).json({ ...application, createdAt: application.createdAt.toISOString() });
+});
+
+// PUT /courts/:id/coach-invitations/:inviteId — approve or reject
+router.put("/courts/:id/coach-invitations/:inviteId", requireAuth, async (req, res): Promise<void> => {
+  const courtId = parseInt(req.params.id, 10);
+  const inviteId = parseInt(req.params.inviteId, 10);
+  if (isNaN(courtId) || isNaN(inviteId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const canEdit = await isOwner(req, court.ownerUserId);
+  if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const { action } = req.body ?? {};
+  if (action !== "approve" && action !== "reject") {
+    res.status(400).json({ error: "action must be 'approve' or 'reject'" }); return;
+  }
+
+  const [invite] = await db.select().from(courtCoachInvitationsTable)
+    .where(and(eq(courtCoachInvitationsTable.id, inviteId), eq(courtCoachInvitationsTable.courtId, courtId)));
+  if (!invite) { res.status(404).json({ error: "Invitation not found" }); return; }
+
+  await db.update(courtCoachInvitationsTable)
+    .set({ status: action === "approve" ? "approved" : "rejected" })
+    .where(eq(courtCoachInvitationsTable.id, inviteId));
+
+  if (action === "approve" && invite.targetUserId) {
+    let [coach] = await db.select().from(coachesTable)
+      .where(eq(coachesTable.userId, invite.targetUserId));
+    if (!coach) {
+      [coach] = await db.insert(coachesTable).values({
+        userId: invite.targetUserId,
+        name: invite.targetName ?? "Treneris",
+        email: invite.targetEmail ?? "",
+        status: "approved",
+        sports: [],
+      }).returning();
+    }
+    const [existing] = await db.select().from(courtCoachesTable)
+      .where(and(eq(courtCoachesTable.courtId, courtId), eq(courtCoachesTable.coachId, coach.id)));
+    if (!existing) {
+      await db.insert(courtCoachesTable).values({ courtId, coachId: coach.id });
+    }
+    await sendNotification(invite.targetUserId, "court_coach_approved",
+      "Paraiška patvirtinta",
+      `Jūs priimtas kaip treneris į „${court.name}"`,
+      `/courts/${courtId}`
+    ).catch(() => {});
+  } else if (action === "reject" && invite.targetUserId) {
+    await sendNotification(invite.targetUserId, "court_coach_rejected",
+      "Paraiška atmesta",
+      `Jūsų paraiška prisijungti prie „${court.name}" kaip treneris buvo atmesta`,
+      `/courts/${courtId}`
+    ).catch(() => {});
+  }
 
   res.json({ ok: true });
 });
