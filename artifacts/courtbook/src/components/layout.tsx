@@ -340,9 +340,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) => location === href || location.startsWith(href + "/");
   const navCls = (href: string) =>
-    `transition-colors flex items-center gap-1.5 ${isActive(href) ? "text-primary font-semibold" : "hover:text-primary text-muted-foreground"}`;
+    `transition-colors flex items-center gap-1.5 ${isActive(href) ? "text-primary font-semibold" : "hover:text-primary text-foreground/80 dark:text-foreground/90"}`;
   const mobileNavCls = (href: string) =>
-    `flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${isActive(href) ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-primary text-muted-foreground"}`;
+    `flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${isActive(href) ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-primary text-foreground/80 dark:text-foreground/90"}`;
 
   return (
     <ThemeProvider>
@@ -351,7 +351,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <LogoBrand />
 
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-foreground">
               <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
               <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
               <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
@@ -389,7 +389,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Mobile always-visible nav row */}
-          <nav className="md:hidden border-t bg-background/95 flex items-center justify-around px-2 py-1.5 text-xs font-medium">
+          <nav className="md:hidden border-t bg-background/98 backdrop-blur flex items-center justify-around px-2 py-1.5 text-xs font-medium text-foreground">
             <Link href="/courts" className={mobileNavCls("/courts")}>
               <TennisCourtIcon className="w-4 h-4" />
               <span>{t("nav.findCourts")}</span>
