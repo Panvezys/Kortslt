@@ -402,25 +402,26 @@ export default function CoachesPage() {
           </p>
 
           {/* ── Sport pills (identical to home.tsx) ── */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            {ALL_SPORTS.map(sport => {
-              const color = sportColor[sport] ?? "#84cc16";
-              const active = searchSport === sport;
-              return (
-                <button
-                  key={sport}
-                  onClick={() => setSearchSport(active ? "" : sport)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                  style={active
-                    ? { background: color, borderColor: color, color: "#000" }
-                    : { borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)" }
-                  }
-                >
-                  <SportIcon sport={sport} size={11} strokeWidth={2} />
-                  {sportLT[sport]}
-                </button>
-              );
-            })}
+          <div className="mb-4 max-w-xs">
+            <Select
+              value={searchSport || "all"}
+              onValueChange={(value) => setSearchSport(value === "all" ? "" : value)}
+            >
+              <SelectTrigger className="h-9 bg-white/10 border-white/20 text-white/80">
+                <SelectValue placeholder="Sporto šaka" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Visos sporto šakos</SelectItem>
+                {ALL_SPORTS.map(sport => (
+                  <SelectItem key={sport} value={sport}>
+                    <span className="flex items-center gap-2">
+                      <SportIcon sport={sport} size={11} strokeWidth={2} />
+                      {sportLT[sport]}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* ── City + Date row (identical to home.tsx Row 3) ── */}
