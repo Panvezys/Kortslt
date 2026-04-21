@@ -567,3 +567,72 @@ export async function sendAdminRoleRequestEmail(data: {
     logger.error({ err }, "Exception sending admin role request email");
   }
 }
+
+const SPORT_LT: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", football: "Futbolas",
+  padel: "Padelis", badminton: "Badmintonas", "table-tennis": "Stalo tenisas",
+  volleyball: "Tinklinis", squash: "Skvošas", golf: "Golfo",
+  bowling: "Boulingas", pickleball: "Pikliboulas", hockey: "Ledo ritulys",
+};
+
+export async function sendMatchInviteEmail(
+  toEmail: string,
+  toName: string,
+  hostName: string,
+  sport: string,
+  gameDate: Date,
+  joinLink: string,
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) return;
+
+  const sportLabel = SPORT_LT[sport] ?? sport;
+  const dateStr = formatDate(gameDate);
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f7fa; padding: 32px; }
+  .card { background: #fff; max-width: 520px; margin: 0 auto; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .header { background: linear-gradient(135deg, #132D4C 0%, #1a3d66 100%); padding: 32px 40px; text-align: center; }
+  .header h1 { color: #C5E041; font-size: 22px; margin: 0; }
+  .body { padding: 32px 40px; }
+  .sport-badge { display: inline-block; background: #f0f9ff; color: #132D4C; border: 2px solid #C5E041; border-radius: 24px; padding: 6px 18px; font-size: 15px; font-weight: 600; margin-bottom: 20px; }
+  .btn { display: inline-block; background: #C5E041; color: #132D4C; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; margin: 8px 0; }
+  p { color: #334155; line-height: 1.6; }
+  .footer { padding: 20px 40px; background: #f3f7fa; text-align: center; font-size: 12px; color: #94a3b8; }
+</style></head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>🎯 Žaidimo kvietimas</h1>
+  </div>
+  <div class="body">
+    <p>Sveiki, <strong>${toName}</strong>!</p>
+    <p><strong>${hostName}</strong> kviečia jus dalyvauti:</p>
+    <div class="sport-badge">${sportLabel}</div>
+    <p>📅 <strong>Data:</strong> ${dateStr}</p>
+    <p>Prisijunkite prie žaidimo spustelėję mygtuką žemiau:</p>
+    <a href="${joinLink}" class="btn">Prisijungti prie žaidimo →</a>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 24px;">Jei negalite dalyvauti, tiesiog ignoruokite šį laišką.</p>
+  </div>
+  <div class="footer">korts.lt — Sporto aikštelių rezervacija</div>
+</div>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "korts.lt <onboarding@resend.dev>",
+      to: toEmail,
+      subject: `🎯 ${hostName} kviečia jus į ${sportLabel} žaidimą`,
+      html,
+    });
+    if (error) {
+      logger.error({ error }, "Failed to send match invite email");
+    } else {
+      logger.info({ toEmail, sport }, "Match invite email sent");
+    }
+  } catch (err) {
+    logger.error({ err }, "Exception sending match invite email");
+  }
+}

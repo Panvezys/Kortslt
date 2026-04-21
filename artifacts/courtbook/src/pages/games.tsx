@@ -15,17 +15,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SportIcon } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Shield, Lock, Search, X } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock, Search, X, Swords, Shield } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-const SPORT_LABELS: Record<string, string> = {
+export const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+  "table-tennis": "Stalo tenisas", table_tennis: "Stalo tenisas",
+  golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+  volleyball: "Tinklinis", hockey: "Ledo ritulys", futsal: "Futsalas",
+  floorball: "Florbolai", "beach-volleyball": "Paplūdimio tinklinis",
+  pickleball: "Pikliboulas",
 };
-const SPORTS = Object.keys(SPORT_LABELS);
+const SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table-tennis", "volleyball", "hockey", "futsal", "floorball", "beach-volleyball", "golf", "bowling", "pickleball"];
 
 const SKILL_LABELS: Record<string, string> = {
   any: "Bet koks", beginner: "Pradedantysis", intermediate: "Vidutinis", advanced: "Pažengęs",
@@ -34,23 +38,10 @@ const SKILL_LABELS: Record<string, string> = {
 const CITIES = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Mažeikiai", "Jonava", "Utena", "Kėdainiai", "Telšiai", "Tauragė", "Ukmergė", "Visaginas", "Plungė", "Kretinga", "Palanga", "Šilutė", "Radviliškis", "Druskininkai", "Rokiškis", "Biržai", "Elektrėnai"];
 
 interface Game {
-  id: number;
-  creatorUserId: string;
-  creatorName: string;
-  sport: string;
-  city: string;
-  placeName: string | null;
-  playersNeeded: number;
-  skillLevel: string;
-  datetime: string;
-  durationMinutes: number;
-  description: string | null;
-  status: string;
-  isPrivate: boolean;
-  joinedCount: number;
-  slotsLeft: number;
-  isJoined: boolean;
-  createdAt: string;
+  id: number; creatorUserId: string; creatorName: string; sport: string; city: string;
+  placeName: string | null; playersNeeded: number; skillLevel: string; datetime: string;
+  durationMinutes: number; description: string | null; status: string; matchType: string;
+  isPrivate: boolean; joinedCount: number; slotsLeft: number; isJoined: boolean; createdAt: string;
 }
 
 function formatDateTime(iso: string) {
@@ -58,26 +49,46 @@ function formatDateTime(iso: string) {
   return d.toLocaleString("lt-LT", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function tierStyle(elo: number) {
+  if (elo >= 1600) return { name: "Diamond", cls: "bg-cyan-500/15 text-cyan-400 border-cyan-400/30" };
+  if (elo >= 1400) return { name: "Gold", cls: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30" };
+  if (elo >= 1200) return { name: "Silver", cls: "bg-slate-400/15 text-slate-400 border-slate-300/30" };
+  return { name: "Bronze", cls: "bg-orange-700/15 text-orange-600 border-orange-500/30" };
+}
+
 function GameCard({ g }: { g: Game }) {
   const full = g.slotsLeft === 0;
+  const isRated = g.matchType === "rated";
   return (
     <Link href={`/games/${g.id}`}>
-      <div className="group rounded-2xl border border-border bg-card hover:border-primary/60 hover:shadow-lg transition-all overflow-hidden cursor-pointer">
-        <div className={`h-1.5 ${full ? "bg-orange-500/60" : "bg-gradient-to-r from-primary to-primary/60"}`} />
+      <div className="group relative rounded-2xl border border-border hover:border-primary/50 hover:shadow-xl transition-all overflow-hidden cursor-pointer bg-card">
+        {/* Top accent */}
+        <div className={`h-1.5 ${isRated ? "bg-gradient-to-r from-purple-500 to-purple-400" : full ? "bg-orange-500/60" : "bg-gradient-to-r from-[#C5E041] to-[#C5E041]/60"}`} />
+
         <div className="p-4 sm:p-5 space-y-3.5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <SportIcon sport={g.sport} className="w-5 h-5" />
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}
+              >
+                <SportIcon sport={g.sport} className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0">
-                <div className="text-xs text-muted-foreground">{SPORT_LABELS[g.sport] ?? g.sport}</div>
-                <div className="text-xs font-medium text-muted-foreground">{SKILL_LABELS[g.skillLevel]}</div>
+                <div className="text-xs text-muted-foreground font-medium">{SPORT_LABELS[g.sport] ?? g.sport}</div>
+                <div className="text-xs text-muted-foreground">{SKILL_LABELS[g.skillLevel]}</div>
               </div>
             </div>
-            {g.isJoined && (
-              <Badge className="bg-primary/15 text-primary border-primary/30 text-xs"><UserCheck className="w-3 h-3 mr-1"/>Prisijungęs</Badge>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+              {isRated && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border bg-purple-500/15 text-purple-400 border-purple-400/30">
+                  <Swords className="w-3 h-3"/>Reit.
+                </span>
+              )}
+              {g.isJoined && (
+                <Badge className="bg-primary/15 text-primary border-primary/30 text-xs"><UserCheck className="w-3 h-3 mr-1"/>Prisijungęs</Badge>
+              )}
+            </div>
           </div>
           <div>
             <h3 className="font-bold text-base leading-tight group-hover:text-primary transition-colors line-clamp-1">
@@ -86,20 +97,20 @@ function GameCard({ g }: { g: Game }) {
             {g.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{g.description}</p>}
           </div>
           <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-primary"/>{formatDateTime(g.datetime)}</div>
-            <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-primary"/>{g.city}{g.placeName ? ` · ${g.placeName}` : ""}</div>
-            <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-primary"/>{g.durationMinutes} min</div>
+            <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-primary/70"/>{formatDateTime(g.datetime)}</div>
+            <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-primary/70"/>{g.city}{g.placeName ? ` · ${g.placeName}` : ""}</div>
+            <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-primary/70"/>{g.durationMinutes} min</div>
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-border/60">
             <div className="flex items-center gap-1.5 text-sm">
-              <Users className="w-4 h-4 text-primary" />
+              <Users className="w-4 h-4 text-primary/70" />
               <span className="font-semibold">{g.joinedCount}</span>
               <span className="text-muted-foreground">/ {g.playersNeeded}</span>
             </div>
             {full ? (
               <Badge className="bg-orange-500/15 text-orange-500 border-orange-500/30">Užpildyta</Badge>
             ) : (
-              <Badge className="bg-green-500/15 text-green-500 border-green-500/30">
+              <Badge className="bg-[#C5E041]/15 text-[#8aa72e] border-[#C5E041]/30">
                 {g.slotsLeft} laisv{g.slotsLeft === 1 ? "a vieta" : "ų vietų"}
               </Badge>
             )}
@@ -127,6 +138,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     durationMinutes: 60,
     description: "",
     isPrivate: false,
+    matchType: "casual" as "casual" | "rated",
   });
 
   const create = useMutation({
@@ -147,6 +159,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           durationMinutes: form.durationMinutes,
           description: form.description || null,
           isPrivate: form.isPrivate,
+          matchType: form.matchType,
         }),
       });
       return res;
@@ -170,12 +183,42 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           <DialogDescription>Raskite partnerių tarp korts.lt bendruomenės.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Match type selector */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, matchType: "casual" }))}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                form.matchType === "casual"
+                  ? "border-primary bg-primary/10"
+                  : "border-border hover:border-border/80"
+              }`}
+            >
+              <Trophy className="w-5 h-5" />
+              <span className="text-sm font-semibold">Laisvas</span>
+              <span className="text-xs text-muted-foreground">ELO nekinta</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, matchType: "rated" }))}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${
+                form.matchType === "rated"
+                  ? "border-purple-500 bg-purple-500/10"
+                  : "border-border hover:border-border/80"
+              }`}
+            >
+              <Swords className="w-5 h-5 text-purple-500" />
+              <span className="text-sm font-semibold">Reitinginis</span>
+              <span className="text-xs text-muted-foreground">ELO keisis</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Sporto šaka</Label>
               <Select value={form.sport} onValueChange={(v) => setForm(f => ({ ...f, sport: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72">
                   {SPORTS.map(s => <SelectItem key={s} value={s}>{SPORT_LABELS[s]}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -244,7 +287,8 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Atšaukti</Button>
-          <Button onClick={() => create.mutate()} disabled={create.isPending}>
+          <Button onClick={() => create.mutate()} disabled={create.isPending}
+            className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
             {create.isPending ? "Kuriama..." : "Sukurti žaidimą"}
           </Button>
         </DialogFooter>
@@ -258,6 +302,7 @@ export default function GamesPage() {
   const [sport, setSport] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [matchTypeFilter, setMatchTypeFilter] = useState<"all" | "casual" | "rated">("all");
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: games, isLoading } = useQuery<Game[]>({
@@ -272,39 +317,41 @@ export default function GamesPage() {
   });
 
   const filtered = (games ?? []).filter(g => {
+    if (matchTypeFilter !== "all" && g.matchType !== matchTypeFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
     return g.creatorName.toLowerCase().includes(s) || g.city.toLowerCase().includes(s) ||
       (g.placeName ?? "").toLowerCase().includes(s) || (g.description ?? "").toLowerCase().includes(s);
   });
 
-  const activeFilters = (sport !== "all" ? 1 : 0) + (city !== "all" ? 1 : 0) + (search ? 1 : 0);
-  const resetFilters = () => { setSearch(""); setSport("all"); setCity("all"); };
+  const activeFilters = (sport !== "all" ? 1 : 0) + (city !== "all" ? 1 : 0) + (search ? 1 : 0) + (matchTypeFilter !== "all" ? 1 : 0);
+  const resetFilters = () => { setSearch(""); setSport("all"); setCity("all"); setMatchTypeFilter("all"); };
 
   return (
     <Layout>
       <div className="min-h-screen bg-background">
-        {/* Photo Hero */}
+        {/* Hero */}
         <div className="relative h-52 sm:h-64 md:h-72 overflow-hidden">
           <img
             src="/coaches/coach_banner_2.png"
             alt="Partneriai"
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/70" />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(19,45,76,0.4), rgba(19,45,76,0.3), rgba(19,45,76,0.85))" }} />
           <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto">
             <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-xl bg-primary/20 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                <Users className="w-4.5 h-4.5 text-white" />
+              <div className="w-9 h-9 rounded-xl bg-[#C5E041]/20 backdrop-blur-sm border border-[#C5E041]/30 flex items-center justify-center">
+                <Trophy className="w-4.5 h-4.5 text-[#C5E041]" />
               </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white drop-shadow">Partneriai</h1>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white drop-shadow">Žaidimai</h1>
             </div>
             <p className="text-white/80 text-sm sm:text-base max-w-xl drop-shadow-sm">
-              Prisijunk prie kitų žaidėjų kuriamų žaidimų arba sukurk savo ir pakviesk partnerius.
+              Prisijunk prie kitų žaidėjų kuriamų žaidimų arba sukurk savo. Reitinginiai žaidimai keičia jūsų ELO.
             </p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2 flex-wrap">
               <Show when="signed-in">
-                <Button size="sm" onClick={() => setCreateOpen(true)} className="backdrop-blur-sm bg-white/20 hover:bg-white/30 text-white border border-white/30">
+                <Button size="sm" onClick={() => setCreateOpen(true)}
+                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold border-0">
                   <Plus className="w-3.5 h-3.5 mr-1.5" />Sukurti žaidimą
                 </Button>
               </Show>
@@ -320,24 +367,32 @@ export default function GamesPage() {
         <div className="max-w-6xl mx-auto px-4 py-4 space-y-4">
           {/* Sticky filter bar */}
           <div className="sticky top-[6.5rem] z-30 -mx-4 px-4 py-2 bg-background/90 backdrop-blur border-b border-border">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="sm:col-span-1 relative">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input className="pl-9 h-9 text-sm" placeholder="Ieškoti..." value={search} onChange={(e) => setSearch(e.target.value)} />
               </div>
               <Select value={sport} onValueChange={setSport}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Visos sporto šakos"/></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72">
                   <SelectItem value="all">Visos sporto šakos</SelectItem>
                   {SPORTS.map(s => <SelectItem key={s} value={s}>{SPORT_LABELS[s]}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Select value={city} onValueChange={setCity}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Visi miestai"/></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value="all">Visi miestai</SelectItem>
+                  {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <div className="flex gap-2">
-                <Select value={city} onValueChange={setCity}>
-                  <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Visi miestai"/></SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    <SelectItem value="all">Visi miestai</SelectItem>
-                    {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                <Select value={matchTypeFilter} onValueChange={(v) => setMatchTypeFilter(v as any)}>
+                  <SelectTrigger className="h-9 text-sm flex-1"><SelectValue placeholder="Tipas"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Visi tipai</SelectItem>
+                    <SelectItem value="casual">Laisvi</SelectItem>
+                    <SelectItem value="rated">Reitinginiai</SelectItem>
                   </SelectContent>
                 </Select>
                 {activeFilters > 0 && (
@@ -348,6 +403,22 @@ export default function GamesPage() {
               </div>
             </div>
           </div>
+
+          {/* Stats strip */}
+          {(games?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#C5E041]"/>
+                {filtered.length} žaidim{filtered.length === 1 ? "as" : "ų"}
+              </span>
+              {games?.filter(g => g.matchType === "rated").length ? (
+                <span className="flex items-center gap-1.5">
+                  <Swords className="w-3.5 h-3.5 text-purple-400"/>
+                  {games.filter(g => g.matchType === "rated").length} reitinginių
+                </span>
+              ) : null}
+            </div>
+          )}
 
           {/* Grid */}
           {isLoading ? (
@@ -360,7 +431,10 @@ export default function GamesPage() {
               <h3 className="font-semibold text-lg">Kol kas nėra atvirų žaidimų</h3>
               <p className="text-sm text-muted-foreground mt-1 mb-5">Būkite pirmas — sukurkite žaidimą ir kvieskite partnerius!</p>
               <Show when="signed-in">
-                <Button onClick={() => setCreateOpen(true)}><Plus className="w-4 h-4 mr-2"/>Sukurti žaidimą</Button>
+                <Button onClick={() => setCreateOpen(true)}
+                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
+                  <Plus className="w-4 h-4 mr-2"/>Sukurti žaidimą
+                </Button>
               </Show>
             </div>
           ) : (

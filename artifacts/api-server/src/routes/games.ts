@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
-import { db, gamesTable, gameParticipantsTable } from "@workspace/db";
+import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
+import { calculateTeamElo } from "../lib/elo";
+import { sendMatchInviteEmail } from "../lib/email";
 import crypto from "node:crypto";
 
 const router: IRouter = Router();
@@ -94,6 +96,7 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
   const {
     creatorName, creatorEmail, sport, city, placeName, facilityId, courtId,
     playersNeeded, skillLevel, datetime, durationMinutes, description, isPrivate,
+    matchType,
   } = req.body ?? {};
 
   if (!creatorName || !sport || !city || !datetime) {
@@ -119,6 +122,7 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
     isPrivate: !!isPrivate,
     inviteToken,
     status: "open",
+    matchType: matchType === "rated" ? "rated" : "casual",
   }).returning();
 
   // Creator auto-joins
@@ -300,6 +304,220 @@ router.get("/my-games", requireAuth, async (req, res): Promise<void> => {
   const countMap = new Map(counts.map(c => [c.gameId, Number(c.count)]));
 
   res.json(mine.map(g => formatGame(g, countMap.get(g.id) ?? 0, true)));
+});
+
+// Helper: get or create user rating for a sport
+async function getOrCreateRating(userId: string, sportSlug: string): Promise<{ elo: number }> {
+  const [existing] = await db
+    .select()
+    .from(userRatingsTable)
+    .where(and(eq(userRatingsTable.userId, userId), eq(userRatingsTable.sportSlug, sportSlug)));
+  if (existing) return existing;
+  const [row] = await db.insert(userRatingsTable).values({ userId, sportSlug }).returning();
+  return row;
+}
+
+// POST /games/:id/result — creator reports final score
+router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the game creator can report results" }); return; }
+  if (g.status !== "open" && g.status !== "full") { res.status(400).json({ error: "Game is not in a reportable state" }); return; }
+
+  const { scoreTeamA, scoreTeamB } = req.body ?? {};
+  if (scoreTeamA === undefined || scoreTeamB === undefined) {
+    res.status(400).json({ error: "scoreTeamA and scoreTeamB required" }); return;
+  }
+
+  // Check no result yet
+  const [existing] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
+  if (existing) { res.status(400).json({ error: "Result already reported" }); return; }
+
+  // 24h auto-confirm window
+  const autoConfirmAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const [result] = await db.insert(gameResultsTable).values({
+    gameId: id,
+    reportedByUserId: userId,
+    scoreTeamA: Number(scoreTeamA),
+    scoreTeamB: Number(scoreTeamB),
+    status: "pending_verification",
+    autoConfirmAt,
+  }).returning();
+
+  // Update game status
+  await db.update(gamesTable).set({ status: "pending_verification" }).where(eq(gamesTable.id, id));
+
+  // Notify all participants (except creator) to confirm
+  const participants = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+
+  for (const p of participants) {
+    if (p.userId !== userId) {
+      await sendNotification(
+        p.userId,
+        "result_confirmation",
+        "Patvirtinkite žaidimo rezultatą",
+        `${g.creatorName} paskelbė žaidimo rezultatą: ${scoreTeamA}:${scoreTeamB}. Patvirtinkite per 24h.`,
+        `/games/${id}`,
+      );
+    }
+  }
+
+  res.status(201).json({ ...result, autoConfirmAt: result.autoConfirmAt?.toISOString() });
+});
+
+// POST /games/:id/verify — participant confirms or disputes result
+router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+
+  const [result] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
+  if (!result) { res.status(404).json({ error: "No result reported for this game" }); return; }
+  if (result.status !== "pending_verification") { res.status(400).json({ error: "Result is not pending verification" }); return; }
+
+  // Verify the caller is a participant
+  const [participation] = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "joined")));
+  if (!participation) { res.status(403).json({ error: "You are not a participant in this game" }); return; }
+
+  const { action } = req.body ?? {}; // "confirm" | "dispute"
+  if (action !== "confirm" && action !== "dispute") {
+    res.status(400).json({ error: "action must be 'confirm' or 'dispute'" }); return;
+  }
+
+  if (action === "dispute") {
+    await db.update(gameResultsTable).set({ status: "disputed" }).where(eq(gameResultsTable.id, result.id));
+    await db.update(gamesTable).set({ status: "disputed" }).where(eq(gamesTable.id, id));
+    await sendNotification(
+      g.creatorUserId,
+      "result_disputed",
+      "Žaidimo rezultatas ginčijamas",
+      `${participation.userName} nesutinka su žaidimo rezultatu ${result.scoreTeamA}:${result.scoreTeamB}.`,
+      `/games/${id}`,
+    );
+    res.json({ status: "disputed" }); return;
+  }
+
+  // Confirm — apply ELO changes if rated
+  await db.update(gameResultsTable).set({ status: "confirmed" }).where(eq(gameResultsTable.id, result.id));
+  await db.update(gamesTable).set({ status: "completed" }).where(eq(gamesTable.id, id));
+
+  if (g.matchType === "rated") {
+    const participants = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+
+    const teamAPlayers = participants.filter(p => p.team === "A");
+    const teamBPlayers = participants.filter(p => p.team === "B");
+    const unassigned = participants.filter(p => !p.team);
+
+    // If teams not assigned, split evenly by join order
+    const effectiveTeamA = teamAPlayers.length ? teamAPlayers : unassigned.slice(0, Math.ceil(unassigned.length / 2));
+    const effectiveTeamB = teamBPlayers.length ? teamBPlayers : unassigned.slice(Math.ceil(unassigned.length / 2));
+
+    const teamAWithElo = await Promise.all(effectiveTeamA.map(async p => ({
+      userId: p.userId,
+      elo: (await getOrCreateRating(p.userId, g.sport)).elo,
+    })));
+    const teamBWithElo = await Promise.all(effectiveTeamB.map(async p => ({
+      userId: p.userId,
+      elo: (await getOrCreateRating(p.userId, g.sport)).elo,
+    })));
+
+    const winner: "A" | "B" | "draw" =
+      result.scoreTeamA > result.scoreTeamB ? "A" :
+      result.scoreTeamB > result.scoreTeamA ? "B" : "draw";
+
+    const changes = calculateTeamElo(teamAWithElo, teamBWithElo, winner);
+
+    const isDraw = winner === "draw";
+
+    for (const change of changes) {
+      const isOnTeamA = !!teamAWithElo.find(p => p.userId === change.userId);
+      const isWinner = isDraw ? false : (isOnTeamA ? winner === "A" : winner === "B");
+
+      const winsAdd = isDraw ? 0 : (isWinner ? 1 : 0);
+      const lossesAdd = isDraw ? 0 : (!isWinner ? 1 : 0);
+      const drawsAdd = isDraw ? 1 : 0;
+
+      await db.update(userRatingsTable)
+        .set({
+          elo: change.newElo,
+          wins: sql`${userRatingsTable.wins} + ${winsAdd}`,
+          losses: sql`${userRatingsTable.losses} + ${lossesAdd}`,
+          draws: sql`${userRatingsTable.draws} + ${drawsAdd}`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(userRatingsTable.userId, change.userId), eq(userRatingsTable.sportSlug, g.sport)));
+
+      // Notify player of ELO change
+      const sign = change.delta > 0 ? "+" : "";
+      await sendNotification(
+        change.userId,
+        "elo_update",
+        `ELO pasikeitė: ${sign}${change.delta}`,
+        `Žaidimas (${g.sport}) baigtas. Jūsų reitingas: ${change.oldElo} → ${change.newElo} (${sign}${change.delta}).`,
+        `/games/${id}`,
+      );
+    }
+  }
+
+  res.json({ status: "confirmed" });
+});
+
+// POST /games/:id/invite — invite player by email
+router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the creator can invite players" }); return; }
+
+  const { email, name, team } = req.body ?? {};
+  if (!email) { res.status(400).json({ error: "email required" }); return; }
+
+  // Check if invite already sent
+  const [existing] = await db.select().from(matchInvitesTable)
+    .where(and(eq(matchInvitesTable.gameId, id), eq(matchInvitesTable.email, email)));
+  if (existing) { res.status(400).json({ error: "Invite already sent to this email" }); return; }
+
+  const inviteToken = crypto.randomBytes(16).toString("hex");
+  const [invite] = await db.insert(matchInvitesTable).values({
+    gameId: id,
+    email,
+    name: name ?? null,
+    team: team ?? null,
+    inviteToken,
+    status: "pending",
+  }).returning();
+
+  // Send invitation email
+  const joinLink = g.isPrivate
+    ? `${process.env.SITE_URL || "https://korts.lt"}/games/${id}?token=${g.inviteToken}`
+    : `${process.env.SITE_URL || "https://korts.lt"}/games/${id}`;
+
+  await sendMatchInviteEmail(email, name ?? email, g.creatorName, g.sport, new Date(g.datetime), joinLink);
+
+  res.status(201).json({ ...invite, createdAt: invite.createdAt.toISOString() });
+});
+
+// GET /games/:id/result — get reported result
+router.get("/games/:id/result", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [result] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
+  if (!result) { res.status(404).json({ error: "No result found" }); return; }
+  res.json({
+    ...result,
+    autoConfirmAt: result.autoConfirmAt?.toISOString(),
+    createdAt: result.createdAt.toISOString(),
+  });
 });
 
 export default router;

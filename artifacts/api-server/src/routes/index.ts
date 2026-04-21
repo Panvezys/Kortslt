@@ -23,6 +23,8 @@ import ownerOnboardRouter from "./owner-onboard";
 import sitemapRouter from "./sitemap";
 import userProfilesRouter from "./user-profiles";
 import notificationSettingsRouter from "./notification-settings";
+import sportsRouter from "./sports";
+import ratingsRouter from "./ratings";
 
 const router: IRouter = Router();
 
@@ -50,5 +52,7 @@ router.use(ownerOnboardRouter);
 router.use(sitemapRouter);
 router.use(userProfilesRouter);
 router.use(notificationSettingsRouter);
+router.use(sportsRouter);
+router.use(ratingsRouter);
 
 export default router;

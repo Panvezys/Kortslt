@@ -9,44 +9,267 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { SportIcon } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { openChat } from "@/components/chat-bubble";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
-  MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock,
+  MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-const SPORT_LABELS: Record<string, string> = {
+export const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
   football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+  "table-tennis": "Stalo tenisas", table_tennis: "Stalo tenisas",
+  golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+  volleyball: "Tinklinis", hockey: "Ledo ritulys", futsal: "Futsalas",
+  floorball: "Florbolai", "beach-volleyball": "Paplūdimio tinklinis",
+  pickleball: "Pikliboulas",
 };
 const SKILL_LABELS: Record<string, string> = {
   any: "Bet koks", beginner: "Pradedantysis", intermediate: "Vidutinis", advanced: "Pažengęs",
 };
 
 interface Participant {
-  id: number; gameId: number; userId: string; userName: string; userEmail: string | null; status: string; joinedAt: string;
+  id: number; gameId: number; userId: string; userName: string;
+  userEmail: string | null; team: string | null; status: string; joinedAt: string;
 }
 interface GameDetail {
   id: number; creatorUserId: string; creatorName: string; creatorEmail: string | null;
   sport: string; city: string; placeName: string | null;
   courtId: number | null; facilityId: number | null;
   playersNeeded: number; skillLevel: string; datetime: string; durationMinutes: number;
-  description: string | null; status: string; isPrivate: boolean; inviteToken: string | null;
-  joinedCount: number; slotsLeft: number; isJoined: boolean;
+  description: string | null; status: string; matchType: string; isPrivate: boolean;
+  inviteToken: string | null; joinedCount: number; slotsLeft: number; isJoined: boolean;
   participants: Participant[];
 }
+interface GameResult {
+  id: number; gameId: number; reportedByUserId: string;
+  scoreTeamA: number; scoreTeamB: number; status: string; autoConfirmAt: string | null;
+}
+interface UserRating { sportSlug: string; elo: number; wins: number; losses: number; draws: number; tier: { name: string; color: string } }
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function EloBadge({ elo, tier }: { elo: number; tier: { name: string; color: string } }) {
+  const tierBg: Record<string, string> = {
+    Diamond: "bg-cyan-500/15 text-cyan-400 border-cyan-400/30",
+    Gold: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30",
+    Silver: "bg-slate-400/15 text-slate-400 border-slate-300/30",
+    Bronze: "bg-orange-700/15 text-orange-600 border-orange-500/30",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${tierBg[tier.name] ?? "bg-muted text-muted-foreground border-border"}`}>
+      <Shield className="w-3 h-3" />{elo} {tier.name}
+    </span>
+  );
+}
+
+function ReportResultDialog({ gameId, isCreator, result, sport }: {
+  gameId: number; isCreator: boolean; result?: GameResult; sport: string;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [scoreA, setScoreA] = useState("0");
+  const [scoreB, setScoreB] = useState("0");
+
+  const report = useMutation({
+    mutationFn: () => customFetch(`${API}/games/${gameId}/result`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scoreTeamA: Number(scoreA), scoreTeamB: Number(scoreB) }),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["game", gameId] });
+      qc.invalidateQueries({ queryKey: ["game-result", gameId] });
+      toast({ title: "Rezultatas paskelbtas!", description: "Dalyviai gali patvirtinti per 24h." });
+      setOpen(false);
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  if (result) {
+    const statusMap: Record<string, { label: string; cls: string }> = {
+      pending_verification: { label: "Laukiama patvirtinimo", cls: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30" },
+      confirmed: { label: "Patvirtinta", cls: "bg-green-500/15 text-green-500 border-green-400/30" },
+      disputed: { label: "Ginčijama", cls: "bg-red-500/15 text-red-500 border-red-400/30" },
+    };
+    const s = statusMap[result.status] ?? { label: result.status, cls: "" };
+    return (
+      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-5 h-5 text-primary" />
+          <h2 className="font-bold text-lg">Rezultatas</h2>
+          <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold border ${s.cls}`}>{s.label}</span>
+        </div>
+        <div className="flex items-center justify-center gap-6 py-4 bg-muted/30 rounded-xl">
+          <div className="text-center">
+            <div className="text-xs text-muted-foreground mb-1">Komanda A</div>
+            <div className="text-4xl font-black text-primary">{result.scoreTeamA}</div>
+          </div>
+          <div className="text-2xl font-bold text-muted-foreground">:</div>
+          <div className="text-center">
+            <div className="text-xs text-muted-foreground mb-1">Komanda B</div>
+            <div className="text-4xl font-black text-primary">{result.scoreTeamB}</div>
+          </div>
+        </div>
+        {result.autoConfirmAt && result.status === "pending_verification" && (
+          <p className="text-xs text-muted-foreground text-center">
+            Auto-patvirtinimas: {new Date(result.autoConfirmAt).toLocaleString("lt-LT")}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (!isCreator) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
+          <Trophy className="w-4 h-4" />Paskelbti rezultatą
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Paskelbti žaidimo rezultatą</DialogTitle>
+          <DialogDescription>Dalyviai gaus pranešimą ir turės 24h patvirtinti.</DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center gap-4 py-4">
+          <div className="flex-1">
+            <Label className="text-sm font-semibold mb-2 block text-center">Komanda A</Label>
+            <Input type="number" min={0} value={scoreA}
+              onChange={e => setScoreA(e.target.value)}
+              className="text-center text-2xl font-bold h-14" />
+          </div>
+          <div className="text-2xl font-bold text-muted-foreground mt-6">:</div>
+          <div className="flex-1">
+            <Label className="text-sm font-semibold mb-2 block text-center">Komanda B</Label>
+            <Input type="number" min={0} value={scoreB}
+              onChange={e => setScoreB(e.target.value)}
+              className="text-center text-2xl font-bold h-14" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Atšaukti</Button>
+          <Button onClick={() => report.mutate()} disabled={report.isPending}>
+            {report.isPending ? "Skelbiama..." : "Paskelbti"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VerifyResultSection({ gameId, result, isParticipant }: {
+  gameId: number; result: GameResult; isParticipant: boolean;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const verify = useMutation({
+    mutationFn: (action: "confirm" | "dispute") => customFetch(`${API}/games/${gameId}/verify`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }),
+    onSuccess: (_, action) => {
+      qc.invalidateQueries({ queryKey: ["game", gameId] });
+      qc.invalidateQueries({ queryKey: ["game-result", gameId] });
+      toast({
+        title: action === "confirm" ? "Rezultatas patvirtintas!" : "Rezultatas ginčijamas",
+        description: action === "confirm" ? "ELO reitingai atnaujinti." : "Organizatorius gavo pranešimą.",
+      });
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  if (!isParticipant || result.status !== "pending_verification") return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-3">
+      <Button
+        size="sm"
+        className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+        onClick={() => verify.mutate("confirm")}
+        disabled={verify.isPending}
+      >
+        <CheckCircle2 className="w-4 h-4" />Patvirtinti rezultatą
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-red-500/40 text-red-500 hover:bg-red-500/10 gap-1.5"
+        onClick={() => verify.mutate("dispute")}
+        disabled={verify.isPending}
+      >
+        <XCircle className="w-4 h-4" />Ginčyti
+      </Button>
+    </div>
+  );
+}
+
+function InviteSection({ gameId }: { gameId: number }) {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const invite = useMutation({
+    mutationFn: () => customFetch(`${API}/games/${gameId}/invite`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name: name || undefined }),
+    }),
+    onSuccess: () => {
+      toast({ title: "Kvietimas išsiųstas!", description: `El. laiškas išsiųstas ${email}` });
+      setEmail(""); setName(""); setOpen(false);
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <Mail className="w-4 h-4" />Pakviesti el. paštu
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Pakviesti žaidėją</DialogTitle>
+          <DialogDescription>Išsiųsime kvietimą el. paštu su nuoroda prisijungti.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div>
+            <Label>El. paštas *</Label>
+            <Input className="mt-1" type="email" placeholder="draugas@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <Label>Vardas (neprivaloma)</Label>
+            <Input className="mt-1" placeholder="Jonas" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Atšaukti</Button>
+          <Button onClick={() => invite.mutate()} disabled={invite.isPending || !email}>
+            <Send className="w-4 h-4 mr-1.5" />
+            {invite.isPending ? "Siunčiama..." : "Siųsti kvietimą"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function GameDetailPage() {
@@ -64,11 +287,25 @@ export default function GameDetailPage() {
     enabled: !isNaN(id),
   });
 
+  const { data: result } = useQuery<GameResult>({
+    queryKey: ["game-result", id],
+    queryFn: () => customFetch<GameResult>(`${API}/games/${id}/result`).catch(() => null as any),
+    enabled: !isNaN(id) && !!data && (data.status === "pending_verification" || data.status === "completed" || data.status === "disputed"),
+    staleTime: 30_000,
+  });
+
   const participantIds = data?.participants.map(p => p.userId) ?? [];
   const { data: avatarMap } = useQuery<Record<string, string | null>>({
     queryKey: ["participant-avatars", participantIds.join(",")],
     queryFn: () => customFetch<Record<string, string | null>>(`${API}/user-profiles/batch?ids=${participantIds.join(",")}`),
     enabled: participantIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  const { data: creatorRatings } = useQuery<UserRating[]>({
+    queryKey: ["user-ratings", data?.creatorUserId],
+    queryFn: () => customFetch<UserRating[]>(`${API}/user-ratings/${data!.creatorUserId}`),
+    enabled: !!data?.creatorUserId,
     staleTime: 60_000,
   });
 
@@ -134,6 +371,7 @@ export default function GameDetailPage() {
   }
 
   const isCreator = user?.id === data.creatorUserId;
+  const isParticipant = data.isJoined && !isCreator;
   const shareUrl = data.isPrivate && data.inviteToken
     ? `${window.location.origin}${BASE}/games/${data.id}?token=${data.inviteToken}`
     : `${window.location.origin}${BASE}/games/${data.id}`;
@@ -145,6 +383,17 @@ export default function GameDetailPage() {
 
   const full = data.slotsLeft === 0;
   const isPast = new Date(data.datetime) < new Date();
+  const isRated = data.matchType === "rated";
+
+  const creatorSportRating = creatorRatings?.find(r => r.sportSlug === data.sport);
+
+  const statusBadge = () => {
+    if (data.status === "completed") return <Badge className="bg-green-500/15 text-green-500 border-green-400/30"><CheckCircle2 className="w-3 h-3 mr-1"/>Baigtas</Badge>;
+    if (data.status === "pending_verification") return <Badge className="bg-yellow-500/15 text-yellow-500 border-yellow-400/30">Laukiama patvirtinimo</Badge>;
+    if (data.status === "disputed") return <Badge className="bg-red-500/15 text-red-500 border-red-400/30">Ginčijamas</Badge>;
+    if (full) return <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">Užpildytas</Badge>;
+    return null;
+  };
 
   return (
     <Layout>
@@ -155,22 +404,44 @@ export default function GameDetailPage() {
 
         {/* Hero card */}
         <div className="rounded-3xl border border-border bg-card overflow-hidden mb-6">
-          <div className="bg-gradient-to-br from-primary/25 via-primary/10 to-background p-6 sm:p-8">
+          <div
+            className="p-6 sm:p-8"
+            style={{ background: "linear-gradient(135deg, #132D4C 0%, #1a3d66 70%, #0f2240 100%)" }}
+          >
             <div className="flex flex-wrap items-start gap-4 sm:gap-6">
-              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center shrink-0">
-                <SportIcon sport={data.sport} className="w-8 h-8 text-primary" />
+              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shrink-0">
+                <SportIcon sport={data.sport} className="w-8 h-8 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <Badge className="bg-primary/15 text-primary border-primary/30">{SPORT_LABELS[data.sport]}</Badge>
-                  <Badge variant="outline">{SKILL_LABELS[data.skillLevel]}</Badge>
-                  {data.isPrivate && <Badge variant="outline" className="border-purple-500/40 text-purple-400"><Lock className="w-3 h-3 mr-1"/>Privatus</Badge>}
-                  {full && <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">Užpildytas</Badge>}
+                  <Badge className="bg-[#C5E041]/20 text-[#C5E041] border-[#C5E041]/40">
+                    {SPORT_LABELS[data.sport] ?? data.sport}
+                  </Badge>
+                  <Badge variant="outline" className="border-white/30 text-white/80">{SKILL_LABELS[data.skillLevel]}</Badge>
+                  {isRated ? (
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/30">
+                      <Swords className="w-3 h-3 mr-1"/>Reitinginis
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-white/20 text-white/60">Laisvas</Badge>
+                  )}
+                  {data.isPrivate && <Badge variant="outline" className="border-white/30 text-white/80"><Lock className="w-3 h-3 mr-1"/>Privatus</Badge>}
+                  {statusBadge()}
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  {data.creatorName} · ieško {data.playersNeeded - 1} partner{data.playersNeeded === 2 ? "io" : "ių"}
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  {data.creatorName} · {data.playersNeeded} žaidėjams
                 </h1>
-                {data.description && <p className="text-muted-foreground mt-2">{data.description}</p>}
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                  {creatorSportRating && (
+                    <EloBadge elo={creatorSportRating.elo} tier={creatorSportRating.tier} />
+                  )}
+                  <span className="text-white/60 text-sm">
+                    {creatorSportRating
+                      ? `${creatorSportRating.wins}V ${creatorSportRating.losses}P ${creatorSportRating.draws}L`
+                      : ""}
+                  </span>
+                </div>
+                {data.description && <p className="text-white/70 mt-2 text-sm">{data.description}</p>}
               </div>
             </div>
           </div>
@@ -206,27 +477,33 @@ export default function GameDetailPage() {
           <div className="p-4 sm:p-6 flex flex-wrap items-center gap-2 sm:gap-3">
             <Show when="signed-in">
               {isCreator ? (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4 mr-1.5"/>Panaikinti žaidimą</Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Panaikinti žaidimą?</AlertDialogTitle>
-                      <AlertDialogDescription>Visi dalyviai bus pašalinti. Šio veiksmo atšaukti negalima.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Atšaukti</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => del.mutate()}>Panaikinti</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4 mr-1.5"/>Panaikinti žaidimą</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Panaikinti žaidimą?</AlertDialogTitle>
+                        <AlertDialogDescription>Visi dalyviai bus pašalinti. Šio veiksmo atšaukti negalima.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Atšaukti</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => del.mutate()}>Panaikinti</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+
+                  {isPast && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
+                  <InviteSection gameId={id} />
+                </>
               ) : data.isJoined ? (
                 <Button variant="outline" size="sm" onClick={() => leave.mutate()} disabled={leave.isPending}>
                   <UserMinus className="w-4 h-4 mr-1.5"/>Palikti žaidimą
                 </Button>
               ) : (
-                <Button size="lg" onClick={() => join.mutate()} disabled={join.isPending || full || isPast}>
+                <Button size="lg" onClick={() => join.mutate()} disabled={join.isPending || full || isPast}
+                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
                   <UserPlus className="w-4 h-4 mr-2"/>
                   {full ? "Užpildyta" : isPast ? "Pasibaigė" : "Prisijungti prie žaidimo"}
                 </Button>
@@ -247,7 +524,9 @@ export default function GameDetailPage() {
               )}
             </Show>
             <Show when="signed-out">
-              <Button asChild><Link href="/sign-in">Prisijungti, kad dalyvautum</Link></Button>
+              <Button asChild className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
+                <Link href="/sign-in">Prisijungti, kad dalyvautum</Link>
+              </Button>
             </Show>
 
             <div className="sm:ml-auto flex items-center gap-2">
@@ -257,6 +536,46 @@ export default function GameDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Result section if exists */}
+        {result && (
+          <div className="mb-6">
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                <h2 className="font-bold text-lg">Rezultatas</h2>
+                {(() => {
+                  const statusMap: Record<string, { label: string; cls: string }> = {
+                    pending_verification: { label: "Laukiama patvirtinimo", cls: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30" },
+                    confirmed: { label: "Patvirtinta", cls: "bg-green-500/15 text-green-500 border-green-400/30" },
+                    disputed: { label: "Ginčijama", cls: "bg-red-500/15 text-red-500 border-red-400/30" },
+                  };
+                  const s = statusMap[result.status] ?? { label: result.status, cls: "" };
+                  return <span className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold border ${s.cls}`}>{s.label}</span>;
+                })()}
+              </div>
+              <div className="flex items-center justify-center gap-6 py-4 bg-muted/30 rounded-xl">
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Komanda A</div>
+                  <div className="text-4xl font-black text-primary">{result.scoreTeamA}</div>
+                </div>
+                <div className="text-2xl font-bold text-muted-foreground">:</div>
+                <div className="text-center">
+                  <div className="text-xs text-muted-foreground mb-1">Komanda B</div>
+                  <div className="text-4xl font-black text-primary">{result.scoreTeamB}</div>
+                </div>
+              </div>
+              {result.autoConfirmAt && result.status === "pending_verification" && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Auto-patvirtinimas: {new Date(result.autoConfirmAt).toLocaleString("lt-LT")}
+                </p>
+              )}
+              {user && isParticipant && (
+                <VerifyResultSection gameId={id} result={result} isParticipant={isParticipant} />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Share card */}
         <div className="rounded-2xl border border-border bg-card p-5 mb-6">
@@ -300,8 +619,13 @@ export default function GameDetailPage() {
                       {p.userName}
                       {p.userId === data.creatorUserId && <Crown className="w-3.5 h-3.5 text-primary" />}
                     </button>
-                    <div className="text-xs text-muted-foreground">
-                      Prisijungė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span>Prisijungė {new Date(p.joinedAt).toLocaleDateString("lt-LT")}</span>
+                      {p.team && (
+                        <span className={`px-1.5 py-0 rounded text-xs font-bold ${p.team === "A" ? "bg-blue-500/15 text-blue-500" : "bg-red-500/15 text-red-500"}`}>
+                          Komanda {p.team}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {user?.id && user.id !== p.userId && (

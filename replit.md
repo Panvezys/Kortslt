@@ -47,6 +47,13 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
     - **Sports Activity & User Profiles**: Two new DB tables (`user_profiles`, `user_sport_profiles`). Each user can add sport profiles with level (beginner/intermediate/advanced/pro), toggle visibility (activityPublic), and stats (gamesPlayed, hoursPlayed) are auto-computed from game_participants + games tables. Image URL is synced from Clerk on profile page load so real avatars appear everywhere.
     - **UserProfileCard component**: Reusable modal that shows when clicking any avatar in messaging (chat bubble, messages page) or game participants — displays sport profiles, levels, stats, and "Rašyti žinutę" button.
     - **Real avatars everywhere**: DM thread list, chat bubble, messages page, and game detail participants all show real Clerk profile pictures. The `/api/dm/threads` endpoint now returns `otherUserImageUrl`. A batch endpoint `/api/user-profiles/batch` allows fetching multiple user avatars at once.
+    - **Competitive Ecosystem (ELO System)**: Four new DB tables: `sportsTable` (15 pre-seeded Lithuanian sports), `userRatingsTable` (per-user/per-sport ELO starting at 1200 with W/L/D tracking), `gameResultsTable` (score reporting + 24h auto-confirm verification), `matchInvitesTable` (email invitation tracking). `gamesTable` has `matchType` (rated/casual), `gameParticipantsTable` has `team` (A/B). ELO uses K=32, team games use average ELO split.
+    - **ELO Tiers**: Bronze (0–1199), Silver (1200–1399), Gold (1400–1599), Diamond (1600+). Displayed on game cards and in Skill Cards.
+    - **Game Result Reporting**: Creator reports final score via `POST /games/:id/result`. Participants get notified and can confirm or dispute via `POST /games/:id/verify`. On confirmation, if `matchType=rated`, ELO ratings update. Auto-confirm timestamp is 24h after reporting.
+    - **Skill Card component**: `skill-card.tsx` shows per-sport ELO with tier badges, win/loss/draw stats, and an ELO progress bar. Displayed prominently at the top of the "Sporto veikla" tab on the profile page.
+    - **Match Type on Games**: Games can be created as "Laisvas" (casual, no ELO change) or "Reitinginis" (rated, ELO updates on result confirmation). Displayed via badge on all game cards.
+    - **Email Invitations**: `POST /games/:id/invite` sends a styled HTML email via Resend with a join link. Non-registered users receive `sendMatchInviteEmail`. Invites tracked in `matchInvitesTable`.
+    - **Sports auto-seed**: `/api/sports` auto-seeds the sportsTable on first call if empty. 15 Lithuanian sports pre-defined.
 
 ## External Dependencies
 

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link, useSearch, useLocation } from "wouter";
 import { useT } from "@/lib/i18n";
 import { SportIcon } from "@/components/sport-icon";
+import { SkillCard } from "@/components/skill-card";
 import { useRole } from "@/lib/useRole";
 import {
   CalendarDays,
@@ -316,6 +317,9 @@ function SportsActivity({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* ELO Skill Card */}
+      <SkillCard userId={userId} />
+
       {/* Visibility toggle */}
       <div className="bg-card border rounded-xl shadow-sm p-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">

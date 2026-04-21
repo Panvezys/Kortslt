@@ -1,0 +1,56 @@
+Act as a Senior Full-Stack Developer. We are transforming Korts.lt into a competitive social sports marketplace. Implement the following 'Competitive Ecosystem' features using our brand colors (Navy: #132D4C, Cyan Green: #C5E041).
+
+1. Data & Multi-Sport Architecture:
+
+Update the database to support dynamic sports. Each sport should have a name and icon (e.g., Padel, Pickleball, Volleyball, etc.).
+
+Add a user_ratings table to store a separate ELO score per sport for each user (default: 1200).
+
+Update the bookings and games tables to include a match_type (Rated vs. Casual) and a status (Scheduled, Pending_Verification, Completed, Disputed).
+
+Create a match_participants table to track users and email-invited guests.
+
+2. Social Booking & Invitations:
+
+On the Court Booking page, add an 'Add Participants' section.
+
+Users can search for existing Korts.lt players by username OR enter an email address for non-users.
+
+If an email is entered for a non-user, trigger an automated 'Invitation Email' that invites them to join the platform to track their stats and participate in the game.
+
+In the 'Find a Game' section, display the ELO/Skill Level of the creator and current participants.
+
+3. The ELO & Verification Logic:
+
+Implement a backend utility calculateElo(winnerAvg, loserAvg) using the standard Elo formula (K-factor: 32).
+
+Post-Game Workflow:
+
+The game creator/host reports the final score.
+
+Opponents receive a notification/dashboard alert to 'Confirm' or 'Dispute' the score.
+
+If 'Confirmed' (or auto-approved after 24h), calculate the ELO change.
+
+Update the scores for all participants (Team A vs. Team B average logic).
+
+If it was a 'Casual' game, record the history but skip the ELO update.
+
+4. UI/UX Enhancements:
+
+User Profiles: Display a 'Skill Card' showing ELO ratings for each sport the user has played, using a clean card-based layout.
+
+Games Hub: Create a 'Find a Partner' lobby where users can see available games, sport types, and the required skill tier (Bronze/Silver/Gold/Diamond).
+
+Styling: Use high-contrast headers in Navy, action buttons in Cyan Green, and 'Glassmorphism' cards for the game listings.
+
+Ensure the system is mobile-responsive and handles 3v3 and 5v5 team averages for basketball and other team sports correctly. Do not hardcode sport types; make them extensible."
+
+What this prompt achieves:
+Scalability: By telling the Agent "do not hardcode sports," the platform can easily add Padel, Pickleball, or even Chess later without new code.
+
+Viral Growth: The "Email Invite" feature turns every booking into a marketing tool, bringing new users to Korts.lt for free.
+
+Trust: The "Verify/Dispute" logic prevents people from cheating the ELO system.
+
+Social Proof: Displaying ELO in the "Find a Partner" section ensures players find matches that actually suit their skill level

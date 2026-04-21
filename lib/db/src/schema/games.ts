@@ -16,6 +16,7 @@ export const gamesTable = pgTable("games", {
   durationMinutes: integer("duration_minutes").notNull().default(60),
   description: text("description"),
   status: text("status").notNull().default("open"),
+  matchType: text("match_type").notNull().default("casual"),
   isPrivate: boolean("is_private").notNull().default(false),
   inviteToken: text("invite_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -27,6 +28,7 @@ export const gameParticipantsTable = pgTable("game_participants", {
   userId: text("user_id").notNull(),
   userName: text("user_name").notNull(),
   userEmail: text("user_email"),
+  team: text("team"),
   status: text("status").notNull().default("joined"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
