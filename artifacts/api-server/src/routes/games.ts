@@ -160,12 +160,30 @@ router.get("/games/:id", async (req, res): Promise<void> => {
     }
   }
 
+  const userId = getCurrentUserId(req);
+  const isCreator = userId === g.creatorUserId;
+
   const participants = await db.select().from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")))
     .orderBy(gameParticipantsTable.joinedAt);
 
-  const userId = getCurrentUserId(req);
   const isJoined = userId ? participants.some(p => p.userId === userId) : false;
+
+  // Check if current user has a pending join request
+  let isPending = false;
+  if (userId && !isJoined) {
+    const [myRow] = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "pending")));
+    isPending = !!myRow;
+  }
+
+  // For creator: fetch pending join requests
+  let pendingParticipants: typeof participants = [];
+  if (isCreator) {
+    pendingParticipants = await db.select().from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "pending")))
+      .orderBy(gameParticipantsTable.joinedAt);
+  }
 
   // Fetch ELO ratings for participants
   const participantRatings = await Promise.all(
@@ -177,7 +195,9 @@ router.get("/games/:id", async (req, res): Promise<void> => {
 
   res.json({
     ...formatGame(g, participants.length, isJoined),
+    isPending,
     participants: participants.map(p => ({ ...formatParticipant(p), elo: ratingMap.get(p.userId) ?? 1200 })),
+    pendingParticipants: pendingParticipants.map(p => formatParticipant(p)),
   });
 });
 
@@ -187,7 +207,7 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
   const {
     creatorName, creatorEmail, sport, city, placeName, facilityId, courtId,
     playersNeeded, skillLevel, datetime, durationMinutes, description, isPrivate,
-    matchType,
+    matchType, requiresApproval, teamCount,
   } = req.body ?? {};
 
   if (!creatorName || !sport || !city || !datetime) {
@@ -211,6 +231,8 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
     durationMinutes: durationMinutes ?? 60,
     description: description ?? null,
     isPrivate: !!isPrivate,
+    requiresApproval: !!requiresApproval,
+    teamCount: teamCount ? Math.max(2, Math.min(6, Number(teamCount))) : 2,
     inviteToken,
     status: "open",
     matchType: matchType === "rated" ? "rated" : "casual",
@@ -322,39 +344,167 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
     res.status(200).json({ ok: true, alreadyJoined: true }); return;
   }
 
+  // If user already has a pending request, don't duplicate
+  if (existing.length && existing[0].status === "pending") {
+    res.status(200).json({ ok: true, status: "pending" }); return;
+  }
+
   const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
   if (Number(countRow?.count ?? 0) >= g.playersNeeded) {
     res.status(400).json({ error: "Game is full" }); return;
   }
 
+  // --- Approval workflow ---
+  const isCreatorJoining = g.creatorUserId === userId;
+  const needsApproval = g.requiresApproval && !isCreatorJoining;
+
+  const newStatus = needsApproval ? "pending" : "joined";
+
   if (existing.length) {
-    await db.update(gameParticipantsTable).set({ status: "joined", userName, userEmail: userEmail ?? null })
+    await db.update(gameParticipantsTable).set({ status: newStatus, userName, userEmail: userEmail ?? null })
       .where(eq(gameParticipantsTable.id, existing[0].id));
   } else {
     await db.insert(gameParticipantsTable).values({
-      gameId: id, userId, userName, userEmail: userEmail ?? null, status: "joined",
+      gameId: id, userId, userName, userEmail: userEmail ?? null, status: newStatus,
     });
   }
 
-  // Auto-close if full
+  const sportLabel = g.sport.replace(/_/g, " ");
+  const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
+
+  if (needsApproval) {
+    // Notify creator about the join request
+    await sendNotification(
+      g.creatorUserId,
+      "game_join_request",
+      `${userName} nori prisijungti prie jūsų žaidimo`,
+      `${userName} prašo prisijungti prie ${sportLabel} žaidimo ${gameDate}. Peržiūrėkite prašymą.`,
+      `/games/${id}`,
+    );
+    res.json({ ok: true, status: "pending" }); return;
+  }
+
+  // Auto-close if full (only for direct joins)
   const [newCountRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
   if (Number(newCountRow?.count ?? 0) >= g.playersNeeded) {
     await db.update(gamesTable).set({ status: "full" }).where(eq(gamesTable.id, id));
   }
 
-  // Notify game creator if someone else joined
-  if (g.creatorUserId && g.creatorUserId !== userId) {
-    const sportLabel = g.sport.replace(/_/g, " ");
+  // Notify game creator if someone else joined directly
+  if (g.creatorUserId !== userId) {
     await sendNotification(
       g.creatorUserId,
       "game_join_request",
       `${userName} prisijungė prie jūsų žaidimo`,
-      `${userName} prisijungė prie ${sportLabel} žaidimo ${new Date(g.datetime).toLocaleDateString("lt-LT")}.`,
+      `${userName} prisijungė prie ${sportLabel} žaidimo ${gameDate}.`,
       `/games/${id}`,
     );
   }
+
+  res.json({ ok: true, status: "joined" });
+});
+
+// POST /games/:id/approve-join — creator approves or rejects a join request
+router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+  const { participantId, action } = req.body ?? {}; // action: "approve" | "reject"
+
+  if (!participantId || (action !== "approve" && action !== "reject")) {
+    res.status(400).json({ error: "participantId and action ('approve'|'reject') required" }); return;
+  }
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the creator can approve/reject requests" }); return; }
+
+  const [participant] = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.id, participantId), eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "pending")));
+  if (!participant) { res.status(404).json({ error: "Pending request not found" }); return; }
+
+  const sportLabel = g.sport.replace(/_/g, " ");
+  const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
+
+  if (action === "reject") {
+    await db.update(gameParticipantsTable).set({ status: "rejected" })
+      .where(eq(gameParticipantsTable.id, participantId));
+    // Notify applicant
+    await sendNotification(
+      participant.userId,
+      "game_join_rejected",
+      "Prašymas prisijungti atmestas",
+      `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo atmestas.`,
+      `/games/${id}`,
+    );
+    res.json({ ok: true, action: "rejected" }); return;
+  }
+
+  // Check game isn't full before approving
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+  if (Number(countRow?.count ?? 0) >= g.playersNeeded) {
+    res.status(400).json({ error: "Game is full — cannot approve more players" }); return;
+  }
+
+  await db.update(gameParticipantsTable).set({ status: "joined" })
+    .where(eq(gameParticipantsTable.id, participantId));
+
+  // Auto-close if now full
+  const [newCountRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+  if (Number(newCountRow?.count ?? 0) >= g.playersNeeded) {
+    await db.update(gamesTable).set({ status: "full" }).where(eq(gamesTable.id, id));
+  }
+
+  // Notify applicant of approval
+  await sendNotification(
+    participant.userId,
+    "game_join_approved",
+    "Prašymas prisijungti patvirtintas!",
+    `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo patvirtintas!`,
+    `/games/${id}`,
+  );
+
+  res.json({ ok: true, action: "approved" });
+});
+
+// DELETE /games/:id/remove-player — creator removes a joined player
+router.delete("/games/:id/remove-player", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+  const { targetUserId } = req.body ?? {};
+
+  if (!targetUserId) { res.status(400).json({ error: "targetUserId required" }); return; }
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the creator can remove players" }); return; }
+  if (targetUserId === userId) { res.status(400).json({ error: "Creator cannot remove themselves" }); return; }
+
+  const [participant] = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, targetUserId), eq(gameParticipantsTable.status, "joined")));
+  if (!participant) { res.status(404).json({ error: "Player not found in this game" }); return; }
+
+  await db.update(gameParticipantsTable).set({ status: "removed" })
+    .where(eq(gameParticipantsTable.id, participant.id));
+
+  // Re-open game if it was full
+  if (g.status === "full") {
+    await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, id));
+  }
+
+  // Notify the removed player
+  const sportLabel = g.sport.replace(/_/g, " ");
+  const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
+  await sendNotification(
+    targetUserId,
+    "game_removed",
+    "Buvote pašalinti iš žaidimo",
+    `Organizatorius pašalino jus iš ${sportLabel} žaidimo ${gameDate} (${g.city}).`,
+    `/games`,
+  );
 
   res.json({ ok: true });
 });

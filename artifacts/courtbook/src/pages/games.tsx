@@ -41,7 +41,8 @@ interface Game {
   id: number; creatorUserId: string; creatorName: string; sport: string; city: string;
   placeName: string | null; playersNeeded: number; skillLevel: string; datetime: string;
   durationMinutes: number; description: string | null; status: string; matchType: string;
-  isPrivate: boolean; joinedCount: number; slotsLeft: number; isJoined: boolean; createdAt: string;
+  isPrivate: boolean; requiresApproval: boolean; teamCount: number;
+  joinedCount: number; slotsLeft: number; isJoined: boolean; createdAt: string;
 }
 
 function formatDateTime(iso: string) {
@@ -139,6 +140,8 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     description: "",
     isPrivate: false,
     matchType: "casual" as "casual" | "rated",
+    requiresApproval: false,
+    teamCount: 2,
   });
 
   const create = useMutation({
@@ -160,6 +163,8 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           description: form.description || null,
           isPrivate: form.isPrivate,
           matchType: form.matchType,
+          requiresApproval: form.requiresApproval,
+          teamCount: form.teamCount,
         }),
       });
       return res;

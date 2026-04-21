@@ -18,6 +18,8 @@ export const gamesTable = pgTable("games", {
   status: text("status").notNull().default("open"),
   matchType: text("match_type").notNull().default("casual"),
   isPrivate: boolean("is_private").notNull().default(false),
+  requiresApproval: boolean("requires_approval").notNull().default(false),
+  teamCount: integer("team_count").notNull().default(2),
   inviteToken: text("invite_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
