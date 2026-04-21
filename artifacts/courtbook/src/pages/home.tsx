@@ -1064,9 +1064,9 @@ export default function Home() {
       )}
 
       {/* Popular Courts */}
-      <section className="py-12 md:py-24 bg-muted/30">
+      <section className="py-8 md:py-14 bg-muted/30">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold mb-8 md:mb-12 tracking-tight">{t("home.popular.title")}</h2>
+          <h2 className="text-2xl md:text-3xl font-bold mb-5 md:mb-8 tracking-tight">{t("home.popular.title")}</h2>
           <DragScrollRow>
             {popularLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
