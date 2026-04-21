@@ -80,14 +80,14 @@ function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-1 text-sm font-medium"
+      className="flex flex-col items-center gap-1 text-sm font-medium text-foreground dark:text-foreground"
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
         setLocation(href);
       }}
     >
-      <span className="flex items-center gap-1.5">
+      <span className="flex items-center gap-1.5 text-inherit">
         {icon}
         {children}
       </span>
