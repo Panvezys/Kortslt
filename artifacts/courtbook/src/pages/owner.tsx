@@ -1567,9 +1567,6 @@ export default function OwnerDashboard() {
   const [showNewFacilityInput, setShowNewFacilityInput] = useState(false);
   const [newFacilityName, setNewFacilityName] = useState("");
   const [localPricingMap, setLocalPricingMap] = useState<Map<string, number>>(new Map());
-  const [pricingDay, setPricingDay] = useState(1);
-  const [pricingEditKey, setPricingEditKey] = useState<string | null>(null);
-  const [pricingEditValue, setPricingEditValue] = useState("");
   const [workingHoursState, setWorkingHoursState] = useState<WorkingHoursMap>(defaultWorkingHours());
   const [amenityPhotos, setAmenityPhotos] = useState<Record<string, string>>({});
   const [uploadingAmenity, setUploadingAmenity] = useState<string | null>(null);
@@ -2149,81 +2146,6 @@ export default function OwnerDashboard() {
                                     {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
                                   </select>
                                 </>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Inline per-slot pricing grid */}
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <Euro className="w-4 h-4 text-primary" />
-                          <span className="font-semibold text-sm">Kainos pagal laiką</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground">Numatytoji: {((form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
-                      </div>
-
-                      {/* Day tabs */}
-                      <div className="flex gap-1 flex-wrap">
-                        {DAYS.map((day, i) => (
-                          <button key={i} type="button"
-                            onClick={() => setPricingDay(i)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                              pricingDay === i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
-                            }`}
-                          >{DAY_SHORT[i]}</button>
-                        ))}
-                        <button type="button" onClick={() => {
-                          setLocalPricingMap(prev => {
-                            const next = new Map(prev);
-                            TIME_SLOTS.forEach(s => next.delete(`${pricingDay}:${s}`));
-                            return next;
-                          });
-                        }} className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" /> Atstatyti dieną
-                        </button>
-                      </div>
-
-                      {/* Time slots */}
-                      <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto pr-1">
-                        {TIME_SLOTS.map(slot => {
-                          const key = `${pricingDay}:${slot}`;
-                          const defaultHalf = (form.watch("pricePerHour") || 20) / 2;
-                          const slotPrice = localPricingMap.has(key) ? localPricingMap.get(key)! : defaultHalf;
-                          const isOverridden = localPricingMap.has(key);
-                          const isEditing = pricingEditKey === key;
-                          return (
-                            <div key={slot} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs ${isOverridden ? "bg-primary/10 border border-primary/20" : "bg-muted/30"}`}>
-                              <span className="font-mono text-muted-foreground w-10">{slot}</span>
-                              {isEditing ? (
-                                <input
-                                  autoFocus
-                                  type="number"
-                                  className="w-14 text-xs border rounded px-1 py-0.5 bg-background text-center"
-                                  value={pricingEditValue}
-                                  min={0}
-                                  step={0.5}
-                                  onChange={e => setPricingEditValue(e.target.value)}
-                                  onBlur={() => {
-                                    const price = parseFloat(pricingEditValue);
-                                    if (!isNaN(price) && price >= 0) {
-                                      setLocalPricingMap(prev => { const m = new Map(prev); m.set(key, price); return m; });
-                                    }
-                                    setPricingEditKey(null);
-                                  }}
-                                  onKeyDown={e => {
-                                    if (e.key === "Enter") { e.currentTarget.blur(); }
-                                    if (e.key === "Escape") { setPricingEditKey(null); }
-                                  }}
-                                />
-                              ) : (
-                                <button type="button"
-                                  onClick={() => { setPricingEditKey(key); setPricingEditValue(slotPrice.toString()); }}
-                                  className={`font-medium tabular-nums w-14 text-right ${isOverridden ? "text-primary" : "text-foreground"}`}
-                                >{slotPrice.toFixed(2)}€</button>
                               )}
                             </div>
                           );

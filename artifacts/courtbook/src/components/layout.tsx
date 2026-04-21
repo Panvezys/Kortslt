@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Users, Settings } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Gamepad2, Settings } from "lucide-react";
 
 import { useState } from "react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
@@ -355,7 +355,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
               <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
               <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
-              <NavLink href="/games" icon={<Users className="w-3.5 h-3.5" />}>Partneriai</NavLink>
+              <NavLink href="/games" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Žaidimai</NavLink>
               <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
             </nav>
 
@@ -403,8 +403,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span>Turnyrai</span>
             </Link>
             <Link href="/games" className={mobileNavCls("/games")}>
-              <Users className="w-4 h-4" />
-              <span>Partneriai</span>
+              <Gamepad2 className="w-4 h-4" />
+              <span>Žaidimai</span>
             </Link>
           </nav>
         </header>

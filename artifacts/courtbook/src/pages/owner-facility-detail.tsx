@@ -1422,10 +1422,10 @@ export default function OwnerFacilityDetail() {
                         className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).instantBookingEnabled !== false ? "bg-primary" : "bg-muted-foreground/30"}`}
                         onClick={() => {
                           const next = !((court as any).instantBookingEnabled !== false);
-                          customFetch(`${API_URL}/courts/${court.id}`, {
-                            method: "PUT",
+                          customFetch(`${API_URL}/courts/${court.id}/instant-booking`, {
+                            method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ ...court, pricePerHour: Number(court.pricePerHour), instantBookingEnabled: next }),
+                            body: JSON.stringify({ enabled: next }),
                           }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
                             .catch(() => toast({ title: "Klaida atnaujinant", variant: "destructive" }));
                         }}
