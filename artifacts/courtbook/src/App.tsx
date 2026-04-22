@@ -55,9 +55,15 @@ const queryClient = new QueryClient();
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-// NOTE: in dev this env var will be empty, in prod it will be automatically set
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
-const clerkDomain = import.meta.env.NEXT_PUBLIC_CLERK_DOMAIN;
+const isProductionClerkKey = clerkPubKey?.startsWith("pk_live_");
+
+// Replit's dev integration sets VITE_CLERK_PROXY_URL automatically for development
+// instances. With a production key (pk_live_*) Clerk derives its own host from the
+// key, so we must NOT pass proxyUrl/domain — doing so makes the SDK try to fetch
+// its bundle from the FAPI host and fail.
+const clerkProxyUrl = isProductionClerkKey
+  ? undefined
+  : import.meta.env.VITE_CLERK_PROXY_URL;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -276,7 +282,6 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      domain={clerkDomain}
       localization={clerkLocales[locale]}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
