@@ -80,4 +80,3 @@ channel = "stable-25_05"
 [userenv.shared]
 ADMIN_USER_IDS = "user_3CJVOZeKfc34SewQ6qIigupXWtF,user_3CJUpflldvFEo545CBPnmN5yRmI"
 VITE_ADMIN_USER_IDS = "user_3CJVOZeKfc34SewQ6qIigupXWtF,user_3CJUpflldvFEo545CBPnmN5yRmI"
-VITE_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsua29ydHMubHQk"
