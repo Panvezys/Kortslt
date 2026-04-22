@@ -57,6 +57,7 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // NOTE: in dev this env var will be empty, in prod it will be automatically set
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
+const clerkDomain = import.meta.env.NEXT_PUBLIC_CLERK_DOMAIN;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -275,6 +276,7 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
+      domain={clerkDomain}
       localization={clerkLocales[locale]}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
