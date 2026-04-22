@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { SportIcon } from "@/components/sport-icon";
-import { MessageCircle, Gamepad2, Timer, EyeOff } from "lucide-react";
+import { MessageCircle, Gamepad2, Timer, EyeOff, TrendingUp } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -38,6 +38,7 @@ interface PublicProfile {
   imageUrl: string | null;
   sportProfiles: { sport: string; level: string }[];
   stats: { sport: string; gamesPlayed: number; hoursPlayed: number }[];
+  ratings?: { sport: string; elo: number; wins: number; losses: number; draws: number }[];
 }
 
 interface UserProfileCardProps {
@@ -59,6 +60,7 @@ export function UserProfileCard({ open, onClose, userId, userName, userImageUrl,
 
   const initials = userName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const avatarUrl = userImageUrl ?? data?.imageUrl ?? null;
+  const getRating = (sport: string) => data?.ratings?.find(r => r.sport === sport);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -103,6 +105,8 @@ export function UserProfileCard({ open, onClose, userId, userName, userImageUrl,
               <div className="space-y-2">
                 {data.sportProfiles.map(sp => {
                   const stats = data.stats.find(s => s.sport === sp.sport);
+                  const rating = getRating(sp.sport);
+                  const elo = rating?.elo ?? 1200;
                   return (
                     <div key={sp.sport} className="flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2.5">
                       <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center shrink-0">
@@ -114,6 +118,10 @@ export function UserProfileCard({ open, onClose, userId, userName, userImageUrl,
                           <Badge className={`text-[10px] px-1.5 py-0 h-4 border ${LEVEL_COLOR[sp.level] ?? ""}`}>
                             {LEVEL_LABELS[sp.level] ?? sp.level}
                           </Badge>
+                          <span className="text-[10px] font-semibold text-foreground flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3 text-primary" />
+                            {elo} ELO
+                          </span>
                         </div>
                         {stats && (stats.gamesPlayed > 0 || stats.hoursPlayed > 0) && (
                           <div className="flex items-center gap-3 mt-0.5">

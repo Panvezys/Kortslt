@@ -455,7 +455,8 @@ function SportsActivity({ userId }: { userId: string }) {
             {data!.sportProfiles.map(sp => {
               const stats = getStats(sp.sport);
               const rating = getRating(sp.sport);
-              const tier = rating ? getTier(rating.elo) : null;
+              const elo = rating?.elo ?? 1200;
+              const tier = getTier(elo);
               const total = rating ? (rating.wins + rating.losses + rating.draws) : 0;
               const winPct = total > 0 ? Math.round((rating!.wins / total) * 100) : null;
               const sportEmoji = SPORT_EMOJIS[sp.sport] ?? "🏅";
@@ -471,11 +472,9 @@ function SportsActivity({ userId }: { userId: string }) {
                         <Badge className={`text-xs border ${LEVEL_COLOR[sp.level] ?? ""}`}>
                           {LEVEL_LABELS[sp.level] ?? sp.level}
                         </Badge>
-                        {tier && (
-                          <Badge variant="outline" className={`text-xs border ${tier.bgCls} ${tier.cls}`}>
-                            {tier.emoji} {tier.name}
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className={`text-xs border ${tier.bgCls} ${tier.cls}`}>
+                          {tier.emoji} {tier.name}
+                        </Badge>
                         {rating && rating.wins >= 3 && total > 0 && (rating.wins / total) >= 0.6 && (
                           <span className="flex items-center gap-1 text-xs text-orange-500 font-semibold animate-pulse">
                             <Flame className="w-3 h-3" /> On Fire
@@ -483,12 +482,10 @@ function SportsActivity({ userId }: { userId: string }) {
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        {rating && (
-                          <span className="text-xs font-bold text-foreground flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3 text-primary" />
-                            ELO {rating.elo}
-                          </span>
-                        )}
+                        <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3 text-primary" />
+                          ELO {elo}
+                        </span>
                         {stats && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Gamepad2 className="w-3 h-3" />
@@ -529,9 +526,7 @@ function SportsActivity({ userId }: { userId: string }) {
                     </div>
                   </div>
                   {/* ELO history mini line chart placeholder */}
-                  {rating && total > 0 && (
-                    <EloMiniChart userId={userId} sport={sp.sport} currentElo={rating.elo} />
-                  )}
+                  <EloMiniChart userId={userId} sport={sp.sport} currentElo={elo} />
                 </div>
               );
             })}
