@@ -430,7 +430,7 @@ export default function Courts() {
         ))}
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/30" />
         <div className="relative z-10 container mx-auto px-4 py-10 md:py-16">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-white drop-shadow-md">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 drop-shadow-md text-[#C5E041] bg-[transparent]">
             {t("courts.title")}
           </h1>
           <p className="text-white/80 max-w-2xl text-sm md:text-base leading-relaxed drop-shadow">
@@ -438,7 +438,6 @@ export default function Courts() {
           </p>
         </div>
       </div>
-
       {/* Mobile top bar: filters button + view toggle + sport chips */}
       <div className="md:hidden sticky top-[7rem] z-30 border-b bg-background/95 backdrop-blur">
         {/* Row 1: filters button + view toggle */}
@@ -504,7 +503,6 @@ export default function Courts() {
           })}
         </div>
       </div>
-
       {/* Mobile filter sheet */}
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent side="bottom" className="h-[85dvh] rounded-t-2xl flex flex-col">
@@ -532,7 +530,6 @@ export default function Courts() {
           </div>
         </SheetContent>
       </Sheet>
-
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Filters Sidebar — desktop only */}
