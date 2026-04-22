@@ -61,9 +61,19 @@ const isProductionClerkKey = clerkPubKey?.startsWith("pk_live_");
 // Dev keys (pk_test_*): Route all Clerk FAPI calls through our own backend proxy so that
 // auth cookies stay same-origin. This fixes cross-origin cookie issues in iframes
 // (Replit preview) and avoids dev_browser_unauthenticated errors.
-const clerkProxyUrl = isProductionClerkKey
-  ? undefined
-  : (import.meta.env.VITE_CLERK_PROXY_URL || "/api/__clerk");
+//
+// IMPORTANT: proxyUrl must be an absolute URL so Clerk can correctly inject <script> tags.
+// A relative path like "/api/__clerk" resolves to window.location.origin which may be
+// wrong in proxied / iframe environments. We use VITE_CLERK_PROXY_URL if set, otherwise
+// construct from the current window origin at runtime.
+function resolveClerkProxyUrl(): string | undefined {
+  if (isProductionClerkKey) return undefined;
+  if (import.meta.env.VITE_CLERK_PROXY_URL) return import.meta.env.VITE_CLERK_PROXY_URL;
+  // Build absolute URL from current window origin at runtime
+  return `${window.location.origin}/api/__clerk`;
+}
+
+const clerkProxyUrl = resolveClerkProxyUrl();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
