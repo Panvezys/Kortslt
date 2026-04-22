@@ -52,6 +52,21 @@ export function clerkProxyMiddleware(): RequestHandler {
 
   const CLERK_FAPI = getClerkFapiUrl();
 
+  // Strip Domain= from upstream Set-Cookie headers so cookies (notably the
+  // dev-instance __clerk_db_jwt) are stored against OUR origin, not Clerk's
+  // accounts domain. Without this, follow-up proxied requests never include
+  // the dev-browser JWT and Clerk FAPI returns 401 forever.
+  function rewriteSetCookies(setCookieHeader: string | string[] | undefined): string[] | undefined {
+    if (!setCookieHeader) return undefined;
+    const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+    return cookies.map((cookie) =>
+      cookie
+        .split(/;\s*/)
+        .filter((part) => !/^domain=/i.test(part))
+        .join("; "),
+    );
+  }
+
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
@@ -73,6 +88,12 @@ export function clerkProxyMiddleware(): RequestHandler {
           "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
+        }
+      },
+      proxyRes: (proxyRes) => {
+        const rewritten = rewriteSetCookies(proxyRes.headers["set-cookie"]);
+        if (rewritten) {
+          proxyRes.headers["set-cookie"] = rewritten;
         }
       },
     },
