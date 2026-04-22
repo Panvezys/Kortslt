@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, Component } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { SafeShow, useSafeAuth } from "@/lib/safeAuth";
+import { ClerkProvider, useClerk } from "@clerk/react";
+import { SafeShow, SafeAuthBridge, useSafeAuth } from "@/lib/safeAuth";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -53,6 +53,9 @@ import RanksPage from "@/pages/ranks";
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
 // Clerk passes full paths to routerPush/routerReplace, but wouter's
 // setLocation prepends the base — strip it to avoid doubling.
@@ -211,29 +214,68 @@ function Router() {
   );
 }
 
-function NoAuthFallback() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <FavoritesProvider>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
-      </FavoritesProvider>
-    </QueryClientProvider>
-  );
+// Invalidates the QueryClient cache when the signed-in user changes
+// so per-user data (role, bookings, favorites) doesn't leak across sessions.
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const qc = useQueryClient();
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (
+        prevUserIdRef.current !== undefined &&
+        prevUserIdRef.current !== userId
+      ) {
+        qc.clear();
+      }
+      prevUserIdRef.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener, qc]);
+
+  return null;
 }
 
 function ClerkProviderWithRoutes() {
+  const [, setLocation] = useLocation();
+
+  if (!clerkPubKey) {
+    // Fallback so the app still renders if the Clerk key isn't injected yet.
+    return (
+      <QueryClientProvider client={queryClient}>
+        <FavoritesProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </FavoritesProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <FavoritesProvider>
-        <TooltipProvider>
-          <Router />
-          <Toaster />
-        </TooltipProvider>
-      </FavoritesProvider>
-    </QueryClientProvider>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      routerPush={(to) => setLocation(stripBase(to))}
+      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        <SafeAuthBridge>
+          <FavoritesProvider>
+            <TooltipProvider>
+              <Router />
+              <Toaster />
+            </TooltipProvider>
+          </FavoritesProvider>
+        </SafeAuthBridge>
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 }
 
