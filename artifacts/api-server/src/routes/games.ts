@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { eq, desc, and, or, inArray, sql, gte } from "drizzle-orm";
 import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable, eloHistoryTable, gameChatTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
@@ -31,7 +31,7 @@ function formatDateTime(value: Date | string) {
 router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
 
-  // Games where user is a participant (joined)
+  // Games where user is a participant (joined) — targeted query
   const participantRows = await db
     .select({ gameId: gameParticipantsTable.gameId, team: gameParticipantsTable.team })
     .from(gameParticipantsTable)
@@ -39,33 +39,41 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   const participantGameIds = participantRows.map(r => r.gameId);
   const myTeamMap = new Map(participantRows.map(r => [r.gameId, r.team]));
 
-  // All games where creator or participant
-  let games = await db.select().from(gamesTable).orderBy(desc(gamesTable.datetime));
-  games = games.filter(g => g.creatorUserId === userId || participantGameIds.includes(g.id));
+  // Fetch only games where user is creator OR participant — no full table scan
+  const games = participantGameIds.length > 0
+    ? await db.select().from(gamesTable)
+        .where(or(eq(gamesTable.creatorUserId, userId), inArray(gamesTable.id, participantGameIds)))
+        .orderBy(desc(gamesTable.datetime))
+    : await db.select().from(gamesTable)
+        .where(eq(gamesTable.creatorUserId, userId))
+        .orderBy(desc(gamesTable.datetime));
 
   if (games.length === 0) { res.json([]); return; }
 
   const gameIds = games.map(g => g.id);
 
-  // Get all participants for these games
+  // Get participants only for these specific games
   const allParticipants = await db
     .select()
     .from(gameParticipantsTable)
-    .where(eq(gameParticipantsTable.status, "joined"));
+    .where(and(inArray(gameParticipantsTable.gameId, gameIds), eq(gameParticipantsTable.status, "joined")));
   const participantsByGame = new Map<number, typeof allParticipants>();
   for (const p of allParticipants) {
-    if (!gameIds.includes(p.gameId)) continue;
     if (!participantsByGame.has(p.gameId)) participantsByGame.set(p.gameId, []);
     participantsByGame.get(p.gameId)!.push(p);
   }
 
-  // Get results for these games
-  const results = await db.select().from(gameResultsTable);
-  const resultByGame = new Map(results.filter(r => gameIds.includes(r.gameId)).map(r => [r.gameId, r]));
+  // Get results only for these specific games
+  const results = await db.select().from(gameResultsTable)
+    .where(inArray(gameResultsTable.gameId, gameIds));
+  const resultByGame = new Map(results.map(r => [r.gameId, r]));
 
-  // Get ELO ratings for all participants
-  const ratings = await db.select().from(userRatingsTable);
-  const ratingKey = (userId: string, sport: string) => `${userId}::${sport}`;
+  // Get ELO ratings only for the relevant user IDs across these games
+  const allUserIds = [...new Set(allParticipants.map(p => p.userId))];
+  const ratings = allUserIds.length > 0
+    ? await db.select().from(userRatingsTable).where(inArray(userRatingsTable.userId, allUserIds))
+    : [];
+  const ratingKey = (uid: string, sport: string) => `${uid}::${sport}`;
   const ratingMap = new Map(ratings.map(r => [ratingKey(r.userId, r.sport), r.elo]));
 
   const out = games.map(g => {
