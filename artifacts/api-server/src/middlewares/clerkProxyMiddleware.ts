@@ -22,19 +22,35 @@
 import { createProxyMiddleware } from "http-proxy-middleware";
 import type { RequestHandler } from "express";
 
-const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
-export function clerkProxyMiddleware(): RequestHandler {
-  // Only run proxy in production — Clerk proxying doesn't work for dev instances
-  if (process.env.NODE_ENV !== "production") {
-    return (_req, _res, next) => next();
+/**
+ * Derive the Clerk FAPI base URL from the publishable key.
+ * The third segment of pk_test_BASE64 / pk_live_BASE64 decodes to the FAPI host.
+ */
+function getClerkFapiUrl(): string {
+  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+  if (pubKey) {
+    const parts = pubKey.split("_");
+    if (parts.length >= 3) {
+      try {
+        const decoded = Buffer.from(parts[2], "base64").toString("utf8").replace(/\$$/, "");
+        if (decoded.includes(".")) return `https://${decoded}`;
+      } catch {
+        // fall through
+      }
+    }
   }
+  return "https://frontend-api.clerk.dev";
+}
 
+export function clerkProxyMiddleware(): RequestHandler {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     return (_req, _res, next) => next();
   }
+
+  const CLERK_FAPI = getClerkFapiUrl();
 
   return createProxyMiddleware({
     target: CLERK_FAPI,

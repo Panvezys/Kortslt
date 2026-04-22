@@ -57,13 +57,13 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const isProductionClerkKey = clerkPubKey?.startsWith("pk_live_");
 
-// Replit's dev integration sets VITE_CLERK_PROXY_URL automatically for development
-// instances. With a production key (pk_live_*) Clerk derives its own host from the
-// key, so we must NOT pass proxyUrl/domain — doing so makes the SDK try to fetch
-// its bundle from the FAPI host and fail.
+// Production keys (pk_live_*): Clerk derives its own host from the key — no proxy needed.
+// Dev keys (pk_test_*): Route all Clerk FAPI calls through our own backend proxy so that
+// auth cookies stay same-origin. This fixes cross-origin cookie issues in iframes
+// (Replit preview) and avoids dev_browser_unauthenticated errors.
 const clerkProxyUrl = isProductionClerkKey
   ? undefined
-  : import.meta.env.VITE_CLERK_PROXY_URL;
+  : (import.meta.env.VITE_CLERK_PROXY_URL || "/api/__clerk");
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
