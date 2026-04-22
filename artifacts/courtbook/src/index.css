@@ -241,14 +241,11 @@ summary {
     background-color: var(--bg-color);
     color: var(--text-primary);
   }
-  body, body * {
-    color: #f8fbff;
-  }
   h1, h2, h3 {
-    color: #f8fbff;
+    color: var(--text-primary);
   }
   nav a {
-    color: #f8fbff;
+    color: var(--text-primary);
   }
 }
 
