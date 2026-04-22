@@ -49,7 +49,7 @@ import {
   Info,
 } from "lucide-react";
 import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -80,6 +80,8 @@ interface SportStat {
   sport: string;
   gamesPlayed: number;
   hoursPlayed: number;
+  gameHours?: number;
+  bookingHours?: number;
 }
 
 interface SportRating {
@@ -270,56 +272,74 @@ function StatCard({
   );
 }
 
-interface EloPoint { recordedAt: string; elo: number; delta: number; }
+interface EloPoint { id: number; recordedAt: string; elo: number; delta: number; gameId: number | null; sportSlug: string; }
 
-function EloMiniChart({ userId, sport, currentElo }: { userId: string; sport: string; currentElo: number }) {
-  const [expanded, setExpanded] = useState(false);
+const PIE_COLORS = ["#22c55e", "#ef4444", "#94a3b8"];
+
+function SportEloSection({ userId, sport, currentElo }: { userId: string; sport: string; currentElo: number }) {
+  const [, navigate] = useLocation();
+
   const { data: history, isLoading } = useQuery<EloPoint[]>({
     queryKey: ["elo-history", userId, sport],
     queryFn: () => customFetch<EloPoint[]>(`${API}/users/${userId}/elo-history?sport=${sport}`),
-    enabled: expanded,
+    enabled: !!sport,
   });
 
-  if (!expanded) {
+  if (isLoading) return <Skeleton className="h-24 w-full rounded-lg" />;
+
+  const points = history ?? [];
+
+  const last5Set = new Set<number>();
+  let cnt = 0;
+  for (let i = points.length - 1; i >= 0 && cnt < 5; i--) {
+    if (points[i].gameId != null) { last5Set.add(i); cnt++; }
+  }
+
+  const renderDot = (props: any) => {
+    const { cx, cy, index, payload } = props;
+    if (!payload.gameId || !last5Set.has(index)) return <g key={`dot-${index}`} />;
+    const color = payload.delta > 0 ? "#22c55e" : payload.delta < 0 ? "#ef4444" : "#94a3b8";
     return (
-      <button
-        onClick={() => setExpanded(true)}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors px-1 py-0.5 rounded"
-      >
-        <TrendingUp className="w-3 h-3" />
-        Rodyti ELO istoriją
-      </button>
+      <g key={`dot-${index}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/games/${payload.gameId}`)}>
+        <circle cx={cx} cy={cy} r={7} fill={color} stroke="hsl(var(--background))" strokeWidth={2} />
+        {payload.delta !== 0 && (
+          <text x={cx} y={cy - 13} textAnchor="middle" fontSize={9} fill={color} fontWeight="700">
+            {payload.delta > 0 ? `+${payload.delta}` : payload.delta}
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  if (points.length < 2) {
+    return (
+      <div className="py-4 text-center text-xs text-muted-foreground">
+        Dar nėra ELO istorijos — žaisk daugiau rungtynių!
+      </div>
     );
   }
 
+  const chartData = [...points, { recordedAt: "dabar", elo: currentElo, delta: 0, gameId: null }];
+
   return (
-    <div className="ml-0 rounded-lg border bg-muted/30 p-3 space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">ELO istorija</span>
-        <button onClick={() => setExpanded(false)} className="text-xs text-muted-foreground hover:text-foreground">Slėpti</button>
-      </div>
-      {isLoading ? (
-        <Skeleton className="h-16 w-full rounded" />
-      ) : !history || history.length < 2 ? (
-        <p className="text-xs text-muted-foreground py-2 text-center">Nėra pakankamai duomenų</p>
-      ) : (
-        <ResponsiveContainer width="100%" height={80}>
-          <LineChart data={[...history, { recordedAt: "dabar", elo: currentElo, delta: 0 }]}>
-            <XAxis dataKey="recordedAt" hide />
-            <YAxis domain={["auto", "auto"]} hide />
-            <Tooltip
-              formatter={(v: number, _: string, props: any) => {
-                const d = props.payload?.delta;
-                const sign = d > 0 ? "+" : "";
-                return [`${v} ELO${d !== 0 ? ` (${sign}${d})` : ""}`, "ELO"];
-              }}
-              labelFormatter={() => ""}
-              contentStyle={{ fontSize: 11 }}
-            />
-            <Line type="monotone" dataKey="elo" stroke="#C5E041" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">ELO raida · spustelėk tašką, kad eitum į žaidimą</p>
+      <ResponsiveContainer width="100%" height={120}>
+        <LineChart data={chartData} margin={{ top: 18, right: 10, left: 10, bottom: 4 }}>
+          <XAxis dataKey="recordedAt" hide />
+          <YAxis domain={["auto", "auto"]} hide />
+          <Tooltip
+            formatter={(v: number, _: string, props: any) => {
+              const d = props.payload?.delta;
+              const sign = d > 0 ? "+" : "";
+              return [`${v} ELO${d !== 0 ? ` (${sign}${d})` : ""}`, "ELO"];
+            }}
+            labelFormatter={() => ""}
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+          />
+          <Line type="monotone" dataKey="elo" stroke="#C5E041" strokeWidth={2.5} dot={renderDot} activeDot={{ r: 5, fill: "#C5E041" }} />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -337,17 +357,26 @@ function computeOnFireStreak(games: MyGame[]): number {
   return streak;
 }
 
-function SportsActivity({ userId }: { userId: string }) {
+function SportsActivity({ userId, email }: { userId: string; email?: string }) {
   const qc = useQueryClient();
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addSport, setAddSport] = useState<string>("");
   const [addLevel, setAddLevel] = useState<string>("beginner");
 
   const { data, isLoading } = useQuery<UserSportsData>({
-    queryKey: ["my-sports-profile"],
-    queryFn: () => customFetch<UserSportsData>(`${API}/user-profiles/me/full`),
+    queryKey: ["my-sports-profile", email],
+    queryFn: () => customFetch<UserSportsData>(
+      `${API}/user-profiles/me/full${email ? `?email=${encodeURIComponent(email)}` : ""}`
+    ),
     enabled: !!userId,
   });
+
+  useEffect(() => {
+    if (data?.sportProfiles.length && !selectedSport) {
+      setSelectedSport(data.sportProfiles[0].sport);
+    }
+  }, [data, selectedSport]);
 
   const updateSettings = useMutation({
     mutationFn: (payload: { activityPublic: boolean }) =>
@@ -382,17 +411,25 @@ function SportsActivity({ userId }: { userId: string }) {
 
   const existingSports = data?.sportProfiles.map(sp => sp.sport) ?? [];
   const availableSports = ALL_SPORTS.filter(s => !existingSports.includes(s));
-
-  const getStats = (sport: string) => data?.stats.find(s => s.sport === sport);
-  const getRating = (sport: string) => data?.ratings?.find(r => r.sport === sport);
+  const currentSportProfile = data?.sportProfiles.find(sp => sp.sport === selectedSport);
+  const rating = selectedSport ? data?.ratings?.find(r => r.sport === selectedSport) : null;
+  const elo = rating?.elo ?? 1200;
+  const tier = getTier(elo);
+  const total = rating ? (rating.wins + rating.losses + rating.draws) : 0;
+  const pieData = rating && total > 0
+    ? [
+        { name: "Laimėta", value: rating.wins },
+        { name: "Pralaimėta", value: rating.losses },
+        ...(rating.draws > 0 ? [{ name: "Lygios", value: rating.draws }] : []),
+      ].filter(d => d.value > 0)
+    : [];
 
   if (isLoading) {
     return (
-      <div className="bg-card border rounded-xl shadow-sm p-6 space-y-4">
-        <Skeleton className="h-6 w-40" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[1, 2].map(i => <Skeleton key={i} className="h-28 rounded-xl" />)}
-        </div>
+      <div className="space-y-4">
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-32 rounded-xl" />
       </div>
     );
   }
@@ -401,6 +438,157 @@ function SportsActivity({ userId }: { userId: string }) {
     <div className="space-y-4">
       {/* ELO Skill Card */}
       <SkillCard userId={userId} />
+
+      {/* Sport selector — only shown if multiple sports */}
+      {existingSports.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {existingSports.map(s => (
+            <button
+              key={s}
+              onClick={() => setSelectedSport(s)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                selectedSport === s
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              {SPORT_EMOJIS[s] ?? "🏅"} {SPORT_LABELS[s] ?? s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ELO + chart panel */}
+      {selectedSport ? (
+        <div className="bg-card border rounded-xl shadow-sm p-5 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">
+              {SPORT_EMOJIS[selectedSport] ?? "🏅"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold">{SPORT_LABELS[selectedSport] ?? selectedSport}</span>
+                {currentSportProfile && (
+                  <Badge className={`text-xs border ${LEVEL_COLOR[currentSportProfile.level] ?? ""}`}>
+                    {LEVEL_LABELS[currentSportProfile.level] ?? currentSportProfile.level}
+                  </Badge>
+                )}
+                <Badge variant="outline" className={`text-xs border ${tier.bgCls} ${tier.cls}`}>
+                  {tier.emoji} {tier.name}
+                </Badge>
+                {rating && rating.wins >= 3 && total > 0 && (rating.wins / total) >= 0.6 && (
+                  <span className="text-xs text-orange-500 font-semibold flex items-center gap-1 animate-pulse">
+                    <Flame className="w-3 h-3" /> On Fire
+                  </span>
+                )}
+              </div>
+              <div className="flex items-end gap-3 mt-1">
+                <span className="text-3xl font-bold tracking-tight text-primary leading-none">{elo}</span>
+                <span className="text-sm text-muted-foreground mb-0.5">ELO</span>
+                {rating && total > 0 && (
+                  <div className="ml-auto flex items-center gap-1.5 text-xs shrink-0">
+                    <span className="font-semibold text-green-600">{rating.wins}W</span>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="font-semibold text-red-500">{rating.losses}L</span>
+                    {rating.draws > 0 && (
+                      <>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="font-semibold text-slate-500">{rating.draws}D</span>
+                      </>
+                    )}
+                    <span className="text-muted-foreground ml-1">{total}r</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <SportEloSection userId={userId} sport={selectedSport} currentElo={elo} />
+        </div>
+      ) : existingSports.length === 0 ? (
+        <div className="bg-card border rounded-xl shadow-sm p-10 flex flex-col items-center gap-3 text-muted-foreground">
+          <Dumbbell className="w-10 h-10 opacity-20" />
+          <p className="text-sm">Dar nepridėjote sporto šakų</p>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
+            <Plus className="w-4 h-4" />
+            Pridėti pirmą sportą
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Win / Loss pie chart */}
+      {selectedSport && pieData.length > 0 && (
+        <div className="bg-card border rounded-xl shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="w-4 h-4 text-primary" />
+            <span className="font-semibold text-sm">Rezultatai</span>
+            <span className="text-xs text-muted-foreground">({SPORT_LABELS[selectedSport] ?? selectedSport})</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <PieChart width={120} height={120}>
+              <Pie data={pieData} cx={55} cy={55} innerRadius={32} outerRadius={52} dataKey="value" paddingAngle={3}>
+                {pieData.map((_, i) => (
+                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+            <div className="space-y-2">
+              {pieData.map((d, i) => (
+                <div key={d.name} className="flex items-center gap-2 text-xs">
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                  <span className="text-muted-foreground">{d.name}</span>
+                  <span className="font-semibold">{d.value}</span>
+                  <span className="text-muted-foreground">({Math.round((d.value / total) * 100)}%)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hours played per sport */}
+      {data && data.stats.length > 0 && (
+        <div className="bg-card border rounded-xl shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Timer className="w-4 h-4 text-primary" />
+            <span className="font-semibold text-sm">Valandos pagal sportą</span>
+          </div>
+          <div className="space-y-3">
+            {data.stats.map(s => {
+              const maxH = Math.max(...data.stats.map(x => x.hoursPlayed), 1);
+              const pct = Math.round((s.hoursPlayed / maxH) * 100);
+              const hasBooking = (s.bookingHours ?? 0) > 0;
+              return (
+                <div key={s.sport} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span>{SPORT_EMOJIS[s.sport] ?? "🏅"}</span>
+                      <span>{SPORT_LABELS[s.sport] ?? s.sport}</span>
+                      {s.gamesPlayed > 0 && (
+                        <span className="text-muted-foreground font-normal">{s.gamesPlayed} žaid.</span>
+                      )}
+                    </span>
+                    <span className="font-semibold flex items-center gap-1">
+                      <Timer className="w-3 h-3 text-muted-foreground" />
+                      {s.hoursPlayed}h
+                      {hasBooking && (
+                        <span className="text-muted-foreground font-normal text-[10px]">
+                          ({s.gameHours}ž+{s.bookingHours}rez)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Visibility toggle */}
       <div className="bg-card border rounded-xl shadow-sm p-5 flex items-center justify-between gap-4">
@@ -423,7 +611,7 @@ function SportsActivity({ userId }: { userId: string }) {
         />
       </div>
 
-      {/* Sport cards */}
+      {/* Sport profiles management */}
       <div className="bg-card border rounded-xl shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div className="flex items-center gap-2">
@@ -440,96 +628,38 @@ function SportsActivity({ userId }: { userId: string }) {
             </Button>
           )}
         </div>
-
         {existingSports.length === 0 ? (
-          <div className="py-14 flex flex-col items-center text-muted-foreground gap-3">
-            <Dumbbell className="w-10 h-10 opacity-20" />
+          <div className="py-10 flex flex-col items-center text-muted-foreground gap-2">
+            <Dumbbell className="w-8 h-8 opacity-20" />
             <p className="text-sm">Dar nepridėjote sporto šakų</p>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
-              <Plus className="w-4 h-4" />
-              Pridėti pirmą sportą
-            </Button>
           </div>
         ) : (
           <div className="divide-y">
-            {data!.sportProfiles.map(sp => {
-              const stats = getStats(sp.sport);
-              const rating = getRating(sp.sport);
-              const elo = rating?.elo ?? 1200;
-              const tier = getTier(elo);
-              const total = rating ? (rating.wins + rating.losses + rating.draws) : 0;
-              const winPct = total > 0 ? Math.round((rating!.wins / total) * 100) : null;
-              const sportEmoji = SPORT_EMOJIS[sp.sport] ?? "🏅";
-              return (
-                <div key={sp.sport} className="px-5 py-4 flex flex-col gap-3">
-                  <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 text-xl">
-                      {sportEmoji}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm">{SPORT_LABELS[sp.sport] ?? sp.sport}</span>
-                        <Badge className={`text-xs border ${LEVEL_COLOR[sp.level] ?? ""}`}>
-                          {LEVEL_LABELS[sp.level] ?? sp.level}
-                        </Badge>
-                        <Badge variant="outline" className={`text-xs border ${tier.bgCls} ${tier.cls}`}>
-                          {tier.emoji} {tier.name}
-                        </Badge>
-                        {rating && rating.wins >= 3 && total > 0 && (rating.wins / total) >= 0.6 && (
-                          <span className="flex items-center gap-1 text-xs text-orange-500 font-semibold animate-pulse">
-                            <Flame className="w-3 h-3" /> On Fire
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className="text-xs font-bold text-foreground flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3 text-primary" />
-                          ELO {elo}
-                        </span>
-                        {stats && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Gamepad2 className="w-3 h-3" />
-                            {stats.gamesPlayed}ž
-                          </span>
-                        )}
-                        {rating && total > 0 && (
-                          <>
-                            <span className="text-xs text-green-600">{rating.wins}W</span>
-                            <span className="text-xs text-red-500">{rating.losses}L</span>
-                            {rating.draws > 0 && <span className="text-xs text-slate-500">{rating.draws}D</span>}
-                            {winPct !== null && <span className="text-xs text-muted-foreground">{winPct}% laimėta</span>}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Select
-                        value={sp.level}
-                        onValueChange={(v) => upsertSport.mutate({ sport: sp.sport, level: v })}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LEVELS.map(l => (
-                            <SelectItem key={l} value={l} className="text-xs">{LEVEL_LABELS[l]}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeSport.mutate(sp.sport)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  {/* ELO history mini line chart placeholder */}
-                  <EloMiniChart userId={userId} sport={sp.sport} currentElo={elo} />
+            {data!.sportProfiles.map(sp => (
+              <div key={sp.sport} className="px-5 py-3 flex items-center gap-3">
+                <span className="text-lg w-7 text-center">{SPORT_EMOJIS[sp.sport] ?? "🏅"}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-sm">{SPORT_LABELS[sp.sport] ?? sp.sport}</span>
                 </div>
-              );
-            })}
+                <Select value={sp.level} onValueChange={(v) => upsertSport.mutate({ sport: sp.sport, level: v })}>
+                  <SelectTrigger className="h-8 text-xs w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEVELS.map(l => (
+                      <SelectItem key={l} value={l} className="text-xs">{LEVEL_LABELS[l]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                  onClick={() => removeSport.mutate(sp.sport)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -1041,7 +1171,7 @@ export default function Profile() {
 
           {/* Sports Activity tab */}
           {activeTab === "sports" && userId && (
-            <SportsActivity userId={userId} />
+            <SportsActivity userId={userId} email={email} />
           )}
 
           {/* Games tab */}

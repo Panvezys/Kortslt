@@ -7,14 +7,16 @@ import {
   gameParticipantsTable,
   gamesTable,
   userRatingsTable,
+  bookingsTable,
+  courtsTable,
 } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
 
-// Compute per-sport game stats for a userId
-async function computeSportStats(userId: string) {
-  const rows = await db
+// Compute per-sport game + booking stats for a userId
+async function computeSportStats(userId: string, email?: string) {
+  const gameRows = await db
     .select({
       sport: gamesTable.sport,
       gamesPlayed: sql<number>`count(*)`,
@@ -25,10 +27,39 @@ async function computeSportStats(userId: string) {
     .where(eq(gameParticipantsTable.userId, userId))
     .groupBy(gamesTable.sport);
 
-  return rows.map((r) => ({
-    sport: r.sport,
-    gamesPlayed: Number(r.gamesPlayed),
-    hoursPlayed: Math.round((Number(r.minutesPlayed) / 60) * 10) / 10,
+  const sportMap = new Map<string, { gamesPlayed: number; gameHours: number; bookingHours: number }>();
+  for (const r of gameRows) {
+    const gameHours = Math.round((Number(r.minutesPlayed) / 60) * 10) / 10;
+    sportMap.set(r.sport, { gamesPlayed: Number(r.gamesPlayed), gameHours, bookingHours: 0 });
+  }
+
+  if (email) {
+    const bookingRows = await db
+      .select({
+        sport: courtsTable.type,
+        bookingHours: sql<number>`COALESCE(SUM(EXTRACT(EPOCH FROM (${bookingsTable.endTime}::time - ${bookingsTable.startTime}::time)) / 3600), 0)`,
+      })
+      .from(bookingsTable)
+      .innerJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+      .where(and(eq(bookingsTable.customerEmail, email), eq(bookingsTable.status, "confirmed")))
+      .groupBy(courtsTable.type);
+
+    for (const b of bookingRows) {
+      const bHours = Math.round(Number(b.bookingHours) * 10) / 10;
+      if (sportMap.has(b.sport)) {
+        sportMap.get(b.sport)!.bookingHours = bHours;
+      } else {
+        sportMap.set(b.sport, { gamesPlayed: 0, gameHours: 0, bookingHours: bHours });
+      }
+    }
+  }
+
+  return [...sportMap.entries()].map(([sport, v]) => ({
+    sport,
+    gamesPlayed: v.gamesPlayed,
+    hoursPlayed: Math.round((v.gameHours + v.bookingHours) * 10) / 10,
+    gameHours: v.gameHours,
+    bookingHours: v.bookingHours,
   }));
 }
 
@@ -85,6 +116,7 @@ router.get("/user-profiles/:userId", async (req, res): Promise<void> => {
 // GET /user-profiles/me/full — own full profile (private)
 router.get("/user-profiles/me/full", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
+  const email = req.query.email as string | undefined;
 
   const [profile] = await db
     .select()
@@ -96,7 +128,7 @@ router.get("/user-profiles/me/full", requireAuth, async (req, res): Promise<void
     .from(userSportProfilesTable)
     .where(eq(userSportProfilesTable.userId, userId));
 
-  const stats = await computeSportStats(userId);
+  const stats = await computeSportStats(userId, email);
   const ratings = await db.select().from(userRatingsTable).where(eq(userRatingsTable.userId, userId));
 
   res.json({
