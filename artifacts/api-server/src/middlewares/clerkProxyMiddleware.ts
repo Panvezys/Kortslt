@@ -29,7 +29,7 @@ export const CLERK_PROXY_PATH = "/api/__clerk";
  * The third segment of pk_test_BASE64 / pk_live_BASE64 decodes to the FAPI host.
  */
 function getClerkFapiUrl(): string {
-  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY || process.env.CLERK_PUBLISHABLE_KEY;
   if (pubKey) {
     const parts = pubKey.split("_");
     if (parts.length >= 3) {
