@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useUser, Show } from "@clerk/react";
+import { useUser } from "@clerk/react";
+import { SafeShow as Show } from "@/lib/safeAuth";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

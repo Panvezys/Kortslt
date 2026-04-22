@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { ThemeProvider, useTheme } from "./theme-provider";
-import { useUser, useClerk, Show } from "@clerk/react";
+import { useUser, useClerk } from "@clerk/react";
+import { SafeShow as Show } from "@/lib/safeAuth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

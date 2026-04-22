@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { useUser, Show } from "@clerk/react";
+import { useUser } from "@clerk/react";
+import { SafeShow as Show } from "@/lib/safeAuth";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, Component } from "react";
+import type { ReactNode } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, Show, useClerk, useAuth } from "@clerk/react";
+import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
+import { SafeAuthBridge, SafeShow, useSafeAuth } from "@/lib/safeAuth";
 import { enUS, ruRU } from "@clerk/localizations";
 import { ltLT } from "@/lib/lt-localization";
 import { Toaster } from "@/components/ui/toaster";
@@ -74,34 +76,40 @@ if (!clerkPubKey) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in environment");
 }
 
+// Error boundary that catches Clerk init failures (e.g. dev instance on replit.dev)
+// and renders a fallback so the rest of the app still works in the preview.
+class ClerkErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
 function HomeRoute() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Home />
-      </Show>
-      <Show when="signed-out">
-        <Home />
-      </Show>
-    </>
-  );
+  return <Home />;
 }
 
 function BookingsRoute() {
   return (
     <>
-      <Show when="signed-in">
-        <Bookings />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
+      <SafeShow when="signed-in"><Bookings /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
     </>
   );
 }
 
 function OwnerRoute({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
   const { isOwner, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
@@ -121,12 +129,8 @@ function OwnerFacilityDetailRoute() {
 function ProfileRoute() {
   return (
     <>
-      <Show when="signed-in">
-        <Profile />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
+      <SafeShow when="signed-in"><Profile /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
     </>
   );
 }
@@ -134,18 +138,14 @@ function ProfileRoute() {
 function FavoritesRoute() {
   return (
     <>
-      <Show when="signed-in">
-        <FavoritesPage />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
+      <SafeShow when="signed-in"><FavoritesPage /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
     </>
   );
 }
 
 function AdminRoute() {
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
   const { isAdmin, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
@@ -155,7 +155,7 @@ function AdminRoute() {
 }
 
 function AdminApprovalsRoute() {
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
   const { isAdmin, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
@@ -165,7 +165,7 @@ function AdminApprovalsRoute() {
 }
 
 function CoachRoute({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
   const { isCoach, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
@@ -177,8 +177,8 @@ function CoachRoute({ children }: { children: React.ReactNode }) {
 function WelcomeRoute() {
   return (
     <>
-      <Show when="signed-in"><WelcomePage /></Show>
-      <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+      <SafeShow when="signed-in"><WelcomePage /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
     </>
   );
 }
@@ -269,28 +269,52 @@ function Router() {
 
 const clerkLocales = { lt: ltLT, en: enUS, ru: ruRU } as const;
 
+// Rendered when Clerk fails to init (dev instance on replit.dev).
+// SafeAuthContext default (isLoaded:true, isSignedIn:false) means route guards
+// treat the user as signed-out, so public pages render normally.
+function NoAuthFallback() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <FavoritesProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </FavoritesProvider>
+    </QueryClientProvider>
+  );
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   const { locale } = useI18n();
+  const [clerkFailed, setClerkFailed] = useState(false);
+
+  if (clerkFailed) return <NoAuthFallback />;
 
   return (
-    <ClerkProvider
-      publishableKey={clerkPubKey}
-      proxyUrl={clerkProxyUrl}
-      localization={clerkLocales[locale]}
-      routerPush={(to) => setLocation(stripBase(to))}
-      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-    >
-      <QueryClientProvider client={queryClient}>
-        <ClerkQueryClientCacheInvalidator />
-        <FavoritesProvider>
-          <TooltipProvider>
-            <Router />
-            <Toaster />
-          </TooltipProvider>
-        </FavoritesProvider>
-      </QueryClientProvider>
-    </ClerkProvider>
+    <ClerkErrorBoundary fallback={<NoAuthFallback />}>
+      <ClerkProvider
+        publishableKey={clerkPubKey}
+        proxyUrl={clerkProxyUrl}
+        localization={clerkLocales[locale]}
+        routerPush={(to) => setLocation(stripBase(to))}
+        routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+        onLoadError={() => setClerkFailed(true)}
+      >
+        <QueryClientProvider client={queryClient}>
+          <SafeAuthBridge>
+            <ClerkQueryClientCacheInvalidator />
+            <FavoritesProvider>
+              <TooltipProvider>
+                <Router />
+                <Toaster />
+              </TooltipProvider>
+            </FavoritesProvider>
+          </SafeAuthBridge>
+        </QueryClientProvider>
+      </ClerkProvider>
+    </ClerkErrorBoundary>
   );
 }
 
