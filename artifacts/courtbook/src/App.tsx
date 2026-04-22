@@ -2,10 +2,7 @@ import { useEffect, useRef, useState, Component } from "react";
 import type { ReactNode } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
-import { SafeAuthBridge, SafeShow, useSafeAuth } from "@/lib/safeAuth";
-import { enUS, ruRU } from "@clerk/localizations";
-import { ltLT } from "@/lib/lt-localization";
+import { SafeShow, useSafeAuth } from "@/lib/safeAuth";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -55,13 +52,6 @@ import RanksPage from "@/pages/ranks";
 
 const queryClient = new QueryClient();
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-// Live Clerk instance uses its own CNAME (clerk.korts.lt) so the SDK talks
-// to Clerk directly. We intentionally do NOT use proxyUrl here — proxying
-// through our own server adds latency and a single point of failure for auth.
-const clerkProxyUrl = undefined;
-
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // Clerk passes full paths to routerPush/routerReplace, but wouter's
@@ -70,29 +60,6 @@ function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
     : path;
-}
-
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in environment");
-}
-
-// Error boundary that catches Clerk init failures (e.g. dev instance on replit.dev)
-// and renders a fallback so the rest of the app still works in the preview.
-class ClerkErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode; fallback: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) return this.props.fallback;
-    return this.props.children;
-  }
 }
 
 function HomeRoute() {
@@ -183,29 +150,6 @@ function WelcomeRoute() {
   );
 }
 
-// Invalidates React Query cache when the signed-in user changes
-function ClerkQueryClientCacheInvalidator() {
-  const { addListener } = useClerk();
-  const qc = useQueryClient();
-  const prevUserIdRef = useRef<string | null | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = addListener(({ user }) => {
-      const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
-        qc.clear();
-      }
-      prevUserIdRef.current = userId;
-    });
-    return unsubscribe;
-  }, [addListener, qc]);
-
-  return null;
-}
-
 function ScrollToTop() {
   const [location] = useLocation();
   useEffect(() => {
@@ -267,11 +211,6 @@ function Router() {
   );
 }
 
-const clerkLocales = { lt: ltLT, en: enUS, ru: ruRU } as const;
-
-// Rendered when Clerk fails to init (dev instance on replit.dev).
-// SafeAuthContext default (isLoaded:true, isSignedIn:false) means route guards
-// treat the user as signed-out, so public pages render normally.
 function NoAuthFallback() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -286,35 +225,15 @@ function NoAuthFallback() {
 }
 
 function ClerkProviderWithRoutes() {
-  const [, setLocation] = useLocation();
-  const { locale } = useI18n();
-  const [clerkFailed, setClerkFailed] = useState(false);
-
-  if (clerkFailed) return <NoAuthFallback />;
-
   return (
-    <ClerkErrorBoundary fallback={<NoAuthFallback />}>
-      <ClerkProvider
-        publishableKey={clerkPubKey}
-        proxyUrl={clerkProxyUrl}
-        localization={clerkLocales[locale]}
-        routerPush={(to) => setLocation(stripBase(to))}
-        routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
-        onLoadError={() => setClerkFailed(true)}
-      >
-        <QueryClientProvider client={queryClient}>
-          <SafeAuthBridge>
-            <ClerkQueryClientCacheInvalidator />
-            <FavoritesProvider>
-              <TooltipProvider>
-                <Router />
-                <Toaster />
-              </TooltipProvider>
-            </FavoritesProvider>
-          </SafeAuthBridge>
-        </QueryClientProvider>
-      </ClerkProvider>
-    </ClerkErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <FavoritesProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </FavoritesProvider>
+    </QueryClientProvider>
   );
 }
 
