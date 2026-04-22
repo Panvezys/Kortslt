@@ -1,0 +1,171 @@
+Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this errorExplanationUnderstanding the problemThe net::ERR_CONNECTION_CLOSED error occurs when the connection between the browser and the web server is abruptly terminated. Unlike a "404 Not Found" or "500 Internal Server Error," this is a network-level failure where the socket connection is closed before a full HTTP response can be delivered.Common causes include:Server-side crashes: The backend service crashed while processing the request.Timeouts: A load balancer, proxy (like Nginx), or the server itself closed the connection because the request took too long.Security software: A firewall, VPN, or antivirus intercepted and dropped the connection.SSL/TLS issues: Mismatched encryption protocols or expired certificates.Keep-Alive limits: The server reached its maximum number of requests per connection.How to verifyCheck the Network Tab: Open DevTools, go to the Network tab, and reload. See if the error happens consistently on a specific resource (e.g., a large API call or a heavy image).Test in Incognito: Open the site in an Incognito window to rule out browser extensions.Check Server Logs: Look at your backend or web server logs (e.g., /var/log/nginx/error.log) to see if the process is exiting or timing out.Try a Different Network: Switch from a VPN/Corporate network to a mobile hotspot to rule out local firewall interference.Suggested fixThe fix depends on where the failure is occurring:1. If the server is timing out (Nginx example):
+Increase the timeout settings in your server configuration to allow long-running requests to finish.Codenginx# Increase timeouts in nginx.conf or site configurationproxy_read_timeout 300;proxy_connect_timeout 300;proxy_send_timeout 300;keepalive_timeout 65;Use code snippets with caution2. If the backend is crashing:
+Ensure your application handles errors gracefully so the process doesn't exit.js// Example: Node.js/Express error handling to prevent process crashprocess.on('uncaughtException', (err) => {  console.error('There was an uncaught error', err);  // Optional: Gracefully shutdown or log to an external service});Use code snippets with caution3. If it is a client-side network issue:VPN/Proxy: Disable any active VPNs or proxies.Clear DNS Cache: Run ipconfig /flushdns (Windows) or sudo killall -HUP mDNSResponder (macOS) in your terminal.Summarynet::ERR_CONNECTION_CLOSED means the connection was cut off unexpectedly. It is usually caused by server-side timeouts, backend crashes, or network intermediaries (like firewalls) dropping the packet. Focus on server logs and timeout configurations first.Data used to understand this messageConsole messageReload the page to capture related network request data for this message in order to create a better insight.Use search insteadAI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+maps.googleapis.com/maps/api/mapsjs/gen_204?csp_test=true:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENTUnderstand this error
+main.js:420 As of February 21st, 2024, google.maps.Marker is deprecated. Please use google.maps.marker.AdvancedMarkerElement instead. At this time, google.maps.Marker is not scheduled to be discontinued, but google.maps.marker.AdvancedMarkerElement is recommended over google.maps.Marker. While google.maps.Marker will continue to receive bug fixes for any major regressions, existing bugs in google.maps.Marker will not be addressed. At least 12 months notice will be given before support is discontinued. Please see https://developers.google.com/maps/deprecations for additional details and https://developers.google.com/maps/documentation/javascript/advanced-markers/migration for the migration guide.
+Bp @ main.js:420Understand this warning
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this errorExplanationUnderstanding the problemThe net::ERR_CONNECTION_CLOSED error occurs when the connection between the browser and the server is terminated unexpectedly. This means the server (or an intermediary like a proxy or firewall) aborted the connection while the browser was waiting for a response or still downloading data.Common causes include:Server crashes: The web server process died while handling the request.Timeouts: The server or a load balancer closed the connection because it took too long to process.Security software: Antivirus, firewalls, or VPNs intercepting and dropping the connection.Network instability: Temporary packet loss or router issues.SSL/TLS issues: Mismatched protocols or expired certificates causing the socket to close.How to verifyCheck other resources: If only one specific file (like a large script or API call) fails, the server is likely timing out or crashing on that specific request.Test in Incognito mode: This disables extensions that might be interfering with the connection.Bypass the Cache: Press Ctrl+F5 (or Cmd+Shift+R) to ensure a stale connection isn't being reused.Check Server Logs: Look at your server-side logs (e.g., Nginx, Apache, or Node.js logs) to see if the process threw an error or hit a timeout limit.Suggested fixBecause this is often a server-side or environment issue, the fix depends on where the closure happens:1. Increase Server Timeouts
+If the request involves heavy processing, increase the timeout limits in your server configuration (e.g., Nginx):Codenginx# Example for Nginxproxy_read_timeout 300;proxy_connect_timeout 300;proxy_send_timeout 300;Use code snippets with caution2. Check for Server Crashes
+If you are using Node.js or a similar backend, ensure the application isn't crashing. Wrap your code in try-catch blocks to prevent the process from exiting:js// Ensure the server doesn't crash on unhandled errorsprocess.on('uncaughtException', (err) => {  console.error('There was an uncaught error', err);  // Perform a graceful shutdown or logging, don't just let the connection hang});Use code snippets with caution3. Address SSL/TLS Mismatches
+Ensure your server supports the TLS version required by the browser. If you are using a local development environment, try accessing the site via http instead of https to see if the certificate configuration is the culprit.4. Check Network Intermediaries
+If you are behind a corporate firewall or using a VPN, try disabling them briefly. If the error disappears, you may need to whitelist the domain or adjust MTU settings.SummaryWhat it is: The server or network abruptly cut the connection to the browser.Key fix: Investigate server-side logs for crashes or timeouts, and check if security software/VPNs are dropping the packets.Outcome: Once the server remains stable or the network path is cleared, the resource will load successfully.Data used to understand this messageConsole messageReload the page to capture related network request data for this message in order to create a better insight.Use search insteadAI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+index-BHbG9FTl.js:23 Uncaught (in promise) Mq: Clerk: Failed to load Clerk JS, failed to load script: https://clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at n (index-BHbG9FTl.js:23:3432)
+    at index-BHbG9FTl.js:23:3907Caused by: Error: failed to load script: https://clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js
+    at HTMLScriptElement.<anonymous> (index-BHbG9FTl.js:23:2111)Understand this errorExplanationUnderstanding the problemThis error occurs when the Clerk SDK fails to download the core Clerk JavaScript library from the specified URL. This is a critical failure because the SDK acts as a thin wrapper that needs to fetch the full runtime to initialize authentication.The common causes are:Network/DNS Issues: The domain clerk.kortslt.replit.app is unreachable or the resource is missing (404).Ad-blockers/Firewalls: Security extensions often block scripts from third-party authentication providers.Invalid Publishable Key: If the Publishable Key used in your application is associated with a deleted or misconfigured instance, the generated script URL may be invalid.How to verifyCheck Network Tab: Open Chrome DevTools, go to the Network tab, and refresh the page. Look for the request to clerk.browser.js. Check the status code (e.g., 404, 403, or "Blocked by Client").Manual Access: Try to open the URL https://clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js directly in your browser. If it fails to load, the issue is with the host or your network.Disable Extensions: Try loading the site in Incognito Mode to rule out interference from ad-blockers.Suggested fixEnsure your Clerk Environment Variables are correct and match your Clerk Dashboard. If you are using a proxy or a custom domain (as indicated by the .replit.app URL), ensure the proxy is correctly configured to forward requests to Clerk's edge. If you are using standard Clerk, update your environment variables:js// .env.local// Ensure your key starts with pk_test_ or pk_live_NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxUse code snippets with cautionIf you are manually loading Clerk via a script tag or a custom loader, ensure the versioning is correct. If the Replit proxy is failing, switch to the official CDN:js// Change the source if you are manually injecting the script// From: https://clerk.kortslt.replit.app/...// To the standard Clerk frontend API URL found in your dashboard:// https://[your-frontend-api-url]/npm/@clerk/clerk-js@5/dist/clerk.browser.jsUse code snippets with cautionSummaryReason: The browser cannot download the necessary Clerk JS file.Fix: Check your internet connection, disable ad-blockers, and verify that your Publishable Key in your .env file matches the one in your Clerk Dashboard. If using a proxy, ensure the proxy host is active.Data used to understand this messageConsole messageUse search insteadAI tools may generate inaccurate info that doesn't represent Google's views. Data sent to Google may be seen by human reviewers to improve this feature. Open settings or learn more
+index-BHbG9FTl.js:23 Mq: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at n (/assets/index-BHbG9FTl.js:23:3432)
+    at Eue (/assets/index-BHbG9FTl.js:23:3803)
+    at pV.getClerkJsEntryChunk (/assets/index-BHbG9FTl.js:23:40137)
+    at pV.getEntryChunks (/assets/index-BHbG9FTl.js:23:39600)
+    at new pV (/assets/index-BHbG9FTl.js:23:37373)
+    at pV.getOrCreateInstance (/assets/index-BHbG9FTl.js:23:37788)
+    at Iue (/assets/index-BHbG9FTl.js:23:42579)
+    at Bue (/assets/index-BHbG9FTl.js:23:42335)
+    at zb (/assets/index-BHbG9FTl.js:8:34297)
+    at a1 (/assets/index-BHbG9FTl.js:8:63083)
+getEntryChunks @ index-BHbG9FTl.js:23Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/courts 500 (Internal Server Error)
+Me @ index-BHbG9FTl.js:26
+Y4e @ index-BHbG9FTl.js:26
+queryFn @ index-BHbG9FTl.js:26
+a @ index-BHbG9FTl.js:9
+b @ index-BHbG9FTl.js:9
+start @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+#d @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+refetch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+batch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+await in (anonymous)
+(anonymous) @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+t @ index-BHbG9FTl.js:9Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/stats/summary 500 (Internal Server Error)
+Me @ index-BHbG9FTl.js:26
+ehe @ index-BHbG9FTl.js:26
+queryFn @ index-BHbG9FTl.js:26
+a @ index-BHbG9FTl.js:9
+b @ index-BHbG9FTl.js:9
+start @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+#d @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+refetch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+batch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+await in (anonymous)
+(anonymous) @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+t @ index-BHbG9FTl.js:9Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/courts 500 (Internal Server Error)
+Me @ index-BHbG9FTl.js:26
+Y4e @ index-BHbG9FTl.js:26
+queryFn @ index-BHbG9FTl.js:26
+a @ index-BHbG9FTl.js:9
+b @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.then
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.catch
+b @ index-BHbG9FTl.js:9
+start @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+#d @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+refetch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+batch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+await in (anonymous)
+(anonymous) @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+t @ index-BHbG9FTl.js:9Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/stats/summary 500 (Internal Server Error)
+Me @ index-BHbG9FTl.js:26
+ehe @ index-BHbG9FTl.js:26
+queryFn @ index-BHbG9FTl.js:26
+a @ index-BHbG9FTl.js:9
+b @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.then
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.catch
+b @ index-BHbG9FTl.js:9
+start @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+#d @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+refetch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+batch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+await in (anonymous)
+(anonymous) @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+t @ index-BHbG9FTl.js:9Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/courts 500 (Internal Server Error)
+Me @ index-BHbG9FTl.js:26
+Y4e @ index-BHbG9FTl.js:26
+queryFn @ index-BHbG9FTl.js:26
+a @ index-BHbG9FTl.js:9
+b @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.then
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.catch
+b @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.then
+(anonymous) @ index-BHbG9FTl.js:9
+Promise.catch
+b @ index-BHbG9FTl.js:9
+start @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+#d @ index-BHbG9FTl.js:9
+fetch @ index-BHbG9FTl.js:9
+refetch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+batch @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+await in (anonymous)
+(anonymous) @ index-BHbG9FTl.js:9
+onFocus @ index-BHbG9FTl.js:9
+(anonymous) @ index-BHbG9FTl.js:9
+t @ index-BHbG9FTl.js:9Understand this error
+index-BHbG9FTl.js:26  GET https://korts.lt/api/stats/summary 500 (Internal Server Error)
