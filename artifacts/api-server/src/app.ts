@@ -79,7 +79,7 @@ app.use("/api", router);
 
 // SPA fallback: serve index.html for any non-API route so client-side routing works
 if (fs.existsSync(frontendDist)) {
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
