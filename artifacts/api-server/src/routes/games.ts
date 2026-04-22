@@ -23,6 +23,10 @@ function formatParticipant(p: typeof gameParticipantsTable.$inferSelect) {
   return { ...p, joinedAt: p.joinedAt.toISOString() };
 }
 
+function formatDateTime(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
 // GET /games/my — games where I'm creator or participant (game history)
 router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
@@ -83,7 +87,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
       sport: g.sport,
       city: g.city,
       placeName: g.placeName,
-      datetime: g.datetime.toISOString(),
+      datetime: formatDateTime(g.datetime),
       status: g.status,
       matchType: g.matchType,
       playersNeeded: g.playersNeeded,
