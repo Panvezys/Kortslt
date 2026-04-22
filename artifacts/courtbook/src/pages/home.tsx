@@ -454,7 +454,7 @@ export default function Home() {
 
               {/* Row 1: Court name with autocomplete */}
               <div className="relative w-full max-w-sm">
-                <div className="flex items-center gap-3 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-4 py-3 transition-all"
+                  <div className="flex items-center gap-3 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-4 py-3 transition-all text-foreground"
                   style={{ borderColor: (dropdownOpen || searchName) ? accentColor : undefined }}
                 >
                   <Search className="h-4 w-4 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dropdownOpen || searchName) ? accentColor : undefined }} />
@@ -505,7 +505,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/70 dark:bg-white/20 dark:text-white text-sm font-medium transition-colors w-full">
+                    <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/70 dark:bg-white/20 text-foreground dark:text-white text-sm font-medium transition-colors w-full">
                       <SportIcon sport={searchSport || "tennis"} size={14} strokeWidth={2} />
                       <span className="truncate">
                         {searchSport ? sportLithuanian[searchSport] : "Sporto šaka"}
@@ -542,7 +542,7 @@ export default function Home() {
 
                 <div className="relative w-full min-w-0" ref={cityRef}>
                   <div
-                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 cursor-text transition-all"
+                    className="flex items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 cursor-text transition-all text-foreground"
                     style={{ borderColor: (cityDropdownOpen || searchCity) ? accentColor : undefined }}
                     onClick={() => setCityDropdownOpen(true)}
                   >
@@ -655,7 +655,7 @@ export default function Home() {
                 <div className="relative w-full min-w-0" ref={dateRef}>
                   <button
                     onClick={() => setDateDropdownOpen(v => !v)}
-                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
+                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between text-foreground"
                     style={{ borderColor: dateDropdownOpen ? accentColor : undefined }}
                   >
                     <span className="flex items-center gap-2 min-w-0">
@@ -692,7 +692,7 @@ export default function Home() {
                 <div className="relative w-full min-w-0" ref={timeRef}>
                   <button
                     onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
+                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between text-foreground"
                     style={{ borderColor: timeDropdownOpen ? accentColor : undefined }}
                   >
                     <span className="flex items-center gap-2 min-w-0">
