@@ -394,10 +394,10 @@ export default function CoachesPage() {
         <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent z-[2]" />
 
         <div className="relative z-10 container mx-auto px-4 pt-12 pb-14">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3 text-white/95 drop-shadow-md">
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-3 text-white drop-shadow-md">
             Treneriai
           </h1>
-          <p className="text-white/90 max-w-xl text-sm md:text-base leading-relaxed drop-shadow mb-8">
+          <p className="text-white/70 max-w-xl text-sm md:text-base leading-relaxed drop-shadow mb-8">
             Rask profesionalų trenerį bet kuriam sporto žaidimui — individualios pamokos, grupės ir daugiau.
           </p>
 

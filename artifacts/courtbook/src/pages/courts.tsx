@@ -430,10 +430,10 @@ export default function Courts() {
         ))}
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/30" />
         <div className="relative z-10 container mx-auto px-4 py-10 md:py-16">
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-white/95 drop-shadow-md">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 text-white drop-shadow-md">
             {t("courts.title")}
           </h1>
-          <p className="text-white/90 max-w-2xl text-sm md:text-base leading-relaxed drop-shadow">
+          <p className="text-white/80 max-w-2xl text-sm md:text-base leading-relaxed drop-shadow">
             {t("courts.subtitle")}
           </p>
         </div>
