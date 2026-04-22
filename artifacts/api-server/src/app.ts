@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
@@ -12,6 +13,12 @@ const app: Express = express();
 
 const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
 app.use("/courts/uploads", express.static(uploadsDir, { maxAge: "1d" }));
+
+// Serve the Vite-built frontend in production (same process, no separate static server needed)
+const frontendDist = path.resolve(process.cwd(), "../courtbook/dist/public");
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist, { maxAge: "1d", index: false }));
+}
 
 app.get("/sitemap.xml", (_req, res) => {
   res.type("application/xml");
@@ -69,5 +76,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 
 app.use("/api", router);
+
+// SPA fallback: serve index.html for any non-API route so client-side routing works
+if (fs.existsSync(frontendDist)) {
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 export default app;

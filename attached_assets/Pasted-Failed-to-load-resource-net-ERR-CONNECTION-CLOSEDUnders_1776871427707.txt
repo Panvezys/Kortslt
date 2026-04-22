@@ -1,0 +1,50 @@
+Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+maps.googleapis.com/maps/api/mapsjs/gen_204?csp_test=true:1  Failed to load resource: net::ERR_BLOCKED_BY_CLIENTUnderstand this error
+main.js:420 As of February 21st, 2024, google.maps.Marker is deprecated. Please use google.maps.marker.AdvancedMarkerElement instead. At this time, google.maps.Marker is not scheduled to be discontinued, but google.maps.marker.AdvancedMarkerElement is recommended over google.maps.Marker. While google.maps.Marker will continue to receive bug fixes for any major regressions, existing bugs in google.maps.Marker will not be addressed. At least 12 months notice will be given before support is discontinued. Please see https://developers.google.com/maps/deprecations for additional details and https://developers.google.com/maps/documentation/javascript/advanced-markers/migration for the migration guide.
+Bp @ main.js:420Understand this warning
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js:1  Failed to load resource: net::ERR_CONNECTION_CLOSEDUnderstand this error
+index-BHbG9FTl.js:23 Uncaught (in promise) Mq: Clerk: Failed to load Clerk JS, failed to load script: https://clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js
+
+(code="failed_to_load_clerk_js")
+
+
+    at n (index-BHbG9FTl.js:23:3432)
+    at index-BHbG9FTl.js:23:3907Caused by: Error: failed to load script: https://clerk.kortslt.replit.app/npm/@clerk/clerk-js@6/dist/clerk.browser.js
+    at HTMLScriptElement.<anonymous> (index-BHbG9FTl.js:23:2111)Understand this error
+index-BHbG9FTl.js:23 Mq: Clerk: Failed to load Clerk JS
+
+(code="failed_to_load_clerk_js")
+
+
+    at n (/assets/index-BHbG9FTl.js:23:3432)
+    at Eue (/assets/index-BHbG9FTl.js:23:3803)
+    at pV.getClerkJsEntryChunk (/assets/index-BHbG9FTl.js:23:40137)
+    at pV.getEntryChunks (/assets/index-BHbG9FTl.js:23:39600)
+    at new pV (/assets/index-BHbG9FTl.js:23:37373)
+    at pV.getOrCreateInstance (/assets/index-BHbG9FTl.js:23:37788)
+    at Iue (/assets/index-BHbG9FTl.js:23:42579)
+    at Bue (/assets/index-BHbG9FTl.js:23:42335)
+    at zb (/assets/index-BHbG9FTl.js:8:34297)
+    at a1 (/assets/index-BHbG9FTl.js:8:63083)
+getEntryChunks @ index-BHbG9FTl.js:23Understand this error
+/api/courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/popular-courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/tournaments?featured=1:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/popular-courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/tournaments?featured=1:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/popular-courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/tournaments?featured=1:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/popular-courts:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/tournaments?featured=1:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+/api/stats/summary:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
