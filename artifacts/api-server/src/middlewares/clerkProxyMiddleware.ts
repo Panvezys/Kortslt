@@ -22,18 +22,49 @@
 import { createProxyMiddleware } from "http-proxy-middleware";
 import type { RequestHandler } from "express";
 
-const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
-export function clerkProxyMiddleware(): RequestHandler {
-  // Only run proxy in production — Clerk proxying doesn't work for dev instances
-  if (process.env.NODE_ENV !== "production") {
-    return (_req, _res, next) => next();
+/**
+ * Derive the Clerk FAPI base URL from the publishable key.
+ * The third segment of pk_test_BASE64 / pk_live_BASE64 decodes to the FAPI host.
+ */
+function getClerkFapiUrl(): string {
+  const pubKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+  if (pubKey) {
+    const parts = pubKey.split("_");
+    if (parts.length >= 3) {
+      try {
+        const decoded = Buffer.from(parts[2], "base64").toString("utf8").replace(/\$$/, "");
+        if (decoded.includes(".")) return `https://${decoded}`;
+      } catch {
+        // fall through
+      }
+    }
   }
+  return "https://frontend-api.clerk.dev";
+}
 
+export function clerkProxyMiddleware(): RequestHandler {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     return (_req, _res, next) => next();
+  }
+
+  const CLERK_FAPI = getClerkFapiUrl();
+
+  // Strip Domain= from upstream Set-Cookie headers so cookies (notably the
+  // dev-instance __clerk_db_jwt) are stored against OUR origin, not Clerk's
+  // accounts domain. Without this, follow-up proxied requests never include
+  // the dev-browser JWT and Clerk FAPI returns 401 forever.
+  function rewriteSetCookies(setCookieHeader: string | string[] | undefined): string[] | undefined {
+    if (!setCookieHeader) return undefined;
+    const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+    return cookies.map((cookie) =>
+      cookie
+        .split(/;\s*/)
+        .filter((part) => !/^domain=/i.test(part))
+        .join("; "),
+    );
   }
 
   return createProxyMiddleware({
@@ -57,6 +88,12 @@ export function clerkProxyMiddleware(): RequestHandler {
           "";
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
+        }
+      },
+      proxyRes: (proxyRes) => {
+        const rewritten = rewriteSetCookies(proxyRes.headers["set-cookie"]);
+        if (rewritten) {
+          proxyRes.headers["set-cookie"] = rewritten;
         }
       },
     },
