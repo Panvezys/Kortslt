@@ -55,13 +55,8 @@ const queryClient = new QueryClient();
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-// Clerk's proxyUrl feature is ONLY supported for production instances (pk_live_*).
-// Dev instances (pk_test_*) MUST talk directly to *.clerk.accounts.dev — attempting
-// to proxy them causes "Something went wrong initializing Clerk" errors.
-// In Replit iframe previews, dev sign-in may be limited by third-party cookie rules,
-// but the page itself will render normally and most of the app works without auth.
-// To explicitly enable proxy for production deployment, set VITE_CLERK_PROXY_URL.
-const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL || undefined;
+// NOTE: in dev this env var will be empty, in prod it will be automatically set
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 

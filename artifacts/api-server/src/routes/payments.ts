@@ -320,7 +320,7 @@ router.post("/payments/connect/onboard", async (req, res): Promise<void> => {
       country: "LT",
       email: court.ownerEmail,
       capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-      business_profile: { name: court.name, url: `${process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`}/courts/${court.id}` },
+      business_profile: { name: court.name, url: `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}/courts/${court.id}` },
       metadata: { courtId: String(court.id), ownerUserId: court.ownerUserId ?? "" },
     });
     accountId = account.id;
@@ -329,7 +329,7 @@ router.post("/payments/connect/onboard", async (req, res): Promise<void> => {
       .where(eq(courtsTable.id, Number(courtId)));
   }
 
-  const base = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+  const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
   const accountLink = await stripe.accountLinks.create({
     account: accountId,
     refresh_url: refreshUrl ?? `${base}/owner?connect_refresh=1&courtId=${courtId}`,
@@ -411,7 +411,7 @@ router.post("/facilities/:id/connect/onboard", requireAuth, async (req, res): Pr
         .where(eq(facilitiesTable.id, facilityId));
     }
 
-    const base = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+    const base = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: refreshUrl ?? `${base}/owner/facility/${facilityId}?connect_refresh=1`,

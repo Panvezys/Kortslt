@@ -1,6 +1,5 @@
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
-import { execSync } from "child_process";
 import app from "./app";
 import { logger } from "./lib/logger";
 
@@ -16,14 +15,8 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Kill any stale process holding the port before binding (handles rapid restarts)
-try {
-  execSync(`fuser -k ${port}/tcp`, { stdio: "ignore" });
-} catch {
-  // No process on the port — fine
-}
-
-app.listen(port, "0.0.0.0", (err) => {
+// Start listening immediately so the port is claimed before the old process releases it
+app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -49,7 +42,7 @@ async function initStripe() {
 
   try {
     const stripeSync = await getStripeSync();
-    const webhookBaseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
+    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
     await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
     logger.info("Stripe webhook configured");
 

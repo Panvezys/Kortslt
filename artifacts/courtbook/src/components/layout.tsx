@@ -148,12 +148,6 @@ function UserMenu() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href="https://accounts.korts.lt" target="_self" className="flex items-center w-full">
-            <UserCircle className="mr-2 h-4 w-4" />
-            Paskyra
-          </a>
-        </DropdownMenuItem>
         {(isCoach || isAdmin) && (
           <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
             <Trophy className="mr-2 h-4 w-4" />
