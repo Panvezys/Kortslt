@@ -55,25 +55,13 @@ const queryClient = new QueryClient();
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-const isProductionClerkKey = clerkPubKey?.startsWith("pk_live_");
-
-// Production keys (pk_live_*): Clerk derives its own host from the key — no proxy needed.
-// Dev keys (pk_test_*): Route all Clerk FAPI calls through our own backend proxy so that
-// auth cookies stay same-origin. This fixes cross-origin cookie issues in iframes
-// (Replit preview) and avoids dev_browser_unauthenticated errors.
-//
-// IMPORTANT: proxyUrl must be an absolute URL so Clerk can correctly inject <script> tags.
-// A relative path like "/api/__clerk" resolves to window.location.origin which may be
-// wrong in proxied / iframe environments. We use VITE_CLERK_PROXY_URL if set, otherwise
-// construct from the current window origin at runtime.
-function resolveClerkProxyUrl(): string | undefined {
-  if (isProductionClerkKey) return undefined;
-  if (import.meta.env.VITE_CLERK_PROXY_URL) return import.meta.env.VITE_CLERK_PROXY_URL;
-  // Build absolute URL from current window origin at runtime
-  return `${window.location.origin}/api/__clerk`;
-}
-
-const clerkProxyUrl = resolveClerkProxyUrl();
+// Clerk's proxyUrl feature is ONLY supported for production instances (pk_live_*).
+// Dev instances (pk_test_*) MUST talk directly to *.clerk.accounts.dev — attempting
+// to proxy them causes "Something went wrong initializing Clerk" errors.
+// In Replit iframe previews, dev sign-in may be limited by third-party cookie rules,
+// but the page itself will render normally and most of the app works without auth.
+// To explicitly enable proxy for production deployment, set VITE_CLERK_PROXY_URL.
+const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL || undefined;
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
