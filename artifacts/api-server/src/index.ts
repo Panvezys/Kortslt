@@ -1,5 +1,6 @@
 import { runMigrations } from "stripe-replit-sync";
 import { getStripeSync } from "./stripeClient";
+import { execSync } from "child_process";
 import app from "./app";
 import { logger } from "./lib/logger";
 
@@ -13,6 +14,13 @@ const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
+}
+
+// Kill any stale process holding the port before binding (handles rapid restarts)
+try {
+  execSync(`fuser -k ${port}/tcp`, { stdio: "ignore" });
+} catch {
+  // No process on the port — fine
 }
 
 app.listen(port, "0.0.0.0", (err) => {
