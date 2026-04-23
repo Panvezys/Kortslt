@@ -9,6 +9,7 @@ import { I18nProvider, useI18n } from "@/lib/i18n";
 import NotFound from "@/pages/not-found";
 import { useRole } from "@/lib/useRole";
 import { FavoritesProvider } from "@/lib/FavoritesContext";
+import { ClerkLoadFailureBanner } from "@/components/ClerkLoadFailureBanner";
 
 import Home from "@/pages/home";
 import Courts from "@/pages/courts";
@@ -275,6 +276,7 @@ function ClerkProviderWithRoutes() {
             <TooltipProvider>
               <Router />
               <Toaster />
+              <ClerkLoadFailureBanner />
             </TooltipProvider>
           </FavoritesProvider>
         </SafeAuthBridge>
