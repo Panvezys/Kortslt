@@ -42,20 +42,19 @@ const SKILL_LABELS: Record<string, string> = {
 };
 
 interface Participant {
-  id: number; gameId: number; userId: string; userName: string;
-  userEmail: string | null; team: string | null; status: string; joinedAt: string; elo?: number;
+  id: number; gameId: number; userId?: string; userName: string;
+  team: string | null; status: string; joinedAt: string; elo?: number; isOrganizer?: boolean;
 }
 interface PendingParticipant {
-  id: number; gameId: number; userId: string; userName: string;
-  userEmail: string | null; joinedAt: string;
+  id: number; gameId: number; userId: string; userName: string; joinedAt: string;
 }
 interface GameDetail {
-  id: number; creatorUserId: string; creatorName: string; creatorEmail: string | null;
+  id: number; creatorUserId?: string; creatorName: string;
   sport: string; city: string; placeName: string | null;
   courtId: number | null; facilityId: number | null;
   playersNeeded: number; skillLevel: string; datetime: string; durationMinutes: number;
   description: string | null; status: string; matchType: string; isPrivate: boolean;
-  requiresApproval: boolean; teamCount: number;
+  requiresApproval: boolean; teamCount: number; isCreator: boolean;
   inviteToken: string | null; joinedCount: number; slotsLeft: number; isJoined: boolean;
   isPending: boolean;
   participants: Participant[];
@@ -469,7 +468,7 @@ export default function GameDetailPage() {
 
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const isParticipantOrCreator = data?.isJoined || data?.creatorUserId === user?.id;
+  const isParticipantOrCreator = data?.isJoined || data?.isCreator;
 
   const { data: chatMessages = [] } = useQuery<any[]>({
     queryKey: ["game-chat", id],
@@ -520,7 +519,7 @@ export default function GameDetailPage() {
     );
   }
 
-  const isCreator = user?.id === data.creatorUserId;
+  const isCreator = !!data.isCreator;
   const isParticipant = data.isJoined && !isCreator;
   const shareUrl = data.isPrivate && data.inviteToken
     ? `${window.location.origin}${BASE}/games/${data.id}?token=${data.inviteToken}`
@@ -669,12 +668,12 @@ export default function GameDetailPage() {
                     : "Prisijungti prie žaidimo"}
                 </Button>
               )}
-              {!isCreator && user?.id && data.creatorUserId !== user.id && (
+              {!isCreator && !!user?.id && !!data.creatorUserId && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => openChat({
-                    userId: data.creatorUserId,
+                    userId: data.creatorUserId!,
                     userName: data.creatorName,
                     ctxType: "game",
                     ctxId: data.id,
@@ -834,7 +833,7 @@ export default function GameDetailPage() {
               };
               return (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <button onClick={() => setProfileView({ userId: p.userId, userName: p.userName })} className="shrink-0">
+                  <button onClick={() => p.userId && setProfileView({ userId: p.userId, userName: p.userName })} className="shrink-0">
                     <Avatar className="h-10 w-10 ring-2 ring-transparent hover:ring-primary/30 transition-all cursor-pointer">
                       {pImageUrl && <AvatarImage src={pImageUrl} alt={p.userName} />}
                       <AvatarFallback className="bg-primary/15 text-primary font-semibold">
@@ -844,11 +843,11 @@ export default function GameDetailPage() {
                   </button>
                   <div className="flex-1 min-w-0">
                     <button
-                      onClick={() => setProfileView({ userId: p.userId, userName: p.userName })}
+                      onClick={() => p.userId && setProfileView({ userId: p.userId, userName: p.userName })}
                       className="font-medium flex items-center gap-2 hover:text-primary transition-colors"
                     >
                       {p.userName}
-                      {p.userId === data.creatorUserId && <Crown className="w-3.5 h-3.5 text-primary" />}
+                      {!!p.isOrganizer && <Crown className="w-3.5 h-3.5 text-primary" />}
                     </button>
                     <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
                       <EloBadge elo={pElo} sport={data.sport} />
@@ -861,12 +860,12 @@ export default function GameDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {user?.id && user.id !== p.userId && (
+                    {!!user?.id && !!p.userId && user.id !== p.userId && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openChat({
-                          userId: p.userId,
+                          userId: p.userId!,
                           userName: p.userName,
                           ctxType: "game",
                           ctxId: data.id,
@@ -875,7 +874,7 @@ export default function GameDetailPage() {
                         <MessageCircle className="w-4 h-4"/>
                       </Button>
                     )}
-                    {isCreator && p.userId !== data.creatorUserId && (
+                    {isCreator && !p.isOrganizer && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button

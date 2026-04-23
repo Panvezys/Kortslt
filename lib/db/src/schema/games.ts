@@ -32,6 +32,8 @@ export const gameParticipantsTable = pgTable("game_participants", {
   userEmail: text("user_email"),
   team: text("team"),
   status: text("status").notNull().default("joined"),
+  // "join_request" = user asked to join; "invite" = creator invited user (requires user acceptance)
+  source: text("source").notNull().default("join_request"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

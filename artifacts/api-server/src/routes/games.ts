@@ -9,18 +9,54 @@ import crypto from "node:crypto";
 
 const router: IRouter = Router();
 
-function formatGame(g: typeof gamesTable.$inferSelect, joinedCount = 0, isJoined = false) {
+function formatGame(g: typeof gamesTable.$inferSelect, joinedCount = 0, isJoined = false, isCreator = false) {
   return {
-    ...g,
+    id: g.id,
+    creatorName: g.creatorName,
+    sport: g.sport,
+    city: g.city,
+    placeName: g.placeName,
+    facilityId: g.facilityId,
+    courtId: g.courtId,
+    playersNeeded: g.playersNeeded,
+    skillLevel: g.skillLevel,
+    datetime: g.datetime instanceof Date ? g.datetime.toISOString() : new Date(g.datetime).toISOString(),
+    durationMinutes: g.durationMinutes,
+    description: g.description,
+    isPrivate: g.isPrivate,
+    requiresApproval: g.requiresApproval,
+    teamCount: g.teamCount,
+    status: g.status,
+    matchType: g.matchType,
     createdAt: g.createdAt.toISOString(),
     joinedCount,
     slotsLeft: Math.max(0, g.playersNeeded - joinedCount),
     isJoined,
+    isCreator,
   };
 }
 
 function formatParticipant(p: typeof gameParticipantsTable.$inferSelect) {
-  return { ...p, joinedAt: p.joinedAt.toISOString() };
+  return {
+    id: p.id,
+    gameId: p.gameId,
+    userName: p.userName,
+    team: p.team,
+    status: p.status,
+    joinedAt: p.joinedAt.toISOString(),
+  };
+}
+
+function formatParticipantWithId(p: typeof gameParticipantsTable.$inferSelect) {
+  return {
+    id: p.id,
+    gameId: p.gameId,
+    userId: p.userId,
+    userName: p.userName,
+    team: p.team,
+    status: p.status,
+    joinedAt: p.joinedAt.toISOString(),
+  };
 }
 
 function formatDateTime(value: Date | string) {
@@ -154,7 +190,7 @@ router.get("/games", async (req, res): Promise<void> => {
     joinedSet = new Set(mine.map(m => m.gameId));
   }
 
-  res.json(rows.map(g => formatGame(g, countMap.get(g.id) ?? 0, joinedSet.has(g.id))));
+  res.json(rows.map(g => formatGame(g, countMap.get(g.id) ?? 0, joinedSet.has(g.id), !!(userId && userId === g.creatorUserId))));
 });
 
 // GET /games/:id — detail (public, but shares private games via token)
@@ -205,11 +241,20 @@ router.get("/games/:id", async (req, res): Promise<void> => {
   );
   const ratingMap = new Map(participantRatings.map(r => [r.userId, r.elo]));
 
+  const gameData = formatGame(g, participants.length, isJoined, isCreator);
+  // Expose internal user IDs only to authenticated game participants, not public visitors
+  const isAuthenticatedParticipant = isJoined || isCreator;
   res.json({
-    ...formatGame(g, participants.length, isJoined),
+    ...gameData,
+    ...(isCreator && g.inviteToken ? { inviteToken: g.inviteToken } : {}),
+    ...(isAuthenticatedParticipant ? { creatorUserId: g.creatorUserId } : {}),
     isPending,
-    participants: participants.map(p => ({ ...formatParticipant(p), elo: ratingMap.get(p.userId) ?? 1200 })),
-    pendingParticipants: pendingParticipants.map(p => formatParticipant(p)),
+    participants: participants.map(p => ({
+      ...(isAuthenticatedParticipant ? formatParticipantWithId(p) : formatParticipant(p)),
+      elo: ratingMap.get(p.userId) ?? 1200,
+      isOrganizer: p.userId === g.creatorUserId,
+    })),
+    pendingParticipants: pendingParticipants.map(p => formatParticipantWithId(p)),
   });
 });
 
@@ -259,7 +304,8 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
     status: "joined",
   });
 
-  res.status(201).json(formatGame(game, 1, true));
+  const created = formatGame(game, 1, true, true);
+  res.status(201).json(game.inviteToken ? { ...created, inviteToken: game.inviteToken } : created);
 });
 
 // PUT /games/:id — creator only
@@ -287,7 +333,7 @@ router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
     ...(status !== undefined && { status }),
   }).where(eq(gamesTable.id, id)).returning();
 
-  res.json(formatGame(updated));
+  res.json(formatGame(updated, 0, false, true));
 });
 
 // DELETE /games/:id — creator only
@@ -436,6 +482,12 @@ router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<vo
     .where(and(eq(gameParticipantsTable.id, participantId), eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "pending")));
   if (!participant) { res.status(404).json({ error: "Pending request not found" }); return; }
 
+  // Creator-sent invites (source="invite") can only be accepted by the invited user themselves
+  // via POST /games/:id/accept-invite — the creator cannot approve their own invitations
+  if (participant.source === "invite") {
+    res.status(403).json({ error: "This is a creator-sent invitation and can only be accepted by the invited user" }); return;
+  }
+
   const sportLabel = g.sport.replace(/_/g, " ");
   const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
 
@@ -556,7 +608,7 @@ router.get("/my-games", requireAuth, async (req, res): Promise<void> => {
     .groupBy(gameParticipantsTable.gameId);
   const countMap = new Map(counts.map(c => [c.gameId, Number(c.count)]));
 
-  res.json(mine.map(g => formatGame(g, countMap.get(g.id) ?? 0, true)));
+  res.json(mine.map(g => formatGame(g, countMap.get(g.id) ?? 0, true, g.creatorUserId === userId)));
 });
 
 // Helper: get or create user rating for a sport
@@ -639,6 +691,11 @@ router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> =>
   const [participation] = await db.select().from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId), eq(gameParticipantsTable.status, "joined")));
   if (!participation) { res.status(403).json({ error: "You are not a participant in this game" }); return; }
+
+  // The reporter cannot verify their own result — requires an independent participant
+  if (userId === result.reportedByUserId) {
+    res.status(403).json({ error: "The result reporter cannot verify their own result" }); return;
+  }
 
   const { action } = req.body ?? {}; // "confirm" | "dispute"
   if (action !== "confirm" && action !== "dispute") {
@@ -769,14 +826,18 @@ router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> =>
   res.status(201).json({ ...invite, createdAt: invite.createdAt.toISOString() });
 });
 
-// GET /games/:id/result — get reported result
+// GET /games/:id/result — get reported result (public-safe: no internal user IDs)
 router.get("/games/:id/result", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [result] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
   if (!result) { res.status(404).json({ error: "No result found" }); return; }
   res.json({
-    ...result,
-    autoConfirmAt: result.autoConfirmAt?.toISOString(),
+    id: result.id,
+    gameId: result.gameId,
+    scoreTeamA: result.scoreTeamA,
+    scoreTeamB: result.scoreTeamB,
+    status: result.status,
+    autoConfirmAt: result.autoConfirmAt?.toISOString() ?? null,
     createdAt: result.createdAt.toISOString(),
   });
 });
@@ -830,31 +891,104 @@ router.get("/users/:userId/elo-history", async (req, res): Promise<void> => {
   res.json(history.map(h => ({ ...h, recordedAt: h.recordedAt.toISOString() })));
 });
 
-// POST /games/:id/add-player — creator adds a player directly by userId
+// POST /games/:id/add-player — creator sends an invitation to a user by userId (requires target's acceptance)
 router.post("/games/:id/add-player", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Game not found" }); return; }
-  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only creator can add players" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only creator can invite players" }); return; }
+
+  // Game must be open or in the future
+  if (g.status !== "open" && g.status !== "full") {
+    res.status(400).json({ error: "Cannot invite players to a game that is not open" }); return;
+  }
+  if (new Date(g.datetime) < new Date()) {
+    res.status(400).json({ error: "Cannot invite players to a game that has already started" }); return;
+  }
 
   const { targetUserId, targetUserName, team } = req.body as any;
   if (!targetUserId || !targetUserName) { res.status(400).json({ error: "targetUserId and targetUserName required" }); return; }
 
+  // Creator cannot invite themselves (they are already joined)
+  if (targetUserId === userId) {
+    res.status(400).json({ error: "Creator is already in the game" }); return;
+  }
+
   const [existing] = await db.select().from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, targetUserId)));
-  if (existing) { res.status(400).json({ error: "Player already in game" }); return; }
+  if (existing) { res.status(400).json({ error: "Player already has a record in this game" }); return; }
 
-  const [participant] = await db.insert(gameParticipantsTable).values({
+  // Insert as "pending" with source="invite" — only the invited user can accept via accept-invite
+  const [invite] = await db.insert(gameParticipantsTable).values({
     gameId: id,
     userId: targetUserId,
     userName: targetUserName,
     team: team ?? null,
-    status: "joined",
+    status: "pending",
+    source: "invite",
   }).returning();
 
-  res.status(201).json({ ...participant, joinedAt: participant.joinedAt.toISOString() });
+  // Notify the invited user so they can accept or decline
+  const sportLabel = g.sport.replace(/_/g, " ");
+  const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
+  await sendNotification(
+    targetUserId,
+    "game_join_request",
+    `Kvietimas prisijungti prie žaidimo`,
+    `${g.creatorName} kviečia jus žaisti ${sportLabel} ${gameDate} (${g.city}). Prisijunkite, kad patvirtintumėte.`,
+    `/games/${id}`,
+  );
+
+  res.status(201).json({ ...formatParticipantWithId(invite), status: "pending" });
+});
+
+// POST /games/:id/accept-invite — invited user accepts a creator-sent invitation
+router.post("/games/:id/accept-invite", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Game not found" }); return; }
+
+  if (g.status !== "open" && g.status !== "full") {
+    res.status(400).json({ error: "Game is no longer accepting players" }); return;
+  }
+  if (new Date(g.datetime) < new Date()) {
+    res.status(400).json({ error: "Game has already started" }); return;
+  }
+
+  // Find a creator-sent invite for THIS authenticated user — identity bound to session, not client body
+  // Only source="invite" entries are accepted here; user-initiated join requests use approve-join
+  const [invite] = await db.select().from(gameParticipantsTable)
+    .where(and(
+      eq(gameParticipantsTable.gameId, id),
+      eq(gameParticipantsTable.userId, userId),
+      eq(gameParticipantsTable.status, "pending"),
+      eq(gameParticipantsTable.source, "invite"),
+    ));
+  if (!invite) { res.status(404).json({ error: "No pending invitation found for you in this game" }); return; }
+
+  // Capacity check before accepting
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+  if (Number(countRow?.count ?? 0) >= g.playersNeeded) {
+    res.status(400).json({ error: "Game is full — cannot accept invite" }); return;
+  }
+
+  await db.update(gameParticipantsTable)
+    .set({ status: "joined" })
+    .where(eq(gameParticipantsTable.id, invite.id));
+
+  // Auto-close game if now full
+  const [newCountRow] = await db.select({ count: sql<number>`count(*)` }).from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+  if (Number(newCountRow?.count ?? 0) >= g.playersNeeded) {
+    await db.update(gamesTable).set({ status: "full" }).where(eq(gamesTable.id, id));
+  }
+
+  res.json({ ok: true, status: "joined" });
 });
 
 // GET /games/:id/chat — get all chat messages (participants only)

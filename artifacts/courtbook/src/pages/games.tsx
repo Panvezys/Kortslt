@@ -39,11 +39,11 @@ const SKILL_LABELS: Record<string, string> = {
 const CITIES = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Mažeikiai", "Jonava", "Utena", "Kėdainiai", "Telšiai", "Tauragė", "Ukmergė", "Visaginas", "Plungė", "Kretinga", "Palanga", "Šilutė", "Radviliškis", "Druskininkai", "Rokiškis", "Biržai", "Elektrėnai"];
 
 interface Game {
-  id: number; creatorUserId: string; creatorName: string; sport: string; city: string;
+  id: number; creatorName: string; sport: string; city: string;
   placeName: string | null; playersNeeded: number; skillLevel: string; datetime: string;
   durationMinutes: number; description: string | null; status: string; matchType: string;
   isPrivate: boolean; requiresApproval: boolean; teamCount: number;
-  joinedCount: number; slotsLeft: number; isJoined: boolean; createdAt: string;
+  joinedCount: number; slotsLeft: number; isJoined: boolean; isCreator: boolean; createdAt: string;
 }
 
 function formatDateTime(iso: string) {
