@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db, coachesTable, courtCoachesTable, courtCoachInvitationsTable, courtsTable } from "@workspace/db";
-import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
+import { requireAuth, getCurrentUserId, isOwner, getUserRole } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { sendCoachInviteEmail } from "../lib/email";
 
@@ -20,7 +20,22 @@ function formatCoach(c: typeof coachesTable.$inferSelect) {
   };
 }
 
-// GET /coaches — list all coaches, or filter by courtId
+function formatPublicCoach(c: typeof coachesTable.$inferSelect) {
+  return {
+    id: c.id,
+    userId: c.userId,
+    name: c.name,
+    bio: c.bio ?? undefined,
+    photoUrl: c.photoUrl ?? undefined,
+    videoUrl: c.videoUrl ?? undefined,
+    pricePerHour: c.pricePerHour != null ? Number(c.pricePerHour) : undefined,
+    sports: c.sports,
+    availabilityDescription: c.availabilityDescription ?? undefined,
+    createdAt: c.createdAt.toISOString(),
+  };
+}
+
+// GET /coaches — list approved coaches, or filter by courtId
 router.get("/coaches", async (req, res): Promise<void> => {
   const courtId = req.query.courtId ? parseInt(req.query.courtId as string, 10) : null;
 
@@ -29,13 +44,17 @@ router.get("/coaches", async (req, res): Promise<void> => {
       .select({ coach: coachesTable })
       .from(courtCoachesTable)
       .innerJoin(coachesTable, eq(courtCoachesTable.coachId, coachesTable.id))
-      .where(eq(courtCoachesTable.courtId, courtId));
-    res.json(rows.map((r) => formatCoach(r.coach)));
+      .where(and(eq(courtCoachesTable.courtId, courtId), eq(coachesTable.status, "approved")));
+    res.json(rows.map((r) => formatPublicCoach(r.coach)));
     return;
   }
 
-  const coaches = await db.select().from(coachesTable).orderBy(coachesTable.createdAt);
-  res.json(coaches.map(formatCoach));
+  const coaches = await db
+    .select()
+    .from(coachesTable)
+    .where(eq(coachesTable.status, "approved"))
+    .orderBy(coachesTable.createdAt);
+  res.json(coaches.map(formatPublicCoach));
 });
 
 // GET /coaches/me — get own coach profile
@@ -49,18 +68,28 @@ router.get("/coaches/me", requireAuth, async (req, res): Promise<void> => {
   res.json(formatCoach(coach));
 });
 
-// GET /coaches/:id — get coach by id
+// GET /coaches/:id — get approved coach by id
 router.get("/coaches/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [coach] = await db.select().from(coachesTable).where(eq(coachesTable.id, id));
+  const [coach] = await db
+    .select()
+    .from(coachesTable)
+    .where(and(eq(coachesTable.id, id), eq(coachesTable.status, "approved")));
   if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
-  res.json(formatCoach(coach));
+  res.json(formatPublicCoach(coach));
 });
 
-// POST /coaches — create coach profile (auth required, one per user)
+// POST /coaches — create coach profile (coach role required, one per user)
 router.post("/coaches", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
+
+  const callerRole = await getUserRole(userId);
+  if (callerRole !== "coach" && callerRole !== "admin") {
+    res.status(403).json({ error: "Forbidden – coach role required" });
+    return;
+  }
+
   const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = req.body;
 
   if (!name || !email) {
@@ -122,9 +151,16 @@ router.put("/coaches/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(formatCoach(updated));
 });
 
-// PUT /coaches/me — upsert own coach profile
+// PUT /coaches/me — update own coach profile (coach role required)
 router.put("/coaches/me", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
+
+  const callerRole = await getUserRole(userId);
+  if (callerRole !== "coach" && callerRole !== "admin") {
+    res.status(403).json({ error: "Forbidden – coach role required" });
+    return;
+  }
+
   const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = req.body;
 
   if (!name || !email) {
@@ -161,7 +197,7 @@ router.put("/coaches/me", requireAuth, async (req, res): Promise<void> => {
   }
 });
 
-// GET /courts/:id/coaches — coaches assigned to court
+// GET /courts/:id/coaches — approved coaches assigned to court
 router.get("/courts/:id/coaches", async (req, res): Promise<void> => {
   const courtId = parseInt(req.params.id, 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
@@ -170,9 +206,9 @@ router.get("/courts/:id/coaches", async (req, res): Promise<void> => {
     .select({ coach: coachesTable })
     .from(courtCoachesTable)
     .innerJoin(coachesTable, eq(courtCoachesTable.coachId, coachesTable.id))
-    .where(eq(courtCoachesTable.courtId, courtId));
+    .where(and(eq(courtCoachesTable.courtId, courtId), eq(coachesTable.status, "approved")));
 
-  res.json(rows.map((r) => formatCoach(r.coach)));
+  res.json(rows.map((r) => formatPublicCoach(r.coach)));
 });
 
 // POST /courts/:id/coaches — assign a coach to court (court owner only)
