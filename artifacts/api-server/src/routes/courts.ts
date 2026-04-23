@@ -55,6 +55,46 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
   };
 }
 
+/** Restricted view for unauthenticated / public callers.
+ *  Sensitive internal and owner-identifying fields are intentionally omitted. */
+function formatPublicCourt(c: typeof courtsTable.$inferSelect) {
+  return {
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    description: c.description ?? undefined,
+    address: c.address,
+    city: c.city,
+    postcode: c.postcode ?? undefined,
+    latitude: c.latitude,
+    longitude: c.longitude,
+    pricePerHour: Number(c.pricePerHour),
+    peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
+    bufferMinutes: c.bufferMinutes ?? 0,
+    rentableItems: c.rentableItems ?? undefined,
+    imageUrl: c.imageUrl ?? undefined,
+    ownerName: c.ownerName,
+    amenities: c.amenities,
+    isIndoor: c.isIndoor,
+    maxPlayers: c.maxPlayers,
+    surface: c.surface ?? undefined,
+    condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
+    rating: c.rating ?? undefined,
+    totalBookings: c.totalBookings,
+    phone: c.phone ?? undefined,
+    openingHours: c.openingHours ?? undefined,
+    socialFacebook: c.socialFacebook ?? undefined,
+    socialInstagram: c.socialInstagram ?? undefined,
+    socialWhatsapp: c.socialWhatsapp ?? undefined,
+    socialWebsite: c.socialWebsite ?? undefined,
+    instantBookingEnabled: c.instantBookingEnabled ?? true,
+    facilityId: c.facilityId ?? undefined,
+    workingHours: c.workingHours ?? undefined,
+    amenityPhotos: c.amenityPhotos ?? undefined,
+    createdAt: c.createdAt,
+  };
+}
+
 /** Returns true if the given time slot (HH:MM) falls in peak hours: Mon–Fri 17:00–22:00 */
 function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
   if (dayOfWeek === 0 || dayOfWeek === 6) return false; // weekend
@@ -98,11 +138,22 @@ router.get("/courts", async (req, res): Promise<void> => {
 
   const conditions: ReturnType<typeof eq>[] = [];
 
-  // If ownerUserId filter is supplied, return all statuses for that owner (their dashboard view).
-  // Otherwise, public callers only see active/approved courts.
+  // If ownerUserId filter is supplied, this is an owner dashboard request.
+  // Require the caller to be authenticated as that owner (or an admin).
   if (params.data.ownerUserId) {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin" && userId !== params.data.ownerUserId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     conditions.push(eq(courtsTable.ownerUserId, params.data.ownerUserId));
   } else {
+    // Public callers only see active/approved courts.
     conditions.push(inArray(courtsTable.status, ["approved", "active"]));
   }
 
@@ -145,13 +196,14 @@ router.get("/courts", async (req, res): Promise<void> => {
     }
 
     res.json(filtered.map(r => ({
-      ...formatCourt(r.court),
+      ...formatPublicCourt(r.court),
       facilityVerified: r.facilityStatus === "verified",
       photos: photoMap.get(r.court.id) ?? [],
     })));
     return;
   }
 
+  // Authenticated owner/admin view — return full court data including internal fields.
   let query = db.select().from(courtsTable).$dynamic();
   if (conditions.length > 0) query = query.where(and(...conditions));
 
@@ -233,7 +285,22 @@ router.get("/courts/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetCourtResponse.parse(formatCourt(court)));
+  const isPublic = court.status === "approved" || court.status === "active";
+
+  if (!isPublic) {
+    // Non-public courts are only visible to the owner or an admin.
+    if (!(await isOwner(req, court.ownerUserId))) {
+      res.status(404).json({ error: "Court not found" });
+      return;
+    }
+    // Authenticated owner/admin gets full internal data validated against the schema.
+    res.json(GetCourtResponse.parse(formatCourt(court)));
+    return;
+  }
+
+  // Public court — return the restricted public view (no Zod parse to avoid
+  // requiring internal fields like ownerEmail that are intentionally excluded).
+  res.json(formatPublicCourt(court));
 });
 
 router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {

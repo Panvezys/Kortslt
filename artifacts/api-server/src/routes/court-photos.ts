@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import multer from "multer";
 import path from "path";
@@ -38,16 +38,44 @@ const uploadPhoto = multer({
 
 const router: IRouter = Router();
 
-async function getCourtOwner(courtId: number): Promise<string | null> {
-  const [court] = await db.select({ ownerUserId: courtsTable.ownerUserId })
-    .from(courtsTable).where(eq(courtsTable.id, courtId));
-  return court?.ownerUserId ?? null;
+async function getCourt(courtId: number): Promise<typeof courtsTable.$inferSelect | null> {
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  return court ?? null;
+}
+
+/** Middleware that verifies the caller is authenticated and owns the court (or is admin).
+ *  Must run BEFORE multer so that rejected requests never write files to disk. */
+async function requireCourtOwnership(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const { userId } = getAuth(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const courtId = parseInt(req.params.id);
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
+
+  const court = await getCourt(courtId);
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (!(await isOwner(req, court.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  next();
 }
 
 router.get("/courts/:id/photos", async (req, res): Promise<void> => {
   const courtId = parseInt(req.params.id);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
   try {
+    const court = await getCourt(courtId);
+    if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+    const isPublic = court.status === "approved" || court.status === "active";
+    if (!isPublic) {
+      // Non-public courts: only the owner or an admin may view photos.
+      if (!(await isOwner(req, court.ownerUserId))) {
+        res.status(404).json({ error: "Court not found" });
+        return;
+      }
+    }
+
     const photos = await db.select().from(courtPhotosTable)
       .where(eq(courtPhotosTable.courtId, courtId))
       .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
@@ -57,35 +85,44 @@ router.get("/courts/:id/photos", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/courts/:id/photos", uploadPhoto.single("image"), async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const courtId = parseInt(req.params.id);
-  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
+router.post(
+  "/courts/:id/photos",
+  requireCourtOwnership,
+  uploadPhoto.single("image"),
+  async (req, res): Promise<void> => {
+    const { userId } = getAuth(req);
+    if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const ownerUserId = await getCourtOwner(courtId);
-  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+    const courtId = parseInt(req.params.id);
 
-  if (!req.file) { res.status(400).json({ error: "No image provided" }); return; }
+    if (!req.file) { res.status(400).json({ error: "No image provided" }); return; }
 
-  const url = `courts/uploads/${req.file.filename}`;
-  const caption = typeof req.body.caption === "string" ? req.body.caption.trim() || null : null;
+    const url = `courts/uploads/${req.file.filename}`;
+    const caption = typeof req.body.caption === "string" ? req.body.caption.trim() || null : null;
 
-  const existing = await db.select({ displayOrder: courtPhotosTable.displayOrder })
-    .from(courtPhotosTable).where(eq(courtPhotosTable.courtId, courtId))
-    .orderBy(asc(courtPhotosTable.displayOrder));
-  const nextOrder = existing.length > 0 ? (existing[existing.length - 1]?.displayOrder ?? 0) + 1 : 0;
+    try {
+      const existing = await db.select({ displayOrder: courtPhotosTable.displayOrder })
+        .from(courtPhotosTable).where(eq(courtPhotosTable.courtId, courtId))
+        .orderBy(asc(courtPhotosTable.displayOrder));
+      const nextOrder = existing.length > 0 ? (existing[existing.length - 1]?.displayOrder ?? 0) + 1 : 0;
 
-  const [photo] = await db.insert(courtPhotosTable).values({
-    courtId,
-    url,
-    caption,
-    displayOrder: nextOrder,
-    uploadedBy: userId,
-  }).returning();
+      const [photo] = await db.insert(courtPhotosTable).values({
+        courtId,
+        url,
+        caption,
+        displayOrder: nextOrder,
+        uploadedBy: userId,
+      }).returning();
 
-  res.json(photo);
-});
+      res.json(photo);
+    } catch (e) {
+      // Clean up the uploaded file if the DB insert fails.
+      const filePath = path.resolve(uploadDir, req.file.filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      res.status(500).json({ error: "Failed to save photo" });
+    }
+  }
+);
 
 router.patch("/courts/:id/photos/:photoId", async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
@@ -94,8 +131,8 @@ router.patch("/courts/:id/photos/:photoId", async (req, res): Promise<void> => {
   const photoId = parseInt(req.params.photoId);
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const ownerUserId = await getCourtOwner(courtId);
-  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const court = await getCourt(courtId);
+  if (!(await isOwner(req, court?.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const updates: { caption?: string | null; displayOrder?: number } = {};
   if (typeof req.body.caption !== "undefined") updates.caption = req.body.caption || null;
@@ -117,8 +154,8 @@ router.delete("/courts/:id/photos/:photoId", async (req, res): Promise<void> => 
   const photoId = parseInt(req.params.photoId);
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const ownerUserId = await getCourtOwner(courtId);
-  if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const court = await getCourt(courtId);
+  if (!(await isOwner(req, court?.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const [photo] = await db.select().from(courtPhotosTable)
     .where(and(eq(courtPhotosTable.id, photoId), eq(courtPhotosTable.courtId, courtId)));
