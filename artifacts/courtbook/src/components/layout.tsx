@@ -149,10 +149,6 @@ function UserMenu() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => openUserProfile()}>
-          <UserCircle className="mr-2 h-4 w-4" />
-          Paskyra
-        </DropdownMenuItem>
         {(isCoach || isAdmin) && (
           <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
             <Trophy className="mr-2 h-4 w-4" />
