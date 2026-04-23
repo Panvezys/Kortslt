@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, tournamentsTable, tournamentRegistrationsTable, courtsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 
@@ -271,7 +271,13 @@ router.delete("/tournaments/:id/registrations/:regId", requireAuth, async (req, 
   const canEdit = await isOwner(req, t.ownerUserId);
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  await db.delete(tournamentRegistrationsTable).where(eq(tournamentRegistrationsTable.id, regId));
+  const deleted = await db.delete(tournamentRegistrationsTable).where(
+    and(
+      eq(tournamentRegistrationsTable.id, regId),
+      eq(tournamentRegistrationsTable.tournamentId, id)
+    )
+  ).returning();
+  if (deleted.length === 0) { res.status(404).json({ error: "Registration not found" }); return; }
   res.json({ ok: true });
 });
 
