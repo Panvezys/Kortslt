@@ -11,7 +11,7 @@ import {
   CancelBookingResponse,
   ListBookingsResponse,
 } from "@workspace/api-zod";
-import { requireAuth, isOwner, getCurrentUserId } from "../lib/auth";
+import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -25,12 +25,15 @@ function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: s
   };
 }
 
-router.get("/bookings", async (req, res): Promise<void> => {
+router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
   const params = ListBookingsQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
+
+  const userId = getCurrentUserId(req)!;
+  const role = await getUserRole(userId);
 
   const conditions = [];
   if (params.data.courtId != null) {
@@ -52,7 +55,15 @@ router.get("/bookings", async (req, res): Promise<void> => {
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .$dynamic();
 
-  if (conditions.length > 0) {
+  if (role === "admin") {
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+  } else if (role === "owner") {
+    conditions.push(eq(courtsTable.ownerUserId, userId));
+    query = query.where(and(...conditions));
+  } else {
+    conditions.push(eq(bookingsTable.bookerUserId, userId));
     query = query.where(and(...conditions));
   }
 
@@ -91,7 +102,6 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
       const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
         court.rentableItems ? JSON.parse(court.rentableItems) : [];
 
-      // Check current equipment availability for this time slot
       const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
       const reqStart = toMin(parsed.data.startTime);
       const reqEnd = toMin(parsed.data.endTime);
@@ -139,12 +149,14 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
   }
   totalPrice += equipmentCost;
 
-  // Normalise date to YYYY-MM-DD (the Zod schema coerces it to Date)
   const d = parsed.data.date;
   const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 
+  const bookerUserId = getCurrentUserId(req);
+
   const [booking] = await db.insert(bookingsTable).values({
     courtId: parsed.data.courtId,
+    bookerUserId: bookerUserId ?? null,
     customerName: parsed.data.customerName,
     customerEmail: parsed.data.customerEmail,
     customerPhone: parsed.data.customerPhone ?? null,
@@ -156,7 +168,6 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
     status: "pending",
   }).returning();
 
-  // Notify court owner about the new booking
   if (court.ownerUserId) {
     await sendNotification(
       court.ownerUserId,
@@ -170,15 +181,17 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(GetBookingResponse.parse(formatBooking(booking, court.name)));
 });
 
-router.get("/bookings/:id", async (req, res): Promise<void> => {
+router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const params = GetBookingParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
+  const userId = getCurrentUserId(req)!;
+
   const rows = await db
-    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .select({ booking: bookingsTable, courtName: courtsTable.name, courtOwnerUserId: courtsTable.ownerUserId })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .where(eq(bookingsTable.id, params.data.id));
@@ -188,36 +201,66 @@ router.get("/bookings/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetBookingResponse.parse(formatBooking(rows[0].booking, rows[0].courtName ?? undefined)));
+  const { booking, courtName, courtOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourOwner = courtOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  res.json(GetBookingResponse.parse(formatBooking(booking, courtName ?? undefined)));
 });
 
-router.delete("/bookings/:id", async (req, res): Promise<void> => {
+router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const params = CancelBookingParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [booking] = await db
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable, courtOwnerUserId: courtsTable.ownerUserId })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(eq(bookingsTable.id, params.data.id));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const { booking, courtOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = courtOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const [cancelled] = await db
     .update(bookingsTable)
     .set({ status: "cancelled" })
     .where(eq(bookingsTable.id, params.data.id))
     .returning();
 
-  if (!booking) {
-    res.status(404).json({ error: "Booking not found" });
-    return;
-  }
-
-  res.json(CancelBookingResponse.parse(formatBooking(booking)));
+  res.json(CancelBookingResponse.parse(formatBooking(cancelled)));
 });
 
-router.get("/bookings/:id/ics", async (req, res): Promise<void> => {
+router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) {
     res.status(400).send("Invalid booking id");
     return;
   }
+
+  const userId = getCurrentUserId(req)!;
 
   const rows = await db
     .select({
@@ -226,6 +269,7 @@ router.get("/bookings/:id/ics", async (req, res): Promise<void> => {
       courtId: courtsTable.id,
       courtAddress: courtsTable.address,
       courtCity: courtsTable.city,
+      courtOwnerUserId: courtsTable.ownerUserId,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -236,7 +280,16 @@ router.get("/bookings/:id/ics", async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, courtName, courtId, courtAddress, courtCity } = rows[0];
+  const { booking, courtName, courtId, courtAddress, courtCity, courtOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = courtOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).send("Forbidden");
+    return;
+  }
+
   const siteUrl = process.env.SITE_URL || "https://korts.lt";
 
   function icsDateTime(date: string, time: string): string {
@@ -297,6 +350,7 @@ router.post("/owner/bookings/manual", requireAuth, async (req, res): Promise<voi
 
   const [booking] = await db.insert(bookingsTable).values({
     courtId,
+    bookerUserId: null,
     customerName,
     customerEmail,
     customerPhone: customerPhone ?? null,

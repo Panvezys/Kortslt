@@ -10,7 +10,7 @@ import {
 import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail, sendOwnerBookingNotificationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
-import { getCurrentUserId, requireAuth } from "../lib/auth";
+import { getCurrentUserId, requireAuth, getUserRole } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -202,18 +202,14 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
 });
 
 // ─── Free booking confirm ─────────────────────────────────────────────────────
-router.post("/payments/confirm-free", async (req, res): Promise<void> => {
+router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<void> => {
   const bookingId = Number(req.body?.bookingId);
   if (!bookingId || isNaN(bookingId)) {
     res.status(400).json({ error: "bookingId required" });
     return;
   }
 
-  const userId = getCurrentUserId(req);
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+  const userId = getCurrentUserId(req)!;
 
   const rows = await db
     .select({
@@ -224,6 +220,8 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
       courtCity: courtsTable.city,
       courtPhone: courtsTable.phone,
       courtImageUrl: courtsTable.imageUrl,
+      courtOwnerUserId: courtsTable.ownerUserId,
+      instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -239,37 +237,58 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     return;
   }
 
+  // Enforce that this endpoint is only for genuinely free bookings
+  if (Number(rows[0].booking.totalPrice) > 0) {
+    res.status(403).json({ error: "Payment required for this booking" });
+    return;
+  }
+
+  // Only the booker or the court owner (or admin) may confirm
+  const isBooker = rows[0].booking.bookerUserId === userId;
+  const isCourtOwner = rows[0].courtOwnerUserId === userId;
+  const role = await getUserRole(userId);
+  if (!isBooker && !isCourtOwner && role !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
   if (rows[0].booking.status !== "pending") {
     res.status(409).json({ error: "Booking already processed" });
     return;
   }
 
+  // Respect instantBookingEnabled for free courts too
+  const instantEnabled = rows[0].instantBookingEnabled !== false;
+  const newStatus = instantEnabled ? "confirmed" : "pending";
+
   const [booking] = await db
     .update(bookingsTable)
-    .set({ status: "confirmed" })
+    .set({ status: newStatus })
     .where(eq(bookingsTable.id, bookingId))
     .returning();
 
-  await db
-    .update(courtsTable)
-    .set({ totalBookings: sql`total_bookings + 1` })
-    .where(eq(courtsTable.id, rows[0].booking.courtId));
+  if (instantEnabled) {
+    await db
+      .update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + 1` })
+      .where(eq(courtsTable.id, rows[0].booking.courtId));
 
-  sendBookingConfirmationEmail({
-    customerName: booking.customerName,
-    customerEmail: booking.customerEmail,
-    courtName: rows[0].courtName ?? "Kortas",
-    courtId: rows[0].courtId ?? 0,
-    courtAddress: rows[0].courtAddress ?? "",
-    courtCity: rows[0].courtCity ?? "",
-    courtPhone: rows[0].courtPhone ?? undefined,
-    courtImageUrl: rows[0].courtImageUrl ?? undefined,
-    date: booking.date,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
-    totalPrice: Number(booking.totalPrice),
-    bookingId: booking.id,
-  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+    sendBookingConfirmationEmail({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      courtName: rows[0].courtName ?? "Kortas",
+      courtId: rows[0].courtId ?? 0,
+      courtAddress: rows[0].courtAddress ?? "",
+      courtCity: rows[0].courtCity ?? "",
+      courtPhone: rows[0].courtPhone ?? undefined,
+      courtImageUrl: rows[0].courtImageUrl ?? undefined,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+  }
 
   const freeCourtOwnerEmail = (await db.select({ ownerEmail: courtsTable.ownerEmail, ownerName: courtsTable.ownerName })
     .from(courtsTable).where(eq(courtsTable.id, rows[0].booking.courtId)))[0];
@@ -291,7 +310,8 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
 });
 
 // ─── Stripe Connect: create/get onboarding link for owner ────────────────────
-router.post("/payments/connect/onboard", async (req, res): Promise<void> => {
+router.post("/payments/connect/onboard", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
   const { courtId, returnUrl, refreshUrl } = req.body;
   if (!courtId) {
     res.status(400).json({ error: "courtId required" });
@@ -302,6 +322,15 @@ router.post("/payments/connect/onboard", async (req, res): Promise<void> => {
   if (!court) {
     res.status(404).json({ error: "Court not found" });
     return;
+  }
+
+  // Only the court owner or an admin may access payout onboarding
+  if (court.ownerUserId !== userId) {
+    const role = await getUserRole(userId);
+    if (role !== "admin") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
   }
 
   let stripe: any;

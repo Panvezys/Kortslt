@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const bookingsTable = pgTable("bookings", {
   id: serial("id").primaryKey(),
   courtId: integer("court_id").notNull(),
+  bookerUserId: text("booker_user_id"),
   customerName: text("customer_name").notNull(),
   customerEmail: text("customer_email").notNull(),
   customerPhone: text("customer_phone"),
