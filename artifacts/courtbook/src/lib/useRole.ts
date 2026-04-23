@@ -1,5 +1,6 @@
-import { useAuth } from "@clerk/react";
-import { useQuery } from "@tanstack/react-query";
+import { useAuth, useSession, useUser } from "@clerk/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { customFetch } from "@workspace/api-client-react";
 
 export type UserRole = "admin" | "owner" | "coach" | "player";
@@ -15,14 +16,28 @@ interface RoleResponse {
 
 export function useRole() {
   const { isSignedIn, isLoaded } = useAuth();
+  const { session } = useSession();
+  const { user } = useUser();
+  const queryClient = useQueryClient();
 
   const query = useQuery<RoleResponse>({
     queryKey: ["me-role"],
     queryFn: () => customFetch<RoleResponse>("/api/me/role", { method: "GET" }),
     enabled: isLoaded && !!isSignedIn,
-    staleTime: 5 * 60 * 1000,
+    // Short stale time so role changes propagate quickly without spamming the API.
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: false,
   });
+
+  /** Force a full refresh: re-touch Clerk session, reload Clerk user (picks up
+   *  any metadata changes server-side), and re-fetch the backend role. */
+  const refresh = useCallback(async () => {
+    try { await session?.touch(); } catch { /* best-effort */ }
+    try { await user?.reload(); } catch { /* best-effort */ }
+    await queryClient.invalidateQueries({ queryKey: ["me-role"] });
+  }, [session, user, queryClient]);
 
   const role = query.data?.role ?? null;
   const status = query.data?.status ?? "active";
@@ -39,5 +54,7 @@ export function useRole() {
     isPlayer: role === "player",
     isPending: status === "pending_approval",
     isRejected: status === "rejected",
+    refresh,
+    isFetching: query.isFetching,
   };
 }

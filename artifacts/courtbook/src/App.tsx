@@ -120,7 +120,13 @@ function FavoritesRoute() {
 
 function AdminRoute() {
   const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
-  const { isAdmin, isLoading: roleLoading } = useRole();
+  const { isAdmin, isLoading: roleLoading, refresh } = useRole();
+
+  // Force a fresh role check on mount: handles the case where the user was
+  // promoted to admin server-side but the cached client state is stale.
+  useEffect(() => {
+    if (authLoaded && isSignedIn) refresh();
+  }, [authLoaded, isSignedIn, refresh]);
 
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
@@ -130,7 +136,11 @@ function AdminRoute() {
 
 function AdminApprovalsRoute() {
   const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
-  const { isAdmin, isLoading: roleLoading } = useRole();
+  const { isAdmin, isLoading: roleLoading, refresh } = useRole();
+
+  useEffect(() => {
+    if (authLoaded && isSignedIn) refresh();
+  }, [authLoaded, isSignedIn, refresh]);
 
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;

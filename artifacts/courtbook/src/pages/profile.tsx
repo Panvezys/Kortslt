@@ -47,6 +47,7 @@ import {
   Flame,
   TrendingUp,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
@@ -905,7 +906,7 @@ export default function Profile() {
     setActiveTab(tab && VALID_TABS.includes(tab) ? tab : "sports");
   }, [search]);
 
-  const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected } = useRole();
+  const { role, status, pendingRole, rejectionReason, isAdmin, isOwner: roleIsOwner, isCoach, isPending, isRejected, refresh: refreshRole, isFetching: roleFetching } = useRole();
 
   const email = user?.emailAddresses[0]?.emailAddress ?? "";
   const userId = user?.id ?? "";
@@ -1075,6 +1076,15 @@ export default function Profile() {
                 {isAdmin && (
                   <Badge className="bg-primary/10 text-primary border border-primary/20">Administratorius</Badge>
                 )}
+                <button
+                  type="button"
+                  onClick={() => refreshRole()}
+                  disabled={roleFetching}
+                  title="Atnaujinti vaidmenį"
+                  className="ml-auto inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${roleFetching ? "animate-spin" : ""}`} />
+                </button>
                 {isPending && pendingRole && (
                   isAdmin ? (
                     <Link href="/admin/approvals">
