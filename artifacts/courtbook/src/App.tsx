@@ -272,7 +272,7 @@ function ClerkProviderWithRoutes() {
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
-      domain={CLERK_DOMAIN}
+      proxyUrl={CLERK_PROXY_URL}
       isSatellite={false}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
