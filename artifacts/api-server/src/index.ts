@@ -16,11 +16,20 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Kill any stale process holding the port before binding (handles rapid restarts)
+// Kill any stale process holding the port before binding (handles rapid restarts).
+// We find the specific PID listening on the port via `ss` to avoid self-kill.
 try {
-  execSync(`fuser -k ${port}/tcp`, { stdio: "ignore" });
+  const ssOut = execSync(`ss -tlnp "sport = :${port}"`, { encoding: "utf8" });
+  const pidMatch = ssOut.match(/pid=(\d+)/);
+  if (pidMatch) {
+    const stalePid = parseInt(pidMatch[1], 10);
+    if (stalePid !== process.pid) {
+      process.kill(stalePid, "SIGTERM");
+      execSync("sleep 0.8", { stdio: "ignore" });
+    }
+  }
 } catch {
-  // No process on the port — fine
+  // No stale process — fine
 }
 
 app.listen(port, "0.0.0.0", (err) => {
