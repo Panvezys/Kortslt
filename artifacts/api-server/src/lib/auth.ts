@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { userRolesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,10 +10,37 @@ const HARDCODED_ADMIN_IDS = new Set(
   (process.env.ADMIN_USER_IDS ?? "").split(",").map(s => s.trim()).filter(Boolean)
 );
 
+/** Emails in ADMIN_EMAILS env var always get admin role, regardless of Clerk user_id.
+ *  Anchored to email (stable) rather than user_id (changes if account is recreated). */
+const HARDCODED_ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS ?? "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean)
+);
+
+/** Cache email lookups briefly to avoid hammering Clerk on every request */
+const emailCache = new Map<string, { email: string | null; expires: number }>();
+const EMAIL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getUserEmail(userId: string): Promise<string | null> {
+  const cached = emailCache.get(userId);
+  if (cached && cached.expires > Date.now()) return cached.email;
+  try {
+    const u = await clerkClient.users.getUser(userId);
+    const email = u.emailAddresses?.[0]?.emailAddress?.toLowerCase() ?? null;
+    emailCache.set(userId, { email, expires: Date.now() + EMAIL_CACHE_TTL_MS });
+    return email;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch a user's role from DB; returns 'player' if no row exists.
- *  Users listed in ADMIN_USER_IDS env var always get 'admin'. */
+ *  Users in ADMIN_USER_IDS or whose email is in ADMIN_EMAILS always get 'admin'. */
 export async function getUserRole(userId: string): Promise<UserRole> {
   if (HARDCODED_ADMIN_IDS.has(userId)) return "admin";
+  if (HARDCODED_ADMIN_EMAILS.size > 0) {
+    const email = await getUserEmail(userId);
+    if (email && HARDCODED_ADMIN_EMAILS.has(email)) return "admin";
+  }
   const [row] = await db
     .select({ role: userRolesTable.role })
     .from(userRolesTable)
