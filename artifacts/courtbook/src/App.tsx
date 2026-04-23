@@ -55,7 +55,10 @@ const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
-const CLERK_DOMAIN = "clerk.korts.lt";
+// Only set the production custom domain when using a live key. With dev keys
+// (pk_test_…) Clerk must use its default *.clerk.accounts.dev host.
+const isLiveClerk = clerkPubKey?.startsWith("pk_live_") ?? false;
+const CLERK_DOMAIN = isLiveClerk ? "clerk.korts.lt" : undefined;
 
 // Clerk passes full paths to routerPush/routerReplace, but wouter's
 // setLocation prepends the base — strip it to avoid doubling.
