@@ -42,6 +42,7 @@ Production scope assumptions for this scan:
 - **Owner/admin surfaces**: facilities, courts, photos, blocked slots, trainers, tournaments, onboarding, payouts, admin approvals and seed endpoints.
 - **Usually ignore**: `artifacts/mockup-sandbox`, dev-only Vite plugin behavior gated on non-production conditions.
 - **Recurring scan anchors from this review**: public serializers that spread raw DB rows (`...row`) and query-parameter “owner view” branches that skip visibility checks unless they are explicitly bound to the authenticated caller. Recheck these patterns first on future scans in `courts.ts`, `court-photos.ts`, `games.ts`, `coaches.ts`, `user-search.ts`, and `user-profiles.ts`.
+- **Recurring scan anchors from the 2026-04-23 scan**: confirmation endpoints that trust third-party session identifiers without rebinding them to current booking state or actor intent; admin review UIs that render attacker-controlled URLs into clickable links; and auxiliary public `/courts/:id/*` routes that skip the visibility gate enforced by `/courts/:id`.
 
 ## Threat Categories
 
