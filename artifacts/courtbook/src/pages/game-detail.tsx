@@ -81,7 +81,7 @@ function EloBadge({ elo, sport }: { elo: number; sport?: string }) {
   );
 }
 
-interface UserSearchResult { userId: string; userName: string; userEmail: string | null; }
+interface UserSearchResult { userId: string; userName: string; }
 
 function PlayerSearchAdd({ gameId, sport, onAdded }: { gameId: number; sport: string; onAdded: () => void }) {
   const { toast } = useToast();
@@ -120,13 +120,13 @@ function PlayerSearchAdd({ gameId, sport, onAdded }: { gameId: number; sport: st
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Pridėti žaidėją</DialogTitle>
-          <DialogDescription>Suraskite žaidėją pagal vardą ar el. paštą</DialogDescription>
+          <DialogDescription>Suraskite žaidėją pagal vardą</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Vardas arba el. paštas..."
+              placeholder="Vardas..."
               className="pl-9"
               value={query}
               onChange={e => setQuery(e.target.value)}
@@ -151,7 +151,6 @@ function PlayerSearchAdd({ gameId, sport, onAdded }: { gameId: number; sport: st
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{u.userName}</div>
-                    {u.userEmail && <div className="text-xs text-muted-foreground truncate">{u.userEmail}</div>}
                   </div>
                   <UserPlus className="w-4 h-4 text-muted-foreground shrink-0" />
                 </button>

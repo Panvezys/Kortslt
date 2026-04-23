@@ -600,7 +600,7 @@ function CoachManagementModal({ courtId }: { courtId: number }) {
                 <Input
                   value={searchQ}
                   onChange={e => setSearchQ(e.target.value)}
-                  placeholder="Ieškoti pagal vardą arba el. paštą..."
+                  placeholder="Ieškoti pagal vardą..."
                   className="pl-9 text-sm h-9"
                 />
               </div>
@@ -611,10 +611,9 @@ function CoachManagementModal({ courtId }: { courtId: number }) {
                 <div key={u.userId} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2">
                   <div>
                     <p className="text-sm font-medium">{u.userName}</p>
-                    <p className="text-xs text-muted-foreground">{u.userEmail}</p>
                   </div>
                   <Button size="sm" className="h-7 text-xs"
-                    onClick={() => inviteMutation.mutate({ targetUserId: u.userId, targetName: u.userName, targetEmail: u.userEmail })}
+                    onClick={() => inviteMutation.mutate({ targetUserId: u.userId, targetName: u.userName })}
                     disabled={inviteMutation.isPending}>
                     <UserPlus className="w-3 h-3 mr-1" />Pakviesti
                   </Button>

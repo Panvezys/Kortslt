@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql, inArray } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
 import {
   db,
   userProfilesTable,
@@ -116,7 +117,19 @@ router.get("/user-profiles/:userId", async (req, res): Promise<void> => {
 // GET /user-profiles/me/full — own full profile (private)
 router.get("/user-profiles/me/full", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
-  const email = req.query.email as string | undefined;
+
+  // Fetch the authenticated user's primary email server-side; never trust a
+  // caller-supplied email parameter (would allow enumerating other users' data).
+  let email: string | undefined;
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    email = clerkUser.emailAddresses.find(
+      (e) => e.id === clerkUser.primaryEmailAddressId,
+    )?.emailAddress;
+  } catch (err) {
+    // Clerk lookup failed; proceed without booking stats but log for observability
+    console.error("[user-profiles] Failed to fetch Clerk user for booking stats", { userId, err });
+  }
 
   const [profile] = await db
     .select()
