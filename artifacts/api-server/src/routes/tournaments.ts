@@ -96,7 +96,7 @@ router.post("/courts/:id/tournaments", requireAuth, async (req, res): Promise<vo
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const userId = getCurrentUserId(req)!;
-  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format, coverPhotoUrl, facilityId } = req.body;
+  const { name, description, sport, startDate, endDate, registrationDeadline, maxParticipants, entryFee, prizeInfo, status, format, coverPhotoUrl } = req.body;
 
   if (!name || !sport || !startDate || !endDate) {
     res.status(400).json({ error: "name, sport, startDate, endDate are required" }); return;
@@ -104,7 +104,7 @@ router.post("/courts/:id/tournaments", requireAuth, async (req, res): Promise<vo
 
   const [tournament] = await db.insert(tournamentsTable).values({
     courtId,
-    facilityId: facilityId ?? court.facilityId ?? null,
+    facilityId: court.facilityId ?? null,
     ownerUserId: userId,
     name,
     description: description ?? null,
