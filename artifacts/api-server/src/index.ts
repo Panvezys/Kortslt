@@ -4,6 +4,15 @@ import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
 
+// Fail fast if the Clerk secret key is missing — every authenticated request
+// will return 401 without it, and the error is completely silent otherwise.
+if (!process.env.CLERK_SECRET_KEY) {
+  logger.error(
+    "CLERK_SECRET_KEY is not set — all authenticated API requests will return 401. " +
+    "Set this to the sk_live_... key from the Clerk dashboard."
+  );
+}
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {

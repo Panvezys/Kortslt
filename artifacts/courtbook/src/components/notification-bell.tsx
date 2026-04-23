@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { useUser } from "@clerk/react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useUser, useAuth } from "@clerk/react";
 import { Bell } from "lucide-react";
 import {
   Popover,
@@ -8,8 +8,6 @@ import {
 } from "@/components/ui/popover";
 import { useLocation } from "wouter";
 import { useRole } from "@/lib/useRole";
-
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 type Notif = {
   id: number;
@@ -53,6 +51,7 @@ function typeIcon(type: string) {
 
 export function NotificationBell() {
   const { user, isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const { isAdmin } = useRole();
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [adminNotifs, setAdminNotifs] = useState<Notif[]>([]);
@@ -70,20 +69,27 @@ export function NotificationBell() {
 
   const unread = allNotifs.filter(n => !n.read).length;
 
-  async function fetchNotifs() {
+  const authFetch = useCallback(async (url: string, options?: RequestInit) => {
+    const token = await getToken();
+    const headers = new Headers(options?.headers);
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(url, { ...options, headers, credentials: "include" });
+  }, [getToken]);
+
+  const fetchNotifs = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await fetch(`${API}/notifications?userId=${encodeURIComponent(userId)}`);
+      const res = await authFetch(`/api/notifications`);
       if (res.ok) setNotifs(await res.json());
     } catch { /* silent */ }
-  }
+  }, [userId, authFetch]);
 
-  async function fetchAdminNotifs() {
+  const fetchAdminNotifs = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/admin/notifications`, { credentials: "include" });
+      const res = await authFetch(`/api/admin/notifications`);
       if (res.ok) setAdminNotifs(await res.json());
     } catch { /* silent */ }
-  }
+  }, [authFetch]);
 
   useEffect(() => {
     if (!userId) return;
@@ -96,13 +102,13 @@ export function NotificationBell() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [userId, isAdmin]);
+  }, [userId, isAdmin, fetchNotifs, fetchAdminNotifs]);
 
   async function markRead(notif: Notif) {
     const isAdminNotif = notif.userId === "__ADMIN__";
     const endpoint = isAdminNotif
-      ? `${API}/admin/notifications/${notif.id}/read`
-      : `${API}/notifications/${notif.id}/read`;
+      ? `/api/admin/notifications/${notif.id}/read`
+      : `/api/notifications/${notif.id}/read`;
 
     if (isAdminNotif) {
       setAdminNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
@@ -110,7 +116,7 @@ export function NotificationBell() {
       setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
     }
     try {
-      await fetch(endpoint, { method: "PATCH", credentials: "include" });
+      await authFetch(endpoint, { method: "PATCH" });
     } catch { /* silent */ }
   }
 
@@ -119,7 +125,7 @@ export function NotificationBell() {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
-      await fetch(`${API}/notifications/read-all?userId=${encodeURIComponent(userId)}`, { method: "POST" });
+      await authFetch(`/api/notifications/read-all`, { method: "POST" });
     } catch { /* silent */ }
   }
 

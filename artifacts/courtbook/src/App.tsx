@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, useClerk } from "@clerk/react";
+import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
 import { SafeShow, SafeAuthBridge, useSafeAuth } from "@/lib/safeAuth";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -228,6 +229,21 @@ function Router() {
   );
 }
 
+// Registers Clerk's getToken() with customFetch so every API call automatically
+// includes "Authorization: Bearer <token>". This is the reliable auth path in
+// production where the __session cookie may not be sent (e.g. SameSite restrictions
+// or cross-subdomain setups). The getter is cleared on unmount (sign-out/refresh).
+function ClerkAuthTokenBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return null;
+}
+
 // Invalidates the QueryClient cache when the signed-in user changes
 // so per-user data (role, bookings, favorites) doesn't leak across sessions.
 function ClerkQueryClientCacheInvalidator() {
@@ -280,6 +296,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkAuthTokenBridge />
         <ClerkQueryClientCacheInvalidator />
         <SafeAuthBridge>
           <FavoritesProvider>
