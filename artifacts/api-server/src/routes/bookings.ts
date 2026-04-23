@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, bookingsTable, courtsTable } from "@workspace/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
 import {
   ListBookingsQueryParams,
@@ -13,6 +13,29 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
 import { z } from "zod";
+
+function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  const [h] = startTime.split(":").map(Number);
+  return h >= 17 && h < 22;
+}
+
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function slotsBetween(startTime: string, endTime: string): string[] {
+  const start = toMin(startTime);
+  const end = toMin(endTime);
+  const result: string[] = [];
+  for (let m = start; m < end; m += 30) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    result.push(`${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`);
+  }
+  return result;
+}
 
 const router: IRouter = Router();
 
@@ -79,101 +102,183 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const d0 = parsed.data.date;
+  const dateStr0 = `${d0.getUTCFullYear()}-${String(d0.getUTCMonth() + 1).padStart(2, "0")}-${String(d0.getUTCDate()).padStart(2, "0")}`;
+  const dayOfWeek = new Date(dateStr0 + "T00:00:00").getDay();
+  const reqStart = parsed.data.startTime;
+  const reqEnd = parsed.data.endTime;
+  const reqStartMin = toMin(reqStart);
+  const reqEndMin = toMin(reqEnd);
+
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, parsed.data.courtId));
   if (!court) {
     res.status(404).json({ error: "Court not found" });
     return;
   }
 
-  const startHour = parseInt(parsed.data.startTime.split(":")[0], 10);
-  const startMin  = parseInt(parsed.data.startTime.split(":")[1] ?? "0", 10);
-  const endHour   = parseInt(parsed.data.endTime.split(":")[0], 10);
-  const endMin    = parseInt(parsed.data.endTime.split(":")[1] ?? "0", 10);
-  const durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-  let totalPrice = Number(court.pricePerHour) * (durationMinutes / 60);
+  // ── Compute server-side price using per-slot pricing (same logic as availability endpoint) ──
+  // This can be done outside the transaction since pricing config is owner-managed, not concurrent.
+  const pricingEntries = await db.select()
+    .from(courtPricingTable)
+    .where(and(
+      eq(courtPricingTable.courtId, parsed.data.courtId),
+      eq(courtPricingTable.dayOfWeek, dayOfWeek),
+    ));
 
-  const slotCount = Math.round(durationMinutes / 30);
+  const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
 
-  let equipmentCost = 0;
-  let validatedRentedItems: string | null = null;
-  if (parsed.data.rentedItems) {
-    try {
-      const clientItems: Array<{ name: string; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
-      const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
-        court.rentableItems ? JSON.parse(court.rentableItems) : [];
-
-      const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-      const reqStart = toMin(parsed.data.startTime);
-      const reqEnd = toMin(parsed.data.endTime);
-      const d = parsed.data.date;
-      const dateStr2 = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-      const existingBookings = await db
-        .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
-        .from(bookingsTable)
-        .where(and(eq(bookingsTable.courtId, parsed.data.courtId), eq(bookingsTable.date, dateStr2)));
-      const bookedQty: Record<string, number> = {};
-      for (const b of existingBookings) {
-        if (!b.rentedItems || b.status === "cancelled") continue;
-        const bStart = toMin(b.startTime);
-        const bEnd = toMin(b.endTime);
-        if (bEnd <= reqStart || bStart >= reqEnd) continue;
-        const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
-        for (const item of items) {
-          bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
-        }
-      }
-
-      const serverValidated: Array<{ name: string; pricePerSlot: number; quantity: number }> = [];
-      for (const ci of clientItems) {
-        const canonical = courtEquipment.find(e => e.name === ci.name);
-        if (!canonical) continue;
-        const pricePerSlot = canonical.pricePerSlot ?? canonical.pricePerBooking ?? 0;
-        const qty = Math.max(1, Math.min(Math.floor(ci.quantity ?? 1), 20));
-        const alreadyBooked = bookedQty[ci.name] ?? 0;
-        if (alreadyBooked + qty > canonical.stock) {
-          res.status(409).json({
-            error: `Įranga "${ci.name}" nebepasiekiama: likę ${Math.max(0, canonical.stock - alreadyBooked)} vnt.`,
-            code: "EQUIPMENT_UNAVAILABLE",
-            item: ci.name,
-            available: Math.max(0, canonical.stock - alreadyBooked),
-          });
-          return;
-        }
-        serverValidated.push({ name: canonical.name, pricePerSlot, quantity: qty });
-        equipmentCost += pricePerSlot * qty * slotCount;
-      }
-      if (serverValidated.length > 0) validatedRentedItems = JSON.stringify(serverValidated);
-    } catch (e) {
-      console.error("[bookings] equipment validation error:", e);
+  const slots = slotsBetween(reqStart, reqEnd);
+  let courtPrice = 0;
+  for (const slotStart of slots) {
+    if (pricingMap.has(slotStart)) {
+      courtPrice += pricingMap.get(slotStart)!;
+    } else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) {
+      courtPrice += peakSlotPrice;
+    } else {
+      courtPrice += defaultSlotPrice;
     }
   }
-  totalPrice += equipmentCost;
 
-  const d = parsed.data.date;
-  const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-
+  const durationMinutes = reqEndMin - reqStartMin;
+  const slotCount = Math.round(durationMinutes / 30);
+  const bufferMinutes = court.bufferMinutes ?? 0;
   const bookerUserId = getCurrentUserId(req);
 
-  const [booking] = await db.insert(bookingsTable).values({
-    courtId: parsed.data.courtId,
-    bookerUserId: bookerUserId ?? null,
-    customerName: parsed.data.customerName,
-    customerEmail: parsed.data.customerEmail,
-    customerPhone: parsed.data.customerPhone ?? null,
-    date: dateStr,
-    startTime: parsed.data.startTime,
-    endTime: parsed.data.endTime,
-    totalPrice: String(totalPrice),
-    rentedItems: validatedRentedItems,
-    status: "pending",
-  }).returning();
+  // ── Atomically check conflicts and insert within a serialized transaction ──
+  // A PostgreSQL advisory lock (per court+date) blocks any concurrent booking attempt
+  // for the same court on the same day, making the read-then-write conflict check atomic.
+  class BookingConflictError extends Error {
+    constructor(public readonly statusCode: number, public readonly body: any) {
+      super("BookingConflict");
+    }
+  }
+
+  let booking: typeof bookingsTable.$inferSelect;
+  try {
+    booking = await db.transaction(async (tx) => {
+      // Acquire exclusive advisory lock for this court+date combination.
+      // Released automatically at end of transaction.
+      const dateInt = parseInt(dateStr0.replace(/-/g, ""), 10);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${sql.raw(String(parsed.data.courtId))}::int, ${sql.raw(String(dateInt))}::int)`);
+
+      // ── Conflict check (inside lock) ──
+      const [conflictingBookings, conflictingBlocked] = await Promise.all([
+        tx.select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+          .from(bookingsTable)
+          .where(and(
+            eq(bookingsTable.courtId, parsed.data.courtId),
+            eq(bookingsTable.date, dateStr0),
+            inArray(bookingsTable.status, ["confirmed", "pending"]),
+          )),
+        tx.select({ startTime: courtBlockedSlotsTable.startTime, endTime: courtBlockedSlotsTable.endTime })
+          .from(courtBlockedSlotsTable)
+          .where(and(
+            eq(courtBlockedSlotsTable.courtId, parsed.data.courtId),
+            eq(courtBlockedSlotsTable.date, dateStr0),
+          )),
+      ]);
+
+      for (const b of conflictingBookings) {
+        const bStart = toMin(b.startTime);
+        const bEnd = toMin(b.endTime) + bufferMinutes;
+        if (reqStartMin < bEnd && reqEndMin > bStart) {
+          throw new BookingConflictError(409, { error: "Requested time slot is not available", code: "SLOT_UNAVAILABLE" });
+        }
+      }
+
+      for (const b of conflictingBlocked) {
+        const bStart = toMin(b.startTime);
+        const bEnd = toMin(b.endTime);
+        if (reqStartMin < bEnd && reqEndMin > bStart) {
+          throw new BookingConflictError(409, { error: "Requested time slot is blocked", code: "SLOT_BLOCKED" });
+        }
+      }
+
+      // ── Equipment availability (inside lock, same consistent snapshot) ──
+      let equipmentCost = 0;
+      let validatedRentedItems: string | null = null;
+      if (parsed.data.rentedItems) {
+        try {
+          const clientItems: Array<{ name: string; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
+          const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
+            court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+          const existingBookings = await tx
+            .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+            .from(bookingsTable)
+            .where(and(eq(bookingsTable.courtId, parsed.data.courtId), eq(bookingsTable.date, dateStr0)));
+          const bookedQty: Record<string, number> = {};
+          for (const b of existingBookings) {
+            if (!b.rentedItems || b.status === "cancelled") continue;
+            const bStart = toMin(b.startTime);
+            const bEnd = toMin(b.endTime);
+            if (bEnd <= reqStartMin || bStart >= reqEndMin) continue;
+            const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
+            for (const item of items) {
+              bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
+            }
+          }
+
+          const serverValidated: Array<{ name: string; pricePerSlot: number; quantity: number }> = [];
+          for (const ci of clientItems) {
+            const canonical = courtEquipment.find(e => e.name === ci.name);
+            if (!canonical) continue;
+            const pricePerSlot = canonical.pricePerSlot ?? canonical.pricePerBooking ?? 0;
+            const qty = Math.max(1, Math.min(Math.floor(ci.quantity ?? 1), 20));
+            const alreadyBooked = bookedQty[ci.name] ?? 0;
+            if (alreadyBooked + qty > canonical.stock) {
+              throw new BookingConflictError(409, {
+                error: `Įranga "${ci.name}" nebepasiekiama: likę ${Math.max(0, canonical.stock - alreadyBooked)} vnt.`,
+                code: "EQUIPMENT_UNAVAILABLE",
+                item: ci.name,
+                available: Math.max(0, canonical.stock - alreadyBooked),
+              });
+            }
+            serverValidated.push({ name: canonical.name, pricePerSlot, quantity: qty });
+            equipmentCost += pricePerSlot * qty * slotCount;
+          }
+          if (serverValidated.length > 0) validatedRentedItems = JSON.stringify(serverValidated);
+        } catch (e) {
+          if (e instanceof BookingConflictError) throw e;
+          console.error("[bookings] equipment validation error:", e);
+        }
+      }
+
+      const totalPrice = courtPrice + equipmentCost;
+
+      // ── Insert inside the same transaction ──
+      const [inserted] = await tx.insert(bookingsTable).values({
+        courtId: parsed.data.courtId,
+        bookerUserId: bookerUserId ?? null,
+        customerName: parsed.data.customerName,
+        customerEmail: parsed.data.customerEmail,
+        customerPhone: parsed.data.customerPhone ?? null,
+        date: dateStr0,
+        startTime: parsed.data.startTime,
+        endTime: parsed.data.endTime,
+        totalPrice: String(totalPrice),
+        rentedItems: validatedRentedItems,
+        status: "pending",
+      }).returning();
+
+      return inserted;
+    });
+  } catch (err) {
+    if (err instanceof BookingConflictError) {
+      res.status(err.statusCode).json(err.body);
+      return;
+    }
+    throw err;
+  }
 
   if (court.ownerUserId) {
     await sendNotification(
       court.ownerUserId,
       "booking_created",
       `Nauja rezervacija — ${court.name}`,
-      `${parsed.data.customerName} užrezervavo ${dateStr} ${parsed.data.startTime}–${parsed.data.endTime}.`,
+      `${parsed.data.customerName} užrezervavo ${dateStr0} ${parsed.data.startTime}–${parsed.data.endTime}.`,
       "/owner",
     );
   }

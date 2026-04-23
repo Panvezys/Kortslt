@@ -26,7 +26,7 @@ router.get("/payments/config", async (_req, res) => {
 });
 
 // ─── Create Checkout Session (player booking) ─────────────────────────────────
-router.post("/payments/create-checkout", async (req, res): Promise<void> => {
+router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateCheckoutSessionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -47,6 +47,16 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
   }
 
   const { booking, court } = rows[0];
+
+  // Only the booker, the court owner, or an admin may initiate checkout
+  const callerId = getCurrentUserId(req)!;
+  const isBooker = booking.bookerUserId === callerId;
+  const isCourtOwner = court?.ownerUserId === callerId;
+  const callerRole = await getUserRole(callerId);
+  if (!isBooker && !isCourtOwner && callerRole !== "admin") {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
 
   let stripe: any;
   try {
