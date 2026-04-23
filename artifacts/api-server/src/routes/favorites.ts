@@ -1,20 +1,18 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
 import { db, favoritesTable, courtsTable, coachFavoritesTable, coachesTable } from "@workspace/db";
+import { requireAuth } from "../lib/auth";
+import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
 
-router.get("/favorites", async (req, res): Promise<void> => {
-  const { userId } = req.query;
-  if (!userId || typeof userId !== "string") {
-    res.status(400).json({ error: "userId is required" });
-    return;
-  }
+router.get("/favorites", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
 
   const rows = await db
     .select({ courtId: favoritesTable.courtId })
     .from(favoritesTable)
-    .where(eq(favoritesTable.userId, userId));
+    .where(eq(favoritesTable.userId, userId!));
 
   const courtIds = rows.map(r => r.courtId);
 
@@ -36,60 +34,48 @@ router.get("/favorites", async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/favorites/:courtId", async (req, res): Promise<void> => {
+router.post("/favorites/:courtId", requireAuth, async (req, res): Promise<void> => {
   const courtId = parseInt(req.params.courtId, 10);
-  const { userId } = req.body;
+  const { userId } = getAuth(req);
 
   if (isNaN(courtId)) {
     res.status(400).json({ error: "Invalid courtId" });
-    return;
-  }
-  if (!userId || typeof userId !== "string") {
-    res.status(400).json({ error: "userId is required" });
     return;
   }
 
   await db
     .insert(favoritesTable)
-    .values({ userId, courtId })
+    .values({ userId: userId!, courtId })
     .onConflictDoNothing();
 
   res.json({ ok: true });
 });
 
-router.delete("/favorites/:courtId", async (req, res): Promise<void> => {
+router.delete("/favorites/:courtId", requireAuth, async (req, res): Promise<void> => {
   const courtId = parseInt(req.params.courtId, 10);
-  const { userId } = req.query;
+  const { userId } = getAuth(req);
 
   if (isNaN(courtId)) {
     res.status(400).json({ error: "Invalid courtId" });
     return;
   }
-  if (!userId || typeof userId !== "string") {
-    res.status(400).json({ error: "userId is required" });
-    return;
-  }
 
   await db
     .delete(favoritesTable)
-    .where(and(eq(favoritesTable.userId, userId), eq(favoritesTable.courtId, courtId)));
+    .where(and(eq(favoritesTable.userId, userId!), eq(favoritesTable.courtId, courtId)));
 
   res.json({ ok: true });
 });
 
 // ─── Coach favorites ──────────────────────────────────────────────────────────
 
-router.get("/favorites/coaches", async (req, res): Promise<void> => {
-  const { userId } = req.query;
-  if (!userId || typeof userId !== "string") {
-    res.status(400).json({ error: "userId is required" });
-    return;
-  }
+router.get("/favorites/coaches", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
 
   const rows = await db
     .select({ coachId: coachFavoritesTable.coachId })
     .from(coachFavoritesTable)
-    .where(eq(coachFavoritesTable.userId, userId));
+    .where(eq(coachFavoritesTable.userId, userId!));
 
   const coachIds = rows.map(r => r.coachId);
 
@@ -111,31 +97,29 @@ router.get("/favorites/coaches", async (req, res): Promise<void> => {
   })));
 });
 
-router.post("/favorites/coaches/:coachId", async (req, res): Promise<void> => {
+router.post("/favorites/coaches/:coachId", requireAuth, async (req, res): Promise<void> => {
   const coachId = parseInt(req.params.coachId, 10);
-  const { userId } = req.body;
+  const { userId } = getAuth(req);
 
   if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }
-  if (!userId || typeof userId !== "string") { res.status(400).json({ error: "userId is required" }); return; }
 
   await db
     .insert(coachFavoritesTable)
-    .values({ userId, coachId })
+    .values({ userId: userId!, coachId })
     .onConflictDoNothing();
 
   res.json({ ok: true });
 });
 
-router.delete("/favorites/coaches/:coachId", async (req, res): Promise<void> => {
+router.delete("/favorites/coaches/:coachId", requireAuth, async (req, res): Promise<void> => {
   const coachId = parseInt(req.params.coachId, 10);
-  const { userId } = req.query;
+  const { userId } = getAuth(req);
 
   if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }
-  if (!userId || typeof userId !== "string") { res.status(400).json({ error: "userId is required" }); return; }
 
   await db
     .delete(coachFavoritesTable)
-    .where(and(eq(coachFavoritesTable.userId, userId), eq(coachFavoritesTable.coachId, coachId)));
+    .where(and(eq(coachFavoritesTable.userId, userId!), eq(coachFavoritesTable.coachId, coachId)));
 
   res.json({ ok: true });
 });

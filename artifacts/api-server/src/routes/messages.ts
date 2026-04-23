@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, or, and, inArray } from "drizzle-orm";
 import { db, messagesTable, courtsTable, notificationsTable } from "@workspace/db";
+import { requireAuth } from "../lib/auth";
+import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
 
@@ -8,15 +10,14 @@ function formatMsg(r: typeof messagesTable.$inferSelect) {
   return { ...r, createdAt: r.createdAt.toISOString() };
 }
 
-// GET /messages/inbox?userId=X  — all threads the user participated in
-router.get("/messages/inbox", async (req, res): Promise<void> => {
-  const userId = typeof req.query.userId === "string" ? req.query.userId : "";
-  if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+// GET /messages/inbox  — all threads the authenticated user participated in
+router.get("/messages/inbox", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
 
   const rows = await db
     .select()
     .from(messagesTable)
-    .where(or(eq(messagesTable.senderUserId, userId), eq(messagesTable.recipientUserId, userId)))
+    .where(or(eq(messagesTable.senderUserId, userId!), eq(messagesTable.recipientUserId, userId!)))
     .orderBy(desc(messagesTable.createdAt));
 
   // Group by courtId — each court is one thread
@@ -42,15 +43,14 @@ router.get("/messages/inbox", async (req, res): Promise<void> => {
   res.json(threads);
 });
 
-// GET /messages/owner-inbox?ownerUserId=X  — all threads across owner's courts
-router.get("/messages/owner-inbox", async (req, res): Promise<void> => {
-  const ownerUserId = typeof req.query.ownerUserId === "string" ? req.query.ownerUserId : "";
-  if (!ownerUserId) { res.status(400).json({ error: "ownerUserId required" }); return; }
+// GET /messages/owner-inbox  — all threads across the authenticated owner's courts
+router.get("/messages/owner-inbox", requireAuth, async (req, res): Promise<void> => {
+  const { userId: ownerUserId } = getAuth(req);
 
   const ownedCourts = await db
     .select({ id: courtsTable.id, name: courtsTable.name })
     .from(courtsTable)
-    .where(eq(courtsTable.ownerUserId, ownerUserId));
+    .where(eq(courtsTable.ownerUserId, ownerUserId!));
 
   if (ownedCourts.length === 0) { res.json([]); return; }
 
@@ -90,29 +90,30 @@ router.get("/messages/owner-inbox", async (req, res): Promise<void> => {
   res.json(threads);
 });
 
-// GET /courts/:id/messages?userId=X  — all messages in a thread (courtId + userId)
-router.get("/courts/:id/messages", async (req, res): Promise<void> => {
+// GET /courts/:id/messages  — all messages in a thread the caller is part of
+router.get("/courts/:id/messages", requireAuth, async (req, res): Promise<void> => {
   const courtId = Number(req.params.id);
-  const userId = typeof req.query.userId === "string" ? req.query.userId : "";
-  if (Number.isNaN(courtId) || !userId) {
-    res.status(400).json({ error: "courtId and userId are required" });
+  const { userId } = getAuth(req);
+  if (Number.isNaN(courtId)) {
+    res.status(400).json({ error: "courtId is required" });
     return;
   }
 
   const rows = await db
     .select()
     .from(messagesTable)
-    .where(and(eq(messagesTable.courtId, courtId), or(eq(messagesTable.senderUserId, userId), eq(messagesTable.recipientUserId, userId))))
+    .where(and(eq(messagesTable.courtId, courtId), or(eq(messagesTable.senderUserId, userId!), eq(messagesTable.recipientUserId, userId!))))
     .orderBy(messagesTable.createdAt);
 
   res.json(rows.map(formatMsg));
 });
 
 // POST /courts/:id/messages  — send a message (user→court or owner→user)
-router.post("/courts/:id/messages", async (req, res): Promise<void> => {
+router.post("/courts/:id/messages", requireAuth, async (req, res): Promise<void> => {
   const courtId = Number(req.params.id);
-  const { senderUserId, senderName, senderEmail, body, threadUserId } = req.body ?? {};
-  if (Number.isNaN(courtId) || !senderUserId || !senderName || !senderEmail || !body) {
+  const { userId: senderUserId } = getAuth(req);
+  const { senderName, senderEmail, body, threadUserId } = req.body ?? {};
+  if (Number.isNaN(courtId) || !senderName || !senderEmail || !body) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
@@ -141,7 +142,7 @@ router.post("/courts/:id/messages", async (req, res): Promise<void> => {
 
   const [message] = await db.insert(messagesTable).values({
     courtId,
-    senderUserId,
+    senderUserId: senderUserId!,
     senderName,
     senderEmail,
     recipientUserId,
