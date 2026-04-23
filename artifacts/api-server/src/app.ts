@@ -11,12 +11,49 @@ import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
 
+const courtsDir = path.resolve(process.cwd(), "../courtbook/public/courts");
 const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
+
+// WebP content-negotiation: if the browser sends Accept: image/webp and a
+// same-named .webp file exists, transparently serve that instead of the
+// original PNG/JPG — no DB changes required, ~90% smaller on average.
+function webpNegotiation(baseDir: string) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const accepts = req.headers["accept"] ?? "";
+    if (!accepts.includes("image/webp")) return next();
+    const ext = path.extname(req.path).toLowerCase();
+    if (![".png", ".jpg", ".jpeg", ".gif"].includes(ext)) return next();
+    const webpPath = path.join(baseDir, req.path.replace(/\.[^.]+$/, ".webp"));
+    if (fs.existsSync(webpPath)) {
+      res.setHeader("Content-Type", "image/webp");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", "inline");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Vary", "Accept");
+      res.sendFile(webpPath);
+      return;
+    }
+    next();
+  };
+}
+
+app.use("/courts/uploads", webpNegotiation(uploadsDir));
 app.use("/courts/uploads", express.static(uploadsDir, {
   maxAge: "1d",
   setHeaders(res) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Vary", "Accept");
+  },
+}));
+
+// Also serve the static court images (the seeded /courts/*.png files) with WebP negotiation
+app.use("/courts", webpNegotiation(courtsDir));
+app.use("/courts", express.static(courtsDir, {
+  maxAge: "1d",
+  setHeaders(res) {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Vary", "Accept");
   },
 }));
 

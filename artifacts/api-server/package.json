@@ -22,6 +22,7 @@
     "pino": "^9",
     "pino-http": "^10",
     "resend": "^6.10.0",
+    "sharp": "^0.34.5",
     "stripe": "^22.0.1",
     "zod": "^3.24.2"
   },
@@ -31,6 +32,7 @@
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
     "@types/node": "catalog:",
+    "@types/sharp": "^0.32.0",
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",
