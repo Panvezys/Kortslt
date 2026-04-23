@@ -36,11 +36,12 @@ Production scope assumptions for this scan:
 ## Scan Anchors
 
 - **Production entry points**: `artifacts/api-server/src/index.ts`, `artifacts/api-server/src/app.ts`, `artifacts/courtbook/src/main.tsx`, `artifacts/courtbook/src/App.tsx`.
-- **Highest-risk code areas**: `artifacts/api-server/src/routes/` (especially `payments.ts`, `bookings.ts`, `messages.ts`, `notifications.ts`, `favorites.ts`, `upload.ts`, `roles.ts`, `admin.ts`, `courts.ts`, `court-photos.ts`), `artifacts/api-server/src/lib/auth.ts`, `artifacts/api-server/src/middlewares/clerkProxyMiddleware.ts`.
+- **Highest-risk code areas**: `artifacts/api-server/src/routes/` (especially `payments.ts`, `bookings.ts`, `messages.ts`, `notifications.ts`, `favorites.ts`, `upload.ts`, `roles.ts`, `admin.ts`, `courts.ts`, `court-photos.ts`, `games.ts`, `coaches.ts`, `memberships.ts`, `tournaments.ts`, `user-search.ts`, `user-profiles.ts`), `artifacts/api-server/src/lib/auth.ts`, `artifacts/api-server/src/middlewares/clerkProxyMiddleware.ts`.
 - **Public surfaces**: court listings/details, sitemap, public coach/trainer/tournament pages, selected booking/payment initiation paths, public uploads/static paths.
 - **Authenticated surfaces**: favorites, notifications, messages, bookings, games, user profiles, role requests.
 - **Owner/admin surfaces**: facilities, courts, photos, blocked slots, trainers, tournaments, onboarding, payouts, admin approvals and seed endpoints.
 - **Usually ignore**: `artifacts/mockup-sandbox`, dev-only Vite plugin behavior gated on non-production conditions.
+- **Recurring scan anchors from this review**: public serializers that spread raw DB rows (`...row`) and query-parameter “owner view” branches that skip visibility checks unless they are explicitly bound to the authenticated caller. Recheck these patterns first on future scans in `courts.ts`, `court-photos.ts`, `games.ts`, `coaches.ts`, `user-search.ts`, and `user-profiles.ts`.
 
 ## Threat Categories
 
@@ -61,6 +62,8 @@ Payment confirmation, free booking confirmation, Connect onboarding, and file up
 The platform stores booking details, notification feeds, private messages, coach favorites, ownership documents, and other personal data. Endpoints returning this information MUST scope results to the authenticated user or authorized owner/admin, and public/static file serving MUST NOT expose non-public verification documents or private media inadvertently. For this deployment model, `/courts/uploads` is confirmed public in production, while ownership-document web reachability must be demonstrated rather than assumed from source-path naming alone.
 
 Logs, error messages, and integration responses MUST avoid leaking secrets, internal identifiers, or sensitive third-party configuration. Booking IDs, message thread identifiers, and notification IDs should not be sufficient by themselves to read another user’s data.
+
+Public or semi-public handlers MUST NOT serialize full database rows into responses unless every returned column is intentionally public. In this codebase, raw-row spread helpers are a recurring failure mode because they can leak emails, stable user IDs, moderation state, payout metadata, and document references even when the route itself appears harmless.
 
 ### Denial of Service
 
