@@ -202,6 +202,10 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
           <img
             src={imgSrc}
             alt={court.name}
+            loading="lazy"
+            decoding="async"
+            width={300}
+            height={192}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
