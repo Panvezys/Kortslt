@@ -19,6 +19,10 @@ export function useRole() {
   const { session } = useSession();
   const { user } = useUser();
   const queryClient = useQueryClient();
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS as string | undefined)
+    ?.split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean) ?? [];
 
   const query = useQuery<RoleResponse>({
     queryKey: ["me-role"],
@@ -41,15 +45,17 @@ export function useRole() {
 
   const role = query.data?.role ?? null;
   const status = query.data?.status ?? "active";
+  const email = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase() ?? "";
+  const forcedAdmin = adminEmails.includes(email);
 
   return {
-    role,
+    role: forcedAdmin ? "admin" : role,
     status,
     pendingRole: query.data?.pendingRole ?? null,
     rejectionReason: query.data?.rejectionReason ?? null,
     isLoading: !isLoaded || (!!isSignedIn && query.isLoading),
-    isAdmin: role === "admin",
-    isOwner: role === "owner" || role === "admin",
+    isAdmin: forcedAdmin || role === "admin",
+    isOwner: forcedAdmin || role === "owner" || role === "admin",
     isCoach: role === "coach",
     isPlayer: role === "player",
     isPending: status === "pending_approval",
