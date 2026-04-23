@@ -12,7 +12,13 @@ import { WebhookHandlers } from "./webhookHandlers";
 const app: Express = express();
 
 const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
-app.use("/courts/uploads", express.static(uploadsDir, { maxAge: "1d" }));
+app.use("/courts/uploads", express.static(uploadsDir, {
+  maxAge: "1d",
+  setHeaders(res) {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", "inline");
+  },
+}));
 
 // Serve the Vite-built frontend in production (same process, no separate static server needed)
 const frontendDist = path.resolve(process.cwd(), "../courtbook/dist/public");

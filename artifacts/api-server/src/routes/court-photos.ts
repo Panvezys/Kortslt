@@ -4,16 +4,24 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { db, courtPhotosTable, courtsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { isOwner } from "../lib/auth";
 
 const uploadDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+const IMAGE_MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+};
+
 const photoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = IMAGE_MIME_TO_EXT[file.mimetype] ?? ".jpg";
     const uniqueName = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
     cb(null, uniqueName);
   },
@@ -23,8 +31,7 @@ const uploadPhoto = multer({
   storage: photoStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (allowed.includes(file.mimetype)) cb(null, true);
+    if (file.mimetype in IMAGE_MIME_TO_EXT) cb(null, true);
     else cb(new Error("Only image files are allowed"));
   },
 });
@@ -96,8 +103,10 @@ router.patch("/courts/:id/photos/:photoId", async (req, res): Promise<void> => {
 
   const [updated] = await db.update(courtPhotosTable)
     .set(updates)
-    .where(eq(courtPhotosTable.id, photoId))
+    .where(and(eq(courtPhotosTable.id, photoId), eq(courtPhotosTable.courtId, courtId)))
     .returning();
+
+  if (!updated) { res.status(404).json({ error: "Photo not found" }); return; }
   res.json(updated);
 });
 
@@ -111,12 +120,14 @@ router.delete("/courts/:id/photos/:photoId", async (req, res): Promise<void> => 
   const ownerUserId = await getCourtOwner(courtId);
   if (!(await isOwner(req, ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const [photo] = await db.select().from(courtPhotosTable).where(eq(courtPhotosTable.id, photoId));
-  if (photo) {
-    const filePath = path.resolve(process.cwd(), "../courtbook/public", photo.url);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    await db.delete(courtPhotosTable).where(eq(courtPhotosTable.id, photoId));
-  }
+  const [photo] = await db.select().from(courtPhotosTable)
+    .where(and(eq(courtPhotosTable.id, photoId), eq(courtPhotosTable.courtId, courtId)));
+  if (!photo) { res.status(404).json({ error: "Photo not found" }); return; }
+
+  const filePath = path.resolve(process.cwd(), "../courtbook/public", photo.url);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  await db.delete(courtPhotosTable)
+    .where(and(eq(courtPhotosTable.id, photoId), eq(courtPhotosTable.courtId, courtId)));
   res.json({ ok: true });
 });
 

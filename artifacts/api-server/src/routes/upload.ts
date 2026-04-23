@@ -11,10 +11,26 @@ for (const dir of [uploadDir, docsDir]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+const IMAGE_MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+};
+
+const DOC_MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+};
+
 const imageStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = IMAGE_MIME_TO_EXT[file.mimetype] ?? ".jpg";
     const uniqueName = `court_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
     cb(null, uniqueName);
   },
@@ -23,7 +39,7 @@ const imageStorage = multer.diskStorage({
 const docStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, docsDir),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const ext = DOC_MIME_TO_EXT[file.mimetype] ?? ".pdf";
     const uniqueName = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
     cb(null, uniqueName);
   },
@@ -33,8 +49,7 @@ const uploadImage = multer({
   storage: imageStorage,
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
-    if (allowed.includes(file.mimetype)) {
+    if (file.mimetype in IMAGE_MIME_TO_EXT) {
       cb(null, true);
     } else {
       cb(new Error("Only image files are allowed (JPEG, PNG, WebP, GIF)"));
@@ -46,11 +61,7 @@ const uploadDoc = multer({
   storage: docStorage,
   limits: { fileSize: 16 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = [
-      "image/jpeg", "image/jpg", "image/png", "image/webp",
-      "application/pdf",
-    ];
-    if (allowed.includes(file.mimetype)) {
+    if (file.mimetype in DOC_MIME_TO_EXT) {
       cb(null, true);
     } else {
       cb(new Error("Only images or PDF files are allowed"));
@@ -60,7 +71,7 @@ const uploadDoc = multer({
 
 const router: IRouter = Router();
 
-router.post("/upload/court-image", uploadImage.single("image"), (req, res): void => {
+router.post("/upload/court-image", requireAuth, uploadImage.single("image"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No image file provided" });
     return;
@@ -69,7 +80,7 @@ router.post("/upload/court-image", uploadImage.single("image"), (req, res): void
   res.json({ path: relativePath, url: relativePath });
 });
 
-router.post("/upload/amenity-photo", uploadImage.single("image"), (req, res): void => {
+router.post("/upload/amenity-photo", requireAuth, uploadImage.single("image"), (req, res): void => {
   if (!req.file) {
     res.status(400).json({ error: "No image file provided" });
     return;
