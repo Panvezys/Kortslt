@@ -23,6 +23,10 @@ const { default: sharp } = await import(pathToFileURL(sharpPath).href);
 const IMAGE_DIRS = [
   path.join(root, "artifacts/courtbook/public/courts"),
   path.join(root, "artifacts/courtbook/public/courts/uploads"),
+  path.join(root, "artifacts/courtbook/public/courts/padel"),
+  path.join(root, "artifacts/courtbook/public/courts/football"),
+  path.join(root, "artifacts/courtbook/public/courts/badminton"),
+  path.join(root, "artifacts/courtbook/public/courts/squash"),
 ];
 
 const CONVERTIBLE = new Set([".jpg", ".jpeg", ".png", ".gif"]);
