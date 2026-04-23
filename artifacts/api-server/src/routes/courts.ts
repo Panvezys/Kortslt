@@ -21,7 +21,7 @@ import {
   SetCourtPricingBody,
   SetCourtPricingResponse,
 } from "@workspace/api-zod";
-import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { requireAuth, requireAdmin, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
 import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -255,7 +255,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (existing.ownerUserId && !(await isOwner(req, existing.ownerUserId))) {
+  if (!(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -300,7 +300,7 @@ router.patch("/courts/:id/instant-booking", requireAuth, async (req, res): Promi
 
   const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Court not found" }); return; }
-  if (existing.ownerUserId && !(await isOwner(req, existing.ownerUserId))) {
+  if (!(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
@@ -321,7 +321,7 @@ router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (existing.ownerUserId && !(await isOwner(req, existing.ownerUserId))) {
+  if (!(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -461,7 +461,7 @@ router.get("/courts/:id/pricing", async (req, res): Promise<void> => {
   }));
 });
 
-router.put("/courts/:id/pricing", async (req, res): Promise<void> => {
+router.put("/courts/:id/pricing", requireAuth, async (req, res): Promise<void> => {
   const params = SetCourtPricingParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -471,6 +471,16 @@ router.put("/courts/:id/pricing", async (req, res): Promise<void> => {
   const body = SetCourtPricingBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [existingCourt] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existingCourt) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+  if (!(await isOwner(req, existingCourt.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
 
@@ -639,7 +649,7 @@ router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> 
 });
 
 // ─── Admin: list courts pending review ───────────────────────────────────────
-router.get("/admin/courts/pending", requireAuth, async (_req, res): Promise<void> => {
+router.get("/admin/courts/pending", requireAdmin, async (_req, res): Promise<void> => {
   const courts = await db
     .select()
     .from(courtsTable)

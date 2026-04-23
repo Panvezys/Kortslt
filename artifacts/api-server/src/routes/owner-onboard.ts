@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, facilitiesTable, userRolesTable, courtsTable } from "@workspace/db";
+import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, getUserRole } from "../lib/auth";
 import { z } from "zod";
 
@@ -183,6 +183,12 @@ router.post("/owner/onboard/step4", requireAuth, async (req, res): Promise<void>
   const userId = getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const role = await getUserRole(userId);
+  if (role !== "owner" && role !== "admin") {
+    res.status(403).json({ error: "Forbidden – owner role must be approved by an admin before completing onboarding" });
+    return;
+  }
+
   const parsed = OnboardStep4Body.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -219,14 +225,6 @@ router.post("/owner/onboard/step4", requireAuth, async (req, res): Promise<void>
       .returning();
     createdCourts.push(created);
   }
-
-  await db
-    .insert(userRolesTable)
-    .values({ userId, role: "owner" })
-    .onConflictDoUpdate({
-      target: userRolesTable.userId,
-      set: { role: "owner", updatedAt: new Date() },
-    });
 
   res.json({ facility, courts: createdCourts });
 });
