@@ -80,3 +80,13 @@ channel = "stable-25_05"
 [userenv.shared]
 ADMIN_USER_IDS = "user_3CJVOZeKfc34SewQ6qIigupXWtF,user_3CJUpflldvFEo545CBPnmN5yRmI"
 VITE_ADMIN_USER_IDS = "user_3CJVOZeKfc34SewQ6qIigupXWtF,user_3CJUpflldvFEo545CBPnmN5yRmI"
+
+[userenv.development]
+CLERK_PUBLISHABLE_KEY = "pk_test_bG92ZWQtb3dsLTQuY2xlcmsuYWNjb3VudHMuZGV2JA"
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_bG92ZWQtb3dsLTQuY2xlcmsuYWNjb3VudHMuZGV2JA"
+CLERK_SECRET_KEY = "sk_test_BdBajis9AwIxylIS3aVNavrBv6uJ1WLUpt68GCUcNs"
+
+[userenv.production]
+CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsua29ydHMubHQk"
+VITE_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsua29ydHMubHQk"
+CLERK_SECRET_KEY = "sk_live_SFGsoElfSU2sYtuYuamAG1ItdPJ1kgIty7mVJ8AuJ6"
