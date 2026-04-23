@@ -3,6 +3,7 @@ import cors from "cors";
 import path from "path";
 import fs from "fs";
 import pinoHttp from "pino-http";
+import compression from "compression";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
@@ -11,12 +12,24 @@ import { WebhookHandlers } from "./webhookHandlers";
 
 const app: Express = express();
 
+// ─── Gzip compression ─────────────────────────────────────────────────────────
+// Compresses JS, CSS, JSON, HTML, SVG responses on the fly. Images and PDFs
+// are skipped (already compressed). In production, Brotli is handled at the
+// CDN/proxy layer (Google Frontend in Replit deployments).
+app.use(
+  compression({
+    level: 6,       // balanced speed vs ratio
+    threshold: 1024, // skip responses smaller than 1 KB
+  }),
+);
+// ─────────────────────────────────────────────────────────────────────────────
+
 const courtsDir = path.resolve(process.cwd(), "../courtbook/public/courts");
 const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
 
-// WebP content-negotiation: if the browser sends Accept: image/webp and a
-// same-named .webp file exists, transparently serve that instead of the
-// original PNG/JPG — no DB changes required, ~90% smaller on average.
+// ─── WebP content-negotiation ─────────────────────────────────────────────────
+// If the browser sends Accept: image/webp and a .webp sibling exists, serve
+// that instead — no DB changes required, ~90% smaller on average.
 function webpNegotiation(baseDir: string) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const accepts = req.headers["accept"] ?? "";
@@ -28,7 +41,7 @@ function webpNegotiation(baseDir: string) {
       res.setHeader("Content-Type", "image/webp");
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Content-Disposition", "inline");
-      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Cache-Control", "public, max-age=604800"); // 1 week
       res.setHeader("Vary", "Accept");
       res.sendFile(webpPath);
       return;
@@ -37,9 +50,11 @@ function webpNegotiation(baseDir: string) {
   };
 }
 
+// User-uploaded images — 1 week cache
 app.use("/courts/uploads", webpNegotiation(uploadsDir));
 app.use("/courts/uploads", express.static(uploadsDir, {
-  maxAge: "1d",
+  maxAge: "7d",
+  immutable: false,
   setHeaders(res) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Content-Disposition", "inline");
@@ -47,23 +62,50 @@ app.use("/courts/uploads", express.static(uploadsDir, {
   },
 }));
 
-// Also serve the static court images (the seeded /courts/*.png files) with WebP negotiation
+// Seeded court images — 1 week cache
 app.use("/courts", webpNegotiation(courtsDir));
 app.use("/courts", express.static(courtsDir, {
-  maxAge: "1d",
+  maxAge: "7d",
+  immutable: false,
   setHeaders(res) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Vary", "Accept");
   },
 }));
 
-// Serve the Vite-built frontend in production (same process, no separate static server needed)
+// ─── Frontend static assets ───────────────────────────────────────────────────
 const frontendDist = path.resolve(process.cwd(), "../courtbook/dist/public");
 if (fs.existsSync(frontendDist)) {
-  app.use(express.static(frontendDist, { maxAge: "1d", index: false }));
+  // /assets/ contains Vite-hashed bundles (e.g. index-BfG3kLx2.js) — these
+  // never change URL when content changes, so they can be cached forever.
+  const assetsDir = path.join(frontendDist, "assets");
+  if (fs.existsSync(assetsDir)) {
+    app.use("/assets", express.static(assetsDir, {
+      maxAge: "365d",   // 1 year
+      immutable: true,
+      setHeaders(res) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }));
+  }
+
+  // Icons, fonts and other public files — 1 week
+  app.use(express.static(frontendDist, {
+    maxAge: "7d",
+    index: false,          // don't auto-serve index.html here; SPA fallback below
+    setHeaders(res, filePath) {
+      // HTML files must never be cached — they reference the hashed assets
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        return;
+      }
+      // SVG/PNG/WebP icons already handled or served with 1 week default
+    },
+  }));
 }
 
 app.get("/sitemap.xml", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=86400"); // 1 day
   res.type("application/xml");
   res.sendFile(path.resolve(process.cwd(), "../courtbook/public/sitemap.xml"));
 });
@@ -86,7 +128,7 @@ app.post(
       logger.error({ err }, "Stripe webhook error");
       res.status(400).json({ error: "Webhook processing error" });
     }
-  }
+  },
 );
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -102,9 +144,7 @@ app.use(
         };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
   }),
@@ -123,6 +163,7 @@ app.use("/api", router);
 // SPA fallback: serve index.html for any non-API route so client-side routing works
 if (fs.existsSync(frontendDist)) {
   app.use((_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
