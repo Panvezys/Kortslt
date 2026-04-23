@@ -84,6 +84,7 @@ VITE_ADMIN_USER_IDS = "user_3CJVOZeKfc34SewQ6qIigupXWtF,user_3CJUpflldvFEo545CBP
 [userenv.development]
 CLERK_PUBLISHABLE_KEY = "pk_test_bG92ZWQtb3dsLTQuY2xlcmsuYWNjb3VudHMuZGV2JA"
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_bG92ZWQtb3dsLTQuY2xlcmsuYWNjb3VudHMuZGV2JA"
+ADMIN_EMAILS = "panvezys@gmail.com"
 
 [userenv.production]
 CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsua29ydHMubHQk"
