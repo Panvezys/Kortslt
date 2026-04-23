@@ -117,7 +117,7 @@ export const CreateCourtBody = zod.object({
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "very_good", "good", "fair"]).optional(),
-  ownershipDocUrl: zod.string().optional(),
+  ownershipDocUrl: zod.string().refine(v => /^https:\/\//i.test(v) || /^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(v), "ownershipDocUrl must be an https URL or a valid uploaded document path").optional(),
   socialFacebook: zod.string().optional(),
   socialInstagram: zod.string().optional(),
   socialWhatsapp: zod.string().optional(),
@@ -613,7 +613,7 @@ export const CreateFacilityBody = zod.object({
   phone: zod.string().optional(),
   email: zod.string().optional(),
   verificationDocUrl: zod.string().optional(),
-  ownershipDocUrl: zod.string().optional(),
+  ownershipDocUrl: zod.string().refine(v => /^https:\/\//i.test(v) || /^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(v), "ownershipDocUrl must be an https URL or a valid uploaded document path").optional(),
   photos: zod.array(zod.string()).optional(),
   equipment: zod.array(zod.string()).optional(),
 });
@@ -632,7 +632,7 @@ export const UpdateFacilityBody = zod.object({
   phone: zod.string().optional(),
   email: zod.string().optional(),
   verificationDocUrl: zod.string().optional(),
-  ownershipDocUrl: zod.string().optional(),
+  ownershipDocUrl: zod.string().refine(v => /^https:\/\//i.test(v) || /^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(v), "ownershipDocUrl must be an https URL or a valid uploaded document path").optional(),
   photos: zod.array(zod.string()).optional(),
   equipment: zod.array(zod.string()).optional(),
 });

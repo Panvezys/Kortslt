@@ -20,6 +20,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useRole } from "@/lib/useRole";
 
+function safeDocUrl(url: string | undefined | null): string | undefined {
+  if (!url) return undefined;
+  if (/^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(url)) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return undefined;
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas",
   basketball: "Krepšinis",
@@ -510,6 +522,7 @@ function CourtReviewDialog({
   if (!court) return null;
   const isApproved = court.status === "approved";
   const isRejected = court.status === "rejected";
+  const courtDocUrl = safeDocUrl(court.ownershipDocUrl);
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setShowRejectForm(false); setRejectReason(""); } }}>
@@ -556,8 +569,8 @@ function CourtReviewDialog({
             ))}
           </div>
 
-          {court.ownershipDocUrl && (
-            <a href={court.ownershipDocUrl} target="_blank" rel="noopener noreferrer"
+          {courtDocUrl && (
+            <a href={courtDocUrl} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors px-4 py-3">
               <FileText className="w-5 h-5 text-primary shrink-0" />
               <span className="text-sm font-medium text-primary">Peržiūrėti nuosavybės dokumentą</span>
@@ -657,6 +670,7 @@ function FacilityReviewDialog({
 
   const isVerified = facility.verificationStatus === "verified";
   const isRejected = facility.verificationStatus === "rejected";
+  const facilityDocUrl = safeDocUrl(facility.ownershipDocUrl);
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setShowRejectForm(false); setRejectReason(""); } }}>
@@ -797,9 +811,9 @@ function FacilityReviewDialog({
           {/* Ownership document */}
           <div>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Nuosavybės dokumentas</h3>
-            {facility.ownershipDocUrl ? (
+            {facilityDocUrl ? (
               <a
-                href={facility.ownershipDocUrl}
+                href={facilityDocUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors px-4 py-3"
