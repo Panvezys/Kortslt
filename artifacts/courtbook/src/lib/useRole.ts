@@ -19,7 +19,7 @@ export function useRole() {
   const { session } = useSession();
   const { user } = useUser();
   const queryClient = useQueryClient();
-  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS as string | undefined)
+  const adminEmails = ((import.meta.env.VITE_ADMIN_EMAILS as string | undefined) ?? (import.meta.env.VITE_ADMIN_EMAILS as string | undefined) ?? "")
     ?.split(",")
     .map(s => s.trim().toLowerCase())
     .filter(Boolean) ?? [];
