@@ -108,7 +108,7 @@ const LOCALES: { code: Locale; label: string }[] = [
 
 function UserMenu() {
   const { user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
   const { isAdmin, isOwner, isCoach } = useRole();
@@ -149,11 +149,9 @@ function UserMenu() {
           <UserCircle className="mr-2 h-4 w-4" />
           {t("nav.myProfile")}
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href="https://accounts.korts.lt" target="_self" className="flex items-center w-full">
-            <UserCircle className="mr-2 h-4 w-4" />
-            Paskyra
-          </a>
+        <DropdownMenuItem onClick={() => openUserProfile()}>
+          <UserCircle className="mr-2 h-4 w-4" />
+          Paskyra
         </DropdownMenuItem>
         {(isCoach || isAdmin) && (
           <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
