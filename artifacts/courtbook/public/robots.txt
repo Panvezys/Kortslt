@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /owner
 
-Sitemap: /sitemap.xml
+Sitemap: https://korts.lt/sitemap.xml
