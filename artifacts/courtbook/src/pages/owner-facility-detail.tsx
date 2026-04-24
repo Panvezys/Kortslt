@@ -973,11 +973,17 @@ export default function OwnerFacilityDetail() {
     enabled: !!id && !!user?.id,
   });
 
+  const facilityOwnerId = (facility as any)?.ownerUserId as string | undefined;
+
   const { data: courts, isLoading: courtsLoading } = useListCourts(
-    user?.id ? { ownerUserId: user.id } : undefined
+    facilityOwnerId ? { ownerUserId: facilityOwnerId } : undefined,
+    { query: { enabled: !!facilityOwnerId } }
   );
 
   const facilityCourts = courts?.filter(c => (c as any).facilityId === Number(id)) ?? [];
+
+  const [facilityEditOpen, setFacilityEditOpen] = useState(false);
+  const autoOpenedRef = useRef<{ court?: number; facility?: boolean }>({});
 
   const createCourt = useCreateCourt();
   const updateCourt = useUpdateCourt();
@@ -1187,6 +1193,35 @@ export default function OwnerFacilityDetail() {
     }
   }, []);
 
+  // Auto-open editors based on URL params (?editCourt=ID, ?editFacility=1)
+  useEffect(() => {
+    if (!facility) return;
+    const params = new URLSearchParams(window.location.search);
+    const editFacilityParam = params.get("editFacility");
+    const editCourtParam = params.get("editCourt");
+
+    if (editFacilityParam === "1" && !autoOpenedRef.current.facility) {
+      autoOpenedRef.current.facility = true;
+      setFacilityEditOpen(true);
+      params.delete("editFacility");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+
+    if (editCourtParam && courts && autoOpenedRef.current.court !== Number(editCourtParam)) {
+      const targetId = Number(editCourtParam);
+      const target = facilityCourts.find(c => c.id === targetId);
+      if (target) {
+        autoOpenedRef.current.court = targetId;
+        handleEdit(target);
+        params.delete("editCourt");
+        const qs = params.toString();
+        window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facility, courts]);
+
   if (facilityLoading || courtsLoading) {
     return (
       <Layout>
@@ -1230,6 +1265,15 @@ export default function OwnerFacilityDetail() {
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute top-3 right-3">
+              <Button
+                size="sm" variant="outline"
+                className="h-8 gap-1.5 text-xs bg-black/40 backdrop-blur-sm border-white/30 text-white hover:bg-black/60"
+                onClick={() => setFacilityEditOpen(true)}
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Redaguoti objektą
+              </Button>
+            </div>
             <div className="absolute bottom-4 left-4 right-4">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white">{facility.name}</h1>
@@ -1922,8 +1966,297 @@ export default function OwnerFacilityDetail() {
 
         {/* Tournaments Section */}
         <FacilityTournaments facilityId={Number(id)} facilityCourts={facilityCourts} />
+
+        <FacilityEditDialog
+          facility={facility}
+          open={facilityEditOpen}
+          onClose={() => setFacilityEditOpen(false)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
+            queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+            queryClient.invalidateQueries({ queryKey: ["admin-facilities"] });
+          }}
+        />
       </div>
     </Layout>
+  );
+}
+
+// ============ Facility edit dialog (5 tabs) ============
+
+const facilityEditSchema = z.object({
+  name: z.string().min(2, "Pavadinimas privalomas"),
+  description: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  postcode: z.string().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+  companyName: z.string().optional(),
+  registrationCode: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+});
+type FacilityEditValues = z.infer<typeof facilityEditSchema>;
+
+function FacilityEditDialog({
+  facility, open, onClose, onSaved,
+}: {
+  facility: FacilityData | undefined;
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"info" | "location" | "company" | "contact" | "media">("info");
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [newPhotoUrl, setNewPhotoUrl] = useState("");
+
+  const form = useForm<FacilityEditValues>({
+    resolver: zodResolver(facilityEditSchema),
+    defaultValues: {
+      name: "", description: "", address: "", city: "", postcode: "",
+      latitude: undefined, longitude: undefined,
+      companyName: "", registrationCode: "", phone: "", email: "",
+    },
+  });
+
+  useEffect(() => {
+    if (open && facility) {
+      form.reset({
+        name: facility.name ?? "",
+        description: facility.description ?? "",
+        address: facility.address ?? "",
+        city: facility.city ?? "",
+        postcode: facility.postcode ?? "",
+        latitude: facility.latitude,
+        longitude: facility.longitude,
+        companyName: facility.companyName ?? "",
+        registrationCode: facility.registrationCode ?? "",
+        phone: facility.phone ?? "",
+        email: facility.email ?? "",
+      });
+      setPhotos(Array.isArray(facility.photos) ? facility.photos : []);
+      setTab("info");
+      setNewPhotoUrl("");
+    }
+  }, [open, facility?.id]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: FacilityEditValues) => {
+      if (!facility) throw new Error("No facility");
+      const cleanStr = (v: unknown): string | undefined => {
+        if (typeof v !== "string") return undefined;
+        const t = v.trim();
+        return t.length > 0 ? t : undefined;
+      };
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        description: cleanStr(data.description),
+        address: cleanStr(data.address),
+        city: cleanStr(data.city),
+        postcode: cleanStr(data.postcode),
+        latitude: typeof data.latitude === "number" && !isNaN(data.latitude) ? data.latitude : undefined,
+        longitude: typeof data.longitude === "number" && !isNaN(data.longitude) ? data.longitude : undefined,
+        companyName: cleanStr(data.companyName),
+        registrationCode: cleanStr(data.registrationCode),
+        phone: cleanStr(data.phone),
+        email: cleanStr(data.email),
+        photos,
+      };
+      return customFetch(`${API_URL}/facilities/${facility.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Objektas atnaujintas" });
+      onSaved();
+      onClose();
+    },
+    onError: (err: any) => {
+      const description = (err?.data && typeof err.data === "object" && typeof err.data.error === "string")
+        ? err.data.error : (err?.message ?? "Patikrinkite užpildytus laukus");
+      toast({ title: "Klaida išsaugant objektą", description, variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (data: FacilityEditValues) => saveMutation.mutate(data);
+
+  const handlePhotoUpload = async (file: File) => {
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const resp = await fetch(`${BASE_URL}/api/upload/amenity-photo`, { method: "POST", body: fd });
+      if (!resp.ok) throw new Error("Upload failed");
+      const { url } = await resp.json();
+      setPhotos(prev => [...prev, url]);
+      toast({ title: "Nuotrauka įkelta" });
+    } catch {
+      toast({ title: "Klaida įkeliant nuotrauką", variant: "destructive" });
+    }
+  };
+
+  if (!facility) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Redaguoti objektą</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
+          {([
+            { id: "info", label: "Pagrindai" },
+            { id: "location", label: "Vieta" },
+            { id: "company", label: "Įmonė" },
+            { id: "contact", label: "Kontaktai" },
+            { id: "media", label: "Medija" },
+          ] as const).map(t => (
+            <button key={t.id} type="button" onClick={() => setTab(t.id)}
+              className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${tab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            >{t.label}</button>
+          ))}
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
+            {tab === "info" && (
+              <div className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem><FormLabel>Pavadinimas</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem><FormLabel>Aprašymas</FormLabel><FormControl><Textarea rows={4} {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            )}
+
+            {tab === "location" && (
+              <div className="space-y-4">
+                <FormField control={form.control} name="address" render={({ field }) => (
+                  <FormItem><FormLabel>Adresas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="city" render={({ field }) => (
+                    <FormItem><FormLabel>Miestas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="postcode" render={({ field }) => (
+                    <FormItem><FormLabel>Pašto kodas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="latitude" render={({ field }) => (
+                    <FormItem><FormLabel>Platuma (lat)</FormLabel><FormControl>
+                      <Input type="number" step="any" {...field} value={field.value ?? ""}
+                        onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                    </FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="longitude" render={({ field }) => (
+                    <FormItem><FormLabel>Ilguma (lng)</FormLabel><FormControl>
+                      <Input type="number" step="any" {...field} value={field.value ?? ""}
+                        onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                    </FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+              </div>
+            )}
+
+            {tab === "company" && (
+              <div className="space-y-4">
+                <FormField control={form.control} name="companyName" render={({ field }) => (
+                  <FormItem><FormLabel>Įmonės pavadinimas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="registrationCode" render={({ field }) => (
+                  <FormItem><FormLabel>Įmonės kodas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            )}
+
+            {tab === "contact" && (
+              <div className="space-y-4">
+                <FormField control={form.control} name="phone" render={({ field }) => (
+                  <FormItem><FormLabel>Telefonas</FormLabel><FormControl><Input {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem><FormLabel>El. paštas</FormLabel><FormControl><Input type="email" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+            )}
+
+            {tab === "media" && (
+              <div className="space-y-4">
+                <Label className="text-sm">Objekto nuotraukos</Label>
+                {photos.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nuotraukų dar nepridėta.</p>
+                )}
+                {photos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {photos.map((p, i) => (
+                      <div key={`${p}-${i}`} className="relative group rounded-lg overflow-hidden border bg-muted/30 aspect-square">
+                        <img
+                          src={p.startsWith("http") ? p : `${BASE_URL}/${p}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Įklijuoti nuotraukos URL..."
+                    value={newPhotoUrl}
+                    onChange={e => setNewPhotoUrl(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button" variant="outline" size="sm"
+                    disabled={!newPhotoUrl.trim()}
+                    onClick={() => {
+                      const v = newPhotoUrl.trim();
+                      if (!v) return;
+                      setPhotos(prev => [...prev, v]);
+                      setNewPhotoUrl("");
+                    }}
+                  >Pridėti</Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border hover:bg-muted/60">
+                    <Upload className="w-3.5 h-3.5" /> Įkelti failą
+                    <input
+                      type="file" accept="image/*" className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) handlePhotoUpload(f);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-2 sticky bottom-0 bg-background">
+              <Button type="button" variant="outline" onClick={onClose}>Atšaukti</Button>
+              <Button type="submit" disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Išsaugoti
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

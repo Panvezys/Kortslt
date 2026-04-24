@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
-import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -61,8 +61,12 @@ router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   }
 
   const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
-  if (!facility || facility.ownerUserId !== userId) {
+  if (!facility) {
     res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!(await isOwner(req, facility.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 
@@ -120,7 +124,11 @@ router.put("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const [existing] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, params.data.id));
-  if (!existing || existing.ownerUserId !== userId) {
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (!(await isOwner(req, existing.ownerUserId))) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

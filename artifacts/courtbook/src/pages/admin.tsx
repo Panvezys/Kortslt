@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch, type Court } from "@workspace/api-client-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
@@ -162,6 +162,7 @@ function CourtsPanel() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [reviewCourt, setReviewCourt] = useState<any | null>(null);
   const [editCourt, setEditCourt] = useState<any | null>(null);
+  const [, navigate] = useLocation();
 
   const { data: courts, isLoading, isError } = useAdminCourts();
   const approveMutation = useApproveCourt();
@@ -258,7 +259,15 @@ function CourtsPanel() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
-                        onClick={e => { e.stopPropagation(); setEditCourt(court); }}>
+                        onClick={e => {
+                          e.stopPropagation();
+                          const fId = (court as any).facilityId;
+                          if (fId) {
+                            navigate(`/owner/facility/${fId}?editCourt=${court.id}`);
+                          } else {
+                            setEditCourt(court);
+                          }
+                        }}>
                         <Pencil className="w-3.5 h-3.5" /> Redaguoti
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
@@ -923,6 +932,7 @@ function FacilitiesPanel() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("all");
   const [reviewFacility, setReviewFacility] = useState<any | null>(null);
+  const [, navigate] = useLocation();
 
   const { data: facilities = [], isLoading, isError } = useQuery<any[]>({
     queryKey: ["admin-facilities"],
@@ -993,7 +1003,7 @@ function FacilitiesPanel() {
                 <th className="text-left px-4 py-3 font-medium">Objektas</th>
                 <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Stripe</th>
                 <th className="text-left px-4 py-3 font-medium">Statusas</th>
-                <th className="text-right px-4 py-3 font-medium">Peržiūra</th>
+                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
               </tr>
             </thead>
             <tbody>
@@ -1027,13 +1037,25 @@ function FacilitiesPanel() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      size="sm" variant="outline"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={e => { e.stopPropagation(); setReviewFacility(f); }}
-                    >
-                      <Eye className="w-3.5 h-3.5" /> Peržiūrėti
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={e => {
+                          e.stopPropagation();
+                          navigate(`/owner/facility/${f.id}?editFacility=1`);
+                        }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Redaguoti
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={e => { e.stopPropagation(); setReviewFacility(f); }}
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
