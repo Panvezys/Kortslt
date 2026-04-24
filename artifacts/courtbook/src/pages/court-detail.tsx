@@ -24,6 +24,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
+import { CourtEditDialog } from "@/components/court-edit-dialog";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -353,6 +354,7 @@ export default function CourtDetail() {
   const isAdmin = meRole?.role === "admin";
   const isOwner = !!user && !!court && user.id === (court as any).ownerUserId;
   const canEdit = isAdmin || isOwner;
+  const [editOpen, setEditOpen] = useState(false);
 
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
   interface EquipAvailItem { name: string; pricePerSlot: number; stock: number; available: number; }
@@ -902,7 +904,7 @@ export default function CourtDetail() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setLocation("/owner")}
+                      onClick={() => setEditOpen(true)}
                       aria-label="Edit court"
                       title="Redaguoti aikštelę"
                       className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-primary/60 hover:bg-primary/5 hover:text-primary active:scale-95"
@@ -1729,6 +1731,15 @@ export default function CourtDetail() {
             )}
           </div>
         </div>
+      )}
+
+      {canEdit && (
+        <CourtEditDialog
+          court={court}
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          showOwnerContext={isAdmin && !isOwner}
+        />
       )}
     </Layout>
   );
