@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, facilitiesTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, facilitiesTable, userProfilesTable } from "@workspace/db";
 import {
   CreateCheckoutSessionBody,
   CreateCheckoutSessionResponse,
@@ -71,7 +71,30 @@ router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<
   }
 
   const amountCents = Math.round(Number(booking.totalPrice) * 100);
-  const connectAccountId = court?.stripeConnectAccountId;
+
+  // Resolve payout destination:
+  // 1) court-level Connect account (legacy per-court flow)
+  // 2) facility-level Connect account
+  // 3) owner's user-level Connect account (current onboarding flow)
+  let connectAccountId: string | null = court?.stripeConnectAccountId ?? null;
+
+  if (!connectAccountId && court?.facilityId) {
+    const [facility] = await db
+      .select({ id: facilitiesTable.id, stripeConnectAccountId: facilitiesTable.stripeConnectAccountId })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, court.facilityId));
+    connectAccountId = facility?.stripeConnectAccountId ?? null;
+  }
+
+  if (!connectAccountId && court?.ownerUserId) {
+    const [profile] = await db
+      .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, court.ownerUserId));
+    if (profile?.stripeAccountId && profile.status === "active") {
+      connectAccountId = profile.stripeAccountId;
+    }
+  }
 
   const sessionParams: any = {
     payment_method_types: ["card"],
