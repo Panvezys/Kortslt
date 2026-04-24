@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useUser } from "@clerk/react";
@@ -113,6 +113,28 @@ export default function OwnerFacilities() {
     queryFn: () => customFetch<FacilityWithCourts[]>(`${API_URL}/facilities`),
     enabled: !!user?.id,
   });
+
+  const { data: stripeStatusData } = useQuery<{ status: StripeStatus; accountId: string | null }>({
+    queryKey: ["stripe-connect-status"],
+    queryFn: () => customFetch(`${API_URL}/stripe/connect/status`),
+    enabled: !!user?.id,
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_connect")) {
+      queryClient.invalidateQueries({ queryKey: ["stripe-connect-status"] });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("stripe_connect");
+      window.history.replaceState({}, "", url.toString());
+    }
+
+    const onFocus = () => {
+      queryClient.invalidateQueries({ queryKey: ["stripe-connect-status"] });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [queryClient]);
 
   const extractApiError = (err: unknown, fallback: string): string => {
     const anyErr = err as any;
@@ -280,7 +302,7 @@ export default function OwnerFacilities() {
 
   const totalCourts = facilities?.reduce((sum, f) => sum + f.courtCount, 0) ?? 0;
   const totalSports = [...new Set(facilities?.flatMap(f => f.sportTypes) ?? [])].length;
-  const ownerStripeStatus: StripeStatus = facilities?.[0]?.stripeConnectStatus ?? "not_connected";
+  const ownerStripeStatus: StripeStatus = stripeStatusData?.status ?? "not_connected";
   const stripeActive = ownerStripeStatus === "active";
 
   return (
