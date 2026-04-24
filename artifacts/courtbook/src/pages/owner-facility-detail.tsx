@@ -224,7 +224,7 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
 function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; defaultPrice: number; onClose: () => void }) {
   const { toast } = useToast();
   const [selectedDay, setSelectedDay] = useState(1);
-  const defaultSlotPrice = defaultPrice;
+  const defaultSlotPrice = defaultPrice / 2;
   const { data: pricing, isLoading } = useGetCourtPricing(courtId);
   const setPricing = useSetCourtPricing();
   const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
