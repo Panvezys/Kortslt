@@ -5,6 +5,8 @@ export const userProfilesTable = pgTable("user_profiles", {
   activityPublic: boolean("activity_public").notNull().default(true),
   bio: text("bio"),
   imageUrl: text("image_url"),
+  stripeAccountId: text("stripe_account_id"),
+  stripeAccountStatus: text("stripe_account_status").notNull().default("not_connected"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

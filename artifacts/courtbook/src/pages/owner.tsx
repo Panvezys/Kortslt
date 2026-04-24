@@ -1825,15 +1825,48 @@ export default function OwnerDashboard() {
   // Handle Stripe Connect return from onboarding
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("connect_success") === "1") {
+    if (params.get("connect_success") === "1" || params.get("stripe_connect") === "success") {
       toast({ title: "✅ Stripe Connect prijungtas!", description: "Dabar galite priimti mokėjimus." });
       window.history.replaceState({}, "", window.location.pathname);
-    } else if (params.get("connect_refresh") === "1") {
+    } else if (params.get("connect_refresh") === "1" || params.get("stripe_connect") === "refresh") {
       toast({ title: "Stripe Connect neužbaigtas", description: "Bandykite dar kartą." });
       window.history.replaceState({}, "", window.location.pathname);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ─── Owner-level Stripe Connect (Express account on user) ──────────────────
+  const stripeConnectStatusQuery = useQuery<{ status: string; accountId: string | null }>({
+    queryKey: ["stripe-connect-status"],
+    queryFn: () => {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      return fetch(`${base}/api/stripe/connect/status`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : { status: "not_connected", accountId: null });
+    },
+  });
+  const [connectingStripe, setConnectingStripe] = useState(false);
+  const handleConnectStripeOwner = async () => {
+    setConnectingStripe(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const r = await fetch(`${base}/api/stripe/connect`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data?.error || "Klaida");
+      }
+      const { url } = await r.json();
+      if (!url) throw new Error("Negautas onboarding URL");
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Nepavyko prijungti Stripe", description: err?.message ?? "", variant: "destructive" });
+      setConnectingStripe(false);
+    }
+  };
 
   return (
     <Layout>
@@ -1844,7 +1877,27 @@ export default function OwnerDashboard() {
             <p className="text-muted-foreground mt-1">Tvarkykite savo aikšteles, trenerius ir turnyrus.</p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {stripeConnectStatusQuery.data?.status === "active" ? (
+              <Button variant="outline" disabled className="gap-2 border-green-500/40 text-green-500">
+                <CheckCircle2 className="w-4 h-4" /> Stripe prijungtas
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={handleConnectStripeOwner}
+                disabled={connectingStripe}
+                className="gap-2 border-blue-500/40 text-blue-500 hover:bg-blue-500/10"
+              >
+                <CreditCard className="w-4 h-4" />
+                {connectingStripe
+                  ? "Nukreipiama..."
+                  : stripeConnectStatusQuery.data?.status === "pending"
+                    ? "Tęsti Stripe registraciją"
+                    : "Prijungti Stripe"}
+              </Button>
+            )}
+
             <Button
               variant={showInbox ? "default" : "outline"}
               onClick={() => setShowInbox(v => !v)}
