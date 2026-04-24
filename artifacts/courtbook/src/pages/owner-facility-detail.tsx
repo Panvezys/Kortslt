@@ -1354,26 +1354,6 @@ export default function OwnerFacilityDetail() {
           </div>
         </div>
 
-        {/* Stripe Connect banner */}
-        {(facility as any).stripeConnectStatus !== "active" && (
-          <div className="mb-6 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <CreditCard className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5 sm:mt-0" />
-            <div className="flex-1">
-              <p className="font-medium text-sm text-yellow-300">Stripe Connect reikalingas mokėjimams priimti</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {(facility as any).stripeConnectStatus === "pending"
-                  ? "Prisijungimas pradėtas — užbaikite paskyrą, kad galėtumėte priimti mokėjimus."
-                  : "Aikšteles galite pridėti jau dabar. Prijunkite Stripe paskyrą, kad galėtumėte priimti mokėjimus tiesiai į savo sąskaitą."}
-              </p>
-            </div>
-            <Button size="sm" variant="outline" className="border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 shrink-0"
-              onClick={handleFacilityConnectStripe}>
-              <CreditCard className="w-3.5 h-3.5 mr-1.5" />
-              {(facility as any).stripeConnectStatus === "pending" ? "Tęsti registraciją" : "Prijungti Stripe"}
-            </Button>
-          </div>
-        )}
-
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Aikštelės</h2>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {

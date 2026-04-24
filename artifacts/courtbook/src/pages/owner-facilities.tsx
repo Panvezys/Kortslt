@@ -400,13 +400,6 @@ export default function OwnerFacilities() {
 
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
                       <VerificationBadge status={facility.verificationStatus} />
-                      <Badge className={facility.stripeConnectStatus === "active"
-                        ? "bg-green-500/15 text-green-400 border-green-500/30 gap-1 text-[10px] px-1.5 py-0"
-                        : "bg-yellow-500/15 text-yellow-300 border-yellow-500/30 gap-1 text-[10px] px-1.5 py-0"}
-                      >
-                        <CreditCard className="w-2.5 h-2.5" />
-                        {facility.stripeConnectStatus === "active" ? "Payments Active" : "Setup Required"}
-                      </Badge>
                     </div>
 
                     <div className="absolute top-3 right-3 flex gap-1">
