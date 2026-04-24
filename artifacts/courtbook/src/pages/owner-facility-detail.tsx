@@ -1797,19 +1797,6 @@ export default function OwnerFacilityDetail() {
                   </div>
 
                   <div className="mt-2 pt-2 border-t space-y-2">
-                    {/* Stripe status */}
-                    {(court as any).stripeConnectStatus && (court as any).stripeConnectStatus !== "not_connected" ? (
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${(court as any).stripeConnectStatus === "active" ? "text-green-500 bg-green-500/10" : "text-yellow-500 bg-yellow-500/10"}`}>
-                        <CreditCard className="w-3 h-3" />
-                        {(court as any).stripeConnectStatus === "active" ? "Stripe aktyvus" : "Stripe laukia"}
-                      </span>
-                    ) : (
-                      <button onClick={() => handleConnectStripe(court.id)}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 px-2 py-0.5 rounded-full transition-colors">
-                        <CreditCard className="w-3 h-3" /> Prijungti Stripe
-                      </button>
-                    )}
-
                     {/* Instant booking toggle */}
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">Momentinė rezervacija</span>
