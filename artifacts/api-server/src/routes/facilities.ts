@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -92,6 +93,13 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     .insert(facilitiesTable)
     .values({ ...parsed.data, ownerUserId: userId })
     .returning();
+
+  await sendAdminNotification(
+    "Naujas objektas laukia patvirtinimo",
+    `„${facility.name}" (${facility.city ?? "—"}) pateiktas peržiūrai.`,
+    "/admin",
+  );
+
   res.status(201).json({ ...facility, description: facility.description ?? undefined, courtCount: 0, sportTypes: [], courts: [] });
 });
 
