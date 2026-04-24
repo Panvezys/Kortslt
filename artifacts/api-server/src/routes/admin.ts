@@ -55,7 +55,7 @@ router.put("/admin/courts/:id/approve", requireAdmin, async (req, res): Promise<
       type: "court_approved",
       title: `Kortas patvirtintas: ${court.name}`,
       body: "Jūsų kortas patvirtintas ir dabar matomas klientams.",
-      link: "/owner",
+      link: `/owner/facility/${court.facilityId ?? ""}`,
     }).catch(() => {});
   }
 
@@ -86,7 +86,7 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
       type: "court_rejected",
       title: `Kortas atmestas: ${court.name}`,
       body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
-      link: "/owner",
+      link: `/owner/facility/${court.facilityId ?? ""}`,
     }).catch(() => {});
   }
 
