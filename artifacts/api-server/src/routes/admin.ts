@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, count } from "drizzle-orm";
-import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable } from "@workspace/db";
+import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable, userProfilesTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
+import { getAuth, clerkClient } from "@clerk/express";
 import { z } from "zod";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
@@ -11,6 +12,7 @@ import { sql } from "drizzle-orm";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const router: IRouter = Router();
+const STRIPE_RESET_EMAIL = "panvezys@gmail.com";
 
 /** GET /admin/courts — all courts with any status, newest first */
 router.get("/admin/courts", requireAdmin, async (_req, res): Promise<void> => {
@@ -159,6 +161,36 @@ router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promi
   }
 
   res.json({ id: facility.id, verificationStatus: facility.verificationStatus, rejectionReason: facility.rejectionReason });
+});
+
+router.get("/admin/reset-stripe", requireAdmin, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const user = await clerkClient.users.getUserList({
+    emailAddress: [STRIPE_RESET_EMAIL],
+    limit: 1,
+  });
+  const target = user.data[0];
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db
+    .update(userProfilesTable)
+    .set({ stripeAccountId: null, stripeAccountStatus: "not_connected" })
+    .where(eq(userProfilesTable.userId, target.id));
+
+  await db
+    .update(facilitiesTable)
+    .set({ stripeConnectAccountId: null, stripeConnectStatus: "not_connected" })
+    .where(eq(facilitiesTable.ownerUserId, target.id));
+
+  res.json({ status: "success", message: "Stripe reset for panvezys@gmail.com" });
 });
 
 // ─── Coach management ─────────────────────────────────────────────────────────
