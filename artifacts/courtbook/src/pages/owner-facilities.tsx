@@ -112,12 +112,35 @@ export default function OwnerFacilities() {
     enabled: !!user?.id,
   });
 
+  const extractApiError = (err: unknown, fallback: string): string => {
+    const anyErr = err as any;
+    const data = anyErr?.data;
+    if (data && typeof data === "object" && typeof data.error === "string") {
+      return data.error;
+    }
+    if (anyErr?.message) return anyErr.message;
+    return fallback;
+  };
+
+  const buildPayload = (data: typeof formData) => ({
+    ...data,
+    email: data.email.trim() || undefined,
+    phone: data.phone.trim() || undefined,
+    description: data.description.trim() || undefined,
+    companyName: data.companyName.trim() || undefined,
+    registrationCode: data.registrationCode.trim() || undefined,
+    postcode: data.postcode.trim() || undefined,
+    ownershipDocUrl: data.ownershipDocUrl.trim() || undefined,
+    latitude: data.latitude || undefined,
+    longitude: data.longitude || undefined,
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: typeof formData) =>
       customFetch(`${API_URL}/facilities`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(buildPayload(data)),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
@@ -125,7 +148,11 @@ export default function OwnerFacilities() {
       setDialogOpen(false);
       resetForm();
     },
-    onError: () => toast({ title: "Klaida kuriant objektą", variant: "destructive" }),
+    onError: (err) => toast({
+      title: "Klaida kuriant objektą",
+      description: extractApiError(err, "Patikrinkite užpildytus laukus"),
+      variant: "destructive",
+    }),
   });
 
   const updateMutation = useMutation({
@@ -133,7 +160,7 @@ export default function OwnerFacilities() {
       customFetch(`${API_URL}/facilities/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(buildPayload(data)),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
@@ -142,7 +169,11 @@ export default function OwnerFacilities() {
       setEditingFacility(null);
       resetForm();
     },
-    onError: () => toast({ title: "Klaida atnaujinant", variant: "destructive" }),
+    onError: (err) => toast({
+      title: "Klaida atnaujinant",
+      description: extractApiError(err, "Patikrinkite užpildytus laukus"),
+      variant: "destructive",
+    }),
   });
 
   const deleteMutation = useMutation({
@@ -152,7 +183,11 @@ export default function OwnerFacilities() {
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
       toast({ title: "Objektas ištrintas" });
     },
-    onError: () => toast({ title: "Klaida trinant", variant: "destructive" }),
+    onError: (err) => toast({
+      title: "Klaida trinant",
+      description: extractApiError(err, "Bandykite dar kartą"),
+      variant: "destructive",
+    }),
   });
 
   const resetForm = () => {
@@ -188,11 +223,26 @@ export default function OwnerFacilities() {
   };
 
   const handleSubmit = () => {
-    if (!formData.name.trim() || !formData.address.trim() || !formData.city.trim()) return;
+    const name = formData.name.trim();
+    const address = formData.address.trim();
+    const city = formData.city.trim();
+    if (name.length < 2) {
+      toast({ title: "Klaida", description: "Pavadinimas turi būti bent 2 simbolių", variant: "destructive" });
+      return;
+    }
+    if (address.length < 3) {
+      toast({ title: "Klaida", description: "Adresas turi būti bent 3 simbolių", variant: "destructive" });
+      return;
+    }
+    if (city.length < 2) {
+      toast({ title: "Klaida", description: "Miestas turi būti bent 2 simbolių", variant: "destructive" });
+      return;
+    }
+    const cleaned = { ...formData, name, address, city };
     if (editingFacility) {
-      updateMutation.mutate({ id: editingFacility.id, data: formData });
+      updateMutation.mutate({ id: editingFacility.id, data: cleaned });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(cleaned);
     }
   };
 
