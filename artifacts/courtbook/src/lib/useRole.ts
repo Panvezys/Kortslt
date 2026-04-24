@@ -16,7 +16,6 @@ interface RoleResponse {
 
 export function useRole() {
   const { isSignedIn, isLoaded } = useAuth();
-  const { session } = useSession();
   const { user } = useUser();
   const queryClient = useQueryClient();
 
@@ -34,10 +33,9 @@ export function useRole() {
   /** Force a full refresh: re-touch Clerk session, reload Clerk user (picks up
    *  any metadata changes server-side), and re-fetch the backend role. */
   const refresh = useCallback(async () => {
-    try { await session?.touch(); } catch { /* best-effort */ }
     try { await user?.reload(); } catch { /* best-effort */ }
     await queryClient.invalidateQueries({ queryKey: ["me-role"] });
-  }, [session, user, queryClient]);
+  }, [user, queryClient]);
 
   const role = query.data?.role ?? null;
   const status = query.data?.status ?? "active";
