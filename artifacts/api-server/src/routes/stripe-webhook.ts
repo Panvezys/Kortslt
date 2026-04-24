@@ -166,6 +166,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 }
 
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
+  console.log(`Received webhook for account: ${account.id}`);
   const newStatus = account.details_submitted ? "active" : "pending";
 
   // 1) User-level Connect (owner profile)

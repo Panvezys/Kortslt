@@ -69,8 +69,8 @@ router.post("/stripe/connect", requireAuth, async (req, res): Promise<void> => {
     }
 
     const base = getAppBaseUrl();
-    const returnUrl = `${base}/owner/dashboard?stripe_connect=success`;
-    const refreshUrl = `${base}/owner/dashboard?stripe_connect=refresh`;
+    const returnUrl = `${base}/owner?stripe_connect=success`;
+    const refreshUrl = `${base}/owner?stripe_connect=refresh`;
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
