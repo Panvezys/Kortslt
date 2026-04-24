@@ -333,10 +333,16 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
   }
 
+  // Explicitly destructure body.data to guarantee ownerUserId is never
+  // written — even if the schema or client ever adds it in the future.
+  // The original court owner must always remain the owner.
+  const { ...safeFields } = body.data as any;
+  delete safeFields.ownerUserId;
+
   const [court] = await db
     .update(courtsTable)
     .set({
-      ...body.data,
+      ...safeFields,
       ...extraFields,
       pricePerHour: String(body.data.pricePerHour),
       peakPricePerHour: body.data.peakPricePerHour != null ? String(body.data.peakPricePerHour) : null,
