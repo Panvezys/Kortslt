@@ -326,6 +326,33 @@ function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; de
   );
 }
 
+function CourtPricingField({
+  value,
+  onChange,
+  pricingCourtId,
+  onOpenPricing,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  pricingCourtId: number | null;
+  onOpenPricing: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        type="number"
+        min={1}
+        step={0.5}
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}
+      />
+      <Button type="button" variant="outline" onClick={onOpenPricing} disabled={pricingCourtId !== null}>
+        Grafikas
+      </Button>
+    </div>
+  );
+}
+
 function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const today = new Date().toISOString().split("T")[0];
@@ -1381,8 +1408,21 @@ export default function OwnerFacilityDetail() {
                   {formTab === "schedule" && (<div className="space-y-5">
                     <div className="grid grid-cols-2 gap-4">
                       <FormField control={form.control} name="pricePerHour" render={({ field }) => (
-                        <FormItem><FormLabel className="flex items-center gap-1.5"><Euro className="w-3.5 h-3.5 text-primary" /> Numatytoji kaina (€/val)</FormLabel>
-                          <FormControl><Input type="number" min={1} step={0.5} {...field} /></FormControl><FormMessage /></FormItem>
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5"><Euro className="w-3.5 h-3.5 text-primary" /> Numatytoji kaina (€/val)</FormLabel>
+                          <FormControl>
+                            <CourtPricingField
+                              value={field.value}
+                              onChange={field.onChange}
+                              pricingCourtId={pricingCourtId}
+                              onOpenPricing={() => {
+                                setPricingCourtId(editingId ?? null);
+                                setPricingDefaultPrice(Number(field.value || 20));
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )} />
                       <FormField control={form.control} name="bufferMinutes" render={({ field }) => (
                         <FormItem><FormLabel className="flex items-center gap-1.5"><Clock3 className="w-3.5 h-3.5 text-blue-400" /> Buferis (min)</FormLabel>
@@ -1428,7 +1468,7 @@ export default function OwnerFacilityDetail() {
                     <div className="rounded-xl border p-4 space-y-3">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2"><Euro className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Kainos pagal laiką</span></div>
-                        <span className="text-xs text-muted-foreground">Numatytoji: {((form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
+                        <span className="text-xs text-muted-foreground">Numatytoji: {(Number(form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
                       </div>
                       <div className="flex gap-1 flex-wrap">
                         {DAYS.map((day, i) => (
