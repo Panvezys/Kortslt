@@ -160,6 +160,8 @@ function CourtsPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
+  const [search, setSearch] = useState("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [reviewCourt, setReviewCourt] = useState<any | null>(null);
   const [editCourt, setEditCourt] = useState<any | null>(null);
   const [, navigate] = useLocation();
@@ -175,7 +177,16 @@ function CourtsPanel() {
     filterStatus === "all" ? true
     : filterStatus === "pending" ? isPendingStatus(c.status)
     : c.status === filterStatus
-  );
+  ).filter(c => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return [c.name, c.city, c.address, c.ownerName, c.ownerEmail, String((c as any).facilityId ?? "")]
+      .some(v => v?.toLowerCase().includes(q));
+  }).sort((a, b) => {
+    const aValue = `${a.name ?? ""} ${a.city ?? ""}`.toLowerCase();
+    const bValue = `${b.name ?? ""} ${b.city ?? ""}`.toLowerCase();
+    return sortDirection === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+  });
 
   const counts = {
     all: courts?.length ?? 0,
@@ -200,7 +211,11 @@ function CourtsPanel() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ieškoti..." className="w-56" />
+          <Button variant="outline" size="sm" onClick={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}>
+            {sortDirection === "asc" ? "A→Z" : "Z→A"}
+          </Button>
           {counts.all === 0 && (
             <Button variant="outline" size="sm"
               onClick={async () => {
@@ -332,6 +347,8 @@ function UsersPanel() {
   const { user: currentUser } = useUser();
   const { data: users, isLoading, isError } = useAdminUsers();
   const setRoleMutation = useSetUserRole();
+  const [search, setSearch] = useState("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [confirmDialog, setConfirmDialog] = useState<{
     userId: string;
     newRole: UserRole;
@@ -354,15 +371,33 @@ function UsersPanel() {
     }
   };
 
+  const filteredUsers = (users ?? [])
+    .filter(u => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [u.name, u.email, u.role, u.status].some(v => typeof v === "string" && v.toLowerCase().includes(q));
+    })
+    .sort((a, b) => {
+      const aValue = `${a.name ?? ""} ${a.email ?? ""}`.toLowerCase();
+      const bValue = `${b.name ?? ""} ${b.email ?? ""}`.toLowerCase();
+      return sortDirection === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+    });
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-muted-foreground">
           {users ? `${users.length} vartotojai su priskirta role` : ""}
         </p>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
-        </Button>
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ieškoti..." className="w-56" />
+          <Button variant="outline" size="sm" onClick={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}>
+            {sortDirection === "asc" ? "A→Z" : "Z→A"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-users"] })}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+          </Button>
+        </div>
       </div>
 
       {isLoading && (
@@ -396,7 +431,7 @@ function UsersPanel() {
                   </td>
                 </tr>
               )}
-              {(users ?? []).map(u => {
+              {filteredUsers.map(u => {
                 const isSelf = u.userId === currentUser?.id;
                 const displayRole = u.status === "pending_approval" && u.pendingRole ? u.role : u.role;
                 const initials = u.name
@@ -931,6 +966,8 @@ function FacilitiesPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("all");
+  const [search, setSearch] = useState("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [reviewFacility, setReviewFacility] = useState<any | null>(null);
   const [, navigate] = useLocation();
 
@@ -963,7 +1000,17 @@ function FacilitiesPanel() {
     onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
   });
 
-  const filtered = filter === "all" ? facilities : facilities.filter((f: any) => f.verificationStatus === filter);
+  const filtered = (filter === "all" ? facilities : facilities.filter((f: any) => f.verificationStatus === filter))
+    .filter((f: any) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [f.name, f.city, f.address, f.companyName, f.registrationCode, f.email].some(v => typeof v === "string" && v.toLowerCase().includes(q));
+    })
+    .sort((a: any, b: any) => {
+      const aValue = `${a.name ?? ""} ${a.city ?? ""}`.toLowerCase();
+      const bValue = `${b.name ?? ""} ${b.city ?? ""}`.toLowerCase();
+      return sortDirection === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+    });
   const counts = {
     all: facilities.length,
     pending:  facilities.filter((f: any) => f.verificationStatus === "pending").length,
@@ -987,9 +1034,15 @@ function FacilitiesPanel() {
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-facilities"] })}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
-        </Button>
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ieškoti..." className="w-56" />
+          <Button variant="outline" size="sm" onClick={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}>
+            {sortDirection === "asc" ? "A→Z" : "Z→A"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-facilities"] })}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+          </Button>
+        </div>
       </div>
 
       {isLoading && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
@@ -1220,6 +1273,8 @@ function CoachesPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [search, setSearch] = useState("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [reviewCoach, setReviewCoach] = useState<any | null>(null);
 
   const { data: coaches = [], isLoading, isError } = useQuery<any[]>({
@@ -1309,7 +1364,17 @@ function CoachesPanel() {
     rejected: "bg-red-500/10 text-red-400 border-red-500/30",
   };
 
-  const filtered = filter === "all" ? allCoaches : allCoaches.filter((c: any) => c.status === filter);
+  const filtered = (filter === "all" ? allCoaches : allCoaches.filter((c: any) => c.status === filter))
+    .filter((c: any) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [c.name, c.email, c.status, c.sports?.join(", ")].some(v => typeof v === "string" && v.toLowerCase().includes(q));
+    })
+    .sort((a: any, b: any) => {
+      const aValue = `${a.name ?? ""} ${a.email ?? ""}`.toLowerCase();
+      const bValue = `${b.name ?? ""} ${b.email ?? ""}`.toLowerCase();
+      return sortDirection === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+    });
   const counts = {
     all: allCoaches.length,
     pending:  allCoaches.filter((c: any) => c.status === "pending").length,
@@ -1330,12 +1395,18 @@ function CoachesPanel() {
             </button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => {
-          qc.invalidateQueries({ queryKey: ["admin-coaches"] });
-          qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
-        }}>
-          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
-        </Button>
+        <div className="flex gap-2 items-center flex-wrap">
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Ieškoti..." className="w-56" />
+          <Button variant="outline" size="sm" onClick={() => setSortDirection(d => d === "asc" ? "desc" : "asc")}>
+            {sortDirection === "asc" ? "A→Z" : "Z→A"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            qc.invalidateQueries({ queryKey: ["admin-coaches"] });
+            qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+          }}>
+            <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+          </Button>
+        </div>
       </div>
 
       {isLoading && <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
