@@ -1002,13 +1002,36 @@ export default function OwnerFacilityDetail() {
       const rentableItemsJson = rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined;
       const whJson = JSON.stringify(workingHoursState);
       const amenityPhotosJson = Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined;
-      const payload = { ...data, facilityId: Number(id), rentableItems: rentableItemsJson, workingHours: whJson, amenityPhotos: amenityPhotosJson };
+
+      const cleanStr = (v: unknown): string | undefined => {
+        if (typeof v !== "string") return undefined;
+        const trimmed = v.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+      };
+
+      const payload: Record<string, unknown> = {
+        ...data,
+        facilityId: Number(id),
+        rentableItems: rentableItemsJson,
+        workingHours: whJson,
+        amenityPhotos: amenityPhotosJson,
+        description: cleanStr(data.description),
+        postcode: cleanStr(data.postcode),
+        imageUrl: cleanStr(data.imageUrl),
+        ownershipDocUrl: cleanStr(data.ownershipDocUrl),
+        surface: cleanStr((data as any).surface),
+        socialFacebook: cleanStr(data.socialFacebook),
+        socialInstagram: cleanStr(data.socialInstagram),
+        socialWhatsapp: cleanStr(data.socialWhatsapp),
+        socialWebsite: cleanStr((data as any).socialWebsite),
+      };
+
       if (editingId) {
-        await updateCourt.mutateAsync({ id: editingId, data: payload });
+        await updateCourt.mutateAsync({ id: editingId, data: payload as any });
         await savePricingForCourt(editingId);
         toast({ title: "Aikštelė atnaujinta" });
       } else {
-        const newCourt = await createCourt.mutateAsync({ data: payload });
+        const newCourt = await createCourt.mutateAsync({ data: payload as any });
         await savePricingForCourt((newCourt as any).id);
         toast({ title: "Aikštelė sukurta — laukia patvirtinimo" });
       }
@@ -1019,8 +1042,13 @@ export default function OwnerFacilityDetail() {
       queryClient.invalidateQueries({ queryKey: getListCourtsQueryKey() });
       queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
-    } catch {
-      toast({ title: "Klaida išsaugant aikštelę", variant: "destructive" });
+    } catch (err) {
+      const anyErr = err as any;
+      const description =
+        (anyErr?.data && typeof anyErr.data === "object" && typeof anyErr.data.error === "string"
+          ? anyErr.data.error
+          : anyErr?.message) || "Patikrinkite užpildytus laukus";
+      toast({ title: "Klaida išsaugant aikštelę", description, variant: "destructive" });
     }
   };
 
