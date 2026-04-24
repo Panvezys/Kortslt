@@ -224,7 +224,7 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
 function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; defaultPrice: number; onClose: () => void }) {
   const { toast } = useToast();
   const [selectedDay, setSelectedDay] = useState(1);
-  const defaultSlotPrice = defaultPrice / 2;
+  const defaultSlotPrice = defaultPrice;
   const { data: pricing, isLoading } = useGetCourtPricing(courtId);
   const setPricing = useSetCourtPricing();
   const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
@@ -309,8 +309,8 @@ function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; de
                     className="w-full text-center text-xs font-bold bg-transparent border-0 outline-none p-0 text-primary"
                     onClick={e => e.stopPropagation()} />
                 ) : (
-                  <span className={`text-sm font-bold flex items-center gap-0.5 ${isCustom ? "text-primary" : "text-foreground"}`}>
-                    <Euro className="w-3 h-3" />{price.toFixed(0)}
+                    <span className={`text-sm font-bold flex items-center gap-0.5 ${isCustom ? "text-primary" : "text-foreground"}`}>
+                    <Euro className="w-3 h-3" />{price.toFixed(2)}
                   </span>
                 )}
               </div>
