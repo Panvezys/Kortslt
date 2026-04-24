@@ -1,5 +1,3 @@
-import { runMigrations } from "stripe-replit-sync";
-import { getStripeSync } from "./stripeClient";
 import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
@@ -9,7 +7,13 @@ import { logger } from "./lib/logger";
 if (!process.env.CLERK_SECRET_KEY) {
   logger.error(
     "CLERK_SECRET_KEY is not set — all authenticated API requests will return 401. " +
-    "Set this to the sk_live_... key from the Clerk dashboard."
+    "Set this to the sk_live_... key from the Clerk dashboard.",
+  );
+}
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  logger.warn(
+    "STRIPE_SECRET_KEY is not set — Stripe routes will return 503 until configured.",
   );
 }
 
@@ -57,36 +61,3 @@ function startListening(attemptsLeft: number) {
   });
 }
 startListening(5);
-
-// Initialize Stripe webhook sync in the background — does not block serving requests
-async function initStripe() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    logger.warn("DATABASE_URL not set — skipping Stripe initialization");
-    return;
-  }
-  try {
-    logger.info("Initializing Stripe schema...");
-    await runMigrations({ databaseUrl, schema: "stripe" });
-    logger.info("Stripe schema ready");
-  } catch (err) {
-    logger.warn({ err }, "Stripe schema migration failed — skipping webhook sync");
-    return;
-  }
-
-  try {
-    const stripeSync = await getStripeSync();
-    const webhookBaseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-    await stripeSync.findOrCreateManagedWebhook(`${webhookBaseUrl}/api/stripe/webhook`);
-    logger.info("Stripe webhook configured");
-
-    stripeSync.syncBackfill()
-      .then(() => logger.info("Stripe data backfill complete"))
-      .catch((err: any) => logger.warn({ err }, "Stripe backfill warning"));
-  } catch (err) {
-    logger.warn({ err }, "Stripe webhook/sync setup skipped — direct payments still active");
-  }
-}
-
-// Fire and forget — Stripe sync failure never takes down the server
-initStripe().catch((err) => logger.warn({ err }, "Stripe init warning"));
