@@ -1175,7 +1175,7 @@ export default function OwnerFacilityDetail() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error ?? "Klaida");
-      window.location.href = data.url;
+      window.open(data.url, "_blank", "noopener,noreferrer");
     } catch (err: any) {
       toast({ title: "Stripe Connect klaida", description: err?.message, variant: "destructive" });
     }

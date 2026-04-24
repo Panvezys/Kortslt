@@ -1816,7 +1816,7 @@ export default function OwnerDashboard() {
       });
       if (!r.ok) throw new Error("Klaida");
       const { url } = await r.json();
-      window.location.href = url;
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch {
       toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" });
     }
