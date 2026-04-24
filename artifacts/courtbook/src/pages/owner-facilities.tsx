@@ -72,6 +72,8 @@ interface FacilityWithCourts {
   createdAt: string;
 }
 
+type StripeStatus = "active" | "pending" | "not_connected" | string;
+
 function VerificationBadge({ status }: { status: string }) {
   if (status === "verified") return (
     <Badge className="bg-green-500/15 text-green-500 border-green-500/30 gap-1">
@@ -278,10 +280,41 @@ export default function OwnerFacilities() {
 
   const totalCourts = facilities?.reduce((sum, f) => sum + f.courtCount, 0) ?? 0;
   const totalSports = [...new Set(facilities?.flatMap(f => f.sportTypes) ?? [])].length;
+  const ownerStripeStatus: StripeStatus = facilities?.[0]?.stripeConnectStatus ?? "not_connected";
+  const stripeActive = ownerStripeStatus === "active";
 
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
+        {!stripeActive ? (
+          <div className="mb-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold text-yellow-100">Action Required: Connect your bank account to accept payments</p>
+            </div>
+            <Button
+              onClick={async () => {
+                const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+                window.open(r.url, "_blank", "noopener,noreferrer");
+              }}
+              className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+            >
+              <CreditCard className="w-4 h-4" /> Connect Stripe
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-6 flex justify-end">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+                window.open(r.url, "_blank", "noopener,noreferrer");
+              }}
+              className="gap-2"
+            >
+              <CreditCard className="w-4 h-4" /> Manage Payouts
+            </Button>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Mano objektai</h1>
@@ -367,15 +400,13 @@ export default function OwnerFacilities() {
 
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
                       <VerificationBadge status={facility.verificationStatus} />
-                      {facility.stripeConnectStatus === "active" ? (
-                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 gap-1 text-[10px] px-1.5 py-0">
-                          <CreditCard className="w-2.5 h-2.5" /> Stripe aktyvus
-                        </Badge>
-                      ) : facility.stripeConnectStatus === "pending" ? (
-                        <Badge className="bg-yellow-500/15 text-yellow-300 border-yellow-500/30 gap-1 text-[10px] px-1.5 py-0">
-                          <CreditCard className="w-2.5 h-2.5" /> Stripe laukiama
-                        </Badge>
-                      ) : null}
+                      <Badge className={facility.stripeConnectStatus === "active"
+                        ? "bg-green-500/15 text-green-400 border-green-500/30 gap-1 text-[10px] px-1.5 py-0"
+                        : "bg-yellow-500/15 text-yellow-300 border-yellow-500/30 gap-1 text-[10px] px-1.5 py-0"}
+                      >
+                        <CreditCard className="w-2.5 h-2.5" />
+                        {facility.stripeConnectStatus === "active" ? "Payments Active" : "Setup Required"}
+                      </Badge>
                     </div>
 
                     <div className="absolute top-3 right-3 flex gap-1">
