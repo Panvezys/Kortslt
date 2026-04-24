@@ -1,0 +1,20 @@
+[plugin:vite:import-analysis] Failed to resolve import "@/components/court-edit-dialog" from "src/pages/admin.tsx". Does the file exist?
+/home/runner/workspace/artifacts/courtbook/src/pages/admin.tsx:22:32
+38 |  import { Separator } from "@/components/ui/separator";
+39 |  import { useRole } from "@/lib/useRole";
+40 |  import { CourtEditDialog } from "@/components/court-edit-dialog";
+   |                                   ^
+41 |  function safeDocUrl(url) {
+42 |    if (!url) return void 0;
+    at TransformPluginContext._formatLog (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:29003:43)
+    at TransformPluginContext.error (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:29000:14)
+    at normalizeUrl (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:27123:18)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:27181:32
+    at async Promise.all (index 15)
+    at async TransformPluginContext.transform (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:27149:4)
+    at async EnvironmentPluginContainer.transform (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:28801:14)
+    at async loadAndTransform (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:22670:26)
+    at async viteTransformMiddleware (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.3/node_modules/vite/dist/node/chunks/config.js:24546:20)
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.ts.
