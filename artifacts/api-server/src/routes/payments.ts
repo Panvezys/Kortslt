@@ -250,7 +250,7 @@ router.post("/payments/cancel-booking", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  if (rows[0].booking.userId !== userId) {
+  if (rows[0].booking.bookerUserId !== userId) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

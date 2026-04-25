@@ -375,9 +375,9 @@ export default function CourtDetail() {
         });
         console.log("[booking_cancelled] cancel response status:", resp.status);
         if (resp.ok) {
-          await queryClient.invalidateQueries({ queryKey: getGetCourtAvailabilityQueryKey(courtId, { date: dateStr }) });
-          await queryClient.invalidateQueries({ queryKey: getGetCourtQueryKey(courtId) });
-          queryClient.invalidateQueries();
+          console.log("[booking_cancelled] invalidating and refetching availability");
+          await queryClient.invalidateQueries();
+          await queryClient.refetchQueries({ queryKey: [`/api/courts/${courtId}/availability`] });
         }
       } catch (err) {
         console.error("[booking_cancelled] cancel error:", err);
