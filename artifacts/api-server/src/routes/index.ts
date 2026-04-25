@@ -27,6 +27,7 @@ import ratingsRouter from "./ratings";
 import membershipsRouter from "./memberships";
 import userSearchRouter from "./user-search";
 import stripeConnectRouter from "./stripe-connect";
+import ownerDashboardRouter from "./owner-dashboard";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(ratingsRouter);
 router.use(membershipsRouter);
 router.use(userSearchRouter);
 router.use(stripeConnectRouter);
+router.use(ownerDashboardRouter);
 
 export default router;

@@ -140,6 +140,32 @@ router.put("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   res.json({ ...facility, description: facility.description ?? undefined });
 });
 
+router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (!(await isOwner(req, existing.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  const allowed = ["name", "description", "address", "city", "phone", "email",
+    "cancellationWindow", "advanceBookingLimit", "businessHours"] as const;
+  type AllowedKey = typeof allowed[number];
+  const updates: Partial<Record<AllowedKey, unknown>> = {};
+  for (const key of allowed) {
+    if (key in req.body && req.body[key] !== undefined) {
+      (updates as Record<string, unknown>)[key] = req.body[key];
+    }
+  }
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updatable fields" }); return; }
+
+  const [updated] = await db.update(facilitiesTable).set(updates).where(eq(facilitiesTable.id, id)).returning();
+  res.json(updated);
+});
+
 router.delete("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   if (!userId) {

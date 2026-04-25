@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, doublePrecision, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -24,6 +24,9 @@ export const facilitiesTable = pgTable("facilities", {
   stripeConnectStatus: text("stripe_connect_status").notNull().default("not_connected"),
   photos: text("photos").array().notNull().default([]),
   equipment: text("equipment").array().notNull().default([]),
+  cancellationWindow: integer("cancellation_window"),
+  advanceBookingLimit: integer("advance_booking_limit"),
+  businessHours: text("business_hours"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

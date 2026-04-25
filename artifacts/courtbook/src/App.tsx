@@ -52,6 +52,8 @@ import RanksPage from "@/pages/ranks";
 const AdminDashboard = lazy(() => import("@/pages/admin"));
 const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
 const OwnerDashboard = lazy(() => import("@/pages/owner/dashboard"));
+const OwnerSettings = lazy(() => import("@/pages/owner/settings"));
+const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
 
 const queryClient = new QueryClient();
 
@@ -189,7 +191,9 @@ function Router() {
       <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
-      <Route path="/owner/dashboard" component={() => <Suspense fallback={null}><OwnerDashboard /></Suspense>} />
+      <Route path="/owner/dashboard" component={() => <OwnerRoute><Suspense fallback={null}><OwnerDashboard /></Suspense></OwnerRoute>} />
+      <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
+      <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
