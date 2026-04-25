@@ -230,6 +230,46 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   }));
 });
 
+// ─── Cancel pending booking (Stripe checkout abandoned) ──────────────────────
+router.post("/payments/cancel-booking", requireAuth, async (req, res): Promise<void> => {
+  const bookingId = Number(req.body?.bookingId);
+  if (!bookingId || isNaN(bookingId)) {
+    res.status(400).json({ error: "bookingId required" });
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable })
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  if (rows[0].booking.userId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (rows[0].booking.status !== "pending") {
+    res.json({ status: rows[0].booking.status });
+    return;
+  }
+
+  const [updated] = await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(eq(bookingsTable.id, bookingId))
+    .returning();
+
+  logger.info({ bookingId, userId }, "Booking cancelled after Stripe checkout abandonment");
+  res.json({ status: updated.status });
+});
+
 // ─── Free booking confirm ─────────────────────────────────────────────────────
 router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<void> => {
   const bookingId = Number(req.body?.bookingId);

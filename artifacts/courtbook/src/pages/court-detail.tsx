@@ -356,6 +356,21 @@ export default function CourtDetail() {
   const canEdit = isAdmin || isOwner;
   const [editOpen, setEditOpen] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("booking_cancelled") !== "1") return;
+    const cancelBookingId = Number(params.get("bookingId"));
+    if (!cancelBookingId) return;
+    fetch(`${API}/payments/cancel-booking`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ bookingId: cancelBookingId }),
+    }).catch(() => {});
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState(null, "", cleanUrl);
+  }, [courtId]);
+
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
   interface EquipAvailItem { name: string; pricePerSlot: number; stock: number; available: number; }
   const [equipAvailability, setEquipAvailability] = useState<EquipAvailItem[]>([]);
@@ -607,7 +622,7 @@ export default function CourtDetail() {
           body: JSON.stringify({
             bookingId: booking.id,
             successUrl: `${origin}${base}/booking-confirmed?id=${booking.id}`,
-            cancelUrl: `${origin}${base}/courts/${courtId}?booking_cancelled=1`,
+            cancelUrl: `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`,
           }),
         });
         if (!checkoutResp.ok) throw new Error("Checkout session failed");
