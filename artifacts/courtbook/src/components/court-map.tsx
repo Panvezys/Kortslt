@@ -457,6 +457,7 @@ export function CourtMap({
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const userMarkerRef = useRef<google.maps.Circle | null>(null);
+  const userDotRef = useRef<google.maps.Marker | null>(null);
 
   const activeSports = activeSportsProp ?? (showFilterPanel ? internalActiveSports : new Set(ALL_SPORTS));
 
@@ -501,6 +502,10 @@ export function CourtMap({
         userMarkerRef.current.setMap(null);
         userMarkerRef.current = null;
       }
+      if (userDotRef.current) {
+        userDotRef.current.setMap(null);
+        userDotRef.current = null;
+      }
       if (mapRef.current) fitBounds(mapRef.current, (Array.isArray(courts) ? courts : []));
       return;
     }
@@ -519,6 +524,21 @@ export function CourtMap({
         if (mapRef.current) {
           mapRef.current.panTo(loc);
           mapRef.current.setZoom(12);
+          if (userDotRef.current) userDotRef.current.setMap(null);
+          userDotRef.current = new google.maps.Marker({
+            map: mapRef.current,
+            position: loc,
+            clickable: false,
+            zIndex: 2000,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: "#3b82f6",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 3,
+            },
+          });
           // Draw user circle
           if (userMarkerRef.current) userMarkerRef.current.setMap(null);
           userMarkerRef.current = new google.maps.Circle({
@@ -731,6 +751,12 @@ export function CourtMap({
       : undefined;
     mapRef.current.setOptions({ styles });
   }, [theme, mapType]);
+
+  useEffect(() => {
+    if (!mapRef.current || !nearbyMode || !userLocation || !userDotRef.current || !userMarkerRef.current) return;
+    userDotRef.current.setPosition(userLocation);
+    userMarkerRef.current.setCenter(userLocation);
+  }, [nearbyMode, userLocation]);
 
 
   if (loadError || !API_KEY) {
