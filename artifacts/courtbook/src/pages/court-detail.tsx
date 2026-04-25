@@ -723,9 +723,16 @@ export default function CourtDetail() {
   }, [reviews]);
 
   const courtBookings = useMemo(() => {
+    const localCancelledIds: number[] = (() => {
+      try { return JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]"); } catch { return []; }
+    })();
     return (bookings ?? [])
-      .filter((booking) => booking.courtId === courtId)
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.startTime.localeCompare(a.startTime));
+      .filter((booking) =>
+        booking.courtId === courtId &&
+        booking.status !== "cancelled" &&
+        !localCancelledIds.includes(booking.id)
+      )
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.startTime.localeCompare(b.startTime));
   }, [bookings, courtId]);
 
 
