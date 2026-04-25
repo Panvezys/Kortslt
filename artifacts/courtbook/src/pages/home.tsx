@@ -814,7 +814,7 @@ export default function Home() {
                     <>
                       {top}
                       <br />
-                      <span className="text-primary">{bottom}</span>
+                      <span className="text-[#f5f7fb]">{bottom}</span>
                     </>
                   );
                 })()}
