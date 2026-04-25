@@ -335,6 +335,7 @@ export default function CourtDetail() {
   );
 
   const createBooking = useCreateBooking();
+  const queryClient = useQueryClient();
   const { openSignIn, openSignUp } = useClerk();
   const [, navigate] = useLocation();
 
@@ -358,17 +359,30 @@ export default function CourtDetail() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    console.log("[booking_cancelled] search params:", params.toString());
     if (params.get("booking_cancelled") !== "1") return;
     const cancelBookingId = Number(params.get("bookingId"));
+    console.log("[booking_cancelled] cancelling bookingId:", cancelBookingId);
     if (!cancelBookingId) return;
-    fetch(`${API}/payments/cancel-booking`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ bookingId: cancelBookingId }),
-    }).catch(() => {});
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState(null, "", cleanUrl);
+    window.history.replaceState(null, "", window.location.pathname);
+    (async () => {
+      try {
+        const resp = await fetch(`${API}/payments/cancel-booking`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ bookingId: cancelBookingId }),
+        });
+        console.log("[booking_cancelled] cancel response status:", resp.status);
+        if (resp.ok) {
+          await queryClient.invalidateQueries({ queryKey: getGetCourtAvailabilityQueryKey(courtId, { date: dateStr }) });
+          await queryClient.invalidateQueries({ queryKey: getGetCourtQueryKey(courtId) });
+          queryClient.invalidateQueries();
+        }
+      } catch (err) {
+        console.error("[booking_cancelled] cancel error:", err);
+      }
+    })();
   }, [courtId]);
 
   const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
