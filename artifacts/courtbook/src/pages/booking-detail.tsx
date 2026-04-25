@@ -183,7 +183,9 @@ export default function BookingDetail() {
           <div className="px-4 py-3 flex items-center gap-3">
             <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
             <div>
-              <p className="text-xs text-muted-foreground">Sumokėta</p>
+              <p className="text-xs text-muted-foreground">
+                {booking.status === "confirmed" ? "Sumokėta" : "Kaina"}
+              </p>
               <p className="text-sm font-medium">
                 {booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama"}
               </p>
