@@ -150,6 +150,12 @@ uri = "file://artifacts/courtbook/public/coaches/coach_banner_6.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "RDwFbaoV6kfyD9o1hbV8G"
+uri = "file://artifacts/courtbook/public/courts/court_2_bernardinu.png"
+type = "image"
+title = "Smaller court image"
+
 [[outputs]]
 id = "JDsh2ehVV4F624Q5PqerW"
 uri = "file://attached_assets/stock_images/padel_court_indoor_1.jpg"
