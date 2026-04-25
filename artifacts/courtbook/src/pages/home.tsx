@@ -441,14 +441,14 @@ export default function Home() {
 
   return (
     <Layout>
-      {/* Hero Section — split layout */}
       <section className="bg-background text-foreground">
         <div className="flex">
           <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:px-10 pt-6 pb-6 lg:pt-12 lg:pb-14">
             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
-              <div className="w-full space-y-2.5 sm:space-y-2" ref={searchRef}>
+            <div className="w-full space-y-2.5 sm:space-y-2" ref={searchRef}>
               <div className="relative w-full max-w-sm">
-                  <div className="flex items-center gap-3 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-4 py-3 transition-all text-foreground"
+                <div
+                  className="flex items-center gap-3 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-4 py-3 transition-all text-foreground"
                   style={{ borderColor: (dropdownOpen || searchName) ? accentColor : undefined }}
                 >
                   <Search className="h-4 w-4 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dropdownOpen || searchName) ? accentColor : undefined }} />
@@ -475,3 +475,22 @@ export default function Home() {
                       >
                         <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted dark:hover:bg-white/10 transition-colors cursor-pointer border-b border-border dark:border-white/5 last:border-b-0">
                           <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${sportColor[court.type] ?? "#84cc16"}22` }}>
+                            <SportIcon sport={court.type} size={14} style={{ color: sportColor[court.type] ?? "#84cc16" }} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium truncate">{court.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{court.city}</div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </Layout>
+  );
+}
