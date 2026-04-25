@@ -24,11 +24,11 @@ import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const HERO_IMAGES = [
-  "courts/court_2_bernardinu.png",
-  "courts/padel/padel_court_indoor_1.jpg",
-  "courts/court_1_seb_arena.png",
-  "courts/football/football_futsal_court_2.jpg",
-  "courts/court_4_verkiai.png",
+  "courts/court_2_bernardinu.webp",
+  "courts/padel/padel_court_indoor_1.webp",
+  "courts/court_1_seb_arena.webp",
+  "courts/football/football_futsal_court_2.webp",
+  "courts/court_4_verkiai.webp",
 ];
 
 type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
