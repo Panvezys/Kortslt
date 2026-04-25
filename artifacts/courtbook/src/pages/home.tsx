@@ -24,11 +24,11 @@ import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const HERO_IMAGES = [
-  "courts/court_2_bernardinu.png",
+  "courts/court_2_bernardinu_small.png",
   "courts/padel/padel_court_indoor_1.jpg",
-  "courts/court_1_seb_arena.png",
+  "courts/court_1_seb_arena_small.png",
   "courts/football/football_futsal_court_2.jpg",
-  "courts/court_4_verkiai.png",
+  "courts/court_4_verkiai_small.png",
 ];
 
 type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
@@ -202,6 +202,10 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
           <img
             src={imgSrc}
             alt={court.name}
+            loading="lazy"
+            decoding="async"
+            width={300}
+            height={192}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(court.name)}&background=random&size=400`;
@@ -397,13 +401,13 @@ export default function Home() {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   const SPORT_IMAGES: Record<string, string> = {
-    tennis:     `${base}/courts/court_2_bernardinu.png`,
-    basketball: `${base}/courts/court_17_zalgiris.png`,
-    padel:      `${base}/courts/padel/padel_court_indoor_1.jpg`,
-    football:   `${base}/courts/football/football_futsal_court_2.jpg`,
-    badminton:  `${base}/courts/badminton/badminton_court_indoor_1.jpg`,
-    squash:     `${base}/courts/squash/squash_court_1.jpg`,
-    total:      `${base}/courts/court_1_seb_arena.png`,
+    tennis:     `${base}/courts/court_2_bernardinu.webp`,
+    basketball: `${base}/courts/court_17_zalgiris.webp`,
+    padel:      `${base}/courts/padel/padel_court_indoor_1.webp`,
+    football:   `${base}/courts/football/football_futsal_court_2.webp`,
+    badminton:  `${base}/courts/badminton/badminton_court_indoor_1.webp`,
+    squash:     `${base}/courts/squash/squash_court_1.webp`,
+    total:      `${base}/courts/court_1_seb_arena.webp`,
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
