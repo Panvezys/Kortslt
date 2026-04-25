@@ -78,6 +78,7 @@ export default function Home() {
   const accentColor = "#84cc16";
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  // Stat-card backgrounds are small (~200px wide); use the 480w variants.
   const SPORT_IMAGES: Record<string, string> = {
     tennis: `${base}/courts/court_2_bernardinu-480.webp`,
     basketball: `${base}/courts/court_17_zalgiris-480.webp`,
@@ -88,17 +89,19 @@ export default function Home() {
     total: `${base}/courts/court_1_seb_arena-480.webp`,
   };
 
+  const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
+  const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts({
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
+  const { data: courts, isLoading: courtsLoading } = useListCourts(undefined, {
+    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+  });
+  const { data: favorites, isLoading: favLoading } = useGetFavoriteCourts();
+  const { data: tournaments } = useGetTournaments();
   const allActive = true;
   const activeSports = new Set<string>();
-  const courtsLoading = false;
-  const favLoading = false;
-  const isSignedIn = false;
-  const favorites: any[] = [];
-  const statsLoading = false;
-  const popularLoading = false;
-  const courts: any[] = [];
-  const popularCourts: any[] = [];
-  const stats: any = null;
 
   useEffect(() => {
     const id = setInterval(() => setHeroIdx((i) => (i + 1) % HERO_IMAGES.length), 5000);
@@ -109,14 +112,31 @@ export default function Home() {
     <Layout>
       <section className="relative bg-zinc-950 text-white" style={{ minHeight: 280 }}>
         {HERO_IMAGES.map((img, i) => (
-          <img key={img} src={`${base}/${img}.webp`} srcSet={`${base}/${img}-480.webp 480w, ${base}/${img}-800.webp 800w, ${base}/${img}.webp 1200w`} sizes="100vw" loading={i === 0 ? "eager" : "lazy"} fetchPriority={i === 0 ? "high" : "auto"} decoding="async" alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000" style={{ opacity: i === heroIdx ? 1 : 0 }} />
+          <img
+            key={img}
+            src={`${base}/${img}.webp`}
+            srcSet={`${base}/${img}-480.webp 480w, ${base}/${img}-800.webp 800w, ${base}/${img}.webp 1200w`}
+            sizes="100vw"
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "auto"}
+            decoding="async"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === heroIdx ? 1 : 0 }}
+          />
         ))}
         <div className="absolute inset-0 bg-zinc-950/70 z-[1]" />
         <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/40 via-transparent to-transparent z-[2]" />
         <div className="relative z-10 container mx-auto px-4 pt-12 pb-14">
           <div className="absolute bottom-6 right-6 z-20 flex gap-1.5 pointer-events-none">
             {HERO_IMAGES.map((_, i) => (
-              <span key={i} className="w-1.5 h-1.5 rounded-full transition-all duration-300" style={{ background: i === heroIdx ? accentColor : "rgba(255,255,255,0.35)", transform: i === heroIdx ? "scale(1.4)" : "scale(1)" }} aria-hidden />
+              <span
+                key={i}
+                className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                style={{ background: i === heroIdx ? accentColor : "rgba(255,255,255,0.35)", transform: i === heroIdx ? "scale(1.4)" : "scale(1)" }}
+                aria-hidden
+              />
             ))}
           </div>
         </div>
