@@ -34,6 +34,7 @@ export default function BookingConfirmed() {
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
 
   useEffect(() => {
+    try { sessionStorage.removeItem("stripeCancel_pending"); } catch { /* ignore */ }
     const confirm = async () => {
       try {
         if (sessionId && !sessionId.startsWith("mock_")) {

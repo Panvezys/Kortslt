@@ -358,22 +358,47 @@ export default function CourtDetail() {
   const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
+    // Check URL params (direct Stripe redirect)
     const params = new URLSearchParams(window.location.search);
-    if (params.get("booking_cancelled") !== "1") return;
-    const cancelBookingId = Number(params.get("bookingId"));
+    const fromUrl = params.get("booking_cancelled") === "1";
+    const urlBookingId = fromUrl ? Number(params.get("bookingId")) : 0;
+
+    // Fallback: check sessionStorage (handles cases where URL params are stripped by proxy)
+    let sessionBookingId = 0;
+    try {
+      const raw = sessionStorage.getItem("stripeCancel_pending");
+      if (raw) {
+        const stored = JSON.parse(raw);
+        const isRecent = (Date.now() - stored.ts) < 30 * 60 * 1000;
+        if (stored.courtId === courtId && isRecent) {
+          sessionBookingId = stored.bookingId;
+        }
+      }
+    } catch { /* ignore */ }
+
+    const cancelBookingId = urlBookingId || sessionBookingId;
     if (!cancelBookingId) return;
-    window.history.replaceState(null, "", window.location.pathname);
+
+    // Clean up signals
+    if (fromUrl) window.history.replaceState(null, "", window.location.pathname);
+    try { sessionStorage.removeItem("stripeCancel_pending"); } catch { /* ignore */ }
+
     // Immediately hide this booking from "My Reservations" before the API call returns
     try {
       const existing = JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]");
       sessionStorage.setItem("cancelledBookingIds", JSON.stringify([...existing, cancelBookingId]));
     } catch { /* ignore */ }
-    toast({
-      title: "Mokėjimas atšauktas",
-      description: "Rezervacija nepatvirtinta ir mokestis nebuvo nuskaičiuotas. Galite rinktis kitą laiką.",
-      variant: "default",
-      duration: 6000,
-    });
+
+    // Delay toast slightly to ensure Toaster is fully mounted and subscribed
+    setTimeout(() => {
+      toast({
+        title: "Mokėjimas atšauktas",
+        description: "Rezervacija nepatvirtinta ir mokestis nebuvo nuskaičiuotas. Galite rinktis kitą laiką.",
+        variant: "default",
+        duration: 6000,
+      });
+    }, 150);
+
     (async () => {
       try {
         const resp = await fetch(`${API}/payments/cancel-booking`, {
@@ -653,6 +678,7 @@ export default function CourtDetail() {
         });
         if (!checkoutResp.ok) throw new Error("Checkout session failed");
         const { url } = await checkoutResp.json();
+        sessionStorage.setItem("stripeCancel_pending", JSON.stringify({ bookingId: booking.id, courtId, ts: Date.now() }));
         window.location.href = url;
       } else {
         // Free booking — confirm immediately
