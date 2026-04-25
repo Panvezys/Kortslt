@@ -168,7 +168,14 @@ export default function ListYourCourt() {
       <section className="relative bg-zinc-950 text-white overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src={`${base}/courts/court_1_seb_arena.png`}
+            src={`${base}/courts/court_1_seb_arena.webp`}
+            srcSet={`${base}/courts/court_1_seb_arena-480.webp 480w, ${base}/courts/court_1_seb_arena-800.webp 800w, ${base}/courts/court_1_seb_arena.webp 1200w`}
+            sizes="100vw"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={1200}
+            height={655}
             className="absolute inset-0 w-full h-full object-cover"
             alt=""
           />
@@ -255,8 +262,10 @@ export default function ListYourCourt() {
           <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             <div className="group relative rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-shadow">
               <img
-                src={`${base}/screenshots/courts-listing.jpg`}
+                src={`${base}/screenshots/courts-listing.webp`}
                 alt="Aikštelių sąrašas"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-auto"
               />
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-6">
@@ -266,8 +275,10 @@ export default function ListYourCourt() {
             </div>
             <div className="group relative rounded-2xl overflow-hidden border shadow-lg hover:shadow-xl transition-shadow">
               <img
-                src={`${base}/screenshots/court-detail.jpg`}
+                src={`${base}/screenshots/court-detail.webp`}
                 alt="Aikštelės profilis"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-auto"
               />
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-6">
@@ -384,8 +395,10 @@ export default function ListYourCourt() {
               <div className="relative">
                 <div className="absolute -inset-4 bg-primary/5 rounded-3xl blur-2xl" />
                 <img
-                  src={`${base}/screenshots/homepage.jpg`}
+                  src={`${base}/screenshots/homepage.webp`}
                   alt="korts.lt platforma"
+                  loading="lazy"
+                  decoding="async"
                   className="relative rounded-2xl border border-white/10 shadow-2xl w-full"
                 />
               </div>
@@ -492,7 +505,13 @@ export default function ListYourCourt() {
       <section className="py-20 md:py-28 bg-zinc-950 text-white text-center relative overflow-hidden">
         <div className="absolute inset-0 opacity-30">
           <img
-            src={`${base}/courts/padel/padel_court_indoor_3.jpg`}
+            src={`${base}/courts/padel/padel_court_indoor_3.webp`}
+            srcSet={`${base}/courts/padel/padel_court_indoor_3-480.webp 480w, ${base}/courts/padel/padel_court_indoor_3-800.webp 800w, ${base}/courts/padel/padel_court_indoor_3.webp 1200w`}
+            sizes="100vw"
+            loading="lazy"
+            decoding="async"
+            width={1200}
+            height={655}
             className="w-full h-full object-cover"
             alt=""
           />

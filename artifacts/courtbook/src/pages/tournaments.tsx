@@ -157,8 +157,15 @@ export default function TournamentsPage() {
         {/* Photo Hero */}
         <div className="relative h-52 sm:h-64 md:h-72 overflow-hidden">
           <img
-            src="/courts/court_17_zalgiris.png"
+            src="/courts/court_17_zalgiris.webp"
+            srcSet="/courts/court_17_zalgiris-480.webp 480w, /courts/court_17_zalgiris-800.webp 800w, /courts/court_17_zalgiris.webp 1200w"
+            sizes="100vw"
             alt="Turnyrai"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={1200}
+            height={655}
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/70" />

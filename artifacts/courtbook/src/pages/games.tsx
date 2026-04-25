@@ -333,8 +333,15 @@ export default function GamesPage() {
         {/* Hero */}
         <div className="relative h-52 sm:h-64 md:h-72 overflow-hidden">
           <img
-            src="/coaches/coach_banner_2.png"
+            src="/coaches/coach_banner_2.webp"
+            srcSet="/coaches/coach_banner_2-480.webp 480w, /coaches/coach_banner_2-800.webp 800w, /coaches/coach_banner_2.webp 1200w"
+            sizes="100vw"
             alt="Partneriai"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={1200}
+            height={655}
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(19,45,76,0.4), rgba(19,45,76,0.3), rgba(19,45,76,0.85))" }} />

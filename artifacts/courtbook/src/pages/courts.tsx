@@ -37,16 +37,16 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 const surfaceKeys = ["clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber"] as const;
 
 const HERO_IMAGES = [
-  "courts/court_2_bernardinu.png",
-  "courts/padel/padel_court_indoor_1.jpg",
-  "courts/court_17_zalgiris.png",
-  "courts/football/football_futsal_court_2.jpg",
-  "courts/badminton/badminton_court_indoor_1.jpg",
-  "courts/squash/squash_court_1.jpg",
-  "courts/court_4_verkiai.png",
-  "courts/padel/padel_court_indoor_3.jpg",
-  "courts/court_3_lsc_vingis.png",
-  "courts/court_1_seb_arena.png",
+  "courts/court_2_bernardinu",
+  "courts/padel/padel_court_indoor_1",
+  "courts/court_17_zalgiris",
+  "courts/football/football_futsal_court_2",
+  "courts/badminton/badminton_court_indoor_1",
+  "courts/squash/squash_court_1",
+  "courts/court_4_verkiai",
+  "courts/padel/padel_court_indoor_3",
+  "courts/court_3_lsc_vingis",
+  "courts/court_1_seb_arena",
 ];
 
 export default function Courts() {
@@ -417,15 +417,18 @@ export default function Courts() {
       {/* Hero banner with rotating court photos */}
       <div className="relative overflow-hidden border-b" style={{ minHeight: "180px" }}>
         {HERO_IMAGES.map((img, i) => (
-          <div
+          <img
             key={img}
-            className="absolute inset-0 transition-opacity duration-1000"
-            style={{
-              backgroundImage: `url(${base}/${img})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: i === bgIdx ? 1 : 0,
-            }}
+            src={`${base}/${img}.webp`}
+            srcSet={`${base}/${img}-480.webp 480w, ${base}/${img}-800.webp 800w, ${base}/${img}.webp 1200w`}
+            sizes="100vw"
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "auto"}
+            decoding="async"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === bgIdx ? 1 : 0 }}
           />
         ))}
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/30" />

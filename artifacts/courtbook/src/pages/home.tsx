@@ -24,11 +24,11 @@ import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const HERO_IMAGES = [
-  "courts/court_2_bernardinu_small.png",
-  "courts/padel/padel_court_indoor_1.jpg",
-  "courts/court_1_seb_arena_small.png",
-  "courts/football/football_futsal_court_2.jpg",
-  "courts/court_4_verkiai_small.png",
+  "courts/court_2_bernardinu",
+  "courts/padel/padel_court_indoor_1",
+  "courts/court_1_seb_arena",
+  "courts/football/football_futsal_court_2",
+  "courts/court_4_verkiai",
 ];
 
 type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
@@ -400,14 +400,15 @@ export default function Home() {
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  // Stat-card backgrounds are small (~200px wide); use the 480w variants.
   const SPORT_IMAGES: Record<string, string> = {
-    tennis:     `${base}/courts/court_2_bernardinu.webp`,
-    basketball: `${base}/courts/court_17_zalgiris.webp`,
-    padel:      `${base}/courts/padel/padel_court_indoor_1.webp`,
-    football:   `${base}/courts/football/football_futsal_court_2.webp`,
-    badminton:  `${base}/courts/badminton/badminton_court_indoor_1.webp`,
-    squash:     `${base}/courts/squash/squash_court_1.webp`,
-    total:      `${base}/courts/court_1_seb_arena.webp`,
+    tennis:     `${base}/courts/court_2_bernardinu-480.webp`,
+    basketball: `${base}/courts/court_17_zalgiris-480.webp`,
+    padel:      `${base}/courts/padel/padel_court_indoor_1-480.webp`,
+    football:   `${base}/courts/football/football_futsal_court_2-480.webp`,
+    badminton:  `${base}/courts/badminton/badminton_court_indoor_1-480.webp`,
+    squash:     `${base}/courts/squash/squash_court_1-480.webp`,
+    total:      `${base}/courts/court_1_seb_arena-480.webp`,
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
@@ -790,9 +791,14 @@ export default function Home() {
             {HERO_IMAGES.map((img, i) => (
               <img
                 key={img}
-                src={`${base}/${img}`}
+                src={`${base}/${img}.webp`}
+                srcSet={`${base}/${img}-480.webp 480w, ${base}/${img}-800.webp 800w, ${base}/${img}.webp 1200w`}
+                sizes="(max-width: 768px) 0px, (max-width: 1280px) 50vw, 720px"
                 loading={i === 0 ? "eager" : "lazy"}
+                fetchPriority={i === 0 ? "high" : "auto"}
                 decoding="async"
+                width={1200}
+                height={655}
                 className="absolute inset-0 w-full h-full object-cover"
                 style={{
                   opacity: i === heroIdx ? 1 : 0,

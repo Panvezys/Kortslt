@@ -27,12 +27,12 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
 const HERO_IMAGES = [
-  "coaches/coach_banner_1.png",
-  "coaches/coach_banner_2.png",
-  "coaches/coach_banner_3.png",
-  "coaches/coach_banner_4.png",
-  "coaches/coach_banner_5.png",
-  "coaches/coach_banner_6.png",
+  "coaches/coach_banner_1",
+  "coaches/coach_banner_2",
+  "coaches/coach_banner_3",
+  "coaches/coach_banner_4",
+  "coaches/coach_banner_5",
+  "coaches/coach_banner_6",
 ];
 
 const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
@@ -379,15 +379,18 @@ export default function CoachesPage() {
       <section className="relative bg-zinc-950 text-white" style={{ minHeight: 280 }}>
         {/* Slideshow */}
         {HERO_IMAGES.map((img, i) => (
-          <div
+          <img
             key={img}
-            className="absolute inset-0 transition-opacity duration-1000"
-            style={{
-              backgroundImage: `url(${BASE}/${img})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              opacity: i === bgIdx ? 1 : 0,
-            }}
+            src={`${BASE}/${img}.webp`}
+            srcSet={`${BASE}/${img}-480.webp 480w, ${BASE}/${img}-800.webp 800w, ${BASE}/${img}.webp 1200w`}
+            sizes="100vw"
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "auto"}
+            decoding="async"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === bgIdx ? 1 : 0 }}
           />
         ))}
         <div className="absolute inset-0 bg-zinc-950/70 z-[1]" />

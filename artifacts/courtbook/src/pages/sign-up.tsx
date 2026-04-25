@@ -4,21 +4,25 @@ import { X } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const HERO_IMAGE = "courts/padel/padel_court_indoor_1.jpg";
+const HERO_IMAGE = "courts/padel/padel_court_indoor_1";
 
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
 
   return (
     <div className="min-h-screen flex">
-      <div
-        className="hidden lg:flex flex-col justify-between flex-1 relative overflow-hidden"
-        style={{
-          backgroundImage: `url(${basePath}/${HERO_IMAGE})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
+      <div className="hidden lg:flex flex-col justify-between flex-1 relative overflow-hidden">
+        <img
+          src={`${basePath}/${HERO_IMAGE}.webp`}
+          srcSet={`${basePath}/${HERO_IMAGE}-480.webp 480w, ${basePath}/${HERO_IMAGE}-800.webp 800w, ${basePath}/${HERO_IMAGE}.webp 1200w`}
+          sizes="(min-width: 1024px) 50vw, 0px"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/50 to-lime-900/60" />
         <div className="relative z-10 p-10">
           <button onClick={() => setLocation("/")} className="text-white font-extrabold text-2xl tracking-tight hover:opacity-80 transition-opacity">

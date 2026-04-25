@@ -164,7 +164,14 @@ export default function GamesGuidePage() {
       <section className="relative overflow-hidden text-white">
         <div className="absolute inset-0 z-0">
           <img
-            src={`${base}/coaches/coach_banner_2.png`}
+            src={`${base}/coaches/coach_banner_2.webp`}
+            srcSet={`${base}/coaches/coach_banner_2-480.webp 480w, ${base}/coaches/coach_banner_2-800.webp 800w, ${base}/coaches/coach_banner_2.webp 1200w`}
+            sizes="100vw"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={1200}
+            height={655}
             className="absolute inset-0 w-full h-full object-cover object-top"
             alt=""
           />
