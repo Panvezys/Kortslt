@@ -9,6 +9,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { handleStripeWebhook } from "./routes/stripe-webhook";
+import sitemapRouter from "./routes/sitemap";
 
 const app: Express = express();
 
@@ -73,6 +74,13 @@ app.use("/courts", express.static(courtsDir, {
   },
 }));
 
+// ─── Sitemap (must be BEFORE static middleware so it takes precedence over
+// the stale /sitemap.xml file copied into dist/public by Vite) ───────────────
+// Dynamically generated XML sitemap for Google Search Console / Bing.
+// Lists all public, indexable routes plus approved courts/coaches/trainers/
+// tournaments/games. See routes/sitemap.ts for details.
+app.use(sitemapRouter);
+
 // ─── Frontend static assets ───────────────────────────────────────────────────
 const frontendDist = path.resolve(process.cwd(), "../courtbook/dist/public");
 if (fs.existsSync(frontendDist)) {
@@ -103,12 +111,6 @@ if (fs.existsSync(frontendDist)) {
     },
   }));
 }
-
-app.get("/sitemap.xml", (_req, res) => {
-  res.setHeader("Cache-Control", "public, max-age=86400"); // 1 day
-  res.type("application/xml");
-  res.sendFile(path.resolve(process.cwd(), "../courtbook/public/sitemap.xml"));
-});
 
 // ─── Stripe webhook — must be registered BEFORE express.json() ───────────────
 // Standard Stripe webhook handler using stripe.webhooks.constructEvent.

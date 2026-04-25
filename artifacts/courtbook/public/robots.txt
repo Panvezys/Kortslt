@@ -1,6 +1,19 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /admin/
 Disallow: /owner
+Disallow: /owner/
+Disallow: /profile
+Disallow: /settings
+Disallow: /messages
+Disallow: /bookings
+Disallow: /favorites
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /payment-success
+Disallow: /payment-cancel
+Disallow: /booking-confirmed
+Disallow: /api/
 
 Sitemap: https://korts.lt/sitemap.xml
