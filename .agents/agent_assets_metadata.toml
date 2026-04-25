@@ -156,6 +156,30 @@ uri = "file://artifacts/courtbook/public/courts/court_2_bernardinu.png"
 type = "image"
 title = "Smaller court image"
 
+[[generated]]
+id = "nBC68eZLNxmiVcHzrUG6b"
+uri = "file://artifacts/courtbook/public/courts/court_2_bernardinu_small.png"
+type = "image"
+title = "Smaller tennis court hero"
+
+[[generated]]
+id = "FhNeuriT8Nd2kO-Pzus4A"
+uri = "file://artifacts/courtbook/public/courts/court_1_seb_arena_small.png"
+type = "image"
+title = "Smaller arena hero"
+
+[[generated]]
+id = "LBGD2wK2g9xQgzgsTD7O2"
+uri = "file://artifacts/courtbook/public/courts/court_4_verkiai_small.png"
+type = "image"
+title = "Smaller court hero"
+
+[[generated]]
+id = "WTFu-M1lagS0tGf5Anm_a"
+uri = "file://artifacts/courtbook/public/coaches/coach_banner_2_small.png"
+type = "image"
+title = "Smaller coach banner"
+
 [[outputs]]
 id = "JDsh2ehVV4F624Q5PqerW"
 uri = "file://attached_assets/stock_images/padel_court_indoor_1.jpg"
