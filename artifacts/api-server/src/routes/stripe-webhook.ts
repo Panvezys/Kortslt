@@ -118,8 +118,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   // If the confirm endpoint already promoted the booking, do nothing else.
   if (rows[0].booking.status === "confirmed") return;
 
-  const instantEnabled = rows[0].instantBookingEnabled !== false;
-  const newStatus = instantEnabled ? "confirmed" : "pending";
+  const newStatus = "confirmed";
 
   const [booking] = await db
     .update(bookingsTable)
@@ -132,7 +131,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     .set({ totalBookings: sql`total_bookings + 1` })
     .where(eq(courtsTable.id, rows[0].booking.courtId));
 
-  if (instantEnabled) {
+  {
     sendBookingConfirmationEmail({
       customerName: booking.customerName,
       customerEmail: booking.customerEmail,

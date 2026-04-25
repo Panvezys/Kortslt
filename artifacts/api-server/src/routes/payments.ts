@@ -180,9 +180,7 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     }
   }
 
-  // Instant booking: confirm immediately if enabled, else keep pending for owner approval
-  const instantEnabled = rows[0].instantBookingEnabled !== false;
-  const newStatus = instantEnabled ? "confirmed" : "pending";
+  const newStatus = "confirmed";
 
   const [booking] = await db
     .update(bookingsTable)
@@ -195,23 +193,21 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     .set({ totalBookings: sql`total_bookings + 1` })
     .where(eq(courtsTable.id, rows[0].booking.courtId));
 
-  if (instantEnabled) {
-    sendBookingConfirmationEmail({
-      customerName: booking.customerName,
-      customerEmail: booking.customerEmail,
-      courtName: rows[0].courtName ?? "Kortas",
-      courtId: rows[0].courtId ?? 0,
-      courtAddress: rows[0].courtAddress ?? "",
-      courtCity: rows[0].courtCity ?? "",
-      courtPhone: rows[0].courtPhone ?? undefined,
-      courtImageUrl: rows[0].courtImageUrl ?? undefined,
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      totalPrice: Number(booking.totalPrice),
-      bookingId: booking.id,
-    }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
-  }
+  sendBookingConfirmationEmail({
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    courtName: rows[0].courtName ?? "Kortas",
+    courtId: rows[0].courtId ?? 0,
+    courtAddress: rows[0].courtAddress ?? "",
+    courtCity: rows[0].courtCity ?? "",
+    courtPhone: rows[0].courtPhone ?? undefined,
+    courtImageUrl: rows[0].courtImageUrl ?? undefined,
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    bookingId: booking.id,
+  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
 
   if (rows[0].ownerEmail) {
     sendOwnerBookingNotificationEmail({

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, or, sql } from "drizzle-orm";
 import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
 import {
@@ -170,7 +170,13 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
           .where(and(
             eq(bookingsTable.courtId, parsed.data.courtId),
             eq(bookingsTable.date, dateStr0),
-            inArray(bookingsTable.status, ["confirmed", "pending"]),
+            or(
+              eq(bookingsTable.status, "confirmed"),
+              and(
+                eq(bookingsTable.status, "pending"),
+                sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`
+              )
+            )
           )),
         tx.select({ startTime: courtBlockedSlotsTable.startTime, endTime: courtBlockedSlotsTable.endTime })
           .from(courtBlockedSlotsTable)

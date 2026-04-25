@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, inArray, or } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, or, sql } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
 import {
@@ -449,7 +449,13 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
         and(
           eq(bookingsTable.courtId, params.data.id),
           eq(bookingsTable.date, date),
-          inArray(bookingsTable.status, ["confirmed", "pending"])
+          or(
+            eq(bookingsTable.status, "confirmed"),
+            and(
+              eq(bookingsTable.status, "pending"),
+              sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`
+            )
+          )
         )
       ),
     db
