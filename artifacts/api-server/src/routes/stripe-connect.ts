@@ -51,6 +51,12 @@ router.post("/stripe/connect", requireAuth, async (req, res): Promise<void> => {
     const profile = await getOrCreateProfile(userId);
     let accountId = profile?.stripeAccountId ?? null;
 
+    if (accountId && profile?.stripeAccountStatus === "active") {
+      const loginLink = await stripe.accounts.createLoginLink(accountId);
+      res.json({ url: loginLink.url, accountId });
+      return;
+    }
+
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
