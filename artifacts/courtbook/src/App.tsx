@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
@@ -23,7 +23,6 @@ import BookingConfirmed from "@/pages/booking-confirmed";
 import OwnerFacilities from "@/pages/owner-facilities";
 import OwnerFacilityDetail from "@/pages/owner-facility-detail";
 import Profile from "@/pages/profile";
-import AdminDashboard from "@/pages/admin";
 import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import CoachPage from "@/pages/coach";
@@ -40,8 +39,6 @@ import GamesGuidePage from "@/pages/games-guide";
 import MessagesPage from "@/pages/messages";
 import FAQPage from "@/pages/faq";
 import OwnersInfoPage from "@/pages/owners-info";
-import OwnerDashboard from "@/pages/owner/dashboard";
-import AdminApprovalsPage from "@/pages/admin/approvals";
 import PrivacyPage from "@/pages/privacy";
 import TermsPage from "@/pages/terms";
 import ContactPage from "@/pages/contact";
@@ -52,18 +49,18 @@ import FavoritesPage from "@/pages/favorites";
 import SettingsPage from "@/pages/settings";
 import RanksPage from "@/pages/ranks";
 
+const AdminDashboard = lazy(() => import("@/pages/admin"));
+const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
+const OwnerDashboard = lazy(() => import("@/pages/owner/dashboard"));
+
 const queryClient = new QueryClient();
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
-// Only set the production custom domain when using a live key. With dev keys
-// (pk_test_…) Clerk must use its default *.clerk.accounts.dev host.
 const isLiveClerk = clerkPubKey?.startsWith("pk_live_") ?? false;
 const CLERK_DOMAIN = isLiveClerk ? "clerk.korts.lt" : undefined;
 
-// Clerk passes full paths to routerPush/routerReplace, but wouter's
-// setLocation prepends the base — strip it to avoid doubling.
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
@@ -84,7 +81,7 @@ function BookingsRoute() {
 }
 
 function OwnerRoute({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isLoaded: authLoaded, isSignedIn } = useSafeAuth();
   const { isOwner, isLoading: roleLoading } = useRole();
 
   if (!authLoaded || roleLoading) return null;
@@ -123,8 +120,6 @@ function AdminRoute() {
   const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
   const { isAdmin, isLoading: roleLoading, refresh } = useRole();
 
-  // Force a fresh role check on mount: handles the case where the user was
-  // promoted to admin server-side but the cached client state is stale.
   useEffect(() => {
     if (authLoaded && isSignedIn) refresh();
   }, [authLoaded, isSignedIn, refresh]);
@@ -132,7 +127,11 @@ function AdminRoute() {
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
   if (!isAdmin) return <Redirect to="/" />;
-  return <AdminDashboard />;
+  return (
+    <Suspense fallback={null}>
+      <AdminDashboard />
+    </Suspense>
+  );
 }
 
 function AdminApprovalsRoute() {
@@ -146,7 +145,11 @@ function AdminApprovalsRoute() {
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
   if (!isAdmin) return <Redirect to="/" />;
-  return <AdminApprovalsPage />;
+  return (
+    <Suspense fallback={null}>
+      <AdminApprovalsPage />
+    </Suspense>
+  );
 }
 
 function CoachRoute({ children }: { children: React.ReactNode }) {
@@ -186,7 +189,7 @@ function Router() {
       <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
-      <Route path="/owner/dashboard" component={OwnerDashboard} />
+      <Route path="/owner/dashboard" component={() => <Suspense fallback={null}><OwnerDashboard /></Suspense>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
@@ -229,10 +232,6 @@ function Router() {
   );
 }
 
-// Registers Clerk's getToken() with customFetch so every API call automatically
-// includes "Authorization: Bearer <token>". This is the reliable auth path in
-// production where the __session cookie may not be sent (e.g. SameSite restrictions
-// or cross-subdomain setups). The getter is cleared on unmount (sign-out/refresh).
 function ClerkAuthTokenBridge() {
   const { getToken } = useAuth();
 
@@ -244,8 +243,6 @@ function ClerkAuthTokenBridge() {
   return null;
 }
 
-// Invalidates the QueryClient cache when the signed-in user changes
-// so per-user data (role, bookings, favorites) doesn't leak across sessions.
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -272,7 +269,6 @@ function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
   if (!clerkPubKey) {
-    // Fallback so the app still renders if the Clerk key isn't injected yet.
     return (
       <QueryClientProvider client={queryClient}>
         <FavoritesProvider>
