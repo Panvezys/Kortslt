@@ -935,8 +935,11 @@ export default function Profile() {
   const { favorites, loading: favoritesLoading, coachFavorites, loadingCoachFav } = useFavoritesContext();
 
   const today = new Date().toISOString().split("T")[0];
+  const localCancelledIds: number[] = (() => {
+    try { return JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]"); } catch { return []; }
+  })();
   const upcomingBookings = (bookings ?? []).filter(
-    (b) => b.status !== "cancelled" && b.date >= today
+    (b) => b.status !== "cancelled" && b.date >= today && !localCancelledIds.includes(b.id)
   );
   const isOwner = roleIsOwner || (ownerCourts?.length ?? 0) > 0;
 

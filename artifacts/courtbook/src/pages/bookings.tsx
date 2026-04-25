@@ -326,10 +326,13 @@ export default function Bookings() {
     return tab === "upcoming" ? da - db2 : db2 - da;
   });
 
+  const localCancelledIds: number[] = (() => {
+    try { return JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]"); } catch { return []; }
+  })();
   const upcomingBookings = sorted.filter(b => {
     const d = new Date(b.date);
     d.setHours(0, 0, 0, 0);
-    return d >= today && b.status !== "cancelled";
+    return d >= today && b.status !== "cancelled" && !localCancelledIds.includes(b.id);
   });
 
   const pastBookings = sorted.filter(b => {

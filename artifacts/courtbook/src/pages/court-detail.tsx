@@ -359,12 +359,21 @@ export default function CourtDetail() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    console.log("[booking_cancelled] search params:", params.toString());
     if (params.get("booking_cancelled") !== "1") return;
     const cancelBookingId = Number(params.get("bookingId"));
-    console.log("[booking_cancelled] cancelling bookingId:", cancelBookingId);
     if (!cancelBookingId) return;
     window.history.replaceState(null, "", window.location.pathname);
+    // Immediately hide this booking from "My Reservations" before the API call returns
+    try {
+      const existing = JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]");
+      sessionStorage.setItem("cancelledBookingIds", JSON.stringify([...existing, cancelBookingId]));
+    } catch { /* ignore */ }
+    toast({
+      title: "Mokėjimas atšauktas",
+      description: "Rezervacija nepatvirtinta ir mokestis nebuvo nuskaičiuotas. Galite rinktis kitą laiką.",
+      variant: "default",
+      duration: 6000,
+    });
     (async () => {
       try {
         const resp = await fetch(`${API}/payments/cancel-booking`, {
@@ -373,11 +382,14 @@ export default function CourtDetail() {
           credentials: "include",
           body: JSON.stringify({ bookingId: cancelBookingId }),
         });
-        console.log("[booking_cancelled] cancel response status:", resp.status);
         if (resp.ok) {
-          console.log("[booking_cancelled] invalidating and refetching availability");
           await queryClient.invalidateQueries();
           await queryClient.refetchQueries({ queryKey: [`/api/courts/${courtId}/availability`] });
+          // Clean up sessionStorage once the DB is updated
+          try {
+            const ids: number[] = JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]");
+            sessionStorage.setItem("cancelledBookingIds", JSON.stringify(ids.filter(id => id !== cancelBookingId)));
+          } catch { /* ignore */ }
         }
       } catch (err) {
         console.error("[booking_cancelled] cancel error:", err);
