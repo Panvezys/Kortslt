@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const HERO_IMAGE = "courts/court_2_bernardinu_small.png";
+const HERO_IMAGE = "courts/court_2_bernardinu.webp";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
