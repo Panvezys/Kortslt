@@ -79,7 +79,7 @@ function getSlotKind(
   hour: number,
   todayBookings: OwnerBooking[],
   blockedSlots: BlockedSlot[],
-): { kind: "confirmed" | "pending" | "awaiting" | "blocked" | "free"; booking?: OwnerBooking; blocked?: BlockedSlot } {
+): { kind: "confirmed" | "pending" | "blocked" | "free"; booking?: OwnerBooking; blocked?: BlockedSlot } {
   const slotStart = hour * 60;
   const slotEnd = (hour + 1) * 60;
 
@@ -88,11 +88,7 @@ function getSlotKind(
     const bStart = toMin(b.startTime);
     const bEnd = toMin(b.endTime);
     if (slotStart < bEnd && slotEnd > bStart) {
-      const kind =
-        b.status === "confirmed" ? "confirmed" :
-        b.status === "awaiting_approval" ? "awaiting" :
-        "pending";
-      return { kind, booking: b };
+      return { kind: b.status === "confirmed" ? "confirmed" : "pending", booking: b };
     }
   }
   for (const bl of blockedSlots) {
@@ -137,18 +133,6 @@ function SlotCell({
         className="h-10 rounded bg-amber-400/20 border border-amber-400/40 hover:bg-amber-400/30 transition-colors flex items-center px-1.5 overflow-hidden cursor-pointer"
       >
         <span className="text-[10px] text-amber-700 dark:text-amber-300 truncate font-medium">{booking?.customerName}</span>
-      </div>
-    );
-  }
-  if (kind === "awaiting") {
-    return (
-      <div
-        onClick={() => booking && onBookingClick(booking)}
-        className="h-10 rounded bg-orange-500/20 border border-orange-500/50 hover:bg-orange-500/30 transition-colors flex items-center gap-1 px-1.5 overflow-hidden cursor-pointer"
-        title="Laukia patvirtinimo"
-      >
-        <Clock className="h-3 w-3 text-orange-600 dark:text-orange-300 shrink-0" />
-        <span className="text-[10px] text-orange-700 dark:text-orange-300 truncate font-medium">{booking?.customerName}</span>
       </div>
     );
   }
@@ -451,51 +435,6 @@ function BlockCourtModal({
 
 function BookingInfoModal({ booking, onClose }: { booking: OwnerBooking; onClose: () => void }) {
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
-  const isAwaiting = booking.status === "awaiting_approval";
-
-  const approveMutation = useMutation({
-    mutationFn: () =>
-      customFetch(`${API_URL}/owner/bookings/${booking.id}/approve`, { method: "PATCH" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
-      onClose();
-    },
-    onError: (err: any) => alert(err?.message || "Nepavyko patvirtinti rezervacijos"),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: (reason?: string) =>
-      customFetch(`${API_URL}/owner/bookings/${booking.id}/reject`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
-      onClose();
-    },
-    onError: (err: any) => alert(err?.message || "Nepavyko atmesti rezervacijos"),
-  });
-
-  const handleApprove = () => {
-    if (confirm("Patvirtinti šią rezervaciją? Klientas gaus pranešimą.")) {
-      approveMutation.mutate();
-    }
-  };
-  const handleReject = () => {
-    const reason = prompt("Atmesti rezervaciją?\n\nNurodykite priežastį (neprivaloma) — klientas tai pamatys:", "");
-    if (reason === null) return;
-    rejectMutation.mutate(reason || undefined);
-  };
-
-  const isBusy = approveMutation.isPending || rejectMutation.isPending;
-  const statusLabel =
-    booking.status === "confirmed" ? "Patvirtinta" :
-    booking.status === "pending" ? "Laukiama" :
-    booking.status === "awaiting_approval" ? "Laukia patvirtinimo" :
-    "Atšaukta";
-
   if (!booking) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -506,12 +445,6 @@ function BookingInfoModal({ booking, onClose }: { booking: OwnerBooking; onClose
         </button>
         <h2 className="text-lg font-bold mb-1">Rezervacija #{booking.id}</h2>
         <p className="text-sm text-muted-foreground mb-4">{booking.courtName}</p>
-        {isAwaiting && (
-          <div className="mb-4 rounded-lg bg-orange-500/10 border border-orange-500/30 p-3 text-xs text-orange-700 dark:text-orange-300 flex items-start gap-2">
-            <Clock className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>Klientas sumokėjo. Patvirtinkite arba atmeskite rezervaciją — atmetus pinigai bus grąžinami.</span>
-          </div>
-        )}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Klientas</span><span className="font-medium">{booking.customerName}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">El. paštas</span><span className="font-medium">{booking.customerEmail}</span></div>
@@ -521,36 +454,16 @@ function BookingInfoModal({ booking, onClose }: { booking: OwnerBooking; onClose
           <div className="flex justify-between"><span className="text-muted-foreground">Kaina</span><span className="font-medium">€{booking.totalPrice.toFixed(2)}</span></div>
           <div className="flex justify-between items-center"><span className="text-muted-foreground">Statusas</span>
             <Badge variant={booking.status === "confirmed" ? "default" : booking.status === "cancelled" ? "destructive" : "secondary"}>
-              {statusLabel}
+              {booking.status === "confirmed" ? "Patvirtinta" : booking.status === "pending" ? "Laukiama" : "Atšaukta"}
             </Badge>
           </div>
         </div>
-        {isAwaiting ? (
-          <div className="flex gap-2 mt-5">
-            <Button
-              variant="outline"
-              className="flex-1 border-red-500/40 text-red-500 hover:bg-red-500/10 hover:text-red-500"
-              disabled={isBusy}
-              onClick={handleReject}
-            >
-              <X className="w-4 h-4 mr-1" /> Atmesti
-            </Button>
-            <Button
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-              disabled={isBusy}
-              onClick={handleApprove}
-            >
-              <CheckCircle2 className="w-4 h-4 mr-1" /> Patvirtinti
-            </Button>
-          </div>
-        ) : (
-          <div className="flex gap-2 mt-5">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
-            <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
-              Pilna peržiūra
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
+          <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
+            Pilna peržiūra
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -910,19 +823,12 @@ export default function OwnerDashboard() {
                             onClick={() => setSelectedBooking(item)}
                             className="w-full flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
                           >
-                            <div className={`mt-0.5 shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                              item.status === "cancelled" ? "bg-red-500/10" :
-                              item.status === "awaiting_approval" ? "bg-orange-500/15" :
-                              item.status === "pending" ? "bg-amber-500/10" :
-                              "bg-emerald-500/10"
-                            }`}>
+                            <div className={`mt-0.5 shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${item.status === "cancelled" ? "bg-red-500/10" : item.status === "pending" ? "bg-amber-500/10" : "bg-emerald-500/10"}`}>
                               {item.status === "cancelled"
                                 ? <X className="h-3 w-3 text-red-500" />
-                                : item.status === "awaiting_approval"
-                                  ? <Clock className="h-3 w-3 text-orange-500" />
-                                  : item.status === "pending"
-                                    ? <Clock className="h-3 w-3 text-amber-500" />
-                                    : <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                                : item.status === "pending"
+                                  ? <Clock className="h-3 w-3 text-amber-500" />
+                                  : <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                               }
                             </div>
                             <div className="flex-1 min-w-0">
@@ -931,13 +837,10 @@ export default function OwnerDashboard() {
                             </div>
                             <div className="shrink-0 text-right">
                               <Badge
-                                variant={item.status === "cancelled" ? "destructive" : item.status === "confirmed" ? "default" : "secondary"}
+                                variant={item.status === "cancelled" ? "destructive" : item.status === "pending" ? "secondary" : "default"}
                                 className="text-[10px] px-1.5 py-0"
                               >
-                                {item.status === "cancelled" ? "Atšaukta" :
-                                 item.status === "awaiting_approval" ? "Laukia patv." :
-                                 item.status === "pending" ? "Laukiama" :
-                                 "Patvirtinta"}
+                                {item.status === "cancelled" ? "Atšaukta" : item.status === "pending" ? "Laukiama" : "Patvirtinta"}
                               </Badge>
                               <p className="text-[10px] text-muted-foreground mt-1">{item.date}</p>
                             </div>

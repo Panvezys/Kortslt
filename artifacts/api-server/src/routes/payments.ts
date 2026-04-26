@@ -11,7 +11,6 @@ import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail, sendOwnerBookingNotificationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { getCurrentUserId, requireAuth, getUserRole } from "../lib/auth";
-import { sendNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -181,10 +180,7 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     }
   }
 
-  // If court owner has instant booking OFF, hold the paid booking in
-  // "awaiting_approval" until the owner approves or rejects it.
-  const requiresApproval = rows[0].instantBookingEnabled === false;
-  const newStatus = requiresApproval ? "awaiting_approval" : "confirmed";
+  const newStatus = "confirmed";
 
   const [booking] = await db
     .update(bookingsTable)
@@ -192,29 +188,10 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     .where(eq(bookingsTable.stripeSessionId, sessionId))
     .returning();
 
-  if (!requiresApproval) {
-    await db
-      .update(courtsTable)
-      .set({ totalBookings: sql`total_bookings + 1` })
-      .where(eq(courtsTable.id, rows[0].booking.courtId));
-  }
-
-  // Notify owner that a booking is waiting for approval
-  if (requiresApproval) {
-    const [court] = await db
-      .select({ ownerUserId: courtsTable.ownerUserId })
-      .from(courtsTable)
-      .where(eq(courtsTable.id, rows[0].booking.courtId));
-    if (court?.ownerUserId) {
-      await sendNotification(
-        court.ownerUserId,
-        "booking_awaiting_approval",
-        `Laukia patvirtinimo — ${rows[0].courtName ?? "Kortas"}`,
-        `${booking.customerName} sumokėjo už ${booking.date} ${booking.startTime}–${booking.endTime}. Patvirtinkite arba atmeskite rezervaciją.`,
-        "/owner",
-      );
-    }
-  }
+  await db
+    .update(courtsTable)
+    .set({ totalBookings: sql`total_bookings + 1` })
+    .where(eq(courtsTable.id, rows[0].booking.courtId));
 
   sendBookingConfirmationEmail({
     customerName: booking.customerName,

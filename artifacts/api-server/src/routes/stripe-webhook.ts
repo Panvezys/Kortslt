@@ -116,11 +116,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   }
 
   // If the confirm endpoint already promoted the booking, do nothing else.
-  if (rows[0].booking.status === "confirmed" || rows[0].booking.status === "awaiting_approval") return;
+  if (rows[0].booking.status === "confirmed") return;
 
-  // If court owner has instant booking OFF, hold paid booking awaiting approval.
-  const requiresApproval = rows[0].instantBookingEnabled === false;
-  const newStatus = requiresApproval ? "awaiting_approval" : "confirmed";
+  const newStatus = "confirmed";
 
   const [booking] = await db
     .update(bookingsTable)
@@ -128,31 +126,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     .where(eq(bookingsTable.stripeSessionId, session.id))
     .returning();
 
-  if (!requiresApproval) {
-    await db
-      .update(courtsTable)
-      .set({ totalBookings: sql`total_bookings + 1` })
-      .where(eq(courtsTable.id, rows[0].booking.courtId));
-  }
-
-  if (requiresApproval) {
-    const [court] = await db
-      .select({ ownerUserId: courtsTable.ownerUserId })
-      .from(courtsTable)
-      .where(eq(courtsTable.id, rows[0].booking.courtId));
-    if (court?.ownerUserId) {
-      const { sendNotification } = await import("../lib/notify");
-      await sendNotification(
-        court.ownerUserId,
-        "booking_awaiting_approval",
-        `Laukia patvirtinimo — ${rows[0].courtName ?? "Kortas"}`,
-        `${booking.customerName} sumokėjo už ${booking.date} ${booking.startTime}–${booking.endTime}. Patvirtinkite arba atmeskite rezervaciją.`,
-        "/owner",
-      );
-    }
-    // Skip confirmation emails — owner must approve first
-    return;
-  }
+  await db
+    .update(courtsTable)
+    .set({ totalBookings: sql`total_bookings + 1` })
+    .where(eq(courtsTable.id, rows[0].booking.courtId));
 
   {
     sendBookingConfirmationEmail({
