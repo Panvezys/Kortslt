@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
-  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink,
+  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban,
 } from "lucide-react";
 import { CourtIcon } from "@/components/sport-icon";
+import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -151,6 +152,102 @@ function Sidebar({ open, onClose, facilityId, facilityName, activeHref }: {
   );
 }
 
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
+function hhmm(h: number) { return `${String(h).padStart(2, "0")}:00`; }
+
+function BlockCourtModal({
+  open, onClose, courtId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  courtId: number;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const today = todayStr();
+  const [date, setDate] = useState(today);
+  const [startHour, setStartHour] = useState(hhmm(8));
+  const [endHour, setEndHour] = useState(hhmm(9));
+  const [notes, setNotes] = useState("");
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+
+  function reset() { setNotes(""); setConflictMsg(null); }
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      customFetch(`${API_URL}/owner/bookings/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtId, date, startTime: startHour, endTime: endHour, notes: notes || undefined }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Kortas užblokuotas" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onClose(); reset();
+    },
+    onError: (e: any) => {
+      const code = e?.data?.code;
+      if (code === "CONFIRMED_EXISTS") {
+        setConflictMsg("⚠️ Šiuo laiku jau yra patvirtinta rezervacija. Negalite blokuoti užimto laiko.");
+      } else if (code === "PENDING_EXISTS") {
+        setConflictMsg("ℹ️ Šiuo metu klientas atlieka mokėjimą šiam laikui. Palaukite ir bandykite vėliau.");
+      } else {
+        toast({ title: "Klaida blokuojant", description: e?.data?.error || e?.message || "Nepavyko užblokuoti korto", variant: "destructive" });
+      }
+    },
+  });
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { onClose(); reset(); }} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={() => { onClose(); reset(); }} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Blokuoti kortą</h2>
+        <p className="text-sm text-muted-foreground mb-5">Pasirinkite datą ir laiką, kurį norite uždaryti.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Data</label>
+            <input type="date" value={date} onChange={e => { setDate(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {HOURS.map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
+              <select value={endHour} onChange={e => { setEndHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {HOURS.filter(h => h > Number(startHour.split(":")[0])).map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pastaba (neprivaloma)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="pvz. Priežiūra, privatus renginys…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          {conflictMsg && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+              {conflictMsg}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={() => { onClose(); reset(); }}>Atšaukti</Button>
+          <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? "Blokuojama…" : "Blokuoti"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, sub, color = "text-primary" }: {
   label: string; value: string | number; sub?: string; color?: string;
 }) {
@@ -240,6 +337,7 @@ export default function OwnerCourtDashboard() {
   const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
+  const [blockOpen, setBlockOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery<CourtStats>({
     queryKey: ["owner-court-stats", courtId],
@@ -336,6 +434,13 @@ export default function OwnerCourtDashboard() {
               <span className="hidden sm:inline">Viešas</span>
             </Button>
             <Button
+              size="sm" variant="outline" className="gap-1.5 text-xs border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+              onClick={() => setBlockOpen(true)}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Blokuoti</span>
+            </Button>
+            <Button
               size="sm" variant="outline" className="gap-1.5 text-xs"
               onClick={() => navigate(`/owner/facility/${facilityIdNum}?editCourt=${court.id}`)}
             >
@@ -416,6 +521,12 @@ export default function OwnerCourtDashboard() {
           </div>
         </div>
       </div>
+
+      <BlockCourtModal
+        open={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        courtId={Number(courtId)}
+      />
     </div>
   );
 }

@@ -85,6 +85,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
         totalPrice: bookingsTable.totalPrice,
         status: bookingsTable.status,
         rentedItems: bookingsTable.rentedItems,
+        notes: bookingsTable.notes,
         createdAt: bookingsTable.createdAt,
         courtName: courtsTable.name,
       })
@@ -94,7 +95,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
         and(
           inArray(bookingsTable.courtId, courtIds),
           eq(bookingsTable.date, today),
-          inArray(bookingsTable.status, ["confirmed", "pending"]),
+          inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
         )
       ),
 

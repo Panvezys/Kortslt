@@ -51,6 +51,7 @@ interface OwnerBooking {
   status: string;
   createdAt: string;
   courtName?: string | null;
+  notes?: string | null;
 }
 
 interface BlockedSlot {
@@ -88,6 +89,7 @@ function getSlotKind(
     const bStart = toMin(b.startTime);
     const bEnd = toMin(b.endTime);
     if (slotStart < bEnd && slotEnd > bStart) {
+      if (b.status === "blocked") return { kind: "blocked", blocked: { id: b.id, courtId: b.courtId, date: b.date, startTime: b.startTime, endTime: b.endTime, reason: b.notes } };
       return { kind: b.status === "confirmed" ? "confirmed" : "pending", booking: b };
     }
   }
@@ -343,85 +345,104 @@ function ManualBookingModal({
 // ── Block Court Modal ─────────────────────────────────────────────────────────
 
 function BlockCourtModal({
-  open, onClose, courts,
+  open, onClose, courts, preCourtId, preDate, preHour,
 }: {
   open: boolean;
   onClose: () => void;
   courts: OwnerCourt[];
+  preCourtId?: number;
+  preDate?: string;
+  preHour?: number;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const today = todayStr();
 
-  const [courtId, setCourtId] = useState<string>(String(courts[0]?.id ?? ""));
-  const [date, setDate] = useState(today);
-  const [startHour, setStartHour] = useState(hhmm(8));
-  const [endHour, setEndHour] = useState(hhmm(9));
-  const [reason, setReason] = useState("");
+  const [courtId, setCourtId] = useState<string>(() => String(preCourtId ?? courts[0]?.id ?? ""));
+  const [date, setDate] = useState(preDate ?? today);
+  const [startHour, setStartHour] = useState(() => preHour != null ? hhmm(preHour) : hhmm(8));
+  const [endHour, setEndHour] = useState(() => preHour != null ? hhmm(preHour + 1) : hhmm(9));
+  const [notes, setNotes] = useState("");
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+
+  function reset() {
+    setNotes("");
+    setConflictMsg(null);
+  }
 
   const mutation = useMutation({
     mutationFn: () =>
-      customFetch(`${API_URL}/courts/${courtId}/blocked-slots`, {
+      customFetch(`${API_URL}/owner/bookings/block`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, startTime: startHour, endTime: endHour, reason: reason || undefined }),
+        body: JSON.stringify({ courtId: Number(courtId), date, startTime: startHour, endTime: endHour, notes: notes || undefined }),
       }),
     onSuccess: () => {
       toast({ title: "Kortas užblokuotas" });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
       onClose();
-      setReason("");
+      reset();
     },
-    onError: (e: any) => toast({
-      title: "Klaida blokuojant",
-      description: e?.data?.error || e?.message || "Nepavyko užblokuoti korto",
-      variant: "destructive",
-    }),
+    onError: (e: any) => {
+      const code = e?.data?.code;
+      if (code === "CONFIRMED_EXISTS") {
+        setConflictMsg("⚠️ Šiuo laiku jau yra patvirtinta rezervacija. Negalite blokuoti užimto laiko.");
+      } else if (code === "PENDING_EXISTS") {
+        setConflictMsg("ℹ️ Šiuo metu klientas atlieka mokėjimą šiam laikui. Palaukite ir bandykite vėliau.");
+      } else {
+        toast({ title: "Klaida blokuojant", description: e?.data?.error || e?.message || "Nepavyko užblokuoti korto", variant: "destructive" });
+      }
+    },
   });
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { onClose(); reset(); }} />
       <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
-        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+        <button onClick={() => { onClose(); reset(); }} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
           <X className="h-4 w-4" />
         </button>
         <h2 className="text-lg font-bold mb-1">Blokuoti kortą</h2>
-        <p className="text-sm text-muted-foreground mb-5">Pasirinkite kortą ir laiką, kurį norite užblokuoti.</p>
+        <p className="text-sm text-muted-foreground mb-5">Pasirinkite kortą ir laiką, kurį norite uždaryti.</p>
         <div className="space-y-3">
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Kortas</label>
-            <select value={courtId} onChange={e => setCourtId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+            <select value={courtId} onChange={e => { setCourtId(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
               {courts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Data</label>
-            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+            <input type="date" value={date} onChange={e => { setDate(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
-              <select value={startHour} onChange={e => setStartHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
                 {HOURS.map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
-              <select value={endHour} onChange={e => setEndHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+              <select value={endHour} onChange={e => { setEndHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
                 {HOURS.filter(h => h > Number(startHour.split(":")[0])).map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Priežastis</label>
-            <input value={reason} onChange={e => setReason(e.target.value)} placeholder="pvz. Priežiūra, privatus renginys…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pastaba (neprivaloma)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="pvz. Priežiūra, privatus renginys…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
           </div>
+          {conflictMsg && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+              {conflictMsg}
+            </div>
+          )}
         </div>
         <div className="flex gap-2 mt-5">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Atšaukti</Button>
+          <Button variant="outline" className="flex-1" onClick={() => { onClose(); reset(); }}>Atšaukti</Button>
           <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
             {mutation.isPending ? "Blokuojama…" : "Blokuoti"}
           </Button>

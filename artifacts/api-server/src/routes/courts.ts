@@ -365,21 +365,6 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(UpdateCourtResponse.parse(formatCourt(court)));
 });
 
-router.patch("/courts/:id/instant-booking", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) { res.status(400).json({ error: "Invalid court id" }); return; }
-  const { enabled } = req.body as { enabled: boolean };
-  if (typeof enabled !== "boolean") { res.status(400).json({ error: "enabled must be boolean" }); return; }
-
-  const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Court not found" }); return; }
-  if (!(await isOwner(req, existing.ownerUserId))) {
-    res.status(403).json({ error: "Forbidden" }); return;
-  }
-
-  const [updated] = await db.update(courtsTable).set({ instantBookingEnabled: enabled }).where(eq(courtsTable.id, id)).returning();
-  res.json({ id: updated.id, instantBookingEnabled: updated.instantBookingEnabled });
-});
 
 router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   const params = DeleteCourtParams.safeParse(req.params);
@@ -451,6 +436,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
           eq(bookingsTable.date, date),
           or(
             eq(bookingsTable.status, "confirmed"),
+            eq(bookingsTable.status, "blocked"),
             and(
               eq(bookingsTable.status, "pending"),
               sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`

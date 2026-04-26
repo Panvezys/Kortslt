@@ -172,6 +172,7 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
             eq(bookingsTable.date, dateStr0),
             or(
               eq(bookingsTable.status, "confirmed"),
+              eq(bookingsTable.status, "blocked"),
               and(
                 eq(bookingsTable.status, "pending"),
                 sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`
@@ -432,6 +433,77 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="booking-${booking.id}.ics"`);
   res.send(ics);
+});
+
+// ─── Owner: block a court time slot ──────────────────────────────────────────
+const BlockBookingBody = z.object({
+  courtId: z.number().int(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  notes: z.string().optional(),
+});
+
+router.post("/owner/bookings/block", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BlockBookingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() }); return; }
+
+  const { courtId, date, startTime, endTime, notes } = parsed.data;
+  const ownerId = getCurrentUserId(req)!;
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const reqStartMin = toMin(startTime);
+  const reqEndMin = toMin(endTime);
+
+  const existing = await db
+    .select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, courtId),
+      eq(bookingsTable.date, date),
+      or(
+        eq(bookingsTable.status, "confirmed"),
+        and(
+          eq(bookingsTable.status, "pending"),
+          sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`
+        )
+      )
+    ));
+
+  for (const b of existing) {
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    if (reqStartMin < bEnd && reqEndMin > bStart) {
+      if (b.status === "confirmed") {
+        res.status(409).json({ error: "Šiuo laiku yra patvirtinta rezervacija.", code: "CONFIRMED_EXISTS" });
+        return;
+      }
+      if (b.status === "pending") {
+        res.status(409).json({ error: "Šiuo metu klientas atlieka mokėjimą. Palaukite ir bandykite vėliau.", code: "PENDING_EXISTS" });
+        return;
+      }
+    }
+  }
+
+  const [booking] = await db.insert(bookingsTable).values({
+    courtId,
+    bookerUserId: ownerId,
+    customerName: "Savininkas (blokas)",
+    customerEmail: `owner-block-${Date.now()}@korts.lt`,
+    date,
+    startTime,
+    endTime,
+    totalPrice: "0",
+    status: "blocked",
+    notes: notes ?? null,
+  }).returning();
+
+  res.status(201).json(booking);
 });
 
 // ─── Owner: create manual (free) booking ──────────────────────────────────────

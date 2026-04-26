@@ -13,8 +13,9 @@ export const bookingsTable = pgTable("bookings", {
   startTime: text("start_time").notNull(), // HH:MM
   endTime: text("end_time").notNull(), // HH:MM
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").notNull().default("pending"), // pending | confirmed | cancelled
+  status: text("status").notNull().default("pending"), // pending | confirmed | cancelled | blocked
   rentedItems: text("rented_items"),
+  notes: text("notes"),
   stripeSessionId: text("stripe_session_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -1810,26 +1810,6 @@ export default function OwnerFacilityDetail() {
                   </div>
 
                   <div className="mt-2 pt-2 border-t space-y-2">
-                    {/* Instant booking toggle */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Momentinė rezervacija</span>
-                      <button
-                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).instantBookingEnabled !== false ? "bg-primary" : "bg-muted-foreground/30"}`}
-                        onClick={() => {
-                          const next = !((court as any).instantBookingEnabled !== false);
-                          customFetch(`${API_URL}/courts/${court.id}/instant-booking`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ enabled: next }),
-                          }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
-                            .catch(() => toast({ title: "Klaida atnaujinant", variant: "destructive" }));
-                        }}
-                        title="Įjungus – rezervacijos patvirtinamos automatiškai"
-                      >
-                        <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).instantBookingEnabled !== false ? "translate-x-4" : "translate-x-0"}`} />
-                      </button>
-                    </div>
-
                     {/* Online/offline toggle */}
                     {["active", "hidden"].includes((court as any).status ?? "") && (
                       <div className="flex items-center justify-between">
