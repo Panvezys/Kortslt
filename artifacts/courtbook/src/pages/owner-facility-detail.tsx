@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { Layout } from "@/components/layout";
 import { CourtIcon } from "@/components/sport-icon";
@@ -24,7 +24,8 @@ import {
   CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse,
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
   Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
-  Star, Search, UserCheck, XCircle,
+  Star, Search, UserCheck, XCircle, LayoutDashboard, Settings, LogOut, Menu,
+  BarChart3, Camera,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -936,6 +937,74 @@ function MembershipPlanManager({ courtId }: { courtId: number }) {
   );
 }
 
+// ── Owner sidebar ──────────────────────────────────────────────────────────────
+
+function buildFacilityNavItems(facilityId: number | string) {
+  const fid = Number(facilityId);
+  return [
+    { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard?facility=${fid}` },
+    { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner/facility/${fid}` },
+    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments?facility=${fid}` },
+    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings?facility=${fid}` },
+  ];
+}
+
+function FacilitySidebar({ open, onClose, currentPath, facilityId, facilityName }: {
+  open: boolean; onClose: () => void; currentPath: string; facilityId: number | string; facilityName?: string;
+}) {
+  const [, navigate] = useLocation();
+  const NAV_ITEMS = buildFacilityNavItems(facilityId);
+  return (
+    <>
+      {open && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />}
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-60 bg-card border-r border-border flex flex-col
+        transition-transform duration-200
+        ${open ? "translate-x-0" : "-translate-x-full"}
+        md:relative md:translate-x-0 md:flex md:z-auto
+      `}>
+        <div className="flex items-center justify-between px-5 h-16 border-b border-border shrink-0">
+          <Link href="/" className="font-bold text-lg tracking-tight">korts<span className="text-primary">.lt</span></Link>
+          <button onClick={onClose} className="md:hidden p-1 rounded hover:bg-muted transition-colors"><X className="h-4 w-4" /></button>
+        </div>
+        {facilityName && (
+          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">Objektas</p>
+            <p className="text-sm font-medium truncate">{facilityName}</p>
+          </div>
+        )}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">Valdymas</p>
+          {NAV_ITEMS.map(item => {
+            const isActive = currentPath === item.href || (item.label === "Mano aikštelės" && currentPath.includes(`/owner/facility/${facilityId}`));
+            return (
+              <a
+                key={item.label}
+                href={item.href}
+                onClick={e => { e.preventDefault(); onClose(); navigate(item.href.replace(BASE_URL, "") || "/"); }}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </a>
+            );
+          })}
+        </nav>
+        <div className="border-t border-border px-3 py-3">
+          <button onClick={() => navigate("/")} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <LogOut className="h-4 w-4" />
+            Grįžti į svetainę
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function OwnerFacilityDetail() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -944,6 +1013,7 @@ export default function OwnerFacilityDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mapKey, setMapKey] = useState(0);
@@ -953,6 +1023,7 @@ export default function OwnerFacilityDetail() {
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
   const [freeBookingCourtId, setFreeBookingCourtId] = useState<number | null>(null);
   const [membershipCourtId, setMembershipCourtId] = useState<number | null>(null);
+  const [photosCourtId, setPhotosCourtId] = useState<number | null>(null);
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -1222,137 +1293,86 @@ export default function OwnerFacilityDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facility, courts]);
 
+  const currentPath = `${BASE_URL}/owner/facility/${id}`;
+
   if (facilityLoading || courtsLoading) {
     return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <Skeleton className="h-8 w-64 mb-6" />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 rounded-xl" />)}
+      <div className="flex h-screen bg-muted/20 overflow-hidden">
+        <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id ?? 0} />
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <div className="h-16 border-b border-border flex items-center px-6"><Skeleton className="h-5 w-48" /></div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[1,2,3].map(i => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+            </div>
           </div>
         </div>
-      </Layout>
+      </div>
     );
   }
 
   if (!facility) {
     return (
-      <Layout>
-        <div className="container mx-auto px-4 py-20 text-center">
-          <h2 className="text-xl font-semibold mb-2">Objektas nerastas</h2>
-          <Button onClick={() => navigate("/owner")}>Grįžti</Button>
+      <div className="flex h-screen bg-muted/20 overflow-hidden">
+        <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id ?? 0} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Objektas nerastas</h2>
+            <Button onClick={() => navigate("/owner")}>Grįžti</Button>
+          </div>
         </div>
-      </Layout>
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <button onClick={() => navigate("/owner")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
-          <ArrowLeft className="w-4 h-4" /> Visi objektai
-        </button>
+    <div className="flex h-screen bg-muted/20 overflow-hidden">
+      <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id!} facilityName={facility.name} />
 
-        <div className="bg-card border rounded-2xl overflow-hidden mb-8">
-          <div className="relative h-40 sm:h-52 bg-gradient-to-br from-primary/10 to-primary/5 overflow-hidden">
-            {facility.photos && facility.photos.length > 0 ? (
-              <img src={facility.photos[0].startsWith("http") ? facility.photos[0] : `${BASE_URL}/${facility.photos[0]}`} alt="" className="w-full h-full object-cover" />
-            ) : facility.courts?.length > 0 && facility.courts[0].imageUrl ? (
-              <img src={facility.courts[0].imageUrl.startsWith("http") ? facility.courts[0].imageUrl : `${BASE_URL}/${facility.courts[0].imageUrl}`} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Building2 className="w-20 h-20 text-primary/20" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-            <div className="absolute top-3 right-3">
-              <Button
-                size="sm" variant="outline"
-                className="h-8 gap-1.5 text-xs bg-black/40 backdrop-blur-sm border-white/30 text-white hover:bg-black/60"
-                onClick={() => setFacilityEditOpen(true)}
-              >
-                <Edit2 className="w-3.5 h-3.5" /> Redaguoti objektą
-              </Button>
-            </div>
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white">{facility.name}</h1>
-                {facility.verificationStatus === "verified" && (
-                  <Badge className="bg-green-500/20 text-green-300 border-green-500/40 gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Patvirtinta
-                  </Badge>
-                )}
-              </div>
-              {(facility.address || facility.city) && (
-                <p className="text-white/80 text-sm flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {[facility.address, facility.city].filter(Boolean).join(", ")}
-                </p>
-              )}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Top bar */}
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
+              <Menu className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="font-bold text-base leading-tight">{facility.name}</h1>
+              <p className="text-xs text-muted-foreground">Aikštelės</p>
             </div>
           </div>
-
-          <div className="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-4 border-b">
-            {facility.phone && (
-              <a href={`tel:${facility.phone}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-                <Phone className="w-3.5 h-3.5" /> {facility.phone}
-              </a>
-            )}
-            {facility.email && (
-              <a href={`mailto:${facility.email}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-                <Mail className="w-3.5 h-3.5" /> {facility.email}
-              </a>
-            )}
-            {(facility.latitude != null && facility.longitude != null) ? (
-              <a
-                href={`https://www.google.com/maps?q=${facility.latitude},${facility.longitude}`}
-                target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
-              >
-                <MapPin className="w-3.5 h-3.5" /> Navigacija
-              </a>
-            ) : facility.address ? (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([facility.address, facility.city].filter(Boolean).join(", "))}`}
-                target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary"
-              >
-                <MapPin className="w-3.5 h-3.5" /> Navigacija
-              </a>
-            ) : null}
-            {facility.companyName && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Building2 className="w-3.5 h-3.5" /> {facility.companyName}
-                {facility.registrationCode && <span className="text-xs">({facility.registrationCode})</span>}
-              </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setFacilityEditOpen(true)}>
+              <Edit2 className="w-3.5 h-3.5" /> Redaguoti objektą
+            </Button>
+            {facility.verificationStatus === "verified" && (
+              <Badge className="bg-green-500/10 text-green-500 border-green-500/30 gap-1 hidden sm:flex">
+                <ShieldCheck className="w-3 h-3" /> Patvirtinta
+              </Badge>
             )}
           </div>
+        </header>
 
-          <div className="px-4 sm:px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{facilityCourts.length}</div>
-              <div className="text-xs text-muted-foreground">Aikštelės</div>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          {/* Facility stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground mb-1">Kortai</p>
+              <p className="text-2xl font-bold text-primary">{facilityCourts.length}</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                {[...new Set(facilityCourts.map(c => c.type))].length}
-              </div>
-              <div className="text-xs text-muted-foreground">Sporto šakos</div>
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground mb-1">Sporto šakos</p>
+              <p className="text-2xl font-bold text-primary">{[...new Set(facilityCourts.map(c => c.type))].length}</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-500">
-                {facilityCourts.filter(c => ["approved","active"].includes((c as any).status ?? "")).length}
-              </div>
-              <div className="text-xs text-muted-foreground">Aktyvūs</div>
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground mb-1">Aktyvūs</p>
+              <p className="text-2xl font-bold text-emerald-500">{facilityCourts.filter(c => ["approved","active"].includes((c as any).status ?? "")).length}</p>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-400">
-                {facilityCourts.filter(c => ["pending","pending_review","draft"].includes((c as any).status ?? "")).length}
-              </div>
-              <div className="text-xs text-muted-foreground">Laukia</div>
+            <div className="bg-card border border-border rounded-2xl p-4">
+              <p className="text-xs text-muted-foreground mb-1">Laukia</p>
+              <p className="text-2xl font-bold text-amber-400">{facilityCourts.filter(c => ["pending","pending_review","draft"].includes((c as any).status ?? "")).length}</p>
             </div>
           </div>
-        </div>
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Aikštelės</h2>
@@ -1740,7 +1760,23 @@ export default function OwnerFacilityDetail() {
                     )}
                   </div>
 
+                  {/* Primary action: Suvestinė */}
+                  <Button
+                    variant="default" size="sm"
+                    className="w-full gap-2 mb-3 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 hover:text-primary"
+                    onClick={() => navigate(`/owner/facility/${id}/court/${court.id}`)}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" /> Suvestinė
+                  </Button>
+
+                  {/* Management actions */}
                   <div className="flex items-center gap-1 flex-wrap">
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => handleEdit(court)} title="Redaguoti">
+                      <Edit2 className="w-3 h-3" /> Redaguoti
+                    </Button>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setPhotosCourtId(court.id)} title="Nuotraukos">
+                      <Camera className="w-3 h-3" /> Nuotraukos
+                    </Button>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => { setPricingCourtId(court.id); setPricingDefaultPrice(Number(court.pricePerHour)); }}>
                       <Euro className="w-3 h-3" /> Kainos
                     </Button>
@@ -1750,26 +1786,23 @@ export default function OwnerFacilityDetail() {
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setCoachesCourtId(court.id)}>
                       <Users className="w-3 h-3" /> Treneriai
                     </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-green-600" onClick={() => setFreeBookingCourtId(court.id)}>
-                      <CheckCircle2 className="w-3 h-3" /> Nemokama
-                    </Button>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-cyan-600" onClick={() => setMembershipCourtId(court.id)}>
                       <Star className="w-3 h-3" /> Narystės
+                    </Button>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-green-600" onClick={() => setFreeBookingCourtId(court.id)}>
+                      <CheckCircle2 className="w-3 h-3" /> Nemokama
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="QR" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
                       <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8"
-                      title="Peržiūrėti viešą puslapį"
-                      onClick={() => window.open(`/courts/${court.id}`, "_blank")}
+                      title="Viešas puslapis"
+                      onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
                     >
                       <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <div className="ml-auto flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(court)}>
-                        <Edit2 className="w-3.5 h-3.5 text-muted-foreground" />
-                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(court.id)}>
                         <Trash2 className="w-3.5 h-3.5 text-destructive" />
                       </Button>
@@ -1931,21 +1964,30 @@ export default function OwnerFacilityDetail() {
           );
         })()}
 
-        {/* Tournaments Section */}
-        <FacilityTournaments facilityId={Number(id)} facilityCourts={facilityCourts} />
+          {/* Photos dialog */}
+          <Dialog open={photosCourtId !== null} onOpenChange={(open) => { if (!open) setPhotosCourtId(null); }}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle className="flex items-center gap-2"><Camera className="w-5 h-5 text-primary" /> Aikštelės nuotraukos</DialogTitle></DialogHeader>
+              {photosCourtId !== null && <CourtPhotosSection courtId={photosCourtId} />}
+            </DialogContent>
+          </Dialog>
 
-        <FacilityEditDialog
-          facility={facility}
-          open={facilityEditOpen}
-          onClose={() => setFacilityEditOpen(false)}
-          onSaved={() => {
-            queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
-            queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
-            queryClient.invalidateQueries({ queryKey: ["admin-facilities"] });
-          }}
-        />
+          {/* Tournaments Section */}
+          <FacilityTournaments facilityId={Number(id)} facilityCourts={facilityCourts} />
+
+          <FacilityEditDialog
+            facility={facility}
+            open={facilityEditOpen}
+            onClose={() => setFacilityEditOpen(false)}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
+              queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+              queryClient.invalidateQueries({ queryKey: ["admin-facilities"] });
+            }}
+          />
+        </div>
       </div>
-    </Layout>
+    </div>
   );
 }
 
