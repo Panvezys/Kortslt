@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, gte, lte, sql } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtBlockedSlotsTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -23,10 +23,22 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
   const today = todayStr();
   const mStart = monthStart();
 
+  const ownedFacilities = await db
+    .select({ id: facilitiesTable.id })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.ownerUserId, userId));
+
+  const facilityIds = ownedFacilities.map(f => f.id);
+
   const courts = await db
     .select()
     .from(courtsTable)
-    .where(eq(courtsTable.ownerUserId, userId));
+    .where(
+      or(
+        eq(courtsTable.ownerUserId, userId),
+        facilityIds.length > 0 ? inArray(courtsTable.facilityId, facilityIds) : sql`false`
+      )
+    );
 
   if (courts.length === 0) {
     res.json({
