@@ -116,6 +116,28 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // ── Working hours validation ────────────────────────────────────────────────
+  if (court.workingHours) {
+    try {
+      const wh = JSON.parse(court.workingHours) as Record<string, { open: string; close: string; closed: boolean }>;
+      const dayConfig = wh[String(dayOfWeek)];
+      if (dayConfig) {
+        if (dayConfig.closed) {
+          res.status(400).json({ error: "Court is closed on this day", code: "COURT_CLOSED" });
+          return;
+        }
+        const openMin = toMin(dayConfig.open ?? "07:00");
+        const closeMin = toMin(dayConfig.close ?? "22:00");
+        if (reqStartMin < openMin || reqEndMin > closeMin) {
+          res.status(400).json({ error: "Requested time is outside court working hours", code: "OUTSIDE_WORKING_HOURS" });
+          return;
+        }
+      }
+    } catch {
+      // malformed workingHours JSON — skip validation, allow booking
+    }
+  }
+
   // ── Compute server-side price using per-slot pricing (same logic as availability endpoint) ──
   // This can be done outside the transaction since pricing config is owner-managed, not concurrent.
   const pricingEntries = await db.select()

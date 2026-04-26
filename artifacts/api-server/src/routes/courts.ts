@@ -102,18 +102,29 @@ function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
   return h >= 17 && h < 22;
 }
 
-/** Generate all 30-min slots for a day: 07:00 – 21:30 */
-function generateSlots(): { startTime: string; endTime: string }[] {
+/** Parse "HH:MM" → total minutes */
+function timeToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Format total minutes → "HH:MM" */
+function minToTime(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+/** Generate 30-min slots between openTime and closeTime (default: 07:00–22:00).
+ *  The last slot ends at closeTime, so a slot starting at closeTime is excluded.
+ *  E.g. open="08:00", close="22:00" produces 08:00–08:30, …, 21:30–22:00
+ */
+function generateSlots(openTime = "07:00", closeTime = "22:00"): { startTime: string; endTime: string }[] {
+  const openMin = timeToMin(openTime);
+  const closeMin = timeToMin(closeTime);
   const slots = [];
-  for (let h = 7; h < 22; h++) {
-    for (const m of [0, 30]) {
-      if (h === 21 && m === 30) break;
-      const start = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-      const endH = m === 30 ? h + 1 : h;
-      const endM = m === 30 ? 0 : 30;
-      const end = `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
-      slots.push({ startTime: start, endTime: end });
-    }
+  for (let m = openMin; m + 30 <= closeMin; m += 30) {
+    slots.push({ startTime: minToTime(m), endTime: minToTime(m + 30) });
   }
   return slots;
 }
@@ -455,6 +466,33 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
       ),
   ]);
 
+  // ── Parse working hours for this day ────────────────────────────────────────
+  let openTime = "07:00";
+  let closeTime = "22:00";
+  let courtClosed = false;
+
+  if (court.workingHours) {
+    try {
+      const wh = JSON.parse(court.workingHours) as Record<string, { open: string; close: string; closed: boolean }>;
+      const dayConfig = wh[String(dayOfWeek)];
+      if (dayConfig) {
+        if (dayConfig.closed) {
+          courtClosed = true;
+        } else {
+          openTime = dayConfig.open ?? "07:00";
+          closeTime = dayConfig.close ?? "22:00";
+        }
+      }
+    } catch {
+      // malformed JSON — fall back to defaults
+    }
+  }
+
+  if (courtClosed) {
+    res.json(GetCourtAvailabilityResponse.parse({ courtId: params.data.id, date, slots: [] }));
+    return;
+  }
+
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
   const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
@@ -464,7 +502,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   // Build a set of buffer-blocked start times
   const bufferBlockedTimes = new Set<string>();
   if (bufferSlots > 0) {
-    const slotsArr = generateSlots();
+    const slotsArr = generateSlots(openTime, closeTime);
     for (const booking of existingBookings) {
       const endIdx = slotsArr.findIndex(s => s.startTime === booking.endTime);
       if (endIdx >= 0) {
@@ -475,7 +513,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
     }
   }
 
-  const allSlots = generateSlots().map(({ startTime, endTime }) => {
+  const allSlots = generateSlots(openTime, closeTime).map(({ startTime, endTime }) => {
     const isBooked = existingBookings.some(
       b => b.startTime <= startTime && b.endTime > startTime
     );
