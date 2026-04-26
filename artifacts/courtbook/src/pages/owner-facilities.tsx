@@ -17,6 +17,7 @@ import { CourtIcon } from "@/components/sport-icon";
 import {
   Plus, Building2, MapPin, ChevronRight, Users,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
+  LayoutDashboard,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -507,6 +508,16 @@ export default function OwnerFacilities() {
                         </Badge>
                       )}
                     </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-3 gap-2"
+                      onClick={(e) => { e.stopPropagation(); navigate("/owner/dashboard"); }}
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      Suvestinė
+                    </Button>
                   </div>
                 </div>
               );

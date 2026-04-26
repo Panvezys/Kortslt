@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, gte, lte, sql } from "drizzle-orm";
+import { eq, or, and, inArray, gte, lte, sql } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
