@@ -15,7 +15,6 @@ export const courtsTable = pgTable("courts", {
   longitude: real("longitude").notNull(),
   pricePerHour: numeric("price_per_hour", { precision: 10, scale: 2 }).notNull(),
   peakPricePerHour: numeric("peak_price_per_hour", { precision: 10, scale: 2 }),
-  bufferMinutes: integer("buffer_minutes").notNull().default(0),
   rentableItems: text("rentable_items"),
   imageUrl: text("image_url"),
   ownerName: text("owner_name").notNull(),

@@ -139,7 +139,6 @@ const courtSchema = z.object({
   longitude: z.coerce.number(),
   pricePerHour: z.coerce.number().min(1),
   peakPricePerHour: z.coerce.number().optional(),
-  bufferMinutes: z.coerce.number().min(0).max(120).default(0),
   ownershipDocUrl: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerName: z.string().min(2, "Owner name required"),
@@ -1121,7 +1120,7 @@ export default function OwnerFacilityDetail() {
     defaultValues: {
       name: "", type: "tennis", description: "", address: facility?.address ?? "", city: facility?.city ?? "",
       latitude: facility?.latitude ?? 0, longitude: facility?.longitude ?? 0,
-      pricePerHour: 20, peakPricePerHour: undefined, bufferMinutes: 0,
+      pricePerHour: 20, peakPricePerHour: undefined,
       imageUrl: "", ownershipDocUrl: "", ownerName: user?.fullName ?? "Owner",
       ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
       isIndoor: false, maxPlayers: 4, postcode: facility?.postcode ?? "", amenities: [],
@@ -1207,7 +1206,7 @@ export default function OwnerFacilityDetail() {
       name: court.name, type: court.type, description: court.description || "",
       address: court.address, city: court.city, latitude: court.latitude, longitude: court.longitude,
       pricePerHour: court.pricePerHour, peakPricePerHour: court.peakPricePerHour ?? undefined,
-      bufferMinutes: court.bufferMinutes ?? 0, imageUrl: court.imageUrl || "",
+      imageUrl: court.imageUrl || "",
       ownershipDocUrl: court.ownershipDocUrl || "", ownerName: court.ownerName, ownerEmail: court.ownerEmail,
       isIndoor: court.isIndoor, maxPlayers: court.maxPlayers,
       amenities: Array.isArray(court.amenities) ? court.amenities : [],
@@ -1431,7 +1430,7 @@ export default function OwnerFacilityDetail() {
                   name: "", type: "tennis", description: "",
                   address: facility.address ?? "", city: facility.city ?? "",
                   latitude: facility.latitude ?? 0, longitude: facility.longitude ?? 0,
-                  pricePerHour: 20, bufferMinutes: 0,
+                  pricePerHour: 20,
                   imageUrl: "", ownershipDocUrl: "",
                   ownerName: user?.fullName ?? "Owner",
                   ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "",
@@ -1510,16 +1509,6 @@ export default function OwnerFacilityDetail() {
                           </FormControl>
                           <FormMessage />
                         </FormItem>
-                      )} />
-                      <FormField control={form.control} name="bufferMinutes" render={({ field }) => (
-                        <FormItem><FormLabel className="flex items-center gap-1.5"><Clock3 className="w-3.5 h-3.5 text-blue-400" /> Buferis (min)</FormLabel>
-                          <Select onValueChange={v => field.onChange(Number(v))} value={String(field.value ?? 0)}>
-                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="0">Nėra</SelectItem><SelectItem value="15">15 min</SelectItem>
-                              <SelectItem value="30">30 min</SelectItem><SelectItem value="60">60 min</SelectItem>
-                            </SelectContent>
-                          </Select><FormMessage /></FormItem>
                       )} />
                     </div>
 

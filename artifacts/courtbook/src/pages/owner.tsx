@@ -239,7 +239,6 @@ const courtSchema = z.object({
   longitude: z.coerce.number(),
   pricePerHour: z.coerce.number().min(1),
   peakPricePerHour: z.coerce.number().optional(),
-  bufferMinutes: z.coerce.number().min(0).max(120).default(0),
   ownershipDocUrl: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerName: z.string().min(2, "Owner name required"),

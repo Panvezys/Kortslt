@@ -165,7 +165,6 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
 
   const durationMinutes = reqEndMin - reqStartMin;
   const slotCount = Math.round(durationMinutes / 30);
-  const bufferMinutes = court.bufferMinutes ?? 0;
   const bookerUserId = getCurrentUserId(req);
 
   // ── Atomically check conflicts and insert within a serialized transaction ──
@@ -211,7 +210,7 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
 
       for (const b of conflictingBookings) {
         const bStart = toMin(b.startTime);
-        const bEnd = toMin(b.endTime) + bufferMinutes;
+        const bEnd = toMin(b.endTime);
         if (reqStartMin < bEnd && reqEndMin > bStart) {
           throw new BookingConflictError(409, { error: "Requested time slot is not available", code: "SLOT_UNAVAILABLE" });
         }

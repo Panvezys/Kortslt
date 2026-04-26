@@ -115,7 +115,6 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
           socialInstagram: court.socialInstagram,
           socialWhatsapp: court.socialWhatsapp,
           socialWebsite: court.socialWebsite,
-          bufferMinutes: court.bufferMinutes ?? 0,
         },
       });
       toast({ title: "Aikštelė atnaujinta ✓" });

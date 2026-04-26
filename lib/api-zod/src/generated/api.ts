@@ -54,7 +54,7 @@ export const ListCourtsResponseItem = zod.object({
   longitude: zod.number(),
   pricePerHour: zod.number(),
   peakPricePerHour: zod.number().optional(),
-  bufferMinutes: zod.number().optional(),
+
   rentableItems: zod.string().optional(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
@@ -107,7 +107,7 @@ export const CreateCourtBody = zod.object({
   longitude: zod.number(),
   pricePerHour: zod.number(),
   peakPricePerHour: zod.number().optional(),
-  bufferMinutes: zod.number().optional(),
+
   rentableItems: zod.string().optional(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
@@ -157,7 +157,7 @@ export const GetCourtResponse = zod.object({
   longitude: zod.number(),
   pricePerHour: zod.number(),
   peakPricePerHour: zod.number().optional(),
-  bufferMinutes: zod.number().optional(),
+
   rentableItems: zod.string().optional(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
@@ -214,7 +214,7 @@ export const UpdateCourtBody = zod.object({
   longitude: zod.number(),
   pricePerHour: zod.number(),
   peakPricePerHour: zod.number().optional(),
-  bufferMinutes: zod.number().optional(),
+
   rentableItems: zod.string().optional(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
@@ -256,7 +256,7 @@ export const UpdateCourtResponse = zod.object({
   longitude: zod.number(),
   pricePerHour: zod.number(),
   peakPricePerHour: zod.number().optional(),
-  bufferMinutes: zod.number().optional(),
+
   rentableItems: zod.string().optional(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),

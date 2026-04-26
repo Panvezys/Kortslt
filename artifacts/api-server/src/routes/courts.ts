@@ -31,7 +31,6 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     ...c,
     pricePerHour: Number(c.pricePerHour),
     peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
-    bufferMinutes: c.bufferMinutes ?? 0,
     rentableItems: c.rentableItems ?? undefined,
     description: c.description ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
@@ -70,7 +69,6 @@ function formatPublicCourt(c: typeof courtsTable.$inferSelect) {
     longitude: c.longitude,
     pricePerHour: Number(c.pricePerHour),
     peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
-    bufferMinutes: c.bufferMinutes ?? 0,
     rentableItems: c.rentableItems ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
     ownerName: c.ownerName,
@@ -266,7 +264,6 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       ...inheritedLocation,
       pricePerHour: String(parsed.data.pricePerHour),
       peakPricePerHour: parsed.data.peakPricePerHour != null ? String(parsed.data.peakPricePerHour) : null,
-      bufferMinutes: parsed.data.bufferMinutes ?? 0,
       rentableItems: parsed.data.rentableItems ?? null,
       amenities: parsed.data.amenities ?? [],
       condition: (parsed.data.condition ?? "good") as string,
@@ -357,7 +354,6 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       ...extraFields,
       pricePerHour: String(body.data.pricePerHour),
       peakPricePerHour: body.data.peakPricePerHour != null ? String(body.data.peakPricePerHour) : null,
-      bufferMinutes: body.data.bufferMinutes ?? 0,
       rentableItems: body.data.rentableItems ?? null,
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
@@ -496,22 +492,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
   const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
-  const bufferMinutes = court.bufferMinutes ?? 0;
-  const bufferSlots = Math.ceil(bufferMinutes / 30); // number of 30-min slots to block after a booking
-
-  // Build a set of buffer-blocked start times
-  const bufferBlockedTimes = new Set<string>();
-  if (bufferSlots > 0) {
-    const slotsArr = generateSlots(openTime, closeTime);
-    for (const booking of existingBookings) {
-      const endIdx = slotsArr.findIndex(s => s.startTime === booking.endTime);
-      if (endIdx >= 0) {
-        for (let i = endIdx; i < Math.min(endIdx + bufferSlots, slotsArr.length); i++) {
-          bufferBlockedTimes.add(slotsArr[i].startTime);
-        }
-      }
-    }
-  }
 
   const allSlots = generateSlots(openTime, closeTime).map(({ startTime, endTime }) => {
     const isBooked = existingBookings.some(
@@ -520,7 +500,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
     const isBlocked = blockedSlots.some(
       b => b.startTime <= startTime && b.endTime > startTime
     );
-    const isBuffer = bufferBlockedTimes.has(startTime);
 
     // Slot price: custom pricing > peak pricing > default
     let price: number;
@@ -532,7 +511,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
       price = defaultSlotPrice;
     }
 
-    return { startTime, endTime, isAvailable: !isBooked && !isBlocked && !isBuffer, price };
+    return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
   });
 
   res.json(GetCourtAvailabilityResponse.parse({
