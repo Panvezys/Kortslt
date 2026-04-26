@@ -15,7 +15,9 @@ function monthStart(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-/** GET /api/owner/dashboard — owner-only summary for the dashboard */
+/** GET /api/owner/dashboard — owner-only summary for the dashboard.
+ *  Optional query param: ?facilityId=N  →  scope to a single facility's courts.
+ */
 router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -23,25 +25,40 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
   const today = todayStr();
   const mStart = monthStart();
 
+  const scopedFacilityId = req.query.facilityId ? Number(req.query.facilityId) : undefined;
+
   const ownedFacilities = await db
-    .select({ id: facilitiesTable.id })
+    .select({ id: facilitiesTable.id, name: facilitiesTable.name })
     .from(facilitiesTable)
     .where(eq(facilitiesTable.ownerUserId, userId));
 
   const facilityIds = ownedFacilities.map(f => f.id);
 
+  // Verify the requested facility actually belongs to this owner
+  if (scopedFacilityId !== undefined && !facilityIds.includes(scopedFacilityId)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const facilityInfo = scopedFacilityId !== undefined
+    ? ownedFacilities.find(f => f.id === scopedFacilityId)
+    : undefined;
+
+  const courtsWhere = scopedFacilityId !== undefined
+    ? eq(courtsTable.facilityId, scopedFacilityId)
+    : or(
+        eq(courtsTable.ownerUserId, userId),
+        facilityIds.length > 0 ? inArray(courtsTable.facilityId, facilityIds) : sql`false`
+      );
+
   const courts = await db
     .select()
     .from(courtsTable)
-    .where(
-      or(
-        eq(courtsTable.ownerUserId, userId),
-        facilityIds.length > 0 ? inArray(courtsTable.facilityId, facilityIds) : sql`false`
-      )
-    );
+    .where(courtsWhere);
 
   if (courts.length === 0) {
     res.json({
+      facility: facilityInfo ?? null,
       courts: [],
       todayBookings: [],
       todayBlockedSlots: [],
@@ -127,10 +144,12 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
   ]);
 
   res.json({
+    facility: facilityInfo ?? null,
     courts: courts.map(c => ({
       id: c.id,
       name: c.name,
       type: c.type,
+      facilityId: c.facilityId,
       openingHours: c.openingHours,
       workingHours: c.workingHours,
     })),

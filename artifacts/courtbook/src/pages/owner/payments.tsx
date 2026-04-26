@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -14,15 +14,18 @@ import { useUser } from "@clerk/react";
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
 
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
-  { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
-  { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
-  { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
-];
+function buildNavItems(facilityId?: number) {
+  return [
+    { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
+    { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
+    { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
+    { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
+  ];
+}
 
-function Sidebar({ open, onClose, currentPath }: { open: boolean; onClose: () => void; currentPath: string }) {
+function Sidebar({ open, onClose, currentPath, facilityId }: { open: boolean; onClose: () => void; currentPath: string; facilityId?: number }) {
   const [, navigate] = useLocation();
+  const NAV_ITEMS = buildNavItems(facilityId);
   return (
     <>
       {open && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />}
@@ -67,6 +70,7 @@ function Sidebar({ open, onClose, currentPath }: { open: boolean; onClose: () =>
 }
 
 interface DashboardData {
+  facility: { id: number; name: string } | null;
   courts: { id: number; name: string; type: string }[];
   recentBookings: {
     id: number;
@@ -107,9 +111,15 @@ export default function OwnerPayments() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [stripeLoading, setStripeLoading] = useState(false);
 
+  const facilityId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("facility");
+    return v ? Number(v) : undefined;
+  }, [location]);
+
   const { data: dashData } = useQuery<DashboardData>({
-    queryKey: ["owner-dashboard"],
-    queryFn: () => customFetch<DashboardData>(`${API_URL}/owner/dashboard`),
+    queryKey: ["owner-dashboard", facilityId ?? "all"],
+    queryFn: () => customFetch<DashboardData>(facilityId ? `${API_URL}/owner/dashboard?facilityId=${facilityId}` : `${API_URL}/owner/dashboard`),
   });
 
   const { data: allBookings, isLoading } = useQuery<BookingItem[]>({
@@ -148,7 +158,7 @@ export default function OwnerPayments() {
 
   return (
     <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={facilityId} />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
@@ -156,7 +166,14 @@ export default function OwnerPayments() {
             <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-bold text-base">Mokėjimai</h1>
+            <div>
+              <h1 className="font-bold text-base leading-tight">
+                {dashData?.facility ? dashData.facility.name : "Mokėjimai"}
+              </h1>
+              {dashData?.facility && (
+                <p className="text-xs text-muted-foreground">Mokėjimai</p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Button

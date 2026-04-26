@@ -63,6 +63,7 @@ interface BlockedSlot {
 }
 
 interface DashboardData {
+  facility: { id: number; name: string } | null;
   courts: OwnerCourt[];
   todayBookings: OwnerBooking[];
   todayBlockedSlots: BlockedSlot[];
@@ -158,8 +159,8 @@ function buildNavItems(facilityId?: number) {
   return [
     { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
-    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
-    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
+    { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
+    { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
   ];
 }
 
@@ -489,9 +490,13 @@ export default function OwnerDashboard() {
   const today = new Date();
   const todayLabel = today.toLocaleDateString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 
+  const apiUrl = facilityId
+    ? `${API_URL}/owner/dashboard?facilityId=${facilityId}`
+    : `${API_URL}/owner/dashboard`;
+
   const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["owner-dashboard"],
-    queryFn: () => customFetch<DashboardData>(`${API_URL}/owner/dashboard`),
+    queryKey: ["owner-dashboard", facilityId ?? "all"],
+    queryFn: () => customFetch<DashboardData>(apiUrl),
     refetchInterval: 60_000,
   });
 
@@ -578,8 +583,12 @@ export default function OwnerDashboard() {
               <Menu className="h-5 w-5" />
             </button>
             <div>
-              <h1 className="font-bold text-base leading-tight">Suvestinė</h1>
-              <p className="text-xs text-muted-foreground capitalize hidden sm:block">{todayLabel}</p>
+              <h1 className="font-bold text-base leading-tight">
+                {data?.facility ? data.facility.name : "Suvestinė"}
+              </h1>
+              <p className="text-xs text-muted-foreground capitalize hidden sm:block">
+                {data?.facility ? "Suvestinė · " : ""}{todayLabel}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

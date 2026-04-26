@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
-  Menu, X, LogOut, Save, Clock, ChevronDown, ChevronUp,
+  Menu, X, LogOut, Save,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
@@ -17,15 +17,18 @@ const API_URL = `${BASE_URL}/api`;
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
-  { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
-  { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
-  { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
-];
+function buildNavItems(facilityId?: number) {
+  return [
+    { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
+    { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
+    { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
+    { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
+  ];
+}
 
-function Sidebar({ open, onClose, currentPath }: { open: boolean; onClose: () => void; currentPath: string }) {
+function Sidebar({ open, onClose, currentPath, facilityId }: { open: boolean; onClose: () => void; currentPath: string; facilityId?: number }) {
   const [, navigate] = useLocation();
+  const NAV_ITEMS = buildNavItems(facilityId);
   return (
     <>
       {open && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />}
@@ -44,12 +47,17 @@ function Sidebar({ open, onClose, currentPath }: { open: boolean; onClose: () =>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">Valdymas</p>
           {NAV_ITEMS.map(item => {
-            const active = currentPath === item.href;
+            const active = currentPath.startsWith(item.href.split("?")[0]) && item.label === "Nustatymai";
             return (
               <a
                 key={item.label}
                 href={item.href}
-                onClick={e => { e.preventDefault(); onClose(); navigate(item.href.replace(BASE_URL, "") || "/"); }}
+                onClick={e => {
+                  e.preventDefault();
+                  onClose();
+                  const path = item.href.replace(BASE_URL, "") || "/";
+                  navigate(path);
+                }}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                   active ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
@@ -88,13 +96,13 @@ interface Facility {
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 const DAYS: { key: DayKey; label: string }[] = [
-  { key: "monday", label: "Pirmadienis" },
-  { key: "tuesday", label: "Antradienis" },
+  { key: "monday",    label: "Pirmadienis" },
+  { key: "tuesday",   label: "Antradienis" },
   { key: "wednesday", label: "Trečiadienis" },
-  { key: "thursday", label: "Ketvirtadienis" },
-  { key: "friday", label: "Penktadienis" },
-  { key: "saturday", label: "Šeštadienis" },
-  { key: "sunday", label: "Sekmadienis" },
+  { key: "thursday",  label: "Ketvirtadienis" },
+  { key: "friday",    label: "Penktadienis" },
+  { key: "saturday",  label: "Šeštadienis" },
+  { key: "sunday",    label: "Sekmadienis" },
 ];
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, "0")}:00`);
@@ -120,6 +128,12 @@ export default function OwnerSettings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tab, setTab] = useState<"profile" | "rules" | "hours">("profile");
 
+  const facilityId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("facility");
+    return v ? Number(v) : undefined;
+  }, [location]);
+
   // ── Profile tab state
   const [profileName, setProfileName] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
@@ -136,11 +150,15 @@ export default function OwnerSettings() {
   const [businessHours, setBusinessHours] = useState<Record<DayKey, { open: string; close: string; closed: boolean }>>(DEFAULT_HOURS);
 
   const { data: facilities, isLoading } = useQuery<Facility[]>({
-    queryKey: ["facilities"],
-    queryFn: () => customFetch(`${API_URL}/facilities`).then(r => r.json()),
+    queryKey: ["owner-facilities"],
+    queryFn: () => customFetch<Facility[]>(`${API_URL}/facilities`),
   });
 
-  const facility = facilities?.[0];
+  const facility = useMemo(() => {
+    if (!facilities) return undefined;
+    if (facilityId) return facilities.find(f => f.id === facilityId);
+    return facilities[0];
+  }, [facilities, facilityId]);
 
   useEffect(() => {
     if (!facility) return;
@@ -163,17 +181,15 @@ export default function OwnerSettings() {
   const mutation = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
       if (!facility) throw new Error("No facility");
-      const r = await customFetch(`${API_URL}/facilities/${facility.id}`, {
+      return customFetch(`${API_URL}/facilities/${facility.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      if (!r.ok) throw new Error("Klaida išsaugant");
-      return r.json();
     },
     onSuccess: () => {
       toast({ title: "Išsaugota" });
-      queryClient.invalidateQueries({ queryKey: ["facilities"] });
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
     },
     onError: (e: Error) => toast({ title: "Klaida", description: e.message, variant: "destructive" }),
   });
@@ -206,13 +222,13 @@ export default function OwnerSettings() {
 
   const TABS = [
     { key: "profile" as const, label: "Profilis" },
-    { key: "rules" as const, label: "Taisyklės" },
-    { key: "hours" as const, label: "Darbo grafikas" },
+    { key: "rules"   as const, label: "Taisyklės" },
+    { key: "hours"   as const, label: "Darbo grafikas" },
   ];
 
   return (
     <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={facilityId} />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
@@ -220,7 +236,14 @@ export default function OwnerSettings() {
             <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-bold text-base">Nustatymai</h1>
+            <div>
+              <h1 className="font-bold text-base leading-tight">
+                {facility ? facility.name : "Nustatymai"}
+              </h1>
+              {facility && (
+                <p className="text-xs text-muted-foreground">Nustatymai</p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 pl-2">
             {user?.imageUrl
@@ -243,7 +266,6 @@ export default function OwnerSettings() {
             </div>
           ) : (
             <div className="max-w-2xl space-y-5">
-              {/* Tab bar */}
               <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit">
                 {TABS.map(t => (
                   <button
