@@ -495,10 +495,7 @@ export default function OwnerDashboard() {
     refetchInterval: 60_000,
   });
 
-  const allCourts = data?.courts ?? [];
-  const courts = facilityId
-    ? allCourts.filter(c => (c as any).facilityId === facilityId)
-    : allCourts;
+  const courts = data?.courts ?? [];
   const todayBookings = data?.todayBookings ?? [];
   const todayBlockedSlots = data?.todayBlockedSlots ?? [];
   const recentBookings = data?.recentBookings ?? [];
