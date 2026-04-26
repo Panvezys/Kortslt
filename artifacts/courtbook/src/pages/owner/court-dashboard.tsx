@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
-  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink,
+  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Check,
 } from "lucide-react";
 import { CourtIcon } from "@/components/sport-icon";
 
@@ -28,11 +28,14 @@ const SPORT_EMOJIS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  awaiting_approval: "bg-orange-500/10 text-orange-600 border-orange-500/30",
   cancelled: "bg-red-500/10 text-red-500 border-red-500/20",
   rejected: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 const STATUS_LT: Record<string, string> = {
-  confirmed: "Patvirtinta", pending: "Laukiama", cancelled: "Atšaukta", rejected: "Atmesta",
+  confirmed: "Patvirtinta", pending: "Laukiama",
+  awaiting_approval: "Laukia patvirtinimo",
+  cancelled: "Atšaukta", rejected: "Atmesta",
 };
 
 function todayStr() {
@@ -214,11 +217,22 @@ function WeeklyCalendar({ weeklyBookings }: { weeklyBookings: Booking[] }) {
   );
 }
 
-function BookingRow({ booking }: { booking: Booking }) {
+function BookingRow({
+  booking,
+  onApprove,
+  onReject,
+  isBusy,
+}: {
+  booking: Booking;
+  onApprove: (b: Booking) => void;
+  onReject: (b: Booking) => void;
+  isBusy: boolean;
+}) {
   const statusClass = STATUS_COLORS[booking.status] ?? "bg-muted text-muted-foreground border-border";
   const statusLabel = STATUS_LT[booking.status] ?? booking.status;
+  const isAwaiting = booking.status === "awaiting_approval";
   return (
-    <div className="flex items-center justify-between py-3 border-b border-border/60 last:border-0 gap-2">
+    <div className={`flex flex-wrap items-center justify-between py-3 border-b border-border/60 last:border-0 gap-2 ${isAwaiting ? "bg-orange-500/[0.04] -mx-4 px-4" : ""}`}>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{booking.customerName}</p>
         <p className="text-xs text-muted-foreground">
@@ -229,6 +243,26 @@ function BookingRow({ booking }: { booking: Booking }) {
         <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusClass}`}>{statusLabel}</span>
         <span className="text-sm font-semibold">{fmtPrice(booking.totalPrice)}</span>
       </div>
+      {isAwaiting && (
+        <div className="flex w-full items-center justify-end gap-2 mt-1">
+          <Button
+            size="sm" variant="outline"
+            className="h-7 px-2.5 text-xs gap-1 border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+            disabled={isBusy}
+            onClick={() => onReject(booking)}
+          >
+            <XCircle className="w-3.5 h-3.5" /> Atmesti
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 px-2.5 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
+            disabled={isBusy}
+            onClick={() => onApprove(booking)}
+          >
+            <Check className="w-3.5 h-3.5" /> Patvirtinti
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -241,11 +275,48 @@ export default function OwnerCourtDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
 
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery<CourtStats>({
     queryKey: ["owner-court-stats", courtId],
     queryFn: () => customFetch<CourtStats>(`${API_URL}/owner/courts/${courtId}/stats`),
     enabled: !!courtId,
   });
+
+  const approveMutation = useMutation({
+    mutationFn: (bookingId: number) =>
+      customFetch(`${API_URL}/owner/bookings/${bookingId}/approve`, { method: "PATCH" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", courtId] });
+      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    },
+    onError: (err: any) => alert(err?.message || "Nepavyko patvirtinti rezervacijos"),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ bookingId, reason }: { bookingId: number; reason?: string }) =>
+      customFetch(`${API_URL}/owner/bookings/${bookingId}/reject`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", courtId] });
+      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+    },
+    onError: (err: any) => alert(err?.message || "Nepavyko atmesti rezervacijos"),
+  });
+
+  const handleApprove = (b: Booking) => {
+    if (confirm(`Patvirtinti rezervaciją: ${b.customerName} ${b.date} ${b.startTime}–${b.endTime}?`)) {
+      approveMutation.mutate(b.id);
+    }
+  };
+  const handleReject = (b: Booking) => {
+    const reason = prompt(`Atmesti rezervaciją (${b.customerName})?\n\nNurodykite priežastį (neprivaloma) — klientas tai pamatys:`, "");
+    if (reason === null) return;
+    rejectMutation.mutate({ bookingId: b.id, reason: reason || undefined });
+  };
+  const isBusy = approveMutation.isPending || rejectMutation.isPending;
 
   const today = todayStr();
 
@@ -409,7 +480,15 @@ export default function OwnerCourtDashboard() {
                 </div>
               ) : (
                 <div>
-                  {displayedBookings.map(b => <BookingRow key={b.id} booking={b} />)}
+                  {displayedBookings.map(b => (
+                    <BookingRow
+                      key={b.id}
+                      booking={b}
+                      onApprove={handleApprove}
+                      onReject={handleReject}
+                      isBusy={isBusy}
+                    />
+                  ))}
                 </div>
               )}
             </div>

@@ -8,6 +8,9 @@ type NotifType =
   | "game_cancelled"
   | "booking_created"
   | "booking_cancelled"
+  | "booking_awaiting_approval"
+  | "booking_approved"
+  | "booking_rejected"
   | "court_approved"
   | "court_rejected"
   | "facility_approved"
@@ -22,6 +25,9 @@ const TYPE_TO_SETTING: Partial<Record<NotifType, keyof typeof notificationSettin
   game_cancelled: "gameCancelled",
   booking_created: "bookingCreated",
   booking_cancelled: "bookingCancelled",
+  booking_awaiting_approval: "bookingCreated",
+  booking_approved: "bookingCreated",
+  booking_rejected: "bookingCancelled",
   court_approved: "courtApproved",
   court_rejected: "courtApproved",
   facility_approved: "courtApproved",

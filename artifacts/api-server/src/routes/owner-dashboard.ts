@@ -94,7 +94,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
         and(
           inArray(bookingsTable.courtId, courtIds),
           eq(bookingsTable.date, today),
-          inArray(bookingsTable.status, ["confirmed", "pending"]),
+          inArray(bookingsTable.status, ["confirmed", "pending", "awaiting_approval"]),
         )
       ),
 
@@ -131,7 +131,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
     db
       .select({
         revenue: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} = 'confirmed' THEN ${bookingsTable.totalPrice}::numeric ELSE 0 END), 0)`,
-        bookingCount: sql<string>`COUNT(CASE WHEN ${bookingsTable.status} IN ('confirmed','pending') THEN 1 END)`,
+        bookingCount: sql<string>`COUNT(CASE WHEN ${bookingsTable.status} IN ('confirmed','pending','awaiting_approval') THEN 1 END)`,
       })
       .from(bookingsTable)
       .where(
