@@ -3,11 +3,11 @@ import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
-  Menu, X, LogOut, Euro, TrendingUp, CalendarDays, CheckCircle2, Clock,
+  Menu, X, LogOut, Euro, TrendingUp, CalendarDays, CheckCircle2, Clock, ExternalLink,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
 
@@ -105,15 +105,16 @@ export default function OwnerPayments() {
   const currentPath = `${BASE_URL}${location}`;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   const { data: dashData } = useQuery<DashboardData>({
     queryKey: ["owner-dashboard"],
-    queryFn: () => customFetch(`${API_URL}/owner/dashboard`).then(r => r.json()),
+    queryFn: () => customFetch<DashboardData>(`${API_URL}/owner/dashboard`),
   });
 
   const { data: allBookings, isLoading } = useQuery<BookingItem[]>({
     queryKey: ["owner-bookings-all"],
-    queryFn: () => customFetch(`${API_URL}/bookings`).then(r => r.json()),
+    queryFn: () => customFetch<BookingItem[]>(`${API_URL}/bookings`),
     select: (data) => {
       const ownerCourtIds = new Set(dashData?.courts.map(c => c.id) ?? []);
       return (Array.isArray(data) ? data : [])
@@ -134,6 +135,17 @@ export default function OwnerPayments() {
   const confirmedCount = (allBookings ?? []).filter(b => b.status === "confirmed").length;
   const pendingCount = (allBookings ?? []).filter(b => b.status === "pending").length;
 
+  const openStripeDashboard = async () => {
+    setStripeLoading(true);
+    try {
+      const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    } catch {
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-muted/20 overflow-hidden">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} />
@@ -146,18 +158,30 @@ export default function OwnerPayments() {
             </button>
             <h1 className="font-bold text-base">Mokėjimai</h1>
           </div>
-          <div className="flex items-center gap-2 pl-2">
-            {user?.imageUrl
-              ? <img src={user.imageUrl} className="w-7 h-7 rounded-full object-cover" />
-              : <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">{user?.firstName?.[0] ?? "O"}</div>
-            }
-            <span className="text-sm font-medium hidden sm:block">{user?.firstName ?? "Savininkas"}</span>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={stripeLoading}
+              onClick={openStripeDashboard}
+            >
+              <CreditCard className="h-4 w-4" />
+              <span className="hidden sm:inline">Stripe suvestinė</span>
+              <ExternalLink className="h-3 w-3" />
+            </Button>
+            <div className="flex items-center gap-2 pl-2 border-l border-border">
+              {user?.imageUrl
+                ? <img src={user.imageUrl} className="w-7 h-7 rounded-full object-cover" />
+                : <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">{user?.firstName?.[0] ?? "O"}</div>
+              }
+              <span className="text-sm font-medium hidden sm:block">{user?.firstName ?? "Savininkas"}</span>
+            </div>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
 
-          {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
@@ -191,7 +215,6 @@ export default function OwnerPayments() {
             </div>
           </div>
 
-          {/* Bookings table */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h2 className="font-semibold text-sm">Rezervacijų istorija</h2>

@@ -36,7 +36,7 @@ function hhmm(hour: number): string {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface OwnerCourt { id: number; name: string; type: string }
+interface OwnerCourt { id: number; name: string; type: string; facilityId?: number }
 
 interface OwnerBooking {
   id: number;
@@ -154,15 +154,18 @@ function SlotCell({
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
-  { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
-  { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
-  { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
-];
+function buildNavItems(facilityId?: number) {
+  return [
+    { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
+    { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
+    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
+    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
+  ];
+}
 
-function Sidebar({ open, onClose, currentPath }: { open: boolean; onClose: () => void; currentPath: string }) {
+function Sidebar({ open, onClose, currentPath, facilityId }: { open: boolean; onClose: () => void; currentPath: string; facilityId?: number }) {
   const [, navigate] = useLocation();
+  const NAV_ITEMS = buildNavItems(facilityId);
   return (
     <>
       {open && (
@@ -472,6 +475,11 @@ export default function OwnerDashboard() {
   const [location] = useLocation();
   const currentPath = `${BASE_URL}${location}`;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const facilityId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get("facility");
+    return v ? Number(v) : undefined;
+  }, [location]);
   const [blockOpen, setBlockOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreCourtId, setManualPreCourtId] = useState<number | undefined>();
@@ -487,7 +495,10 @@ export default function OwnerDashboard() {
     refetchInterval: 60_000,
   });
 
-  const courts = data?.courts ?? [];
+  const allCourts = data?.courts ?? [];
+  const courts = facilityId
+    ? allCourts.filter(c => (c as any).facilityId === facilityId)
+    : allCourts;
   const todayBookings = data?.todayBookings ?? [];
   const todayBlockedSlots = data?.todayBlockedSlots ?? [];
   const recentBookings = data?.recentBookings ?? [];
@@ -559,7 +570,7 @@ export default function OwnerDashboard() {
 
   return (
     <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={facilityId} />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 

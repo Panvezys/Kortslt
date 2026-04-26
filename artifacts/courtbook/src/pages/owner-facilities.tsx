@@ -15,9 +15,9 @@ import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtIcon } from "@/components/sport-icon";
 import {
-  Plus, Building2, MapPin, ChevronRight, Users,
+  Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
-  LayoutDashboard,
+  LayoutDashboard, Lock, AlertTriangle,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -100,6 +100,7 @@ export default function OwnerFacilities() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<FacilityWithCourts | null>(null);
+  const [formTab, setFormTab] = useState<"pagrindai" | "vieta" | "imone" | "kontaktai" | "dokumentas">("pagrindai");
   const [mapKey, setMapKey] = useState(0);
   const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -223,12 +224,14 @@ export default function OwnerFacilities() {
   const openCreate = () => {
     setEditingFacility(null);
     resetForm();
+    setFormTab("pagrindai");
     setDialogOpen(true);
   };
 
   const openEdit = (f: FacilityWithCourts, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingFacility(f);
+    setFormTab("pagrindai");
     setFormData({
       name: f.name || "",
       description: f.description || "",
@@ -408,7 +411,7 @@ export default function OwnerFacilities() {
                   onClick={() => navigate(`/owner/facility/${facility.id}`)}
                   className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5"
                 >
-                  <div className="relative h-48 bg-muted overflow-hidden">
+                  <div className="relative h-32 bg-muted overflow-hidden">
                     {image ? (
                       <img
                         src={image.startsWith("http") ? image : `${BASE_URL}/${image}`}
@@ -523,7 +526,7 @@ export default function OwnerFacilities() {
                         variant="outline"
                         size="sm"
                         className="gap-2"
-                        onClick={(e) => { e.stopPropagation(); navigate("/owner/dashboard"); }}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/owner/dashboard?facility=${facility.id}`); }}
                       >
                         <LayoutDashboard className="w-4 h-4" />
                         Suvestinė
@@ -536,7 +539,7 @@ export default function OwnerFacilities() {
 
             <div
               onClick={openCreate}
-              className="group border-2 border-dashed border-border rounded-2xl min-h-[320px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+              className="group border-2 border-dashed border-border rounded-2xl min-h-[180px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
             >
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <Plus className="w-7 h-7 text-primary" />
@@ -559,155 +562,194 @@ export default function OwnerFacilities() {
                 {editingFacility ? "Redaguoti objektą" : "Naujas objektas"}
               </DialogTitle>
             </DialogHeader>
+
+            <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
+              {([
+                { id: "pagrindai", label: "Pagrindai" },
+                { id: "vieta",     label: "Vieta" },
+                { id: "imone",     label: "Įmonė" },
+                { id: "kontaktai", label: "Kontaktai" },
+                { id: "dokumentas", label: "Dokumentas" },
+              ] as const).map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setFormTab(t.id)}
+                  className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                    formTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >{t.label}</button>
+              ))}
+            </div>
+
             <div className="space-y-4 pt-2">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Objekto pavadinimas *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={e => setFormData(d => ({ ...d, name: e.target.value }))}
-                  placeholder="pvz. Vilniaus Teniso Klubas"
-                />
-                {!formData.name.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
-              </div>
+              {formTab === "pagrindai" && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Objekto pavadinimas *</Label>
+                    <Input
+                      value={formData.name}
+                      onChange={e => setFormData(d => ({ ...d, name: e.target.value }))}
+                      placeholder="pvz. Vilniaus Teniso Klubas"
+                    />
+                    {!formData.name.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Aprašymas</Label>
+                    <Textarea
+                      value={formData.description}
+                      onChange={e => setFormData(d => ({ ...d, description: e.target.value }))}
+                      placeholder="Trumpas objekto aprašymas..."
+                      rows={4}
+                    />
+                  </div>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Įmonės pavadinimas</Label>
-                  <Input
-                    value={formData.companyName}
-                    onChange={e => setFormData(d => ({ ...d, companyName: e.target.value }))}
-                    placeholder="UAB Sportas"
+              {formTab === "vieta" && (
+                <div className="space-y-4">
+                  <LocationPicker
+                    key={mapKey}
+                    latitude={formData.latitude || 0}
+                    longitude={formData.longitude || 0}
+                    onChange={(result: LocationPickerResult) => {
+                      setFormData(d => ({
+                        ...d,
+                        latitude: result.lat,
+                        longitude: result.lng,
+                        ...(result.city ? { city: result.city } : {}),
+                        ...(result.address ? { address: result.address } : {}),
+                        ...(result.postcode != null ? { postcode: result.postcode } : {}),
+                      }));
+                    }}
                   />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Adresas *</Label>
+                      <Input
+                        value={formData.address}
+                        onChange={e => setFormData(d => ({ ...d, address: e.target.value }))}
+                        placeholder="Auto-užpildoma iš žemėlapio"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Miestas *</Label>
+                      <Input
+                        value={formData.city}
+                        onChange={e => setFormData(d => ({ ...d, city: e.target.value }))}
+                        placeholder="Auto-užpildoma iš žemėlapio"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Pašto kodas</Label>
+                      <Input
+                        value={formData.postcode}
+                        onChange={e => setFormData(d => ({ ...d, postcode: e.target.value }))}
+                        placeholder="LT-XXXXX"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Platuma (auto)</Label>
+                      <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.latitude || ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Ilguma (auto)</Label>
+                      <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.longitude || ""} />
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Įm. kodas</Label>
-                  <Input
-                    value={formData.registrationCode}
-                    onChange={e => setFormData(d => ({ ...d, registrationCode: e.target.value }))}
-                    placeholder="123456789"
-                  />
-                </div>
-              </div>
+              )}
 
-              <div className="space-y-1.5">
-                <Label className="text-sm">Aprašymas</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={e => setFormData(d => ({ ...d, description: e.target.value }))}
-                  placeholder="Trumpas objekto aprašymas..."
-                  rows={2}
-                />
-              </div>
+              {formTab === "imone" && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-200">Įmonės pavadinimas ir kodas reikalingi administratoriaus patvirtinimo. Pakeitimai bus peržiūrėti prieš aktyvuojant.</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm flex items-center gap-1.5">
+                      Įmonės pavadinimas <Lock className="w-3 h-3 text-muted-foreground" />
+                    </Label>
+                    <Input
+                      value={formData.companyName}
+                      onChange={e => setFormData(d => ({ ...d, companyName: e.target.value }))}
+                      placeholder="UAB Sportas"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm flex items-center gap-1.5">
+                      Įmonės kodas <Lock className="w-3 h-3 text-muted-foreground" />
+                    </Label>
+                    <Input
+                      value={formData.registrationCode}
+                      onChange={e => setFormData(d => ({ ...d, registrationCode: e.target.value }))}
+                      placeholder="123456789"
+                    />
+                  </div>
+                </div>
+              )}
 
-              <LocationPicker
-                key={mapKey}
-                latitude={formData.latitude || 0}
-                longitude={formData.longitude || 0}
-                onChange={(result: LocationPickerResult) => {
-                  setFormData(d => ({
-                    ...d,
-                    latitude: result.lat,
-                    longitude: result.lng,
-                    ...(result.city ? { city: result.city } : {}),
-                    ...(result.address ? { address: result.address } : {}),
-                    ...(result.postcode != null ? { postcode: result.postcode } : {}),
-                  }));
-                }}
-              />
+              {formTab === "kontaktai" && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Telefonas</Label>
+                    <Input
+                      value={formData.phone}
+                      onChange={e => setFormData(d => ({ ...d, phone: e.target.value }))}
+                      placeholder="+370..."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">El. paštas</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={e => setFormData(d => ({ ...d, email: e.target.value }))}
+                      placeholder="info@klubas.lt"
+                    />
+                  </div>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Adresas *</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={e => setFormData(d => ({ ...d, address: e.target.value }))}
-                    placeholder="Auto-užpildoma iš žemėlapio"
-                  />
-                  {!formData.address.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
+              {formTab === "dokumentas" && (
+                <div className="space-y-4">
+                  <div className="rounded-xl border p-4 space-y-3">
+                    <Label className="text-sm font-semibold">Nuosavybės dokumentas</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Įkelkite dokumentą, patvirtinantį, kad esate objekto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins objektą.
+                    </p>
+                    <input
+                      ref={docInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
+                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => docInputRef.current?.click()}
+                        disabled={ownershipDocUploading}
+                        className="gap-2"
+                      >
+                        {ownershipDocUploading
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <FileUp className="w-4 h-4" />}
+                        {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
+                      </Button>
+                      {formData.ownershipDocUrl && (
+                        <span className="text-xs text-green-400 flex items-center gap-1">
+                          ✓ Dokumentas įkeltas
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Miestas *</Label>
-                  <Input
-                    value={formData.city}
-                    onChange={e => setFormData(d => ({ ...d, city: e.target.value }))}
-                    placeholder="Auto-užpildoma iš žemėlapio"
-                  />
-                  {!formData.city.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm text-muted-foreground">Pašto kodas</Label>
-                  <Input
-                    value={formData.postcode}
-                    onChange={e => setFormData(d => ({ ...d, postcode: e.target.value }))}
-                    placeholder="LT-XXXXX"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Platuma (auto)</Label>
-                  <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.latitude || ""} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Ilguma (auto)</Label>
-                  <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={formData.longitude || ""} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Telefonas</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={e => setFormData(d => ({ ...d, phone: e.target.value }))}
-                    placeholder="+370..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">El. paštas</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={e => setFormData(d => ({ ...d, email: e.target.value }))}
-                    placeholder="info@klubas.lt"
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-xl border p-4 space-y-3">
-                <Label className="text-sm font-semibold">Nuosavybės dokumentas</Label>
-                <p className="text-xs text-muted-foreground">
-                  Įkelkite dokumentą, patvirtinantį, kad esate objekto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins objektą.
-                </p>
-                <input
-                  ref={docInputRef}
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
-                />
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => docInputRef.current?.click()}
-                    disabled={ownershipDocUploading}
-                    className="gap-2"
-                  >
-                    {ownershipDocUploading
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <FileUp className="w-4 h-4" />}
-                    {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
-                  </Button>
-                  {formData.ownershipDocUrl && (
-                    <span className="text-xs text-green-400 flex items-center gap-1">
-                      ✓ Dokumentas įkeltas
-                    </span>
-                  )}
-                </div>
-              </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" onClick={() => { setDialogOpen(false); setEditingFacility(null); }} className="flex-1">
