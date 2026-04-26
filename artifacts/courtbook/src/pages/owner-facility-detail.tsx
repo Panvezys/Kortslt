@@ -71,6 +71,30 @@ function generateTimeSlots() {
 }
 const TIME_SLOTS = generateTimeSlots();
 
+function generateTimeSlotsRange(open: string, close: string): string[] {
+  const toM = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const openMin = toM(open);
+  const closeMin = toM(close);
+  const slots: string[] = [];
+  for (let m = openMin; m + 30 <= closeMin; m += 30) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    slots.push(`${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`);
+  }
+  return slots;
+}
+
+function slotsForDayFromJson(workingHoursJson: string | null | undefined, dayOfWeek: number): string[] | null {
+  if (!workingHoursJson) return null;
+  try {
+    const wh = JSON.parse(workingHoursJson) as Record<string, { open: string; close: string; closed: boolean }>;
+    const day = wh[String(dayOfWeek)];
+    if (!day) return null;
+    if (day.closed) return [];
+    return generateTimeSlotsRange(day.open, day.close);
+  } catch { return null; }
+}
+
 type WorkingHourDay = { open: string; close: string; closed: boolean };
 type WorkingHoursMap = Record<string, WorkingHourDay>;
 function defaultWorkingHours(): WorkingHoursMap {
@@ -222,7 +246,7 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
   );
 }
 
-function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; defaultPrice: number; onClose: () => void }) {
+function PricingEditor({ courtId, defaultPrice, workingHours, onClose }: { courtId: number; defaultPrice: number; workingHours?: string | null; onClose: () => void }) {
   const { toast } = useToast();
   const [selectedDay, setSelectedDay] = useState(1);
   const defaultSlotPrice = defaultPrice / 2;
@@ -239,6 +263,14 @@ function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; de
       setPriceMap(map);
     }
   }, [pricing]);
+
+  const isDayClosed = (day: number) => {
+    const slots = slotsForDayFromJson(workingHours, day);
+    return slots !== null && slots.length === 0;
+  };
+
+  const daySlotsActive = slotsForDayFromJson(workingHours, selectedDay) ?? TIME_SLOTS;
+  const selectedDayClosed = isDayClosed(selectedDay);
 
   const getPrice = (day: number, startTime: string) => {
     const key = `${day}:${startTime}`;
@@ -279,45 +311,55 @@ function PricingEditor({ courtId, defaultPrice, onClose }: { courtId: number; de
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Nustatykite kainą kiekvienam 30 min. laiko tarpui. Numatytoji kaina: <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min.</p>
       <div className="flex gap-1.5 flex-wrap">
-        {DAYS.map((day, i) => (
-          <button key={i} type="button" onClick={() => setSelectedDay(i)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${selectedDay === i ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}
-          >{DAY_SHORT[i]}</button>
-        ))}
+        {DAYS.map((day, i) => {
+          const closed = isDayClosed(i);
+          return (
+            <button key={i} type="button" onClick={() => !closed && setSelectedDay(i)}
+              disabled={closed}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${closed ? "opacity-40 cursor-not-allowed border-border bg-muted text-muted-foreground line-through" : selectedDay === i ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}
+            >{DAY_SHORT[i]}</button>
+          );
+        })}
       </div>
       <div className="border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
           <span className="text-sm font-semibold">{DAYS[selectedDay]}</span>
-          <button type="button" onClick={() => resetDay(selectedDay)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <RotateCcw className="w-3.5 h-3.5" /> Atstatyti numatytąją
-          </button>
+          {!selectedDayClosed && (
+            <button type="button" onClick={() => resetDay(selectedDay)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <RotateCcw className="w-3.5 h-3.5" /> Atstatyti numatytąją
+            </button>
+          )}
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-px bg-border max-h-72 overflow-y-auto">
-          {TIME_SLOTS.map(startTime => {
-            const key = `${selectedDay}:${startTime}`;
-            const isEditing = editingKey === key;
-            const price = getPrice(selectedDay, startTime);
-            const isCustom = priceMap.has(key);
-            return (
-              <div key={startTime}
-                className={`bg-card p-2 flex flex-col items-center gap-0.5 cursor-pointer hover:bg-primary/5 transition-colors ${isEditing ? "bg-primary/10 ring-1 ring-primary" : ""}`}
-                onClick={() => !isEditing && startEdit(selectedDay, startTime)}>
-                <span className="text-xs text-muted-foreground font-medium">{startTime}</span>
-                {isEditing ? (
-                  <input autoFocus type="number" value={editValue} min={0} step={0.5}
-                    onChange={e => setEditValue(e.target.value)} onBlur={commitEdit}
-                    onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingKey(null); }}
-                    className="w-full text-center text-xs font-bold bg-transparent border-0 outline-none p-0 text-primary"
-                    onClick={e => e.stopPropagation()} />
-                ) : (
+        {selectedDayClosed ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Ši diena uždaryta pagal darbo valandas</div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-px bg-border max-h-72 overflow-y-auto">
+            {daySlotsActive.map(startTime => {
+              const key = `${selectedDay}:${startTime}`;
+              const isEditing = editingKey === key;
+              const price = getPrice(selectedDay, startTime);
+              const isCustom = priceMap.has(key);
+              return (
+                <div key={startTime}
+                  className={`bg-card p-2 flex flex-col items-center gap-0.5 cursor-pointer hover:bg-primary/5 transition-colors ${isEditing ? "bg-primary/10 ring-1 ring-primary" : ""}`}
+                  onClick={() => !isEditing && startEdit(selectedDay, startTime)}>
+                  <span className="text-xs text-muted-foreground font-medium">{startTime}</span>
+                  {isEditing ? (
+                    <input autoFocus type="number" value={editValue} min={0} step={0.5}
+                      onChange={e => setEditValue(e.target.value)} onBlur={commitEdit}
+                      onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingKey(null); }}
+                      className="w-full text-center text-xs font-bold bg-transparent border-0 outline-none p-0 text-primary"
+                      onClick={e => e.stopPropagation()} />
+                  ) : (
                     <span className={`text-sm font-bold flex items-center gap-0.5 ${isCustom ? "text-primary" : "text-foreground"}`}>
-                    <Euro className="w-3 h-3" />{price.toFixed(2)}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                      <Euro className="w-3 h-3" />{price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="flex gap-3 justify-end pt-2">
         <Button variant="outline" onClick={onClose}>Atšaukti</Button>
@@ -1019,6 +1061,7 @@ export default function OwnerFacilityDetail() {
   const [mapKey, setMapKey] = useState(0);
   const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
   const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
+  const [pricingWorkingHours, setPricingWorkingHours] = useState<string | null>(null);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
   const [freeBookingCourtId, setFreeBookingCourtId] = useState<number | null>(null);
@@ -1515,46 +1558,57 @@ export default function OwnerFacilityDetail() {
                         <span className="text-xs text-muted-foreground">Numatytoji: {(Number(form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
                       </div>
                       <div className="flex gap-1 flex-wrap">
-                        {DAYS.map((day, i) => (
-                          <button key={i} type="button" onClick={() => setPricingDay(i)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${pricingDay === i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-                          >{DAY_SHORT[i]}</button>
-                        ))}
-                        <button type="button" onClick={() => {
-                          setLocalPricingMap(prev => { const next = new Map(prev); TIME_SLOTS.forEach(s => next.delete(`${pricingDay}:${s}`)); return next; });
-                        }} className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" /> Atstatyti dieną
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto pr-1">
-                        {TIME_SLOTS.map(slot => {
-                          const key = `${pricingDay}:${slot}`;
-                          const defaultHalf = (form.watch("pricePerHour") || 20) / 2;
-                          const slotPrice = localPricingMap.has(key) ? localPricingMap.get(key)! : defaultHalf;
-                          const isOverridden = localPricingMap.has(key);
-                          const isEditing = pricingEditKey === key;
+                        {DAYS.map((day, i) => {
+                          const dayWh = workingHoursState[String(i)];
+                          const dayClosed = dayWh?.closed ?? false;
                           return (
-                            <div key={slot} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs ${isOverridden ? "bg-primary/10 border border-primary/20" : "bg-muted/30"}`}>
-                              <span className="font-mono text-muted-foreground w-10">{slot}</span>
-                              {isEditing ? (
-                                <input autoFocus type="number" className="w-14 text-xs border rounded px-1 py-0.5 bg-background text-center"
-                                  value={pricingEditValue} min={0} step={0.5}
-                                  onChange={e => setPricingEditValue(e.target.value)}
-                                  onBlur={() => {
-                                    const price = parseFloat(pricingEditValue);
-                                    if (!isNaN(price) && price >= 0) setLocalPricingMap(prev => { const m = new Map(prev); m.set(key, price); return m; });
-                                    setPricingEditKey(null);
-                                  }}
-                                  onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setPricingEditKey(null); }} />
-                              ) : (
-                                <button type="button" onClick={() => { setPricingEditKey(key); setPricingEditValue(slotPrice.toString()); }}
-                                  className={`font-medium tabular-nums w-14 text-right ${isOverridden ? "text-primary" : "text-foreground"}`}
-                                >{slotPrice.toFixed(2)}€</button>
-                              )}
-                            </div>
+                            <button key={i} type="button" onClick={() => !dayClosed && setPricingDay(i)}
+                              disabled={dayClosed}
+                              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dayClosed ? "opacity-40 cursor-not-allowed line-through bg-muted text-muted-foreground" : pricingDay === i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                            >{DAY_SHORT[i]}</button>
                           );
                         })}
+                        {!(workingHoursState[String(pricingDay)]?.closed) && (
+                          <button type="button" onClick={() => {
+                            setLocalPricingMap(prev => { const next = new Map(prev); TIME_SLOTS.forEach(s => next.delete(`${pricingDay}:${s}`)); return next; });
+                          }} className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                            <RotateCcw className="w-3 h-3" /> Atstatyti dieną
+                          </button>
+                        )}
                       </div>
+                      {workingHoursState[String(pricingDay)]?.closed ? (
+                        <div className="py-6 text-center text-sm text-muted-foreground">Ši diena uždaryta pagal darbo valandas</div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto pr-1">
+                          {(slotsForDayFromJson(JSON.stringify(workingHoursState), pricingDay) ?? TIME_SLOTS).map(slot => {
+                            const key = `${pricingDay}:${slot}`;
+                            const defaultHalf = (form.watch("pricePerHour") || 20) / 2;
+                            const slotPrice = localPricingMap.has(key) ? localPricingMap.get(key)! : defaultHalf;
+                            const isOverridden = localPricingMap.has(key);
+                            const isEditing = pricingEditKey === key;
+                            return (
+                              <div key={slot} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs ${isOverridden ? "bg-primary/10 border border-primary/20" : "bg-muted/30"}`}>
+                                <span className="font-mono text-muted-foreground w-10">{slot}</span>
+                                {isEditing ? (
+                                  <input autoFocus type="number" className="w-14 text-xs border rounded px-1 py-0.5 bg-background text-center"
+                                    value={pricingEditValue} min={0} step={0.5}
+                                    onChange={e => setPricingEditValue(e.target.value)}
+                                    onBlur={() => {
+                                      const price = parseFloat(pricingEditValue);
+                                      if (!isNaN(price) && price >= 0) setLocalPricingMap(prev => { const m = new Map(prev); m.set(key, price); return m; });
+                                      setPricingEditKey(null);
+                                    }}
+                                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setPricingEditKey(null); }} />
+                                ) : (
+                                  <button type="button" onClick={() => { setPricingEditKey(key); setPricingEditValue(slotPrice.toString()); }}
+                                    className={`font-medium tabular-nums w-14 text-right ${isOverridden ? "text-primary" : "text-foreground"}`}
+                                  >{slotPrice.toFixed(2)}€</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>)}
 
@@ -1774,12 +1828,6 @@ export default function OwnerFacilityDetail() {
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => handleEdit(court)} title="Redaguoti">
                       <Edit2 className="w-3 h-3" /> Redaguoti
                     </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setPhotosCourtId(court.id)} title="Nuotraukos">
-                      <Camera className="w-3 h-3" /> Nuotraukos
-                    </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => { setPricingCourtId(court.id); setPricingDefaultPrice(Number(court.pricePerHour)); }}>
-                      <Euro className="w-3 h-3" /> Kainos
-                    </Button>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setBlockedSlotsCourtId(court.id)}>
                       <CalendarClock className="w-3 h-3" /> Blokai
                     </Button>
@@ -1869,7 +1917,7 @@ export default function OwnerFacilityDetail() {
         <Dialog open={pricingCourtId !== null} onOpenChange={(open) => { if (!open) setPricingCourtId(null); }}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="flex items-center gap-2"><Euro className="w-5 h-5 text-primary" /> Kainų redaktorius</DialogTitle></DialogHeader>
-            {pricingCourtId !== null && <PricingEditor courtId={pricingCourtId} defaultPrice={pricingDefaultPrice} onClose={() => setPricingCourtId(null)} />}
+            {pricingCourtId !== null && <PricingEditor courtId={pricingCourtId} defaultPrice={pricingDefaultPrice} workingHours={pricingWorkingHours} onClose={() => setPricingCourtId(null)} />}
           </DialogContent>
         </Dialog>
 
