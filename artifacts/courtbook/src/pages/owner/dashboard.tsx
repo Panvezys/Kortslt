@@ -240,8 +240,8 @@ function ManualBookingModal({
   const [note, setNote] = useState("");
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      const r = await customFetch(`${API_URL}/owner/bookings/manual`, {
+    mutationFn: () =>
+      customFetch(`${API_URL}/owner/bookings/manual`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -254,20 +254,18 @@ function ManualBookingModal({
           endTime: endHour,
           note: note || undefined,
         }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || "Klaida");
-      }
-      return r.json();
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Rezervacija sukurta" });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
       onClose();
       setCustomerName(""); setCustomerEmail(""); setCustomerPhone(""); setNote("");
     },
-    onError: (e: Error) => toast({ title: "Klaida", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({
+      title: "Klaida",
+      description: e?.data?.error || e?.message || "Nepavyko sukurti rezervacijos",
+      variant: "destructive",
+    }),
   });
 
   if (!open) return null;
@@ -358,22 +356,23 @@ function BlockCourtModal({
   const [reason, setReason] = useState("");
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      const r = await customFetch(`${API_URL}/courts/${courtId}/blocked-slots`, {
+    mutationFn: () =>
+      customFetch(`${API_URL}/courts/${courtId}/blocked-slots`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date, startTime: startHour, endTime: endHour, reason: reason || undefined }),
-      });
-      if (!r.ok) throw new Error("Klaida");
-      return r.json();
-    },
+      }),
     onSuccess: () => {
       toast({ title: "Kortas užblokuotas" });
       queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
       onClose();
       setReason("");
     },
-    onError: () => toast({ title: "Klaida blokuojant", variant: "destructive" }),
+    onError: (e: any) => toast({
+      title: "Klaida blokuojant",
+      description: e?.data?.error || e?.message || "Nepavyko užblokuoti korto",
+      variant: "destructive",
+    }),
   });
 
   if (!open) return null;
@@ -484,7 +483,7 @@ export default function OwnerDashboard() {
 
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["owner-dashboard"],
-    queryFn: () => customFetch(`${API_URL}/owner/dashboard`).then(r => r.json()),
+    queryFn: () => customFetch<DashboardData>(`${API_URL}/owner/dashboard`),
     refetchInterval: 60_000,
   });
 

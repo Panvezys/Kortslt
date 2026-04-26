@@ -509,15 +509,26 @@ export default function OwnerFacilities() {
                       )}
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-3 gap-2"
-                      onClick={(e) => { e.stopPropagation(); navigate("/owner/dashboard"); }}
-                    >
-                      <LayoutDashboard className="w-4 h-4" />
-                      Suvestinė
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/owner/facility/${facility.id}`); }}
+                      >
+                        <CourtIcon size={16} />
+                        Aikštelės
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={(e) => { e.stopPropagation(); navigate("/owner/dashboard"); }}
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        Suvestinė
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );
