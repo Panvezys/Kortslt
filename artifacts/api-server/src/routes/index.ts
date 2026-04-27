@@ -29,6 +29,7 @@ import userSearchRouter from "./user-search";
 import stripeConnectRouter from "./stripe-connect";
 import ownerDashboardRouter from "./owner-dashboard";
 import ownerCourtStatsRouter from "./owner-court-stats";
+import deleteUserDataRouter from "./delete-user-data";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(userSearchRouter);
 router.use(stripeConnectRouter);
 router.use(ownerDashboardRouter);
 router.use(ownerCourtStatsRouter);
+router.use(deleteUserDataRouter);
 
 export default router;
