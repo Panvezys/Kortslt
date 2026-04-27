@@ -134,6 +134,34 @@ export default function DeleteAccountPage() {
               </p>
             </div>
 
+            <div className="not-prose rounded-xl border bg-card p-6 my-8">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground m-0">
+                    Jei prisiregistravote per Facebook
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1 mb-0">
+                    Taip pat galite pašalinti „Korts.lt“ prieigą prie savo duomenų per Facebook nustatymus.
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground mb-3">
+                Facebook instrukcijos:
+              </p>
+              <ol className="list-decimal pl-5 space-y-2 text-sm text-muted-foreground">
+                <li>Eikite į savo Facebook profilį.</li>
+                <li>Atidarykite <strong className="text-foreground">Settings &amp; Privacy</strong>.</li>
+                <li>Pasirinkite <strong className="text-foreground">Settings</strong>.</li>
+                <li>Atidarykite <strong className="text-foreground">Apps and Websites</strong>.</li>
+                <li>Raskite <strong className="text-foreground">Korts.lt</strong>.</li>
+                <li>Spustelėkite <strong className="text-foreground">Remove</strong>.</li>
+              </ol>
+            </div>
+
             {/* What gets deleted */}
             <h2 className="text-xl font-semibold text-foreground pt-2">
               Kokie duomenys bus ištrinti
