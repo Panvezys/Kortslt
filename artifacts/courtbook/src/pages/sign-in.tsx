@@ -1,6 +1,7 @@
-import { SignIn } from "@clerk/react";
+import { SignIn, useSignIn } from "@clerk/react";
 import { useLocation } from "wouter";
-import { X } from "lucide-react";
+import { Chrome, X } from "lucide-react";
+import { useState } from "react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -8,6 +9,22 @@ const HERO_IMAGE = "courts/court_2_bernardinu.webp";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
+  const { signIn, isLoaded } = useSignIn();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    if (!isLoaded || !signIn) return;
+    setIsGoogleLoading(true);
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: `${window.location.origin}${basePath}/sign-in`,
+        redirectUrlComplete: `${window.location.origin}${basePath}/`,
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -75,6 +92,15 @@ export default function SignInPage() {
               <h2 className="text-2xl font-bold mb-1">Prisijungti</h2>
               <p className="text-muted-foreground text-sm">Pasveikiname sugrįžus! Prašome prisijungti.</p>
             </div>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={!isLoaded || isGoogleLoading}
+              className="mb-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-muted px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Chrome className="h-4 w-4" />
+              {isGoogleLoading ? "Jungiama..." : "Sign in with Google"}
+            </button>
 
             <SignIn
               routing="path"
@@ -84,6 +110,8 @@ export default function SignInPage() {
                 layout: {
                   showOptionalFields: false,
                   shimmer: false,
+                  socialButtonsPlacement: "top",
+                  socialButtonsVariant: "iconButton",
                 },
                 variables: {
                   colorPrimary: "#84cc16",
