@@ -40,6 +40,7 @@ import MessagesPage from "@/pages/messages";
 import FAQPage from "@/pages/faq";
 import OwnersInfoPage from "@/pages/owners-info";
 import PrivacyPage from "@/pages/privacy";
+import DeleteAccountPage from "@/pages/delete-account";
 import TermsPage from "@/pages/terms";
 import ContactPage from "@/pages/contact";
 import WelcomePage from "@/pages/welcome";
@@ -218,6 +219,7 @@ function Router() {
       <Route path="/faq" component={FAQPage} />
       <Route path="/owners" component={OwnersInfoPage} />
       <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/delete-account" component={DeleteAccountPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/contact" component={ContactPage} />
       <Route path="/ranks" component={RanksPage} />
