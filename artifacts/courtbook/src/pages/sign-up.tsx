@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { ltLT } from "@/lib/lt-localization";
+import { enUS, ruRU } from "@clerk/localizations";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -11,7 +12,7 @@ const HERO_IMAGE = "courts/padel/padel_court_indoor_1";
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
   const { locale } = useI18n();
-  const localization = locale === "lt" ? ltLT : undefined;
+  const localization = locale === "lt" ? ltLT : locale === "ru" ? ruRU : enUS;
 
   return (
     <div className="min-h-screen flex">
