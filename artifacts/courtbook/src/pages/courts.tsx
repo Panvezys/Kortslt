@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation } from "lucide-react";
+import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation, ArrowUpDown } from "lucide-react";
 import { ListCourtsType } from "@workspace/api-client-react";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
@@ -463,6 +463,22 @@ export default function Courts() {
               <X className="h-4 w-4" />
             </Button>
           )}
+          <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first") => setSortBy(v)}>
+            <SelectTrigger
+              className="h-8 w-auto px-2 gap-1 text-xs"
+              aria-label={t("courts.filters.sortDefault")}
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+              <SelectItem value="rating_desc">{t("courts.filters.sortRating")}</SelectItem>
+              <SelectItem value="favorites_first">{t("courts.filters.sortFavorites")}</SelectItem>
+              <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
+              <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex gap-1 rounded-md border p-0.5">
             <button
               onClick={() => setViewMode("list")}
