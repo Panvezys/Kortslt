@@ -765,16 +765,14 @@ router.get("/courts/:id/activity", async (req, res): Promise<void> => {
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
-  const now = new Date();
   const [lastBooking] = await db
-    .select({ startTime: bookingsTable.startTime })
+    .select({ createdAt: bookingsTable.createdAt })
     .from(bookingsTable)
     .where(and(
       eq(bookingsTable.courtId, id),
       eq(bookingsTable.status, "confirmed"),
-      lte(bookingsTable.startTime, now),
     ))
-    .orderBy(desc(bookingsTable.startTime))
+    .orderBy(desc(bookingsTable.createdAt))
     .limit(1);
 
   const todayGames = await db

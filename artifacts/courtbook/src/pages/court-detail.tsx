@@ -454,7 +454,9 @@ export default function CourtDetail() {
       return r.json();
     },
     enabled: !!courtId && !isNaN(courtId),
-    staleTime: 60_000,
+    staleTime: 5_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
   const favorited = court ? isFavorite(court.id) : false;
   const [localFavorited, setLocalFavorited] = useState(false);

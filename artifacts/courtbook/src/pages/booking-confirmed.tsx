@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { CheckCircle2, Calendar, Clock, ArrowRight, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ function formatBookingDate(value: string): string {
 
 export default function BookingConfirmed() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const params = new URLSearchParams(window.location.search);
   const bookingId = params.get("id");
   const sessionId = params.get("session_id");
@@ -55,6 +57,16 @@ export default function BookingConfirmed() {
             setBooking({ ...data, totalPrice: Number(data.totalPrice ?? 0) });
           }
         }
+        // Refresh dependent caches so the user's bookings list, court activity,
+        // and availability all reflect the new booking immediately.
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["/api/bookings"] }),
+          queryClient.invalidateQueries({ queryKey: ["court-activity"] }),
+          queryClient.invalidateQueries({ predicate: (q) => {
+            const k = q.queryKey?.[0];
+            return typeof k === "string" && k.includes("/availability");
+          } }),
+        ]);
         setState("success");
       } catch {
         setState("error");
