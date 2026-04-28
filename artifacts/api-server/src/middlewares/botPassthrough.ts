@@ -25,19 +25,21 @@ import type { Request, Response, NextFunction } from "express";
 import path from "path";
 import fs from "fs";
 
-const BOT_UA_PATTERNS = [
-  "facebookexternalhit",
-  "facebot",
-  "twitterbot",
-  "linkedinbot",
-  "googlebot",
-  "bingbot",
-  "slackbot",
-  "whatsapp",
-  "telegrambot",
-  "applebot",
-  "duckduckbot",
-];
+/**
+ * Robust regex covering all known Facebook crawlers + other major
+ * social-media / search-engine scrapers.
+ *
+ * Facebook variants explicitly matched:
+ *   - facebookexternalhit  (Open Graph link previews)
+ *   - Facebot              (legacy Facebook crawler)
+ *   - facebookcatalog      (Facebook commerce catalog scraper)
+ *   - facebookplatform     (Facebook Platform crawler)
+ *
+ * The pattern is case-insensitive and uses substring matching so future
+ * variants like "facebookexternalhit/1.1" or "FacebookBot/1.0" still match.
+ */
+const BOT_UA_REGEX =
+  /(facebookexternalhit|facebookcatalog|facebookplatform|facebookbot|facebot|twitterbot|linkedinbot|googlebot|bingbot|slackbot|whatsapp|telegrambot|applebot|duckduckbot|discordbot|pinterestbot|redditbot)/i;
 
 /**
  * Returns the middleware function.
@@ -51,8 +53,8 @@ export function botPassthroughMiddleware(frontendDist: string) {
     res: Response,
     next: NextFunction,
   ): void {
-    const ua = (req.headers["user-agent"] ?? "").toLowerCase();
-    const isKnownBot = BOT_UA_PATTERNS.some((p) => ua.includes(p));
+    const ua = req.headers["user-agent"] ?? "";
+    const isKnownBot = BOT_UA_REGEX.test(ua);
 
     // Only activate for known bots
     if (!isKnownBot) { next(); return; }
@@ -63,12 +65,20 @@ export function botPassthroughMiddleware(frontendDist: string) {
     // Only intercept GET/HEAD — leave POST/etc. alone
     if (req.method !== "GET" && req.method !== "HEAD") { next(); return; }
 
+    // Always force a fresh response for crawlers so any prior cached 403
+    // (from Replit / Google Frontend / any upstream CDN) is invalidated.
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    // Vary on User-Agent so caches keep the bot response separate from the
+    // normal browser response.
+    res.setHeader("Vary", "User-Agent");
+    // Explicitly allow indexing — do NOT add noindex for these pages.
+    res.setHeader("X-Robots-Tag", "all");
+
     // Serve index.html directly, bypassing Clerk and any other middleware
     if (fs.existsSync(indexHtmlPath)) {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      // Explicitly allow indexing — do NOT add noindex for these pages
-      res.setHeader("X-Robots-Tag", "all");
-      res.sendFile(indexHtmlPath);
+      res.status(200).sendFile(indexHtmlPath);
       return;
     }
 
