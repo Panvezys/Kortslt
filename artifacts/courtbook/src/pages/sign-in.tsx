@@ -11,8 +11,17 @@ const HERO_IMAGE = "courts/court_2_bernardinu.webp";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const localization = locale === "lt" ? ltLT : locale === "ru" ? ruRU : enUS;
+
+  const sportPills = [
+    t("auth.sport.tennis"),
+    t("auth.sport.basketball"),
+    t("auth.sport.badminton"),
+    t("auth.sport.football"),
+    t("auth.sport.tableTennis"),
+    t("auth.sport.golf"),
+  ];
 
   return (
     <div className="min-h-screen flex">
@@ -35,17 +44,17 @@ export default function SignInPage() {
 
         <div className="relative z-10 px-10 pb-4">
           <h1 className="text-4xl font-extrabold text-white leading-tight mb-3">
-            Raskite ir rezervuokite<br />
-            <span className="text-lime-400">sportinį kortą</span><br />
-            per kelias sekundes.
+            {t("auth.signIn.heroTitle1")}<br />
+            <span className="text-lime-400">{t("auth.signIn.heroTitle2")}</span><br />
+            {t("auth.signIn.heroTitle3")}
           </h1>
           <p className="text-white/70 text-base max-w-xs">
-            Tenisas, krepšinis, padelis, futbolas ir dar 6 sporto šakos — 24+ miestų visoje Lietuvoje.
+            {t("auth.signIn.heroSubtitle")}
           </p>
         </div>
 
         <div className="relative z-10 px-10 pb-10 flex flex-wrap gap-2">
-          {["🎾 Tenisas", "🏀 Krepšinis", "🏸 Badmintonas", "⚽ Futbolas", "🏓 Stalo tenisas", "🏌️ Golfas"].map(s => (
+          {sportPills.map(s => (
             <span key={s} className="bg-white/10 backdrop-blur border border-white/20 text-white/90 text-xs px-3 py-1.5 rounded-full">
               {s}
             </span>
@@ -72,8 +81,8 @@ export default function SignInPage() {
         <div className="flex-1 flex flex-col items-center justify-center px-8 py-12">
           <div className="w-full max-w-sm">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-1">Prisijungti</h2>
-              <p className="text-muted-foreground text-sm">Pasveikiname sugrįžus! Prašome prisijungti.</p>
+              <h2 className="text-2xl font-bold mb-1">{t("auth.signIn.title")}</h2>
+              <p className="text-muted-foreground text-sm">{t("auth.signIn.subtitle")}</p>
             </div>
 
             <SignIn
@@ -128,12 +137,12 @@ export default function SignInPage() {
             />
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              Neturite paskyros?{" "}
+              {t("auth.signIn.noAccount")}{" "}
               <button
                 onClick={() => setLocation("/sign-up")}
                 className="font-semibold text-lime-600 hover:text-lime-700 transition-colors"
               >
-                Registruotis
+                {t("auth.signIn.registerCta")}
               </button>
             </p>
           </div>

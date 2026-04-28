@@ -11,8 +11,15 @@ const HERO_IMAGE = "courts/padel/padel_court_indoor_1";
 
 export default function SignUpPage() {
   const [, setLocation] = useLocation();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const localization = locale === "lt" ? ltLT : locale === "ru" ? ruRU : enUS;
+
+  const bullets = [
+    { icon: "✓", text: t("auth.signUp.bullet1") },
+    { icon: "✓", text: t("auth.signUp.bullet2") },
+    { icon: "✓", text: t("auth.signUp.bullet3") },
+    { icon: "✓", text: t("auth.signUp.bullet4") },
+  ];
 
   return (
     <div className="min-h-screen flex">
@@ -39,22 +46,17 @@ export default function SignUpPage() {
 
         <div className="relative z-10 px-10 pb-4">
           <h1 className="text-4xl font-extrabold text-white leading-tight mb-3">
-            Prisijunkite prie<br />
-            <span className="text-lime-400">sporto bendruomenės</span><br />
-            Lietuvoje.
+            {t("auth.signUp.heroTitle1")}<br />
+            <span className="text-lime-400">{t("auth.signUp.heroTitle2")}</span><br />
+            {t("auth.signUp.heroTitle3")}
           </h1>
           <p className="text-white/70 text-base max-w-xs">
-            Registruokitės nemokamai ir pradėkite rezervuoti kortus jau šiandien.
+            {t("auth.signUp.heroSubtitle")}
           </p>
         </div>
 
         <div className="relative z-10 px-10 pb-10 flex flex-col gap-2.5">
-          {[
-            { icon: "✓", text: "Rezervuokite kortus internetu 24/7" },
-            { icon: "✓", text: "Išsaugokite mėgstamiausius kortus" },
-            { icon: "✓", text: "Peržiūrėkite visas rezervacijas vienoje vietoje" },
-            { icon: "✓", text: "Raskite trenerius pagal sporto šaką" },
-          ].map(b => (
+          {bullets.map(b => (
             <div key={b.text} className="flex items-center gap-2.5">
               <span className="text-lime-400 font-bold text-lg leading-none">{b.icon}</span>
               <span className="text-white/85 text-sm">{b.text}</span>
@@ -82,8 +84,8 @@ export default function SignUpPage() {
         <div className="flex-1 flex flex-col items-center justify-center px-8 py-12">
           <div className="w-full max-w-sm">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-1">Sukurti paskyrą</h2>
-              <p className="text-muted-foreground text-sm">Registracija nemokama ir trunka vos kelias sekundes.</p>
+              <h2 className="text-2xl font-bold mb-1">{t("auth.signUp.title")}</h2>
+              <p className="text-muted-foreground text-sm">{t("auth.signUp.subtitle")}</p>
             </div>
 
             <SignUp
@@ -138,12 +140,12 @@ export default function SignUpPage() {
             />
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              Jau turite paskyrą?{" "}
+              {t("auth.signUp.haveAccount")}{" "}
               <button
                 onClick={() => setLocation("/sign-in")}
                 className="font-semibold text-lime-600 hover:text-lime-700 transition-colors"
               >
-                Prisijungti
+                {t("auth.signUp.signInCta")}
               </button>
             </p>
           </div>
