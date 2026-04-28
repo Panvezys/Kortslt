@@ -1,0 +1,33 @@
+already have a fully built Owner Dashboard UI. I need to integrate the new cancellation and refund logic into my existing owner dashboard components. My codebase refers to court facility managers as 'owners', not 'admins'. Please execute the following updates without changing my overall layout:
+
+Phase 1: Update Existing Revenue Metrics
+
+Locate the endpoint that feeds the Owner Dashboard metrics (e.g., /api/owner/metrics or similar).
+
+Update the logic for 'Pajamos šį mėnesį' (Gross Revenue) to sum all amount_paid for bookings at the owner's courts (including cancelled ones).
+
+Update the logic for 'Grynosios pajamos' (Net Revenue) to accurately reflect: (Total Gross Revenue) MINUS (Sum of all refund_amount from cancelled bookings for their courts).
+
+Phase 2: The 'Mokėjimai' (Payments) Tab & 'Naujausi užsakymai' List
+
+In the existing 'Mokėjimai' tab (or wherever the owner's full list of bookings is displayed), ensure the status column now displays 'Atšaukta' (Cancelled) for cancelled bookings.
+
+Display the refunded amount (e.g., 'Grąžinta: €10') next to cancelled bookings.
+
+Phase 3: Owner Manual Override (Force Cancel Button)
+
+Create a POST /api/owner/bookings/:id/force-cancel endpoint. This must bypass the 24h/48h rules, accept a customRefundAmount in cents, trigger stripe.refunds.create(), update the DB, and free up the timeslot for the owner's court.
+
+Add a 'Priverstinis atšaukimas' (Force Cancel) button next to active bookings in the 'Mokėjimai' view (and optionally in the 'Naujausi užsakymai' sidebar).
+
+Clicking this opens a modal allowing the owner to select: 'Pilnas grąžinimas' (100%), 'Dalinis' (50%), or 'Be grąžinimo' (0%), then hits the force-cancel endpoint.
+
+Phase 4: Calendar Sync ('Grafiko peržiūra')
+
+Ensure that the main schedule view ('Grafiko peržiūra') automatically filters out bookings with the status 'CANCELLED'. Those timeslots must appear visually empty and available for the owner to manually book or for the public to book.
+
+Phase 5: Email Notifications
+
+Create a services/notifications.js file with sendBookingConfirmation(userEmail, ownerEmail, bookingDetails) and sendCancellationNotice(userEmail, ownerEmail, refundDetails).
+
+For now, just have them console.log the email details in the terminal when a booking is created or cancelled.

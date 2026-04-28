@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, inArray, or, sql, ne } from "drizzle-orm";
 import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
+import { sendCustomerCancellationEmail, sendOwnerCancellationEmail } from "../lib/email";
 import {
   ListBookingsQueryParams,
   CreateBookingBody,
@@ -417,7 +418,13 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
 
   const rows = await db
-    .select({ booking: bookingsTable, courtOwnerUserId: courtsTable.ownerUserId })
+    .select({
+      booking: bookingsTable,
+      courtOwnerUserId: courtsTable.ownerUserId,
+      courtName: courtsTable.name,
+      ownerName: courtsTable.ownerName,
+      ownerEmail: courtsTable.ownerEmail,
+    })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .where(eq(bookingsTable.id, params.data.id));
@@ -427,7 +434,7 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, courtOwnerUserId } = rows[0];
+  const { booking, courtOwnerUserId, courtName, ownerName, ownerEmail } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
   const isCourtOwner = courtOwnerUserId === userId;
@@ -512,6 +519,71 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     })
     .where(eq(bookingsTable.id, params.data.id))
     .returning();
+
+  // ─── Notifications (fire-and-forget; never block the response) ───────────
+  const displayCourtName = courtName ?? "Kortas";
+  const dateStr = typeof booking.date === "string" ? booking.date : String(booking.date);
+
+  // Dedupe in-app notifications: if owner and booker are the same user, only send once.
+  // The "booker" view (refund details + /bookings link) takes priority since it's more relevant
+  // to the human reading it. Owner-only recipients still get the owner-flavored copy.
+  const notifiedUserIds = new Set<string>();
+
+  if (booking.bookerUserId && booking.bookerUserId !== userId) {
+    notifiedUserIds.add(booking.bookerUserId);
+    sendNotification(
+      booking.bookerUserId,
+      "booking_cancelled",
+      `Rezervacija atšaukta — ${displayCourtName}`,
+      tier.refundAmount > 0
+        ? `Jūsų rezervacija ${dateStr} ${booking.startTime}–${booking.endTime} atšaukta. Grąžinta: ${tier.refundAmount.toFixed(2)} €.`
+        : `Jūsų rezervacija ${dateStr} ${booking.startTime}–${booking.endTime} atšaukta.`,
+      "/bookings",
+    ).catch((err) => logger.error({ err, bookingId: booking.id }, "booker cancel notification failed"));
+  }
+
+  if (courtOwnerUserId && courtOwnerUserId !== userId && !notifiedUserIds.has(courtOwnerUserId)) {
+    sendNotification(
+      courtOwnerUserId,
+      "booking_cancelled",
+      `Atšaukta rezervacija — ${displayCourtName}`,
+      `${booking.customerName} atšaukė ${dateStr} ${booking.startTime}–${booking.endTime}.${
+        tier.refundAmount > 0 ? ` Grąžinta klientui: ${tier.refundAmount.toFixed(2)} €.` : ""
+      }`,
+      "/owner",
+    ).catch((err) => logger.error({ err, bookingId: booking.id }, "owner cancel notification failed"));
+  }
+
+  // Email the customer with refund details
+  if (booking.customerEmail) {
+    sendCustomerCancellationEmail({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      courtName: displayCourtName,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: totalPriceEur,
+      refundAmount: tier.refundAmount,
+      bookingId: booking.id,
+    }).catch((err) => logger.error({ err, bookingId: booking.id }, "sendCustomerCancellationEmail failed"));
+  }
+
+  // Email the court owner so they know the slot freed up
+  if (ownerEmail) {
+    sendOwnerCancellationEmail({
+      ownerName: ownerName ?? "Savininkas",
+      ownerEmail,
+      customerName: booking.customerName,
+      courtName: displayCourtName,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: totalPriceEur,
+      refundAmount: tier.refundAmount,
+      bookingId: booking.id,
+    }).catch((err) => logger.error({ err, bookingId: booking.id }, "sendOwnerCancellationEmail failed"));
+  }
 
   res.json(CancelBookingResponse.parse(formatBooking(cancelled)));
 });
