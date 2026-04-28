@@ -241,6 +241,12 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   res.json(ConfirmPaymentResponse.parse({
     ...booking,
     totalPrice: Number(booking.totalPrice),
+    // Postgres `numeric` returns a string; nullable text columns need to collapse to undefined for Zod `.optional()`.
+    refundAmount: booking.refundAmount != null ? Number(booking.refundAmount) : undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    rentedItems: booking.rentedItems ?? undefined,
     courtName: rows[0].courtName ?? undefined,
   }));
 });
@@ -389,7 +395,16 @@ router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<voi
     }).catch(err => logger.error({ err }, "sendOwnerBookingNotificationEmail (free) failed"));
   }
 
-  res.json({ ...booking, totalPrice: Number(booking.totalPrice), courtName: rows[0].courtName });
+  res.json({
+    ...booking,
+    totalPrice: Number(booking.totalPrice),
+    refundAmount: booking.refundAmount != null ? Number(booking.refundAmount) : undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    rentedItems: booking.rentedItems ?? undefined,
+    courtName: rows[0].courtName,
+  });
 });
 
 // ─── Stripe Connect: create/get onboarding link for owner ────────────────────
