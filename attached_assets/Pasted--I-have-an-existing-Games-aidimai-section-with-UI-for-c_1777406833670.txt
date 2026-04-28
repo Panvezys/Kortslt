@@ -1,0 +1,51 @@
+"I have an existing 'Games' (Žaidimai) section with UI for creating matches, joining matches, and chatting. I also have written documentation for an ELO system and result tracking. I need to wire up the backend logic for the Gamification (ELO/Results) and integrate our Stripe Court Booking system ('Host Pays All' model). Please implement this in the following phases:
+
+Phase 1: Database Updates
+
+Users Table: Add elo_tennis (default 1200), elo_padel (default 1200), and reliability_score (default 100). Add these for any other sports we support.
+
+Games Table: >    - Add booking_id (foreign key, nullable).
+
+Add match_status (enum: 'OPEN', 'FULL', 'COMPLETED', 'DISPUTED').
+
+Add reported_result (string, nullable) and reported_by_id (foreign key).
+
+Add result_reported_at (timestamp, nullable).
+
+Phase 2: Stripe Booking Integration (Host Pays All)
+
+In the 'Sukurti žaidimą' (Create Game) modal, update the 'Vieta' (Location) input. Add a toggle: 'Užsakyti Korts.lt aikštelę' (Book Korts.lt court) vs 'Savo vieta' (Custom location).
+
+If they choose to book a Korts.lt court, they must select a valid court and timeslot.
+
+When they click 'Sukurti žaidimą', if a Korts.lt court is selected, route the Host through the existing Stripe checkout to pay the full price.
+
+Only after Stripe returns success, insert the games row and link the booking_id.
+
+On the 'Game Details' page for other users, calculate and display the split cost: 'Tavo dalis: €[Total / Max Players]. Sumokėk kūrėjui aikštelėje.'
+
+Phase 3: The ELO Math Engine
+
+Create a utility function calculateElo(teamA_avg, teamB_avg, winner, K=32).
+
+Map the ELO to badges for the UI: 🥉 Bronza (<1200), 🥈 Sidabras (1200-1399), 🥇 Auksas (1400-1599), 💎 Deimantas (1600+).
+
+Create a POST /api/games/:id/report-score endpoint. The host submits the score (e.g., '6:4'). Set match_status to 'COMPLETED' and populate result_reported_at.
+
+Create endpoints for participants: POST /api/games/:id/confirm-score and POST /api/games/:id/dispute-score. If disputed, change status to 'DISPUTED'.
+
+The 24h Rule: Create a background cron job (or check-on-read logic) that finds 'COMPLETED' games where Date.now() > result_reported_at + 24 hours. Automatically apply the ELO changes to all participants if no one disputed it.
+
+Phase 4: Reliability Score (Karma)
+
+If a user leaves a game less than 12 hours before the start time, penalize their reliability_score by 10 points.
+
+Display this score (e.g., 'Patikimumas: 100%') on their profile and next to their name in the 'Dalyviai' (Participants) list so the host knows if they are a flake.
+
+Phase 5: UI Hookups
+
+On the 'Dalyviai' list, display the user's correct Medals (🥉/🥈/🥇/💎) and current ELO number next to their name based on the sport of the current game.
+
+Add 'Pranešti rezultatą' (Report Score) button for the host once the game's end time has passed.
+
+Show 'Patvirtinti' (Confirm) and 'Ginčyti' (Dispute) buttons for participants after a score is reported."
