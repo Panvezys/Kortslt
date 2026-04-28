@@ -1,6 +1,7 @@
 import net from "net";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startCron } from "./lib/cron";
 
 // Fail fast if the Clerk secret key is missing — every authenticated request
 // will return 401 without it, and the error is completely silent otherwise.
@@ -49,6 +50,7 @@ await waitForPort(port);
 function startListening(attemptsLeft: number) {
   const server = app.listen(port, "0.0.0.0", () => {
     logger.info({ port }, "Server listening");
+    startCron();
   });
   server.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE" && attemptsLeft > 0) {

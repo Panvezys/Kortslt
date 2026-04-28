@@ -49,6 +49,12 @@ function formatDateTime(iso: string) {
   return d.toLocaleString("lt-LT", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function toMin(t: string): number {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 function tierStyle(elo: number) {
   if (elo >= 1600) return { name: "Diamond", cls: "bg-cyan-500/15 text-cyan-400 border-cyan-400/30" };
   if (elo >= 1400) return { name: "Gold", cls: "bg-yellow-500/15 text-yellow-500 border-yellow-400/30" };
@@ -121,11 +127,21 @@ function GameCard({ g }: { g: Game }) {
   );
 }
 
+type Venue = "self" | "korts";
+interface CourtListItem { id: number; name: string; sport: string; city: string; pricePerHour: string | number; }
+interface AvailabilitySlot { startTime: string; endTime: string; available: boolean; price: number; }
+interface AvailabilityResp { slots: AvailabilitySlot[]; }
+
 function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const { user } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
+
+  const [venue, setVenue] = useState<Venue>("self");
+  const [courtId, setCourtId] = useState<number | null>(null);
+  const [bookingStart, setBookingStart] = useState<string>("");
+  const [bookingEnd, setBookingEnd] = useState<string>("");
 
   const [form, setForm] = useState({
     sport: "tennis",
@@ -141,8 +157,65 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     matchType: "casual" as "casual" | "rated",
   });
 
+  // ─── Korts.lt mode: fetch courts filtered by sport+city, then availability ──
+  const courtsQ = useQuery<CourtListItem[]>({
+    queryKey: ["courts-for-game", form.sport, form.city],
+    queryFn: () => customFetch<CourtListItem[]>(`${API}/courts?sport=${encodeURIComponent(form.sport)}&city=${encodeURIComponent(form.city)}`),
+    enabled: venue === "korts" && open,
+  });
+
+  const availabilityQ = useQuery<AvailabilityResp>({
+    queryKey: ["court-availability-for-game", courtId, form.date],
+    queryFn: () => customFetch<AvailabilityResp>(`${API}/courts/${courtId}/availability?date=${form.date}`),
+    enabled: venue === "korts" && courtId != null && open,
+  });
+
+  // Derived: total price for the selected slot range
+  const selectedRangePrice = (() => {
+    if (venue !== "korts" || !bookingStart || !bookingEnd || !availabilityQ.data) return null;
+    const startM = toMin(bookingStart), endM = toMin(bookingEnd);
+    let total = 0;
+    for (const s of availabilityQ.data.slots) {
+      const sM = toMin(s.startTime);
+      if (sM >= startM && sM < endM) total += Number(s.price ?? 0);
+    }
+    return total;
+  })();
+
   const create = useMutation({
     mutationFn: async () => {
+      if (venue === "korts") {
+        // ─── Host-Pays-All checkout flow → redirect to Stripe ──
+        if (!courtId || !bookingStart || !bookingEnd) throw new Error("Pasirinkite aikštę ir laiką");
+        const successUrl = `${window.location.origin}${BASE}/games?payment=success`;
+        const cancelUrl = `${window.location.origin}${BASE}/games?payment=cancelled`;
+        const resp = await customFetch<{ checkoutUrl: string; gameId: number; bookingId: number }>(`${API}/games/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            creatorName: user?.fullName || user?.firstName || "Žaidėjas",
+            creatorEmail: user?.emailAddresses[0]?.emailAddress,
+            sport: form.sport,
+            city: form.city,
+            placeName: form.placeName || null,
+            playersNeeded: form.playersNeeded,
+            skillLevel: form.skillLevel,
+            durationMinutes: toMin(bookingEnd) - toMin(bookingStart),
+            description: form.description || null,
+            isPrivate: form.isPrivate,
+            matchType: form.matchType,
+            courtId,
+            bookingDate: form.date,
+            bookingStart,
+            bookingEnd,
+            successUrl,
+            cancelUrl,
+          }),
+        });
+        return { redirectUrl: resp.checkoutUrl } as { redirectUrl: string };
+      }
+
+      // ─── Self-venue (existing flow) ──
       const datetime = new Date(`${form.date}T${form.time}:00`).toISOString();
       const res = await customFetch<Game>(`${API}/games`, {
         method: "POST",
@@ -162,9 +235,14 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           matchType: form.matchType,
         }),
       });
-      return res;
+      return res as Game;
     },
-    onSuccess: (g) => {
+    onSuccess: (result) => {
+      if ("redirectUrl" in (result as any)) {
+        window.location.href = (result as { redirectUrl: string }).redirectUrl;
+        return;
+      }
+      const g = result as Game;
       qc.invalidateQueries({ queryKey: ["games"] });
       toast({ title: "Žaidimas sukurtas!", description: "Galite pasidalinti nuoroda su draugais." });
       onOpenChange(false);
@@ -236,7 +314,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Miestas</Label>
-              <Select value={form.city} onValueChange={(v) => setForm(f => ({ ...f, city: v }))}>
+              <Select value={form.city} onValueChange={(v) => { setForm(f => ({ ...f, city: v })); setCourtId(null); }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent className="max-h-72">
                   {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -244,28 +322,138 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               </Select>
             </div>
             <div>
-              <Label>Vieta (neprivaloma)</Label>
-              <Input className="mt-1" placeholder="pvz. Forum Palace aikštelės" value={form.placeName}
-                onChange={(e) => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              <Label>Vieta</Label>
+              {venue === "self" ? (
+                <Input className="mt-1" placeholder="pvz. Forum Palace aikštelės" value={form.placeName}
+                  onChange={(e) => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">Pasirinkite Korts.lt aikštę žemiau.</p>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+
+          {/* ─── Venue toggle: Self-organised vs Korts.lt court (Host-Pays-All) ─── */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => { setVenue("self"); setCourtId(null); }}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                venue === "self" ? "border-primary bg-primary/10" : "border-border hover:border-border/80"
+              }`}
+            >
+              <MapPin className="w-5 h-5" />
+              <span className="text-sm font-semibold">Sava vieta</span>
+              <span className="text-xs text-muted-foreground">Susitarta atskirai</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVenue("korts")}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                venue === "korts" ? "border-[#C5E041] bg-[#C5E041]/10" : "border-border hover:border-border/80"
+              }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="text-sm font-semibold">Korts.lt aikštė</span>
+              <span className="text-xs text-muted-foreground">Apmokėsite dabar</span>
+            </button>
+          </div>
+
+          {venue === "korts" && (
+            <div className="space-y-3 rounded-lg border border-[#C5E041]/40 bg-[#C5E041]/5 p-3">
+              <div>
+                <Label>Aikštė</Label>
+                {courtsQ.isLoading ? (
+                  <Skeleton className="h-10 mt-1" />
+                ) : (courtsQ.data?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">Nėra aikščių pasirinktam sportui ir miestui.</p>
+                ) : (
+                  <Select value={courtId ? String(courtId) : ""} onValueChange={(v) => { setCourtId(parseInt(v, 10)); setBookingStart(""); setBookingEnd(""); }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Pasirinkite aikštę" /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {courtsQ.data!.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name} — €{Number(c.pricePerHour).toFixed(2)}/h
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {courtId != null && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Pradžia</Label>
+                    {availabilityQ.isLoading ? (
+                      <Skeleton className="h-10 mt-1" />
+                    ) : (
+                      <Select value={bookingStart} onValueChange={(v) => { setBookingStart(v); if (bookingEnd && toMin(bookingEnd) <= toMin(v)) setBookingEnd(""); }}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="--:--" /></SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {(availabilityQ.data?.slots ?? []).filter(s => s.available).map(s => (
+                            <SelectItem key={s.startTime} value={s.startTime}>{s.startTime}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Pabaiga</Label>
+                    <Select value={bookingEnd} onValueChange={setBookingEnd} disabled={!bookingStart}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="--:--" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {(availabilityQ.data?.slots ?? [])
+                          .filter(s => bookingStart && toMin(s.endTime) > toMin(bookingStart))
+                          .map(s => (
+                            <SelectItem key={s.endTime} value={s.endTime}>{s.endTime}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {selectedRangePrice != null && (
+                <div className="rounded-md bg-background/60 border border-border p-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Aikštės kaina:</span>
+                    <span className="font-bold">€{selectedRangePrice.toFixed(2)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Apmokėsite visą sumą iš karto. Dalis tenkanti vienam žaidėjui: <b>€{(selectedRangePrice / Math.max(1, form.playersNeeded)).toFixed(2)}</b>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {venue === "self" && (
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Data</Label>
+                <Input type="date" className="mt-1" value={form.date}
+                  onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Laikas</Label>
+                <Input type="time" className="mt-1" value={form.time}
+                  onChange={(e) => setForm(f => ({ ...f, time: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Trukmė (min)</Label>
+                <Input type="number" min={30} step={15} className="mt-1" value={form.durationMinutes}
+                  onChange={(e) => setForm(f => ({ ...f, durationMinutes: parseInt(e.target.value || "60", 10) }))} />
+              </div>
+            </div>
+          )}
+
+          {venue === "korts" && (
             <div>
               <Label>Data</Label>
               <Input type="date" className="mt-1" value={form.date}
-                onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} />
+                onChange={(e) => { setForm(f => ({ ...f, date: e.target.value })); setBookingStart(""); setBookingEnd(""); }} />
             </div>
-            <div>
-              <Label>Laikas</Label>
-              <Input type="time" className="mt-1" value={form.time}
-                onChange={(e) => setForm(f => ({ ...f, time: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Trukmė (min)</Label>
-              <Input type="number" min={30} step={15} className="mt-1" value={form.durationMinutes}
-                onChange={(e) => setForm(f => ({ ...f, durationMinutes: parseInt(e.target.value || "60", 10) }))} />
-            </div>
-          </div>
+          )}
           <div>
             <Label>Žaidėjų skaičius (iš viso)</Label>
             <Input type="number" min={2} max={30} className="mt-1" value={form.playersNeeded}
@@ -287,9 +475,9 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Atšaukti</Button>
-          <Button onClick={() => create.mutate()} disabled={create.isPending}
+          <Button onClick={() => create.mutate()} disabled={create.isPending || (venue === "korts" && (!courtId || !bookingStart || !bookingEnd))}
             className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
-            {create.isPending ? "Kuriama..." : "Sukurti žaidimą"}
+            {create.isPending ? (venue === "korts" ? "Nukreipiama į Stripe..." : "Kuriama...") : (venue === "korts" ? `Apmokėti ir sukurti${selectedRangePrice != null ? ` (€${selectedRangePrice.toFixed(2)})` : ""}` : "Sukurti žaidimą")}
           </Button>
         </DialogFooter>
       </DialogContent>

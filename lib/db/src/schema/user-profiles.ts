@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, serial, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, unique } from "drizzle-orm/pg-core";
 
 export const userProfilesTable = pgTable("user_profiles", {
   userId: text("user_id").primaryKey(),
@@ -7,6 +7,7 @@ export const userProfilesTable = pgTable("user_profiles", {
   imageUrl: text("image_url"),
   stripeAccountId: text("stripe_account_id"),
   stripeAccountStatus: text("stripe_account_status").notNull().default("not_connected"),
+  reliabilityScore: integer("reliability_score").notNull().default(100),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -44,6 +44,7 @@ const SKILL_LABELS: Record<string, string> = {
 interface Participant {
   id: number; gameId: number; userId?: string; userName: string;
   team: string | null; status: string; joinedAt: string; elo?: number; isOrganizer?: boolean;
+  reliabilityScore?: number;
 }
 interface PendingParticipant {
   id: number; gameId: number; userId: string; userName: string; joinedAt: string;
@@ -52,6 +53,7 @@ interface GameDetail {
   id: number; creatorUserId?: string; creatorName: string;
   sport: string; city: string; placeName: string | null;
   courtId: number | null; facilityId: number | null;
+  bookingId?: number | null;
   playersNeeded: number; skillLevel: string; datetime: string; durationMinutes: number;
   description: string | null; status: string; matchType: string; isPrivate: boolean;
   requiresApproval: boolean; teamCount: number; isCreator: boolean;
@@ -60,6 +62,7 @@ interface GameDetail {
   participants: Participant[];
   pendingParticipants: PendingParticipant[];
 }
+interface BookingSummary { id: number; totalPrice: string | number; status: string; date: string; startTime: string; endTime: string; }
 interface GameResult {
   id: number; gameId: number; reportedByUserId: string;
   scoreTeamA: number; scoreTeamB: number; status: string; autoConfirmAt: string | null;
@@ -389,6 +392,13 @@ export default function GameDetailPage() {
     staleTime: 60_000,
   });
 
+  const { data: bookingSummary } = useQuery<BookingSummary>({
+    queryKey: ["booking-summary", data?.bookingId],
+    queryFn: () => customFetch<BookingSummary>(`${API}/bookings/${data!.bookingId}`).catch(() => null as any),
+    enabled: !!data?.bookingId,
+    staleTime: 60_000,
+  });
+
   const { data: creatorRatings } = useQuery<UserRating[]>({
     queryKey: ["user-ratings", data?.creatorUserId],
     queryFn: () => customFetch<UserRating[]>(`${API}/user-ratings/${data!.creatorUserId}`),
@@ -531,6 +541,7 @@ export default function GameDetailPage() {
 
   const full = data.slotsLeft === 0;
   const isPast = new Date(data.datetime) < new Date();
+  const isEnded = (new Date(data.datetime).getTime() + (data.durationMinutes ?? 0) * 60_000) < Date.now();
   const isRated = data.matchType === "rated";
 
   const creatorSportRating = creatorRatings?.find(r => r.sportSlug === data.sport);
@@ -549,6 +560,35 @@ export default function GameDetailPage() {
         <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
           <Link href="/games"><ArrowLeft className="w-4 h-4 mr-1.5"/>Visi žaidimai</Link>
         </Button>
+
+        {/* ─── Host-Pays-All split-cost banner (booked Korts.lt court) ─── */}
+        {bookingSummary && data.bookingId && (
+          <div className={`mb-4 rounded-2xl border p-4 ${isCreator ? "border-[#C5E041]/40 bg-[#C5E041]/10" : "border-blue-500/30 bg-blue-500/10"}`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isCreator ? "bg-[#C5E041]/30" : "bg-blue-500/20"}`}>
+                <Trophy className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                {isCreator ? (
+                  <>
+                    <div className="font-bold">Aikštelė užsakyta — apmokėjote €{Number(bookingSummary.totalPrice).toFixed(2)}</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      Dalis vienam žaidėjui: <b>€{(Number(bookingSummary.totalPrice) / Math.max(1, data.playersNeeded)).toFixed(2)}</b>.
+                      Susirinkite mokestį iš dalyvių aikštelėje.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-bold">Tavo dalis: €{(Number(bookingSummary.totalPrice) / Math.max(1, data.playersNeeded)).toFixed(2)}</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      Aikštelę užsakė kūrėjas (€{Number(bookingSummary.totalPrice).toFixed(2)}). Sumokėkite jam grynais arba pavedimu aikštelėje.
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Hero card */}
         <div className="rounded-3xl border border-border bg-card overflow-hidden mb-6">
@@ -642,7 +682,7 @@ export default function GameDetailPage() {
                     </AlertDialogContent>
                   </AlertDialog>
 
-                  {isPast && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
+                  {isEnded && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
                   <InviteSection gameId={id} />
                 </>
               ) : data.isJoined ? (
@@ -850,6 +890,21 @@ export default function GameDetailPage() {
                     </button>
                     <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
                       <EloBadge elo={pElo} sport={data.sport} />
+                      {typeof p.reliabilityScore === "number" && (
+                        <span
+                          title="Patikimumo balas (krenta paliekant žaidimą paskutinę minutę)"
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold border ${
+                            p.reliabilityScore >= 80
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                              : p.reliabilityScore >= 50
+                              ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                              : "bg-red-500/10 text-red-600 border-red-500/30"
+                          }`}
+                        >
+                          <Shield className="w-3 h-3" />
+                          {p.reliabilityScore}
+                        </span>
+                      )}
                       <span>· {new Date(p.joinedAt).toLocaleDateString("lt-LT")}</span>
                       {p.team && (
                         <span className={`px-1.5 py-0 rounded text-xs font-bold ${teamColors[p.team] ?? "bg-muted text-muted-foreground"}`}>

@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { bookingsTable } from "./bookings";
 
 export const gamesTable = pgTable("games", {
   id: serial("id").primaryKey(),
@@ -10,11 +11,13 @@ export const gamesTable = pgTable("games", {
   placeName: text("place_name"),
   facilityId: integer("facility_id"),
   courtId: integer("court_id"),
+  bookingId: integer("booking_id").references(() => bookingsTable.id, { onDelete: "set null" }),
   playersNeeded: integer("players_needed").notNull().default(4),
   skillLevel: text("skill_level").notNull().default("any"),
   datetime: text("datetime").notNull(),
   durationMinutes: integer("duration_minutes").notNull().default(60),
   description: text("description"),
+  // status values: pending_payment | open | full | pending_verification | completed | disputed
   status: text("status").notNull().default("open"),
   matchType: text("match_type").notNull().default("casual"),
   isPrivate: boolean("is_private").notNull().default(false),

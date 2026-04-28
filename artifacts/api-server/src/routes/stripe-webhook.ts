@@ -12,13 +12,14 @@
  */
 import type { Request, Response } from "express";
 import type Stripe from "stripe";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import {
   db,
   bookingsTable,
   courtsTable,
   facilitiesTable,
   userProfilesTable,
+  gamesTable,
 } from "@workspace/db";
 import { getStripe, getStripeWebhookSecret } from "../stripeClient";
 import { logger } from "../lib/logger";
@@ -71,6 +72,11 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
         await handleCheckoutCompleted(session);
         break;
       }
+      case "checkout.session.expired": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleCheckoutExpired(session);
+        break;
+      }
       case "account.updated": {
         const account = event.data.object as Stripe.Account;
         await handleAccountUpdated(account);
@@ -118,13 +124,26 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   // If the confirm endpoint already promoted the booking, do nothing else.
   if (rows[0].booking.status === "confirmed") return;
 
-  const newStatus = "confirmed";
-
-  const [booking] = await db
+  // ─── CAS guard: only promote if booking is still pending. If the sweeper
+  // (or anything else) already cancelled the hold, ignore this stale completion
+  // so we never end up with a confirmed booking whose game was deleted. ──
+  const updatedRows = await db
     .update(bookingsTable)
-    .set({ status: newStatus })
-    .where(eq(bookingsTable.stripeSessionId, session.id))
+    .set({ status: "confirmed" })
+    .where(and(
+      eq(bookingsTable.stripeSessionId, session.id),
+      eq(bookingsTable.status, "pending"),
+    ))
     .returning();
+
+  if (updatedRows.length === 0) {
+    logger.warn(
+      { sessionId: session.id, bookingId: rows[0].booking.id, currentStatus: rows[0].booking.status },
+      "Webhook: stale checkout.session.completed — booking no longer pending, ignoring",
+    );
+    return;
+  }
+  const booking = updatedRows[0]!;
 
   await db
     .update(courtsTable)
@@ -162,6 +181,33 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       bookingId: booking.id,
     }).catch((err) => logger.error({ err }, "sendOwnerBookingNotificationEmail (webhook) failed"));
   }
+
+  // Host-Pays-All: if a game is linked to this booking, flip it from pending_payment → open.
+  await db
+    .update(gamesTable)
+    .set({ status: "open" })
+    .where(and(eq(gamesTable.bookingId, booking.id), eq(gamesTable.status, "pending_payment")));
+}
+
+async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
+  // Find the booking by stripeSessionId; if it's still pending, cancel it and delete any linked pending game.
+  const [booking] = await db
+    .select()
+    .from(bookingsTable)
+    .where(eq(bookingsTable.stripeSessionId, session.id));
+  if (!booking) return;
+
+  // Only cancel if still pending — never disturb confirmed bookings.
+  await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(and(eq(bookingsTable.id, booking.id), ne(bookingsTable.status, "confirmed")));
+
+  await db
+    .delete(gamesTable)
+    .where(and(eq(gamesTable.bookingId, booking.id), eq(gamesTable.status, "pending_payment")));
+
+  logger.info({ bookingId: booking.id, sessionId: session.id }, "stripe webhook: expired session — released hold");
 }
 
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {

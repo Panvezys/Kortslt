@@ -446,7 +446,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
             eq(bookingsTable.status, "blocked"),
             and(
               eq(bookingsTable.status, "pending"),
-              sql`${bookingsTable.createdAt} > NOW() - INTERVAL '10 minutes'`
+              sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
             )
           )
         )

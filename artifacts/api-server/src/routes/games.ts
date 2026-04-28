@@ -1,11 +1,51 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, or, inArray, sql, gte } from "drizzle-orm";
-import { db, gamesTable, gameParticipantsTable, gameResultsTable, matchInvitesTable, userRatingsTable, eloHistoryTable, gameChatTable } from "@workspace/db";
+import { eq, desc, and, or, inArray, sql, gte, lt, ne } from "drizzle-orm";
+import {
+  db,
+  gamesTable,
+  gameParticipantsTable,
+  gameResultsTable,
+  matchInvitesTable,
+  userRatingsTable,
+  eloHistoryTable,
+  gameChatTable,
+  gameResultConfirmationsTable,
+  bookingsTable,
+  courtsTable,
+  facilitiesTable,
+  userProfilesTable,
+  courtPricingTable,
+  courtBlockedSlotsTable,
+} from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { calculateTeamElo } from "../lib/elo";
 import { sendMatchInviteEmail } from "../lib/email";
+import { getUncachableStripeClient } from "../stripeClient";
+import { logger } from "../lib/logger";
 import crypto from "node:crypto";
+
+// ─── Local helpers shared with bookings flow (kept inline to avoid cross-route imports) ──
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
+  const m = toMin(startTime);
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+  return isWeekday && m >= 17 * 60 && m < 22 * 60;
+}
+function slotsBetween(startTime: string, endTime: string): string[] {
+  const start = toMin(startTime);
+  const end = toMin(endTime);
+  const out: string[] = [];
+  for (let m = start; m < end; m += 30) {
+    const h = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(m % 60).padStart(2, "0");
+    out.push(`${h}:${mm}`);
+  }
+  return out;
+}
 
 const router: IRouter = Router();
 
@@ -28,6 +68,7 @@ function formatGame(g: typeof gamesTable.$inferSelect, joinedCount = 0, isJoined
     teamCount: g.teamCount,
     status: g.status,
     matchType: g.matchType,
+    bookingId: g.bookingId ?? null,
     createdAt: g.createdAt.toISOString(),
     joinedCount,
     slotsLeft: Math.max(0, g.playersNeeded - joinedCount),
@@ -57,6 +98,15 @@ function formatParticipantWithId(p: typeof gameParticipantsTable.$inferSelect) {
     status: p.status,
     joinedAt: p.joinedAt.toISOString(),
   };
+}
+
+// Look up reliability scores for a list of user IDs in one query.
+async function getReliabilityMap(userIds: string[]): Promise<Map<string, number>> {
+  if (userIds.length === 0) return new Map();
+  const profiles = await db.select({ userId: userProfilesTable.userId, reliabilityScore: userProfilesTable.reliabilityScore })
+    .from(userProfilesTable)
+    .where(inArray(userProfilesTable.userId, userIds));
+  return new Map(profiles.map(p => [p.userId, p.reliabilityScore ?? 100]));
 }
 
 function formatDateTime(value: Date | string) {
@@ -233,13 +283,14 @@ router.get("/games/:id", async (req, res): Promise<void> => {
       .orderBy(gameParticipantsTable.joinedAt);
   }
 
-  // Fetch ELO ratings for participants
+  // Fetch ELO ratings + reliability scores for participants
   const participantRatings = await Promise.all(
     participants.map(p => db.select().from(userRatingsTable)
       .where(and(eq(userRatingsTable.userId, p.userId), eq(userRatingsTable.sportSlug, g.sport)))
       .limit(1).then(rows => ({ userId: p.userId, elo: rows[0]?.elo ?? 1200 })))
   );
   const ratingMap = new Map(participantRatings.map(r => [r.userId, r.elo]));
+  const reliabilityMap = await getReliabilityMap(participants.map(p => p.userId));
 
   const gameData = formatGame(g, participants.length, isJoined, isCreator);
   // Expose internal user IDs only to authenticated game participants, not public visitors
@@ -252,6 +303,7 @@ router.get("/games/:id", async (req, res): Promise<void> => {
     participants: participants.map(p => ({
       ...(isAuthenticatedParticipant ? formatParticipantWithId(p) : formatParticipant(p)),
       elo: ratingMap.get(p.userId) ?? 1200,
+      reliabilityScore: reliabilityMap.get(p.userId) ?? 100,
       isOrganizer: p.userId === g.creatorUserId,
     })),
     pendingParticipants: pendingParticipants.map(p => formatParticipantWithId(p)),
@@ -582,12 +634,46 @@ router.delete("/games/:id/leave", requireAuth, async (req, res): Promise<void> =
   if (g.creatorUserId === userId) {
     res.status(400).json({ error: "Creator cannot leave — delete the game instead" }); return;
   }
-  await db.update(gameParticipantsTable).set({ status: "left" })
-    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.userId, userId)));
+
+  // Single-transition CAS: only flip rows that are currently `joined`. If 0 rows
+  // updated, the user wasn't actually joined → idempotent no-op (no penalty).
+  const flipped = await db
+    .update(gameParticipantsTable)
+    .set({ status: "left" })
+    .where(and(
+      eq(gameParticipantsTable.gameId, id),
+      eq(gameParticipantsTable.userId, userId),
+      eq(gameParticipantsTable.status, "joined"),
+    ))
+    .returning({ id: gameParticipantsTable.id });
+
+  if (flipped.length === 0) {
+    // Already left (or never joined) — return idempotently without penalty.
+    res.json({ ok: true, alreadyLeft: true }); return;
+  }
+
   // Re-open if was full
   if (g.status === "full") {
     await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, id));
   }
+
+  // ─── Reliability penalty: leaving within 12h of game start costs 10 points ──
+  const now = Date.now();
+  const startMs = new Date(g.datetime).getTime();
+  const hoursUntilStart = (startMs - now) / (1000 * 60 * 60);
+  const wasActive = g.status === "open" || g.status === "full";
+  if (wasActive && hoursUntilStart > 0 && hoursUntilStart < 12) {
+    // Ensure a profile row exists, then decrement (clamp at 0).
+    const [existing] = await db.select({ score: userProfilesTable.reliabilityScore })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, userId));
+    if (!existing) {
+      await db.insert(userProfilesTable).values({ userId, reliabilityScore: 90 }).onConflictDoNothing();
+    } else {
+      const newScore = Math.max(0, (existing.score ?? 100) - 10);
+      await db.update(userProfilesTable).set({ reliabilityScore: newScore }).where(eq(userProfilesTable.userId, userId));
+    }
+  }
+
   res.json({ ok: true });
 });
 
@@ -631,6 +717,13 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
   if (!g) { res.status(404).json({ error: "Game not found" }); return; }
   if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the game creator can report results" }); return; }
   if (g.status !== "open" && g.status !== "full") { res.status(400).json({ error: "Game is not in a reportable state" }); return; }
+
+  // Time gate: result can only be reported after the game has ended
+  const endsAtMs = new Date(g.datetime).getTime() + (g.durationMinutes ?? 0) * 60_000;
+  if (Date.now() < endsAtMs) {
+    res.status(400).json({ error: "Žaidimas dar nepasibaigė — rezultatą galima paskelbti tik po žaidimo pabaigos." });
+    return;
+  }
 
   const { scoreTeamA, scoreTeamB } = req.body ?? {};
   if (scoreTeamA === undefined || scoreTeamB === undefined) {
@@ -715,78 +808,35 @@ router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> =>
     res.json({ status: "disputed" }); return;
   }
 
-  // Confirm — apply ELO changes if rated
-  await db.update(gameResultsTable).set({ status: "confirmed" }).where(eq(gameResultsTable.id, result.id));
-  await db.update(gamesTable).set({ status: "completed" }).where(eq(gamesTable.id, id));
-
-  if (g.matchType === "rated") {
-    const participants = await db.select().from(gameParticipantsTable)
-      .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
-
-    const teamAPlayers = participants.filter(p => p.team === "A");
-    const teamBPlayers = participants.filter(p => p.team === "B");
-    const unassigned = participants.filter(p => !p.team);
-
-    // If teams not assigned, split evenly by join order
-    const effectiveTeamA = teamAPlayers.length ? teamAPlayers : unassigned.slice(0, Math.ceil(unassigned.length / 2));
-    const effectiveTeamB = teamBPlayers.length ? teamBPlayers : unassigned.slice(Math.ceil(unassigned.length / 2));
-
-    const teamAWithElo = await Promise.all(effectiveTeamA.map(async p => ({
-      userId: p.userId,
-      elo: (await getOrCreateRating(p.userId, g.sport)).elo,
-    })));
-    const teamBWithElo = await Promise.all(effectiveTeamB.map(async p => ({
-      userId: p.userId,
-      elo: (await getOrCreateRating(p.userId, g.sport)).elo,
-    })));
-
-    const winner: "A" | "B" | "draw" =
-      result.scoreTeamA > result.scoreTeamB ? "A" :
-      result.scoreTeamB > result.scoreTeamA ? "B" : "draw";
-
-    const changes = calculateTeamElo(teamAWithElo, teamBWithElo, winner);
-
-    const isDraw = winner === "draw";
-
-    for (const change of changes) {
-      const isOnTeamA = !!teamAWithElo.find(p => p.userId === change.userId);
-      const isWinner = isDraw ? false : (isOnTeamA ? winner === "A" : winner === "B");
-
-      const winsAdd = isDraw ? 0 : (isWinner ? 1 : 0);
-      const lossesAdd = isDraw ? 0 : (!isWinner ? 1 : 0);
-      const drawsAdd = isDraw ? 1 : 0;
-
-      await db.update(userRatingsTable)
-        .set({
-          elo: change.newElo,
-          wins: sql`${userRatingsTable.wins} + ${winsAdd}`,
-          losses: sql`${userRatingsTable.losses} + ${lossesAdd}`,
-          draws: sql`${userRatingsTable.draws} + ${drawsAdd}`,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(userRatingsTable.userId, change.userId), eq(userRatingsTable.sportSlug, g.sport)));
-
-      await db.insert(eloHistoryTable).values({
-        userId: change.userId,
-        sportSlug: g.sport,
-        elo: change.newElo,
-        delta: change.delta,
-        gameId: id,
-      });
-
-      // Notify player of ELO change
-      const sign = change.delta > 0 ? "+" : "";
-      await sendNotification(
-        change.userId,
-        "elo_update",
-        `ELO pasikeitė: ${sign}${change.delta}`,
-        `Žaidimas (${g.sport}) baigtas. Jūsų reitingas: ${change.oldElo} → ${change.newElo} (${sign}${change.delta}).`,
-        `/games/${id}`,
-      );
-    }
+  // ─── Per-user confirmation: record this confirmation, then apply ELO only if ALL non-reporters confirmed ──
+  try {
+    await db.insert(gameResultConfirmationsTable).values({ gameResultId: result.id, userId });
+  } catch (err: any) {
+    // Unique violation: already confirmed → idempotent, just count and decide.
+    if (err?.code !== "23505") throw err;
   }
 
-  res.json({ status: "confirmed" });
+  const allParticipants = await db.select({ userId: gameParticipantsTable.userId })
+    .from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
+  const nonReporterParticipants = allParticipants.filter(p => p.userId !== result.reportedByUserId);
+  const requiredConfirmations = nonReporterParticipants.length;
+
+  const confirmations = await db.select({ userId: gameResultConfirmationsTable.userId })
+    .from(gameResultConfirmationsTable)
+    .where(eq(gameResultConfirmationsTable.gameResultId, result.id));
+  const validConfirmIds = new Set(nonReporterParticipants.map(p => p.userId));
+  const confirmedCount = confirmations.filter(c => validConfirmIds.has(c.userId)).length;
+
+  if (confirmedCount < requiredConfirmations) {
+    // Still waiting for more confirmations — leave status as pending_verification.
+    res.json({ status: "pending_verification", confirmedCount, requiredConfirmations });
+    return;
+  }
+
+  // All non-reporters confirmed → apply ELO via shared helper (idempotent).
+  await applyResultElo(result.id);
+  res.json({ status: "confirmed", confirmedCount, requiredConfirmations });
 });
 
 // POST /games/:id/invite — invite player by email
@@ -1042,5 +1092,335 @@ router.post("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
 
   res.status(201).json({ ...msg, createdAt: msg.createdAt.toISOString() });
 });
+
+// ─── Host-Pays-All checkout: create pending booking + pending game, return Stripe URL ──
+router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const {
+    creatorName, creatorEmail, sport, city, placeName, playersNeeded, skillLevel,
+    durationMinutes, description, isPrivate, matchType, requiresApproval, teamCount,
+    courtId, bookingDate, bookingStart, bookingEnd, customerPhone,
+    successUrl, cancelUrl,
+  } = req.body ?? {};
+
+  if (!creatorName || !creatorEmail || !sport || !city || !courtId || !bookingDate || !bookingStart || !bookingEnd || !successUrl || !cancelUrl) {
+    res.status(400).json({ error: "Missing required fields (creatorName, creatorEmail, sport, city, courtId, bookingDate, bookingStart, bookingEnd, successUrl, cancelUrl)" });
+    return;
+  }
+
+  const reqStartMin = toMin(bookingStart);
+  const reqEndMin = toMin(bookingEnd);
+  if (reqEndMin <= reqStartMin) {
+    res.status(400).json({ error: "bookingEnd must be after bookingStart" }); return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, Number(courtId)));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const dayOfWeek = new Date(bookingDate + "T00:00:00").getDay();
+
+  // Working-hours validation
+  if (court.workingHours) {
+    try {
+      const wh = JSON.parse(court.workingHours) as Record<string, { open: string; close: string; closed: boolean }>;
+      const dayConfig = wh[String(dayOfWeek)];
+      if (dayConfig) {
+        if (dayConfig.closed) { res.status(400).json({ error: "Court is closed on this day" }); return; }
+        const openMin = toMin(dayConfig.open ?? "07:00");
+        const closeMin = toMin(dayConfig.close ?? "22:00");
+        if (reqStartMin < openMin || reqEndMin > closeMin) {
+          res.status(400).json({ error: "Requested time is outside working hours" }); return;
+        }
+      }
+    } catch { /* malformed wh JSON — skip */ }
+  }
+
+  // Server-side price (mirror bookings.ts)
+  const pricingEntries = await db.select().from(courtPricingTable)
+    .where(and(eq(courtPricingTable.courtId, Number(courtId)), eq(courtPricingTable.dayOfWeek, dayOfWeek)));
+  const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
+  let courtPrice = 0;
+  for (const slotStart of slotsBetween(bookingStart, bookingEnd)) {
+    if (pricingMap.has(slotStart)) courtPrice += pricingMap.get(slotStart)!;
+    else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) courtPrice += peakSlotPrice;
+    else courtPrice += defaultSlotPrice;
+  }
+
+  // Atomic conflict check + double insert (booking + game), under per-(court,date) advisory lock
+  type Inserted = { booking: typeof bookingsTable.$inferSelect; game: typeof gamesTable.$inferSelect };
+  let inserted: Inserted;
+  try {
+    inserted = await db.transaction(async (tx) => {
+      const dateInt = parseInt(bookingDate.replace(/-/g, ""), 10);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${sql.raw(String(courtId))}::int, ${sql.raw(String(dateInt))}::int)`);
+
+      const [confirmedOrPending, blocked] = await Promise.all([
+        tx.select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+          .from(bookingsTable)
+          .where(and(
+            eq(bookingsTable.courtId, Number(courtId)),
+            eq(bookingsTable.date, bookingDate),
+            or(
+              eq(bookingsTable.status, "confirmed"),
+              eq(bookingsTable.status, "blocked"),
+              and(eq(bookingsTable.status, "pending"), sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`),
+            ),
+          )),
+        tx.select({ startTime: courtBlockedSlotsTable.startTime, endTime: courtBlockedSlotsTable.endTime })
+          .from(courtBlockedSlotsTable)
+          .where(and(eq(courtBlockedSlotsTable.courtId, Number(courtId)), eq(courtBlockedSlotsTable.date, bookingDate))),
+      ]);
+
+      for (const b of confirmedOrPending) {
+        if (reqStartMin < toMin(b.endTime) && reqEndMin > toMin(b.startTime)) {
+          throw new Error("SLOT_UNAVAILABLE");
+        }
+      }
+      for (const b of blocked) {
+        if (reqStartMin < toMin(b.endTime) && reqEndMin > toMin(b.startTime)) {
+          throw new Error("SLOT_BLOCKED");
+        }
+      }
+
+      const [booking] = await tx.insert(bookingsTable).values({
+        courtId: Number(courtId),
+        bookerUserId: userId,
+        customerName: creatorName,
+        customerEmail: creatorEmail,
+        customerPhone: customerPhone ?? null,
+        date: bookingDate,
+        startTime: bookingStart,
+        endTime: bookingEnd,
+        totalPrice: String(courtPrice),
+        status: "pending",
+      }).returning();
+
+      const inviteToken = isPrivate ? crypto.randomBytes(16).toString("hex") : null;
+      const datetimeIso = new Date(`${bookingDate}T${bookingStart}:00`).toISOString();
+      const dur = reqEndMin - reqStartMin;
+
+      const [game] = await tx.insert(gamesTable).values({
+        creatorUserId: userId,
+        creatorName,
+        creatorEmail,
+        sport,
+        city,
+        placeName: placeName ?? court.name,
+        facilityId: court.facilityId ?? null,
+        courtId: Number(courtId),
+        bookingId: booking.id,
+        playersNeeded: playersNeeded ?? 4,
+        skillLevel: skillLevel ?? "any",
+        datetime: datetimeIso,
+        durationMinutes: durationMinutes ?? dur,
+        description: description ?? null,
+        isPrivate: !!isPrivate,
+        requiresApproval: !!requiresApproval,
+        teamCount: teamCount ? Math.max(2, Math.min(6, Number(teamCount))) : 2,
+        inviteToken,
+        status: "pending_payment",
+        matchType: matchType === "rated" ? "rated" : "casual",
+      }).returning();
+
+      // Creator auto-joins (so they appear in the participants list once payment confirms)
+      await tx.insert(gameParticipantsTable).values({
+        gameId: game.id,
+        userId,
+        userName: creatorName,
+        userEmail: creatorEmail,
+        status: "joined",
+        source: "join_request",
+      });
+
+      return { booking, game };
+    });
+  } catch (err: any) {
+    if (err?.message === "SLOT_UNAVAILABLE") { res.status(409).json({ error: "Requested time slot is not available", code: "SLOT_UNAVAILABLE" }); return; }
+    if (err?.message === "SLOT_BLOCKED") { res.status(409).json({ error: "Requested time slot is blocked", code: "SLOT_BLOCKED" }); return; }
+    throw err;
+  }
+
+  // ─── Create Stripe checkout ──
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch {
+    // No Stripe configured → mock-confirm immediately (dev mode)
+    const mockSessionId = `mock_session_${inserted.booking.id}_${Date.now()}`;
+    await db.update(bookingsTable).set({ stripeSessionId: mockSessionId, status: "confirmed" }).where(eq(bookingsTable.id, inserted.booking.id));
+    await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, inserted.game.id));
+    await db.update(courtsTable).set({ totalBookings: sql`total_bookings + 1` }).where(eq(courtsTable.id, Number(courtId)));
+    res.json({ checkoutUrl: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id=${mockSessionId}`, gameId: inserted.game.id, bookingId: inserted.booking.id });
+    return;
+  }
+
+  // Resolve Connect destination (court → facility → owner)
+  let connectAccountId: string | null = court.stripeConnectAccountId ?? null;
+  if (!connectAccountId && court.facilityId) {
+    const [facility] = await db.select({ id: facilitiesTable.id, stripeConnectAccountId: facilitiesTable.stripeConnectAccountId })
+      .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+    connectAccountId = facility?.stripeConnectAccountId ?? null;
+  }
+  if (!connectAccountId && court.ownerUserId) {
+    const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, court.ownerUserId));
+    if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
+  }
+
+  const amountCents = Math.round(courtPrice * 100);
+  const sessionParams: any = {
+    payment_method_types: ["card"],
+    line_items: [{
+      price_data: {
+        currency: "eur",
+        product_data: {
+          name: `${court.name} – žaidimas (${bookingDate} ${bookingStart}–${bookingEnd})`,
+          description: `Korts.lt žaidimas — kūrėjas moka už visą aikštelę.`,
+        },
+        unit_amount: amountCents,
+      },
+      quantity: 1,
+    }],
+    mode: "payment",
+    success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: cancelUrl,
+    // Stripe minimum is 30 minutes; our slot hold is 15 min and the cron sweeper
+    // will release the booking + game well before this fires.
+    expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+    metadata: { bookingId: String(inserted.booking.id), gameId: String(inserted.game.id) },
+    customer_email: creatorEmail,
+    locale: "lt",
+  };
+  if (connectAccountId) {
+    const applicationFeeAmount = Math.round(amountCents * 5 / 100);
+    sessionParams.payment_intent_data = { application_fee_amount: applicationFeeAmount, transfer_data: { destination: connectAccountId } };
+  }
+
+  // Compensating rollback: if Stripe session creation fails, delete the dangling
+  // pending game + booking so we don't hold the slot until the 15-min sweeper.
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
+  try {
+    session = await stripe.checkout.sessions.create(sessionParams);
+  } catch (err) {
+    req.log?.error?.({ err, bookingId: inserted.booking.id, gameId: inserted.game.id }, "stripe session create failed — rolling back");
+    await db.delete(gamesTable).where(eq(gamesTable.id, inserted.game.id));
+    await db.delete(bookingsTable).where(eq(bookingsTable.id, inserted.booking.id));
+    res.status(502).json({ error: "Nepavyko sukurti mokėjimo sesijos. Bandykite dar kartą." });
+    return;
+  }
+  await db.update(bookingsTable).set({ stripeSessionId: session.id }).where(eq(bookingsTable.id, inserted.booking.id));
+
+  res.json({ checkoutUrl: session.url, gameId: inserted.game.id, bookingId: inserted.booking.id });
+});
+
+// ─── Exported helper: apply ELO for a confirmed result (used by /verify and the auto-confirm cron) ──
+export async function applyResultElo(gameResultId: number): Promise<void> {
+  const [result] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.id, gameResultId));
+  if (!result) return;
+  if (result.status === "confirmed") return; // idempotent
+
+  // Only the FIRST caller flips status (race between /verify-confirm and cron).
+  const flipped = await db
+    .update(gameResultsTable)
+    .set({ status: "confirmed" })
+    .where(and(eq(gameResultsTable.id, gameResultId), eq(gameResultsTable.status, "pending_verification")))
+    .returning();
+  if (flipped.length === 0) return; // somebody else already promoted
+
+  await db.update(gamesTable).set({ status: "completed" }).where(eq(gamesTable.id, result.gameId));
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, result.gameId));
+  if (!g || g.matchType !== "rated") return;
+
+  const participants = await db.select().from(gameParticipantsTable)
+    .where(and(eq(gameParticipantsTable.gameId, g.id), eq(gameParticipantsTable.status, "joined")));
+  const teamAPlayers = participants.filter(p => p.team === "A");
+  const teamBPlayers = participants.filter(p => p.team === "B");
+  const unassigned = participants.filter(p => !p.team);
+  const effectiveTeamA = teamAPlayers.length ? teamAPlayers : unassigned.slice(0, Math.ceil(unassigned.length / 2));
+  const effectiveTeamB = teamBPlayers.length ? teamBPlayers : unassigned.slice(Math.ceil(unassigned.length / 2));
+
+  const teamAWithElo = await Promise.all(effectiveTeamA.map(async p => ({ userId: p.userId, elo: (await getOrCreateRating(p.userId, g.sport)).elo })));
+  const teamBWithElo = await Promise.all(effectiveTeamB.map(async p => ({ userId: p.userId, elo: (await getOrCreateRating(p.userId, g.sport)).elo })));
+
+  const winner: "A" | "B" | "draw" =
+    result.scoreTeamA > result.scoreTeamB ? "A" :
+    result.scoreTeamB > result.scoreTeamA ? "B" : "draw";
+  const changes = calculateTeamElo(teamAWithElo, teamBWithElo, winner);
+  const isDraw = winner === "draw";
+
+  for (const change of changes) {
+    const isOnTeamA = !!teamAWithElo.find(p => p.userId === change.userId);
+    const isWinner = isDraw ? false : (isOnTeamA ? winner === "A" : winner === "B");
+    const winsAdd = isDraw ? 0 : (isWinner ? 1 : 0);
+    const lossesAdd = isDraw ? 0 : (!isWinner ? 1 : 0);
+    const drawsAdd = isDraw ? 1 : 0;
+
+    await db.update(userRatingsTable)
+      .set({
+        elo: change.newElo,
+        wins: sql`${userRatingsTable.wins} + ${winsAdd}`,
+        losses: sql`${userRatingsTable.losses} + ${lossesAdd}`,
+        draws: sql`${userRatingsTable.draws} + ${drawsAdd}`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(userRatingsTable.userId, change.userId), eq(userRatingsTable.sportSlug, g.sport)));
+
+    await db.insert(eloHistoryTable).values({
+      userId: change.userId,
+      sportSlug: g.sport,
+      elo: change.newElo,
+      delta: change.delta,
+      gameId: g.id,
+    });
+
+    const sign = change.delta > 0 ? "+" : "";
+    await sendNotification(
+      change.userId,
+      "elo_update",
+      `ELO pasikeitė: ${sign}${change.delta}`,
+      `Žaidimas (${g.sport}) baigtas. Reitingas: ${change.oldElo} → ${change.newElo} (${sign}${change.delta}).`,
+      `/games/${g.id}`,
+    );
+  }
+}
+
+// ─── Sweepers (called from cron) ──
+export async function sweepStalePendingGames(): Promise<number> {
+  // Find games stuck in pending_payment for > 15 min (Stripe abandoned/expired).
+  const stale = await db.select({ id: gamesTable.id, bookingId: gamesTable.bookingId })
+    .from(gamesTable)
+    .where(and(
+      eq(gamesTable.status, "pending_payment"),
+      sql`${gamesTable.createdAt} < NOW() - INTERVAL '15 minutes'`,
+    ));
+  if (stale.length === 0) return 0;
+
+  for (const row of stale) {
+    if (row.bookingId) {
+      await db.update(bookingsTable)
+        .set({ status: "cancelled" })
+        .where(and(eq(bookingsTable.id, row.bookingId), ne(bookingsTable.status, "confirmed")));
+    }
+    await db.delete(gamesTable).where(and(eq(gamesTable.id, row.id), eq(gamesTable.status, "pending_payment")));
+  }
+  return stale.length;
+}
+
+export async function sweepAutoConfirmResults(): Promise<number> {
+  const due = await db.select({ id: gameResultsTable.id })
+    .from(gameResultsTable)
+    .where(and(
+      eq(gameResultsTable.status, "pending_verification"),
+      lt(gameResultsTable.autoConfirmAt, new Date()),
+    ));
+  for (const r of due) {
+    try { await applyResultElo(r.id); }
+    catch (err) { logger.error({ err, resultId: r.id }, "auto-confirm: applyResultElo failed"); }
+  }
+  return due.length;
+}
 
 export default router;

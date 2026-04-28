@@ -56,8 +56,18 @@ export const eloHistoryTable = pgTable("elo_history", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const gameResultConfirmationsTable = pgTable("game_result_confirmations", {
+  id: serial("id").primaryKey(),
+  gameResultId: integer("game_result_id").notNull().references(() => gameResultsTable.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniq: unique("game_result_confirmation_unique").on(t.gameResultId, t.userId),
+}));
+
 export type Sport = typeof sportsTable.$inferSelect;
 export type UserRating = typeof userRatingsTable.$inferSelect;
 export type MatchInvite = typeof matchInvitesTable.$inferSelect;
 export type GameResult = typeof gameResultsTable.$inferSelect;
 export type EloHistory = typeof eloHistoryTable.$inferSelect;
+export type GameResultConfirmation = typeof gameResultConfirmationsTable.$inferSelect;
