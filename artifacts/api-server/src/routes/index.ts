@@ -30,6 +30,7 @@ import stripeConnectRouter from "./stripe-connect";
 import ownerDashboardRouter from "./owner-dashboard";
 import ownerCourtStatsRouter from "./owner-court-stats";
 import deleteUserDataRouter from "./delete-user-data";
+import diagnosticRouter from "./diagnostic";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(stripeConnectRouter);
 router.use(ownerDashboardRouter);
 router.use(ownerCourtStatsRouter);
 router.use(deleteUserDataRouter);
+router.use(diagnosticRouter);
 
 export default router;

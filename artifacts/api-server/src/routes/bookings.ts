@@ -20,19 +20,54 @@ import { z } from "zod";
 // >= 48h before start: 80% refund
 // >= 24h and < 48h:    50% refund
 // <  24h:              0% refund
-function computeRefund(totalPriceEur: number, hoursBeforeStart: number) {
+//
+// All money math is done in INTEGER CENTS to avoid binary-float rounding (e.g.
+// 19.99 * 0.5 = 9.995). Stripe `refunds.create.amount` is also in integer cents.
+export function computeRefund(totalPriceEur: number, hoursBeforeStart: number) {
+  const totalCents = Math.round(totalPriceEur * 100);
   if (hoursBeforeStart >= 48) {
-    return { refundPercent: 80, refundAmount: Math.round(totalPriceEur * 0.80 * 100) / 100, refundable: true };
+    const cents = Math.round(totalCents * 0.80);
+    return { refundPercent: 80, refundAmount: cents / 100, refundCents: cents, refundable: true };
   }
   if (hoursBeforeStart >= 24) {
-    return { refundPercent: 50, refundAmount: Math.round(totalPriceEur * 0.50 * 100) / 100, refundable: true };
+    const cents = Math.round(totalCents * 0.50);
+    return { refundPercent: 50, refundAmount: cents / 100, refundCents: cents, refundable: true };
   }
-  return { refundPercent: 0, refundAmount: 0, refundable: false };
+  return { refundPercent: 0, refundAmount: 0, refundCents: 0, refundable: false };
 }
 
-function hoursBeforeStart(date: string, startTime: string): number {
-  const start = new Date(`${String(date).slice(0, 10)}T${startTime}:00`);
-  return (start.getTime() - Date.now()) / (1000 * 60 * 60);
+// Booking `date`/`startTime` are stored as Lithuanian local time strings. The
+// server runs in UTC, so naively parsing `${date}T${startTime}:00` would treat
+// them as UTC and give a result that is wrong by Vilnius's DST offset (2–3h).
+// Compute the UTC instant for the Vilnius wall-clock time, then diff against
+// `Date.now()` in absolute milliseconds.
+export function vilniusLocalToUtcMs(date: string, time: string): number {
+  const dateOnly = String(date).slice(0, 10);
+  // Step 1: pretend the local string is UTC.
+  const naiveUtcMs = Date.parse(`${dateOnly}T${time}:00Z`);
+  // Step 2: ask what Europe/Vilnius wall-clock that UTC instant displays.
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Vilnius",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date(naiveUtcMs));
+  const get = (t: string) => parts.find(p => p.type === t)!.value;
+  let hh = get("hour");
+  if (hh === "24") hh = "00";
+  const vilniusAsUtcMs = Date.UTC(
+    Number(get("year")), Number(get("month")) - 1, Number(get("day")),
+    Number(hh), Number(get("minute")), Number(get("second")),
+  );
+  // Offset = how many ms Vilnius is AHEAD of UTC at that instant (+2h or +3h).
+  const offsetMs = vilniusAsUtcMs - naiveUtcMs;
+  // Subtract offset to get the actual UTC instant for that Vilnius wall-clock time.
+  return naiveUtcMs - offsetMs;
+}
+
+export function hoursBeforeStart(date: string, startTime: string): number {
+  return (vilniusLocalToUtcMs(date, startTime) - Date.now()) / (1000 * 60 * 60);
 }
 
 function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
