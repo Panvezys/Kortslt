@@ -5,6 +5,7 @@ import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
 import { SafeShow, SafeAuthBridge, useSafeAuth } from "@/lib/safeAuth";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { ltLT } from "@/lib/lt-localization";
+import { enUS, ruRU } from "@clerk/localizations";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -276,6 +277,8 @@ function ClerkQueryClientCacheInvalidator() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  const { locale } = useI18n();
+  const clerkLocalization = locale === "lt" ? ltLT : locale === "ru" ? ruRU : enUS;
 
   if (!clerkPubKey) {
     return (
@@ -295,7 +298,7 @@ function ClerkProviderWithRoutes() {
       publishableKey={clerkPubKey}
       domain={CLERK_DOMAIN}
       isSatellite={false}
-      localization={ltLT}
+      localization={clerkLocalization}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       routerPush={(to) => setLocation(stripBase(to))}
