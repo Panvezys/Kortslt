@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { ClerkProvider, useClerk, useAuth } from "@clerk/react";
 import { SafeShow, SafeAuthBridge, useSafeAuth } from "@/lib/safeAuth";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { ltLT } from "@/lib/lt-localization";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -294,6 +295,7 @@ function ClerkProviderWithRoutes() {
       publishableKey={clerkPubKey}
       domain={CLERK_DOMAIN}
       isSatellite={false}
+      localization={ltLT}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       routerPush={(to) => setLocation(stripBase(to))}
