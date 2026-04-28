@@ -735,7 +735,11 @@ export default function CourtDetail() {
         booking.status !== "cancelled" &&
         !localCancelledIds.includes(booking.id)
       )
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.startTime.localeCompare(b.startTime));
+      .sort((a, b) => {
+        const ka = `${String(a.date).slice(0, 10)} ${a.startTime}`;
+        const kb = `${String(b.date).slice(0, 10)} ${b.startTime}`;
+        return kb.localeCompare(ka);
+      });
   }, [bookings, courtId]);
 
 
