@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Gamepad2, Settings } from "lucide-react";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useI18n, useT, type Locale } from "@/lib/i18n";
 import { useRole } from "@/lib/useRole";
 import { NotificationBell } from "@/components/notification-bell";
@@ -108,23 +109,27 @@ const LOCALES: { code: Locale; label: string }[] = [
 
 function LanguageSelector() {
   const { locale, setLocale } = useI18n();
+  const current = LOCALES.find(({ code }) => code === locale)?.label ?? "LT";
   return (
-    <div className="flex items-center rounded-md border border-border bg-background overflow-hidden">
-      {LOCALES.map(({ code, label }) => (
-        <button
-          key={code}
-          onClick={() => setLocale(code)}
-          className={`h-8 px-2 text-xs font-medium transition-colors ${
-            locale === code
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-foreground"
-          }`}
-          aria-label={`Language ${label}`}
-        >
-          {label}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-accent transition-colors">
+          {current}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
-      ))}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-24">
+        {LOCALES.map(({ code, label }) => (
+          <DropdownMenuItem
+            key={code}
+            onClick={() => setLocale(code)}
+            className={locale === code ? "font-semibold" : ""}
+          >
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
