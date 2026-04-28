@@ -9,6 +9,8 @@ export const ltLT: typeof enUS = {
   formButtonPrimary__verify: "Patvirtinti",
   dividerText: "arba",
   signInEnterPasswordTitle: "Įveskite slaptažodį",
+  socialButtonsBlockButton: "Tęsti su {{provider|titleize}}",
+  socialButtonsBlockButtonManyInView: "{{provider|titleize}}",
 
   formFieldLabel__emailAddress: "El. pašto adresas",
   formFieldLabel__emailAddress_username: "El. paštas arba vartotojo vardas",
