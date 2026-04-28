@@ -106,6 +106,28 @@ const LOCALES: { code: Locale; label: string }[] = [
   { code: "ru", label: "RU" },
 ];
 
+function LanguageSelector() {
+  const { locale, setLocale } = useI18n();
+  return (
+    <div className="flex items-center rounded-md border border-border bg-background overflow-hidden">
+      {LOCALES.map(({ code, label }) => (
+        <button
+          key={code}
+          onClick={() => setLocale(code)}
+          className={`h-8 px-2 text-xs font-medium transition-colors ${
+            locale === code
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          }`}
+          aria-label={`Language ${label}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function UserMenu() {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
@@ -113,7 +135,6 @@ function UserMenu() {
   const t = useT();
   const { isAdmin, isOwner, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
-  const { locale, setLocale } = useI18n();
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -177,27 +198,6 @@ function UserMenu() {
           {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
           {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
         </DropdownMenuItem>
-        {/* Language selector */}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
-        <div className="px-2 pb-1">
-          <div className="grid grid-cols-3 gap-1">
-            {LOCALES.map(({ code, label }) => (
-              <button
-                key={code}
-                onClick={() => setLocale(code)}
-                className={`h-8 rounded-md border text-xs font-medium transition-colors ${
-                  locale === code
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
           className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
@@ -217,8 +217,6 @@ function MobileUserAvatar() {
   const t = useT();
   const { isAdmin, isOwner, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
-  const { locale, setLocale } = useI18n();
-
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
       user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
@@ -283,26 +281,6 @@ function MobileUserAvatar() {
           {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
           {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground py-1">Kalba</DropdownMenuLabel>
-        <div className="px-2 pb-1">
-          <div className="grid grid-cols-3 gap-1">
-            {LOCALES.map(({ code, label }) => (
-              <button
-                key={code}
-                onClick={() => setLocale(code)}
-                className={`h-8 rounded-md border text-xs font-medium transition-colors ${
-                  locale === code
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
           className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
@@ -361,6 +339,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2">
+              <LanguageSelector />
               <Show when="signed-out">
                 <div className="hidden md:flex items-center gap-2">
                   <Button variant="ghost" size="sm" asChild>
@@ -377,7 +356,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </Show>
               <Show when="signed-in">
-                {/* Favorites + Bookings icon buttons — visible on both mobile and desktop */}
                 <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
                 <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
                 <NotificationBell />
