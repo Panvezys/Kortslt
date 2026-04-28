@@ -25,6 +25,7 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
+import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
 
 const SPORT_LABELS: Record<string, string> = {
   tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
@@ -357,6 +358,8 @@ export default function CourtDetail() {
   const isOwner = !!user && !!court && user.id === (court as any).ownerUserId;
   const canEdit = isAdmin || isOwner;
   const [editOpen, setEditOpen] = useState(false);
+  const [guestCheckoutOpen, setGuestCheckoutOpen] = useState(false);
+  const [guestCheckoutSubmitting, setGuestCheckoutSubmitting] = useState(false);
 
   useEffect(() => {
     // Check URL params (direct Stripe redirect)
@@ -366,6 +369,7 @@ export default function CourtDetail() {
 
     // Fallback: check sessionStorage (handles cases where URL params are stripped by proxy)
     let sessionBookingId = 0;
+    let storedToken: string | null = null;
     try {
       const raw = sessionStorage.getItem("stripeCancel_pending");
       if (raw) {
@@ -373,6 +377,7 @@ export default function CourtDetail() {
         const isRecent = (Date.now() - stored.ts) < 30 * 60 * 1000;
         if (stored.courtId === courtId && isRecent) {
           sessionBookingId = stored.bookingId;
+          if (typeof stored.managementToken === "string") storedToken = stored.managementToken;
         }
       }
     } catch { /* ignore */ }
@@ -406,7 +411,12 @@ export default function CourtDetail() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ bookingId: cancelBookingId }),
+          body: JSON.stringify({
+            bookingId: cancelBookingId,
+            // Guests have no Clerk session — authorize via the management token we
+            // stashed in sessionStorage when starting Stripe Checkout.
+            ...(storedToken ? { managementToken: storedToken } : {}),
+          }),
         });
         if (resp.ok) {
           await queryClient.invalidateQueries();
@@ -665,33 +675,54 @@ export default function CourtDetail() {
       });
 
       const totalPrice = Number(booking.totalPrice ?? 0);
+      const mgmtToken = booking.managementToken ?? null;
+      const isGuest = !!mgmtToken;
 
       if (totalPrice > 0) {
-        // Paid booking — go through Stripe Checkout
+        // Paid booking — go through Stripe Checkout. Guests authorize the
+        // /payments/create-checkout call by passing their managementToken.
         const origin = window.location.origin;
         const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+        const successUrl = isGuest
+          ? `${origin}${base}/guest/booking/${mgmtToken}?paid=1`
+          : `${origin}${base}/booking-confirmed?id=${booking.id}`;
         const checkoutResp = await fetch(`${API}/payments/create-checkout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             bookingId: booking.id,
-            successUrl: `${origin}${base}/booking-confirmed?id=${booking.id}`,
+            ...(isGuest ? { managementToken: mgmtToken } : {}),
+            successUrl,
             cancelUrl: `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`,
           }),
         });
         if (!checkoutResp.ok) throw new Error("Checkout session failed");
         const { url } = await checkoutResp.json();
-        sessionStorage.setItem("stripeCancel_pending", JSON.stringify({ bookingId: booking.id, courtId, ts: Date.now() }));
+        sessionStorage.setItem("stripeCancel_pending", JSON.stringify({
+          bookingId: booking.id,
+          courtId,
+          ts: Date.now(),
+          // Persist guest token so /payments/cancel-booking can authorize on the
+          // unauth'd Stripe-cancel return path.
+          ...(isGuest ? { managementToken: mgmtToken } : {}),
+        }));
         window.location.href = url;
       } else {
         // Free booking — confirm immediately
         const resp = await fetch(`${API}/payments/confirm-free`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bookingId: booking.id }),
+          body: JSON.stringify({
+            bookingId: booking.id,
+            ...(isGuest ? { managementToken: mgmtToken } : {}),
+          }),
         });
         if (!resp.ok) throw new Error("Confirm failed");
-        navigate(`/booking-confirmed?id=${booking.id}`);
+        if (isGuest) {
+          navigate(`/guest/booking/${mgmtToken}`);
+        } else {
+          navigate(`/booking-confirmed?id=${booking.id}`);
+        }
       }
     } catch (err: unknown) {
       const apiErr = err as { data?: { error?: string; code?: string; item?: string; available?: number }; status?: number } | null;
@@ -1724,9 +1755,8 @@ export default function CourtDetail() {
                         {isPending ? "..." : "Rezervuoti"}
                       </Button>
                     ) : (
-                      <Button onClick={() => openSignIn()} className="button-primary h-10 px-4 font-semibold gap-1.5 shrink-0">
-                        <LogIn className="w-4 h-4" />
-                        Prisijungti
+                      <Button onClick={() => setGuestCheckoutOpen(true)} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
+                        Rezervuoti
                       </Button>
                     )}
                   </>
@@ -1831,11 +1861,11 @@ export default function CourtDetail() {
               </Button>
             ) : (
               <Button
-                onClick={() => openSignIn()}
-                className="button-primary h-11 px-5 font-semibold gap-1.5 shrink-0"
+                onClick={() => setGuestCheckoutOpen(true)}
+                className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
+                disabled={isPending}
               >
-                <LogIn className="w-4 h-4" />
-                Prisijungti
+                Rezervuoti
               </Button>
             )}
           </div>
@@ -1850,6 +1880,22 @@ export default function CourtDetail() {
           showOwnerContext={isAdmin && !isOwner}
         />
       )}
+
+      <GuestCheckoutDialog
+        open={guestCheckoutOpen}
+        onOpenChange={setGuestCheckoutOpen}
+        onSignIn={() => openSignIn()}
+        submitting={guestCheckoutSubmitting || isPending}
+        onSubmit={async (data) => {
+          setGuestCheckoutSubmitting(true);
+          try {
+            await handleReserve(data);
+            setGuestCheckoutOpen(false);
+          } finally {
+            setGuestCheckoutSubmitting(false);
+          }
+        }}
+      />
     </Layout>
   );
 }

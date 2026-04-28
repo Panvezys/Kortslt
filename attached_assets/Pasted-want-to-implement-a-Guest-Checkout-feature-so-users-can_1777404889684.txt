@@ -1,0 +1,33 @@
+want to implement a 'Guest Checkout' feature so users can book a court without registering via Clerk. Please implement this in the following phases, ensuring our existing cancellation and owner dashboard logic continues to work perfectly.
+
+Phase 1: Database Schema Updates
+
+Update the bookings table. Make the user_id (the Clerk ID) nullable.
+
+Add four new nullable columns to bookings: guest_name (string), guest_email (string), guest_phone (string), and management_token (string, unique).
+
+Generate a secure random string (e.g., using crypto.randomBytes) for management_token whenever a guest booking is created.
+
+Phase 2: Backend Checkout Adjustments
+
+Modify the POST /api/checkout (or booking creation) endpoint to accept a guest object (name, email, phone) if no Clerk auth header is present.
+
+Pass the guest_email to the Stripe PaymentIntent so Stripe sends the receipt to the guest.
+
+Ensure the newly created booking saves the guest details and the generated management_token.
+
+In the services/notifications.js file, ensure the confirmation email sent to the guest includes a link formatted as: https://[app-url]/guest/booking/[management_token].
+
+Phase 3: The Guest Management Page & API
+
+Create a new public-facing frontend route: /guest/booking/[token].
+
+Create a GET /api/guest/bookings/:token endpoint to fetch the booking details securely without requiring Clerk authentication.
+
+Create a POST /api/guest/bookings/:token/cancel endpoint. This must run the exact same 48h/24h tiered refund logic, math, and Stripe API calls as the authenticated cancel route, but uses the token to authorize the action instead of a user ID.
+
+Build the UI for the /guest/booking/[token] page. It should display the booking details, status badges, and include the same Confirmation Modal for cancellations that we use on the authenticated 'My Bookings' page.
+
+Phase 4: Owner Dashboard Compatibility
+
+Update the Owner Dashboard queries and UI. If user_id is null, display the guest_name and guest_email in the 'Mokėjimai' table and calendar views so the owner still knows exactly who booked the court.

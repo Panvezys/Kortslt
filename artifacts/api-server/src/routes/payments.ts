@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, bookingsTable, courtsTable, facilitiesTable, userProfilesTable } from "@workspace/db";
 import {
   CreateCheckoutSessionBody,
@@ -11,6 +11,7 @@ import { logger } from "../lib/logger";
 import { sendBookingConfirmationEmail, sendOwnerBookingNotificationEmail } from "../lib/email";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { getCurrentUserId, requireAuth, getUserRole } from "../lib/auth";
+import { timingSafeEqualToken } from "../lib/guestToken";
 
 const router: IRouter = Router();
 
@@ -25,8 +26,11 @@ router.get("/payments/config", async (_req, res) => {
   }
 });
 
-// ─── Create Checkout Session (player booking) ─────────────────────────────────
-router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<void> => {
+// ─── Create Checkout Session (player or guest booking) ───────────────────────
+// No requireAuth: a guest booking has no Clerk session, so we authorize via the
+// `managementToken` (returned to the client when the booking was created).
+// Authenticated callers are still authorized via session as before.
+router.post("/payments/create-checkout", async (req, res): Promise<void> => {
   const parsed = CreateCheckoutSessionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -34,6 +38,12 @@ router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<
   }
 
   const { bookingId, successUrl, cancelUrl } = parsed.data;
+  // Guest checkout passes the management token in the body (CreateCheckoutSessionBody
+  // doesn't list it, so read it raw — we never trust it without comparing to DB).
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : null;
 
   const rows = await db
     .select({ booking: bookingsTable, court: courtsTable })
@@ -48,12 +58,21 @@ router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<
 
   const { booking, court } = rows[0];
 
-  // Only the booker, the court owner, or an admin may initiate checkout
-  const callerId = getCurrentUserId(req)!;
-  const isBooker = booking.bookerUserId === callerId;
-  const isCourtOwner = court?.ownerUserId === callerId;
-  const callerRole = await getUserRole(callerId);
-  if (!isBooker && !isCourtOwner && callerRole !== "admin") {
+  // Authorization:
+  // 1) Authenticated booker / court owner / admin (existing behavior), OR
+  // 2) Guest path: booking.bookerUserId is null AND request supplied the matching managementToken.
+  const callerId = getCurrentUserId(req);
+  let authorized = false;
+  if (callerId) {
+    const isBooker = booking.bookerUserId === callerId;
+    const isCourtOwner = court?.ownerUserId === callerId;
+    const callerRole = await getUserRole(callerId);
+    authorized = isBooker || isCourtOwner || callerRole === "admin";
+  }
+  if (!authorized && booking.bookerUserId === null && timingSafeEqualToken(providedToken, booking.managementToken)) {
+    authorized = true;
+  }
+  if (!authorized) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -194,14 +213,35 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
 
   const newStatus = "confirmed";
 
-  const [booking] = await db
+  // Idempotent transition: only the first caller (race between Stripe webhook and
+  // the eager success-page POST) actually flips status and runs side effects.
+  // Subsequent calls return the already-confirmed booking without re-incrementing
+  // counters or re-sending emails.
+  const updated = await db
     .update(bookingsTable)
     .set({
       status: newStatus,
       ...(stripePaymentIntentId ? { stripePaymentIntentId } : {}),
     })
-    .where(eq(bookingsTable.stripeSessionId, sessionId))
+    .where(and(
+      eq(bookingsTable.stripeSessionId, sessionId),
+      ne(bookingsTable.status, "confirmed"),
+    ))
     .returning();
+
+  if (updated.length === 0) {
+    // Already confirmed by webhook (or another concurrent call). Return current state.
+    res.json(ConfirmPaymentResponse.parse({
+      ...rows[0].booking,
+      totalPrice: Number(rows[0].booking.totalPrice),
+      refundAmount: Number(rows[0].booking.refundAmount ?? 0),
+      status: "confirmed",
+      rentedItems: rows[0].booking.rentedItems ?? undefined,
+    }));
+    return;
+  }
+
+  const booking = updated[0];
 
   await db
     .update(courtsTable)
@@ -222,6 +262,9 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     endTime: booking.endTime,
     totalPrice: Number(booking.totalPrice),
     bookingId: booking.id,
+    // Guest bookings have no Clerk session — pass the token so the email links to the
+    // public /guest/booking/[token] management page.
+    managementToken: booking.managementToken ?? undefined,
   }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
 
   if (rows[0].ownerEmail) {
@@ -252,14 +295,21 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
 });
 
 // ─── Cancel pending booking (Stripe checkout abandoned) ──────────────────────
-router.post("/payments/cancel-booking", requireAuth, async (req, res): Promise<void> => {
+router.post("/payments/cancel-booking", async (req, res): Promise<void> => {
   const bookingId = Number(req.body?.bookingId);
   if (!bookingId || isNaN(bookingId)) {
     res.status(400).json({ error: "bookingId required" });
     return;
   }
 
-  const userId = getCurrentUserId(req)!;
+  // Two authorization paths (mirrors confirm-free / create-checkout):
+  // 1) Authenticated booker (existing behavior)
+  // 2) Guest with matching managementToken
+  const userId = getCurrentUserId(req);
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : null;
 
   const rows = await db
     .select({ booking: bookingsTable })
@@ -271,7 +321,11 @@ router.post("/payments/cancel-booking", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  if (rows[0].booking.bookerUserId !== userId) {
+  const isBooker = !!userId && rows[0].booking.bookerUserId === userId;
+  const isGuestWithToken =
+    rows[0].booking.bookerUserId === null &&
+    timingSafeEqualToken(providedToken, rows[0].booking.managementToken);
+  if (!isBooker && !isGuestWithToken) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -287,19 +341,26 @@ router.post("/payments/cancel-booking", requireAuth, async (req, res): Promise<v
     .where(eq(bookingsTable.id, bookingId))
     .returning();
 
-  logger.info({ bookingId, userId }, "Booking cancelled after Stripe checkout abandonment");
+  logger.info({ bookingId, userId: userId ?? null, isGuest: userId == null }, "Booking cancelled after Stripe checkout abandonment");
   res.json({ status: updated.status });
 });
 
 // ─── Free booking confirm ─────────────────────────────────────────────────────
-router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<void> => {
+router.post("/payments/confirm-free", async (req, res): Promise<void> => {
   const bookingId = Number(req.body?.bookingId);
   if (!bookingId || isNaN(bookingId)) {
     res.status(400).json({ error: "bookingId required" });
     return;
   }
 
-  const userId = getCurrentUserId(req)!;
+  // Two authorization paths:
+  // 1) Authenticated session — booker / court-owner / admin
+  // 2) Guest — booking has no booker and request supplies the matching managementToken
+  const userId = getCurrentUserId(req);
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : undefined;
 
   const rows = await db
     .select({
@@ -333,11 +394,15 @@ router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<voi
     return;
   }
 
-  // Only the booker or the court owner (or admin) may confirm
-  const isBooker = rows[0].booking.bookerUserId === userId;
-  const isCourtOwner = rows[0].courtOwnerUserId === userId;
-  const role = await getUserRole(userId);
-  if (!isBooker && !isCourtOwner && role !== "admin") {
+  // Only the booker, the court owner, an admin, or a guest with the
+  // matching managementToken may confirm.
+  const isBooker = !!userId && rows[0].booking.bookerUserId === userId;
+  const isCourtOwner = !!userId && rows[0].courtOwnerUserId === userId;
+  const role = userId ? await getUserRole(userId) : null;
+  const isGuestWithToken =
+    rows[0].booking.bookerUserId === null &&
+    timingSafeEqualToken(providedToken, rows[0].booking.managementToken);
+  if (!isBooker && !isCourtOwner && role !== "admin" && !isGuestWithToken) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

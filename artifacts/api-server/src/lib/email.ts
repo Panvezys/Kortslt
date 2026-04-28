@@ -189,6 +189,9 @@ export interface BookingEmailData {
   endTime: string;
   totalPrice: number;
   bookingId: number;
+  // Guest bookings (no Clerk session) get an opaque token; including this enables
+  // a "Manage your booking" link in the email pointing at /guest/booking/[token].
+  managementToken?: string;
 }
 
 export async function sendBookingConfirmationEmail(data: BookingEmailData): Promise<void> {
@@ -206,6 +209,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
   const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
   const icsUrl = `${SITE_URL}/api/bookings/${data.bookingId}/ics`;
   const mapsUrl = googleMapsUrl(data.courtAddress, data.courtCity);
+  const manageUrl = data.managementToken ? `${SITE_URL}/guest/booking/${data.managementToken}` : null;
   const googleCalUrl = googleCalendarUrl({
     title: `Korto rezervacija – ${data.courtName}`,
     startDate: dateStr,
@@ -404,6 +408,20 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
               </table>
             </td>
           </tr>
+
+          <!-- Guest management link (only for guest bookings) -->
+          ${manageUrl ? `
+          <tr>
+            <td style="padding:0 32px 18px;">
+              <a href="${manageUrl}" style="display:block;background:#adff2f;color:#000;font-weight:700;font-size:14px;padding:14px 16px;border-radius:10px;text-decoration:none;text-align:center;">
+                Valdyti rezervaciją →
+              </a>
+              <p style="color:#6b7280;font-size:11px;margin:8px 0 0;text-align:center;line-height:1.5;">
+                Išsaugokite šią nuorodą — su ja galėsite peržiūrėti ar atšaukti rezervaciją be prisijungimo.
+              </p>
+            </td>
+          </tr>
+          ` : ""}
 
           <!-- Calendar buttons -->
           <tr>

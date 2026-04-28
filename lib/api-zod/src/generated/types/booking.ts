@@ -21,5 +21,7 @@ export interface Booking {
   stripeSessionId?: string;
   refundAmount?: number;
   stripeRefundId?: string;
+  /** Opaque token for guest bookings to manage the reservation without an account. */
+  managementToken?: string | null;
   createdAt: Date;
 }

@@ -318,6 +318,12 @@ export const ListBookingsResponseItem = zod.object({
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
+  managementToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Opaque token for guest bookings to manage the reservation without an account.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
@@ -355,6 +361,12 @@ export const GetBookingResponse = zod.object({
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
+  managementToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Opaque token for guest bookings to manage the reservation without an account.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -379,6 +391,12 @@ export const CancelBookingResponse = zod.object({
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
+  managementToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Opaque token for guest bookings to manage the reservation without an account.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -471,6 +489,12 @@ export const ConfirmPaymentResponse = zod.object({
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
+  managementToken: zod
+    .string()
+    .nullish()
+    .describe(
+      "Opaque token for guest bookings to manage the reservation without an account.",
+    ),
   createdAt: zod.coerce.date(),
 });
 

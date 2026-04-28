@@ -16,6 +16,12 @@ import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+import { randomBytes } from "node:crypto";
+
+// Cryptographically random opaque token used to authorize guest booking management.
+export function generateManagementToken(): string {
+  return randomBytes(32).toString("base64url");
+}
 
 // ─── Refund tier policy ──────────────────────────────────────────────────────
 // >= 48h before start: 80% refund
@@ -106,6 +112,7 @@ function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: s
     stripeSessionId: booking.stripeSessionId ?? undefined,
     stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
     stripeRefundId: booking.stripeRefundId ?? undefined,
+    managementToken: booking.managementToken ?? undefined,
   };
 }
 
@@ -167,7 +174,11 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
   res.json(ListBookingsResponse.parse(rows.map(r => formatBooking(r.booking, r.courtName ?? undefined))));
 });
 
-router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
+// POST /bookings — supports both authenticated bookers and guests.
+// No requireAuth: if the caller has a Clerk session, we associate the booking with their userId.
+// If not, we treat it as a guest booking (bookerUserId=null) and generate a managementToken
+// so the guest can later view/cancel via /api/guest/bookings/:token.
+router.post("/bookings", async (req, res): Promise<void> => {
   const parsed = CreateBookingBody.safeParse(req.body);
   if (!parsed.success) {
     console.error("[bookings] validation failed:", JSON.stringify(req.body), parsed.error.flatten());
@@ -350,6 +361,10 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
       const totalPrice = courtPrice + equipmentCost;
 
       // ── Insert inside the same transaction ──
+      // Guests (no Clerk session) get a management_token so they can later view & cancel
+      // their booking via /api/guest/bookings/:token. Authenticated users use their session.
+      const managementToken = bookerUserId ? null : generateManagementToken();
+
       const [inserted] = await tx.insert(bookingsTable).values({
         courtId: parsed.data.courtId,
         bookerUserId: bookerUserId ?? null,
@@ -362,6 +377,7 @@ router.post("/bookings", requireAuth, async (req, res): Promise<void> => {
         totalPrice: String(totalPrice),
         rentedItems: validatedRentedItems,
         status: "pending",
+        managementToken,
       }).returning();
 
       return inserted;

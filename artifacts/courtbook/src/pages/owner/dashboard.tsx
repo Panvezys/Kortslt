@@ -44,6 +44,7 @@ interface OwnerBooking {
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
+  bookerUserId?: string | null;
   date: string;
   startTime: string;
   endTime: string;
@@ -877,7 +878,14 @@ export default function OwnerDashboard() {
                               }
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{item.customerName}</p>
+                              <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                                {item.customerName}
+                                {item.bookerUserId === null && (
+                                  <span className="inline-flex items-center px-1.5 py-0 text-[9px] font-semibold rounded bg-muted text-muted-foreground border border-border/60 uppercase tracking-wide">
+                                    Svečias
+                                  </span>
+                                )}
+                              </p>
                               <p className="text-[11px] text-muted-foreground">{item.courtName} · {item.startTime}–{item.endTime}</p>
                             </div>
                             <div className="shrink-0 text-right">

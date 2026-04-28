@@ -20,6 +20,9 @@ export const bookingsTable = pgTable("bookings", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   stripeRefundId: text("stripe_refund_id"),
+  // Opaque token allowing a guest (no Clerk session) to view & cancel their booking.
+  // Generated server-side with crypto.randomBytes for guest bookings; null for authed users.
+  managementToken: text("management_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

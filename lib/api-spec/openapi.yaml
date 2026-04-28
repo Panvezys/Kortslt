@@ -699,6 +699,10 @@ components:
           type: number
         stripeRefundId:
           type: string
+        managementToken:
+          type: string
+          nullable: true
+          description: Opaque token for guest bookings to manage the reservation without an account.
         createdAt:
           type: string
           format: date-time

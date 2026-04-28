@@ -19,6 +19,7 @@ import Courts from "@/pages/courts";
 import CourtDetail from "@/pages/court-detail";
 import Bookings from "@/pages/bookings";
 import BookingDetail from "@/pages/booking-detail";
+import GuestBooking from "@/pages/guest-booking";
 import PaymentSuccess from "@/pages/payment-success";
 import PaymentCancel from "@/pages/payment-cancel";
 import BookingConfirmed from "@/pages/booking-confirmed";
@@ -195,6 +196,7 @@ function Router() {
       <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
+      <Route path="/guest/booking/:token" component={GuestBooking} />
       <Route path="/owner/dashboard" component={() => <OwnerRoute><Suspense fallback={null}><OwnerDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
       <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
