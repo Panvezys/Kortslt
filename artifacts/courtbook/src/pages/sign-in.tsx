@@ -1,6 +1,8 @@
 import { SignIn } from "@clerk/react";
 import { useLocation } from "wouter";
 import { X } from "lucide-react";
+import { ltLT } from "@/lib/lt-localization";
+import { useI18n } from "@/lib/i18n";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -8,6 +10,7 @@ const HERO_IMAGE = "courts/court_2_bernardinu.webp";
 
 export default function SignInPage() {
   const [, setLocation] = useLocation();
+  const { locale } = useI18n();
 
   return (
     <div className="min-h-screen flex">
@@ -75,6 +78,7 @@ export default function SignInPage() {
               routing="path"
               path={`${basePath}/sign-in`}
               signUpUrl={`${basePath}/sign-up`}
+              localization={locale === "lt" ? ltLT : undefined}
               appearance={{
                 layout: {
                   showOptionalFields: false,
