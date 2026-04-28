@@ -462,16 +462,19 @@ export default function Bookings() {
   const localCancelledIds: number[] = (() => {
     try { return JSON.parse(sessionStorage.getItem("cancelledBookingIds") ?? "[]"); } catch { return []; }
   })();
+  const startMs = (b: typeof sorted[number]) => {
+    const dt = new Date(b.date);
+    const [hh, mm] = (b.startTime ?? "00:00").split(":").map(Number);
+    dt.setHours(hh || 0, mm || 0, 0, 0);
+    return dt.getTime();
+  };
+  const nowMs = Date.now();
   const upcomingBookings = sorted.filter(b => {
-    const d = new Date(b.date);
-    d.setHours(0, 0, 0, 0);
-    return d >= today && b.status !== "cancelled" && !localCancelledIds.includes(b.id);
+    return startMs(b) > nowMs && b.status !== "cancelled" && !localCancelledIds.includes(b.id);
   });
 
   const pastBookings = sorted.filter(b => {
-    const d = new Date(b.date);
-    d.setHours(0, 0, 0, 0);
-    return d < today || b.status === "cancelled";
+    return startMs(b) <= nowMs || b.status === "cancelled";
   });
 
   const displayed = tab === "upcoming" ? upcomingBookings : pastBookings;
@@ -542,9 +545,10 @@ export default function Bookings() {
             </div>
           ) : (
             displayed.map((booking) => {
-              const d = new Date(booking.date);
-              d.setHours(0, 0, 0, 0);
-              const isUpcoming = d >= today && booking.status !== "cancelled";
+              const startDt = new Date(booking.date);
+              const [sh, sm] = (booking.startTime ?? "00:00").split(":").map(Number);
+              startDt.setHours(sh || 0, sm || 0, 0, 0);
+              const isUpcoming = startDt.getTime() > Date.now() && booking.status !== "cancelled";
               return (
                 <BookingCard
                   key={booking.id}

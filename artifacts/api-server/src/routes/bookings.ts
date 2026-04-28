@@ -443,15 +443,13 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   }
 
   // ─── Refund tier calculation ─────────────────────────────────────────────
+  // Policy applies uniformly to all roles. No silent admin override.
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const isAdminOverride = role === "admin"; // admins always get full refund
-  const tier = isAdminOverride
-    ? { refundPercent: 100, refundAmount: totalPriceEur, refundable: totalPriceEur > 0 }
-    : computeRefund(totalPriceEur, hours);
+  const tier = computeRefund(totalPriceEur, hours);
 
-  // Non-admin: prevent cancelling a booking that has already started/ended.
-  if (!isAdminOverride && hours <= 0) {
+  // Prevent cancelling a booking that has already started/ended.
+  if (hours <= 0) {
     res.status(400).json({ error: "Booking has already started or ended", code: "CANCEL_TOO_LATE" });
     return;
   }
@@ -545,13 +543,10 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
 
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const isAdminOverride = role === "admin";
-  const tier = isAdminOverride
-    ? { refundPercent: 100, refundAmount: totalPriceEur, refundable: totalPriceEur > 0 }
-    : computeRefund(totalPriceEur, hours);
+  const tier = computeRefund(totalPriceEur, hours);
 
-  // Admins can always cancel; regular users only before start.
-  const canCancel = booking.status !== "cancelled" && (isAdminOverride || hours > 0);
+  // Cancellation only allowed before start time (policy applies to all roles).
+  const canCancel = booking.status !== "cancelled" && hours > 0;
   let reason: string | undefined;
   if (booking.status === "cancelled") reason = "Booking is already cancelled.";
   else if (hours <= 0) reason = "Booking has already started or ended.";
