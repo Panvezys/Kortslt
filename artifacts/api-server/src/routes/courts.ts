@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray, or, sql } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable } from "@workspace/db";
-import { asc } from "drizzle-orm";
+import { asc, desc } from "drizzle-orm";
 import {
   ListCourtsQueryParams,
   CreateCourtBody,
@@ -765,11 +765,16 @@ router.get("/courts/:id/activity", async (req, res): Promise<void> => {
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
+  const now = new Date();
   const [lastBooking] = await db
     .select({ startTime: bookingsTable.startTime })
     .from(bookingsTable)
-    .where(and(eq(bookingsTable.courtId, id), eq(bookingsTable.status, "confirmed")))
-    .orderBy(asc(bookingsTable.startTime))
+    .where(and(
+      eq(bookingsTable.courtId, id),
+      eq(bookingsTable.status, "confirmed"),
+      lte(bookingsTable.startTime, now),
+    ))
+    .orderBy(desc(bookingsTable.startTime))
     .limit(1);
 
   const todayGames = await db

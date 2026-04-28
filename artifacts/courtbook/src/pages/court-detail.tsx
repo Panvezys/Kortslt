@@ -3,7 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
-import { useT } from "@/lib/i18n";
+import { useT, useI18n } from "@/lib/i18n";
 import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
@@ -297,6 +297,7 @@ export default function CourtDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const t = useT();
+  const { locale } = useI18n();
 
   const [date, setDate] = useState<Date>(new Date());
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
@@ -1138,22 +1139,40 @@ export default function CourtDetail() {
             })()}
 
             {/* Activity Indicators */}
-            {activity && (activity.lastBookedAt || activity.todayGameCount > 0) && (
-              <div className="flex flex-wrap gap-2">
-                {activity.lastBookedAt && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-400/20 text-xs text-green-600 dark:text-green-400">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Paskutinį kartą rezervuota: {new Date(activity.lastBookedAt).toLocaleDateString("lt-LT", { month: "short", day: "numeric" })}
-                  </div>
-                )}
-                {activity.todayGameCount > 0 && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary">
-                    <Users className="w-3.5 h-3.5" />
-                    Šiandien {activity.todayGameCount} {activity.todayGameCount === 1 ? "žaidimas" : "žaidimai"}
-                  </div>
-                )}
-              </div>
-            )}
+            {activity && (() => {
+              const parsed = activity.lastBookedAt ? new Date(activity.lastBookedAt) : null;
+              const lastBookedValid = parsed && !isNaN(parsed.getTime()) ? parsed : null;
+              const formatted = lastBookedValid
+                ? lastBookedValid.toLocaleString(locale === "en" ? "en-US" : locale === "ru" ? "ru-RU" : "lt-LT", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : null;
+              return (
+                <div className="flex flex-wrap gap-2">
+                  {formatted ? (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-400/20 text-xs text-green-600 dark:text-green-400">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {t("courts.activity.lastBooked", { when: formatted })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted border border-border text-xs text-muted-foreground">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {t("courts.activity.notReservedYet")}
+                    </div>
+                  )}
+                  {activity.todayGameCount > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-xs text-primary">
+                      <Users className="w-3.5 h-3.5" />
+                      Šiandien {activity.todayGameCount} {activity.todayGameCount === 1 ? "žaidimas" : "žaidimai"}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Membership Plans */}
             <CourtMembershipSection courtId={court.id} />
