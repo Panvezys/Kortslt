@@ -15,7 +15,12 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
+
+type SortKey = "dateAsc" | "dateDesc" | "createdDesc" | "createdAsc";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -306,6 +311,7 @@ function BookingCard({
 export default function Bookings() {
   const t = useT();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const [sortKey, setSortKey] = useState<SortKey>("dateAsc");
   const [ratingBooking, setRatingBooking] = useState<{
     id: number; courtName?: string; courtId: number; customerName: string;
   } | null>(null);
@@ -330,9 +336,17 @@ export default function Bookings() {
   today.setHours(0, 0, 0, 0);
 
   const sorted = (bookings ?? []).slice().sort((a, b) => {
+    if (sortKey === "createdDesc" || sortKey === "createdAsc") {
+      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sortKey === "createdDesc" ? cb - ca : ca - cb;
+    }
     const da = new Date(a.date).getTime();
     const db2 = new Date(b.date).getTime();
-    return tab === "upcoming" ? da - db2 : db2 - da;
+    if (da !== db2) return sortKey === "dateAsc" ? da - db2 : db2 - da;
+    return sortKey === "dateAsc"
+      ? a.startTime.localeCompare(b.startTime)
+      : b.startTime.localeCompare(a.startTime);
   });
 
   const localCancelledIds: number[] = (() => {
@@ -360,29 +374,42 @@ export default function Bookings() {
           <p className="text-muted-foreground mt-1 text-sm">{t("bookings.subtitle")}</p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex bg-muted p-1 rounded-lg mb-6 w-fit">
-          <button
-            onClick={() => setTab("upcoming")}
-            className={`px-5 py-2 text-sm font-medium rounded-md transition-colors relative ${
-              tab === "upcoming" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Ateinančios
-            {upcomingBookings.length > 0 && !isLoading && (
-              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
-                {upcomingBookings.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setTab("past")}
-            className={`px-5 py-2 text-sm font-medium rounded-md transition-colors ${
-              tab === "past" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Praeitos
-          </button>
+        {/* Tabs + Sort */}
+        <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+          <div className="flex bg-muted p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setTab("upcoming")}
+              className={`px-5 py-2 text-sm font-medium rounded-md transition-colors relative ${
+                tab === "upcoming" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Ateinančios
+              {upcomingBookings.length > 0 && !isLoading && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold">
+                  {upcomingBookings.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setTab("past")}
+              className={`px-5 py-2 text-sm font-medium rounded-md transition-colors ${
+                tab === "past" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Praeitos
+            </button>
+          </div>
+          <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+            <SelectTrigger className="h-9 w-auto min-w-[180px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dateAsc">{t("bookings.sort.dateAsc")}</SelectItem>
+              <SelectItem value="dateDesc">{t("bookings.sort.dateDesc")}</SelectItem>
+              <SelectItem value="createdDesc">{t("bookings.sort.createdDesc")}</SelectItem>
+              <SelectItem value="createdAsc">{t("bookings.sort.createdAsc")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* List */}
