@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   Menu, X, LogOut, Euro, TrendingUp, CalendarDays, CheckCircle2, Clock, ExternalLink,
+  Undo2, AlertTriangle,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
+import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -86,6 +88,9 @@ interface DashboardData {
     courtName?: string | null;
   }[];
   monthlyRevenue: number;
+  monthlyGrossRevenue?: number;
+  monthlyRefundedTotal?: number;
+  monthlyNetRevenue?: number;
   monthlyBookingCount: number;
 }
 
@@ -98,6 +103,7 @@ interface BookingItem {
   startTime: string;
   endTime: string;
   totalPrice: number;
+  refundAmount?: number | null;
   status: string;
   createdAt: string;
   courtName?: string | null;
@@ -134,13 +140,21 @@ export default function OwnerPayments() {
     enabled: !!dashData,
   });
 
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [forceCancelTarget, setForceCancelTarget] = useState<BookingItem | null>(null);
+
   const filtered = (allBookings ?? []).filter(b =>
     statusFilter === "all" || b.status === statusFilter
   );
 
-  const totalRevenue = (allBookings ?? [])
-    .filter(b => b.status === "confirmed")
-    .reduce((acc, b) => acc + b.totalPrice, 0);
+  // Owner-facing financial summary derived from /owner/dashboard:
+  //   Gross   = €€ that passed checkout (confirmed + cancelled)
+  //   Refunds = €€ explicitly refunded from cancelled rows
+  //   Net     = Gross − Refunds (cash actually retained by the owner)
+  const grossRevenue = dashData?.monthlyGrossRevenue ?? dashData?.monthlyRevenue ?? 0;
+  const refundedTotal = dashData?.monthlyRefundedTotal ?? 0;
+  const netRevenue = dashData?.monthlyNetRevenue ?? dashData?.monthlyRevenue ?? 0;
 
   const confirmedCount = (allBookings ?? []).filter(b => b.status === "confirmed").length;
   const pendingCount = (allBookings ?? []).filter(b => b.status === "pending").length;
@@ -202,33 +216,33 @@ export default function OwnerPayments() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <div className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
-                <p className="text-xs text-muted-foreground font-medium">Visos pajamos</p>
+                <p className="text-xs text-muted-foreground font-medium">Bendros pajamos</p>
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                   <Euro className="h-4 w-4 text-emerald-500" />
                 </div>
               </div>
-              <p className="text-2xl font-bold">€{totalRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-xs text-muted-foreground mt-1">Patvirtintos</p>
+              <p className="text-2xl font-bold">€{grossRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground mt-1">Šį mėnesį (su atšauktomis)</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
-                <p className="text-xs text-muted-foreground font-medium">Patvirtinta</p>
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                <p className="text-xs text-muted-foreground font-medium">Grąžinta klientams</p>
+                <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center">
+                  <Undo2 className="h-4 w-4 text-red-500" />
                 </div>
               </div>
-              <p className="text-2xl font-bold">{confirmedCount}</p>
-              <p className="text-xs text-muted-foreground mt-1">Rezervacijų</p>
+              <p className="text-2xl font-bold text-red-500">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground mt-1">Iš atšauktų rezervacijų</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
-                <p className="text-xs text-muted-foreground font-medium">Šį mėnesį</p>
+                <p className="text-xs text-muted-foreground font-medium">Grynosios pajamos</p>
                 <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center">
                   <TrendingUp className="h-4 w-4 text-violet-500" />
                 </div>
               </div>
-              <p className="text-2xl font-bold">€{(dashData?.monthlyRevenue ?? 0).toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-xs text-muted-foreground mt-1">{dashData?.monthlyBookingCount ?? 0} rezervac.</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">€{netRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground mt-1">{dashData?.monthlyBookingCount ?? 0} rezervac. · Bendros − Grąžinta</p>
             </div>
           </div>
 
@@ -261,36 +275,262 @@ export default function OwnerPayments() {
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {filtered.map(b => (
-                  <a key={b.id} href={`${BASE_URL}/bookings/${b.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors">
-                    <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      b.status === "confirmed" ? "bg-emerald-500/10" : b.status === "pending" ? "bg-amber-500/10" : "bg-red-500/10"
-                    }`}>
-                      {b.status === "confirmed"
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        : b.status === "pending"
-                          ? <Clock className="h-4 w-4 text-amber-500" />
-                          : <X className="h-4 w-4 text-red-500" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{b.customerName}</p>
-                      <p className="text-xs text-muted-foreground">{b.courtName ?? `Kortas #${b.courtId}`} · {b.date} {b.startTime}–{b.endTime}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold">€{b.totalPrice.toFixed(2)}</p>
-                      <Badge
-                        variant={b.status === "confirmed" ? "default" : b.status === "pending" ? "secondary" : "destructive"}
-                        className="text-[10px] px-1.5 py-0 mt-0.5"
+                {filtered.map(b => {
+                  const isCancelled = b.status === "cancelled";
+                  const refunded = Number(b.refundAmount ?? 0);
+                  return (
+                    <div key={b.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <a
+                        href={`${BASE_URL}/bookings/${b.id}`}
+                        className="flex items-center gap-4 flex-1 min-w-0"
                       >
-                        {b.status === "confirmed" ? "Patvirtinta" : b.status === "pending" ? "Laukiama" : "Atšaukta"}
-                      </Badge>
+                        <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                          b.status === "confirmed" ? "bg-emerald-500/10" : b.status === "pending" ? "bg-amber-500/10" : "bg-red-500/10"
+                        }`}>
+                          {b.status === "confirmed"
+                            ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            : b.status === "pending"
+                              ? <Clock className="h-4 w-4 text-amber-500" />
+                              : <X className="h-4 w-4 text-red-500" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{b.customerName}</p>
+                          <p className="text-xs text-muted-foreground">{b.courtName ?? `Kortas #${b.courtId}`} · {b.date} {b.startTime}–{b.endTime}</p>
+                        </div>
+                      </a>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-sm font-semibold ${isCancelled ? "line-through text-muted-foreground" : ""}`}>
+                          €{b.totalPrice.toFixed(2)}
+                        </p>
+                        {isCancelled && refunded > 0 && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                            Grąžinta: €{refunded.toFixed(2)}
+                          </p>
+                        )}
+                        <Badge
+                          variant={b.status === "confirmed" ? "default" : b.status === "pending" ? "secondary" : "destructive"}
+                          className="text-[10px] px-1.5 py-0 mt-0.5"
+                        >
+                          {b.status === "confirmed" ? "Patvirtinta" : b.status === "pending" ? "Laukiama" : "Atšaukta"}
+                        </Badge>
+                      </div>
+                      {!isCancelled && (
+                        <button
+                          type="button"
+                          onClick={() => setForceCancelTarget(b)}
+                          className="shrink-0 px-2 py-1.5 text-[11px] font-medium rounded-md border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-1"
+                          title="Priverstinis atšaukimas (apeina 24h/48h taisyklę)"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          <span className="hidden sm:inline">Priverstinis</span>
+                        </button>
+                      )}
                     </div>
-                  </a>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {forceCancelTarget && (
+        <ForceCancelDialog
+          booking={forceCancelTarget}
+          onClose={() => setForceCancelTarget(null)}
+          onSuccess={(refundedEur) => {
+            toast({
+              title: "Rezervacija atšaukta",
+              description: refundedEur > 0
+                ? `Grąžinta klientui: €${refundedEur.toFixed(2)}.`
+                : "Be grąžinimo.",
+            });
+            setForceCancelTarget(null);
+            queryClient.invalidateQueries({ queryKey: ["owner-bookings-all"] });
+            queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Force-Cancel Dialog (owner manual override) ──────────────────────────────
+//
+// Three preset refund tiers (100% / 50% / 0%) plus a free-form custom amount.
+// Strict client-side validation: amount must be in [0, totalPrice]. Server
+// re-validates with the same bound and 400s if exceeded.
+
+function ForceCancelDialog({
+  booking,
+  onClose,
+  onSuccess,
+}: {
+  booking: BookingItem;
+  onClose: () => void;
+  onSuccess: (refundedEur: number) => void;
+}) {
+  type Preset = "full" | "half" | "none" | "custom";
+  const [preset, setPreset] = useState<Preset>("full");
+  const [customEur, setCustomEur] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const totalPriceCents = Math.round(booking.totalPrice * 100);
+
+  const presetCents: number | null = (() => {
+    if (preset === "full") return totalPriceCents;
+    if (preset === "half") return Math.round(totalPriceCents * 0.5);
+    if (preset === "none") return 0;
+    return null; // custom — handled below
+  })();
+
+  const customCents: number | null = (() => {
+    if (preset !== "custom") return null;
+    const raw = customEur.replace(",", ".").trim();
+    if (raw === "") return null;
+    const v = Number(raw);
+    if (!Number.isFinite(v)) return null;
+    return Math.round(v * 100);
+  })();
+
+  const finalCents = preset === "custom" ? customCents : presetCents;
+
+  const validationError: string | null = (() => {
+    if (preset === "custom") {
+      if (customEur.trim() === "") return "Įveskite sumą";
+      if (customCents == null) return "Neteisinga suma";
+      if (customCents < 0) return "Suma negali būti neigiama";
+      if (customCents > totalPriceCents) {
+        return `Suma negali viršyti €${booking.totalPrice.toFixed(2)}`;
+      }
+    }
+    return null;
+  })();
+
+  const canSubmit = !submitting && validationError == null && finalCents != null;
+
+  const submit = async () => {
+    if (!canSubmit || finalCents == null) return;
+    setSubmitting(true);
+    setServerError(null);
+    try {
+      const resp = await customFetch<{ id: number; status: string; refundAmount: number }>(
+        `${API_URL}/owner/bookings/${booking.id}/force-cancel`,
+        {
+          method: "POST",
+          body: JSON.stringify({ refundAmountCents: finalCents }),
+        },
+      );
+      // Trust the server's reported refund (handles partial / duplicate / failed-then-recovered cases).
+      const serverRefund = Number(resp?.refundAmount ?? finalCents / 100);
+      onSuccess(serverRefund);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Nepavyko atšaukti rezervacijos";
+      setServerError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const PRESETS: { key: Preset; label: string; sub: string }[] = [
+    { key: "full", label: "Pilnas (100%)", sub: `€${booking.totalPrice.toFixed(2)}` },
+    { key: "half", label: "Dalinis (50%)", sub: `€${(booking.totalPrice / 2).toFixed(2)}` },
+    { key: "none", label: "Be grąžinimo (0%)", sub: "€0.00" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors"
+          aria-label="Uždaryti"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="flex items-center gap-2 mb-1">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <h2 className="text-lg font-bold">Priverstinis atšaukimas</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Apeina 24h/48h taisyklę. Grąžinimas bus išsiųstas iš karto.
+        </p>
+
+        <div className="bg-muted/40 rounded-xl px-3 py-2 mb-4 text-sm">
+          <p className="font-medium">{booking.customerName}</p>
+          <p className="text-xs text-muted-foreground">
+            {booking.courtName ?? `Kortas #${booking.courtId}`} · {booking.date} {booking.startTime}–{booking.endTime}
+          </p>
+          <p className="text-xs mt-1">Sumokėta: <span className="font-semibold">€{booking.totalPrice.toFixed(2)}</span></p>
+        </div>
+
+        <div className="space-y-2 mb-3">
+          {PRESETS.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => { setPreset(p.key); setServerError(null); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-left text-sm transition-colors ${
+                preset === p.key
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border hover:bg-muted/40 text-muted-foreground"
+              }`}
+            >
+              <span className="font-medium">{p.label}</span>
+              <span className="text-xs tabular-nums">{p.sub}</span>
+            </button>
+          ))}
+
+          <div
+            className={`w-full px-3 py-2.5 rounded-lg border transition-colors ${
+              preset === "custom" ? "border-primary bg-primary/10" : "border-border"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => { setPreset("custom"); setServerError(null); }}
+              className="w-full flex items-center justify-between text-left text-sm mb-1"
+            >
+              <span className={`font-medium ${preset === "custom" ? "" : "text-muted-foreground"}`}>Kita suma</span>
+              <span className="text-xs text-muted-foreground">Iki €{booking.totalPrice.toFixed(2)}</span>
+            </button>
+            {preset === "custom" && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-sm text-muted-foreground">€</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={customEur}
+                  onChange={e => { setCustomEur(e.target.value); setServerError(null); }}
+                  placeholder="0,00"
+                  className="flex-1 bg-background border border-border rounded-md px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {(validationError || serverError) && (
+          <p className="text-xs text-red-500 mb-3">{validationError ?? serverError}</p>
+        )}
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={submitting}>
+            Atšaukti
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1"
+            onClick={submit}
+            disabled={!canSubmit}
+          >
+            {submitting ? "Atšaukiama…" : "Patvirtinti"}
+          </Button>
         </div>
       </div>
     </div>

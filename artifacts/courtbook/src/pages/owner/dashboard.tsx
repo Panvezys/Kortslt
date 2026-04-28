@@ -48,6 +48,7 @@ interface OwnerBooking {
   startTime: string;
   endTime: string;
   totalPrice: number;
+  refundAmount?: number | null;
   status: string;
   createdAt: string;
   courtName?: string | null;
@@ -70,6 +71,9 @@ interface DashboardData {
   todayBlockedSlots: BlockedSlot[];
   recentBookings: OwnerBooking[];
   monthlyRevenue: number;
+  monthlyGrossRevenue?: number;
+  monthlyRefundedTotal?: number;
+  monthlyNetRevenue?: number;
   monthlyBookingCount: number;
 }
 
@@ -525,7 +529,11 @@ export default function OwnerDashboard() {
   const todayBookings = data?.todayBookings ?? [];
   const todayBlockedSlots = data?.todayBlockedSlots ?? [];
   const recentBookings = data?.recentBookings ?? [];
-  const monthlyRevenue = data?.monthlyRevenue ?? 0;
+  // Gross = totalPrice for confirmed + cancelled (every euro that passed checkout).
+  // Net   = Gross − refunds issued from cancelled rows.
+  const grossRevenue = data?.monthlyGrossRevenue ?? data?.monthlyRevenue ?? 0;
+  const refundedTotal = data?.monthlyRefundedTotal ?? 0;
+  const netRevenue = data?.monthlyNetRevenue ?? data?.monthlyRevenue ?? 0;
   const monthlyBookingCount = data?.monthlyBookingCount ?? 0;
 
   // ── Occupancy calculation ──
@@ -555,8 +563,10 @@ export default function OwnerDashboard() {
   const STATS = [
     {
       label: "Pajamos šį mėnesį",
-      value: `€${monthlyRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-      sub: "Patvirtintos rezervacijos",
+      value: `€${grossRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      sub: refundedTotal > 0
+        ? `Bendros · −€${refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} grąžinta`
+        : "Bendros (su atšauktomis)",
       up: true as boolean | null,
       icon: Euro,
       color: "text-emerald-500",
@@ -814,9 +824,23 @@ export default function OwnerDashboard() {
                   ) : (
                     <>
                       <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                        €{monthlyRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        €{netRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">Šį mėnesį · {monthlyBookingCount} rezervac.</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Šį mėnesį · {monthlyBookingCount} rezervac.
+                      </p>
+                      {refundedTotal > 0 && (
+                        <div className="mt-2 flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Bendros</span>
+                          <span className="tabular-nums">€{grossRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {refundedTotal > 0 && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Grąžinta</span>
+                          <span className="text-red-500 tabular-nums">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
                       <Separator className="my-3" />
                       <a href={`${BASE_URL}/owner/payments`} className="text-xs text-primary hover:underline flex items-center gap-0.5">
                         Visos pajamos <ChevronRight className="h-3 w-3" />
@@ -863,7 +887,13 @@ export default function OwnerDashboard() {
                               >
                                 {item.status === "cancelled" ? "Atšaukta" : item.status === "pending" ? "Laukiama" : "Patvirtinta"}
                               </Badge>
-                              <p className="text-[10px] text-muted-foreground mt-1">{item.date}</p>
+                              {item.status === "cancelled" && Number(item.refundAmount ?? 0) > 0 ? (
+                                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
+                                  Grąžinta €{Number(item.refundAmount).toFixed(2)}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-muted-foreground mt-1">{item.date}</p>
+                              )}
                             </div>
                           </button>
                         ))

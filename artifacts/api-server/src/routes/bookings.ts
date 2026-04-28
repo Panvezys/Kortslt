@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, or, sql, ne } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
 import { sendCustomerCancellationEmail, sendOwnerCancellationEmail } from "../lib/email";
 import {
@@ -144,7 +144,19 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
       query = query.where(and(...conditions));
     }
   } else if (role === "owner") {
-    conditions.push(eq(courtsTable.ownerUserId, userId));
+    // Owner can see bookings for courts they own directly OR for courts that
+    // belong to a facility they own (facility-inherited ownership).
+    conditions.push(
+      or(
+        eq(courtsTable.ownerUserId, userId),
+        inArray(
+          courtsTable.facilityId,
+          db.select({ id: facilitiesTable.id })
+            .from(facilitiesTable)
+            .where(eq(facilitiesTable.ownerUserId, userId))
+        ),
+      ),
+    );
     query = query.where(and(...conditions));
   } else {
     conditions.push(eq(bookingsTable.bookerUserId, userId));

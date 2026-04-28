@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { db, courtsTable, bookingsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
@@ -70,6 +70,8 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       .where(and(
         eq(bookingsTable.courtId, courtId),
         eq(bookingsTable.date, today),
+        // Schedule view ignores cancelled rows so the slot reads as free.
+        inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.startTime),
 
@@ -90,6 +92,8 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
         eq(bookingsTable.courtId, courtId),
         gte(bookingsTable.date, wStart),
         lte(bookingsTable.date, today),
+        // Weekly schedule excludes cancelled bookings so freed slots appear empty.
+        inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.date, bookingsTable.startTime),
 
@@ -103,6 +107,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       startTime: bookingsTable.startTime,
       endTime: bookingsTable.endTime,
       totalPrice: bookingsTable.totalPrice,
+      refundAmount: bookingsTable.refundAmount,
       status: bookingsTable.status,
       createdAt: bookingsTable.createdAt,
     })
@@ -112,7 +117,8 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       .limit(30),
 
     db.select({
-      revenue: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} = 'confirmed' THEN ${bookingsTable.totalPrice}::numeric ELSE 0 END), 0)`,
+      grossRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} IN ('confirmed','cancelled') THEN ${bookingsTable.totalPrice}::numeric ELSE 0 END), 0)`,
+      refundedTotal: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} = 'cancelled' THEN COALESCE(${bookingsTable.refundAmount}, 0)::numeric ELSE 0 END), 0)`,
       bookingCount: sql<string>`COUNT(CASE WHEN ${bookingsTable.status} IN ('confirmed','pending') THEN 1 END)`,
     })
       .from(bookingsTable)
@@ -142,11 +148,18 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       imageUrl: court.imageUrl,
     },
     facility: (facilityRow as any[])[0] ?? null,
-    monthlyRevenue: Number(monthlyStats[0]?.revenue ?? 0),
+    monthlyRevenue: Math.max(0, Number(monthlyStats[0]?.grossRevenue ?? 0) - Number(monthlyStats[0]?.refundedTotal ?? 0)),
+    monthlyGrossRevenue: Number(monthlyStats[0]?.grossRevenue ?? 0),
+    monthlyRefundedTotal: Number(monthlyStats[0]?.refundedTotal ?? 0),
+    monthlyNetRevenue: Math.max(0, Number(monthlyStats[0]?.grossRevenue ?? 0) - Number(monthlyStats[0]?.refundedTotal ?? 0)),
     monthlyBookingCount: Number(monthlyStats[0]?.bookingCount ?? 0),
     todayBookings: todayBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
     weeklyBookings: weeklyBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
-    recentBookings: recentBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
+    recentBookings: recentBookings.map(b => ({
+      ...b,
+      totalPrice: Number(b.totalPrice),
+      refundAmount: b.refundAmount != null ? Number(b.refundAmount) : 0,
+    })),
   });
 });
 

@@ -119,6 +119,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
         startTime: bookingsTable.startTime,
         endTime: bookingsTable.endTime,
         totalPrice: bookingsTable.totalPrice,
+        refundAmount: bookingsTable.refundAmount,
         status: bookingsTable.status,
         createdAt: bookingsTable.createdAt,
         courtName: courtsTable.name,
@@ -129,9 +130,13 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       .orderBy(sql`${bookingsTable.createdAt} DESC`)
       .limit(5),
 
+    // Gross = every euro that passed checkout (confirmed + cancelled).
+    // Refunds = sum of refundAmount issued from cancelled bookings.
+    // Net = Gross - Refunds. Reflects actual cash retained by the owner.
     db
       .select({
-        revenue: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} = 'confirmed' THEN ${bookingsTable.totalPrice}::numeric ELSE 0 END), 0)`,
+        grossRevenue: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} IN ('confirmed','cancelled') THEN ${bookingsTable.totalPrice}::numeric ELSE 0 END), 0)`,
+        refundedTotal: sql<string>`COALESCE(SUM(CASE WHEN ${bookingsTable.status} = 'cancelled' THEN COALESCE(${bookingsTable.refundAmount}, 0)::numeric ELSE 0 END), 0)`,
         bookingCount: sql<string>`COUNT(CASE WHEN ${bookingsTable.status} IN ('confirmed','pending') THEN 1 END)`,
       })
       .from(bookingsTable)
@@ -143,6 +148,10 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
         )
       ),
   ]);
+
+  const grossRevenue = Number(monthlyStats[0]?.grossRevenue ?? 0);
+  const refundedTotal = Number(monthlyStats[0]?.refundedTotal ?? 0);
+  const netRevenue = Math.max(0, grossRevenue - refundedTotal);
 
   res.json({
     facility: facilityInfo ?? null,
@@ -162,8 +171,12 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
     recentBookings: recentBookings.map(b => ({
       ...b,
       totalPrice: Number(b.totalPrice),
+      refundAmount: b.refundAmount != null ? Number(b.refundAmount) : 0,
     })),
-    monthlyRevenue: Number(monthlyStats[0]?.revenue ?? 0),
+    monthlyRevenue: netRevenue, // back-compat alias
+    monthlyGrossRevenue: grossRevenue,
+    monthlyRefundedTotal: refundedTotal,
+    monthlyNetRevenue: netRevenue,
     monthlyBookingCount: Number(monthlyStats[0]?.bookingCount ?? 0),
   });
 });
