@@ -785,7 +785,7 @@ router.get("/courts/:id/activity", async (req, res): Promise<void> => {
     ));
 
   res.json({
-    lastBookedAt: lastBooking?.startTime ?? null,
+    lastBookedAt: lastBooking?.createdAt ?? null,
     todayGameCount: todayGames.length,
   });
 });

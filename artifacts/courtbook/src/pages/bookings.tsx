@@ -195,6 +195,7 @@ type BookingItem = {
   endTime: string;
   totalPrice: number;
   status: "pending" | "confirmed" | "cancelled";
+  createdAt?: string;
 };
 
 function getStatusBadge(status: string, t: ReturnType<typeof useT>) {
@@ -228,6 +229,9 @@ function BookingCard({
 
   const dateLabel = format(booking.date, "yyyy-MM-dd");
   const dayLabel = format(booking.date, "EEEE", { locale: lt });
+  const createdLabel = booking.createdAt
+    ? format(new Date(booking.createdAt), "yyyy-MM-dd HH:mm")
+    : null;
 
   return (
     <div
@@ -259,6 +263,11 @@ function BookingCard({
           {booking.startTime} – {booking.endTime}
         </span>
       </div>
+      {createdLabel && (
+        <div className="text-xs text-muted-foreground/70">
+          {t("bookings.bookedAt")}: {createdLabel}
+        </div>
+      )}
 
       {/* Price + actions */}
       <div className="flex items-center justify-between pt-1 border-t border-border/50">
