@@ -21,7 +21,7 @@ import { openChat } from "@/components/chat-bubble";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
   MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield, Search,
-  X, ShieldCheck, ShieldX,
+  X, ShieldCheck, ShieldX, Loader2,
 } from "lucide-react";
 import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
 
@@ -362,6 +362,131 @@ function InviteSection({ gameId }: { gameId: number }) {
   );
 }
 
+interface GameRefundPreview {
+  gameId: number;
+  bookingId: number | null;
+  hasBooking: boolean;
+  totalPrice: number;
+  hoursBeforeStart: number;
+  refundPercent: number;
+  refundAmount: number;
+  refundable: boolean;
+  canCancel: boolean;
+  reason?: string;
+}
+
+function CancelGameDialog({
+  gameId,
+  hasBooking,
+  onConfirmed,
+  pending,
+}: {
+  gameId: number;
+  hasBooking: boolean;
+  onConfirmed: () => Promise<unknown>;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: preview, isLoading } = useQuery<GameRefundPreview>({
+    queryKey: ["game-refund-preview", gameId],
+    queryFn: () => customFetch<GameRefundPreview>(`${API}/games/${gameId}/refund-preview`),
+    enabled: open && hasBooking,
+    staleTime: 0,
+  });
+
+  // If preview has loaded, trust its hasBooking (handles the orphan case where
+  // game.bookingId points at a missing/deleted booking row → fall back to plain warning).
+  const effectiveHasBooking = preview ? preview.hasBooking : hasBooking;
+  const showRefundUi = effectiveHasBooking && (isLoading || !!preview);
+  const refundEur = preview?.refundAmount ?? 0;
+  const totalPaid = preview?.totalPrice ?? 0;
+  const isLate = preview ? !preview.refundable : false;
+  const tierMsg = !preview
+    ? ""
+    : (preview.refundPercent >= 80
+        ? "Atšaukus dabar, bus grąžinta 80% sumos."
+        : preview.refundPercent >= 50
+          ? "Atšaukus dabar, bus grąžinta 50% sumos."
+          : "Atšaukus dabar, pinigai nebus grąžinami.");
+
+  const blockedByPolicy = effectiveHasBooking && preview && !preview.canCancel;
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    try {
+      await onConfirmed();
+      setOpen(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !submitting && !pending && setOpen(v)}>
+      <DialogTrigger asChild>
+        <Button variant="destructive" size="sm">
+          <Trash2 className="w-4 h-4 mr-1.5" />Panaikinti žaidimą
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Panaikinti žaidimą?</DialogTitle>
+          <DialogDescription>
+            {!hasBooking
+              ? "Visi dalyviai bus pašalinti. Šio veiksmo atšaukti negalima."
+              : isLoading || !preview
+                ? "Skaičiuojamas grąžintinas mokestis…"
+                : blockedByPolicy
+                  ? (preview.reason ?? "Atšaukti šiuo metu negalima.")
+                  : tierMsg}
+          </DialogDescription>
+        </DialogHeader>
+
+        {showRefundUi && preview && preview.canCancel && totalPaid > 0 && (
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Sumokėta</span>
+              <span className="font-medium">€{totalPaid.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Grąžinama</span>
+              <span className="font-medium">{preview.refundPercent}%</span>
+            </div>
+            <div className="flex justify-between border-t pt-1.5 mt-1.5">
+              <span className="font-semibold">Grąžinama suma</span>
+              <span className={`font-bold ${isLate ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
+                €{refundEur.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          {hasBooking
+            ? "Grąžinimo politika: ≥48h iki pradžios — 80%, ≥24h — 50%, mažiau — 0%."
+            : "Visi prisijungę dalyviai bus informuoti."}
+        </p>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting || pending}>
+            Atšaukti
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={submitting || pending || (hasBooking && !!blockedByPolicy)}
+          >
+            {(submitting || pending) ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
+            Panaikinti žaidimą
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function GameDetailPage() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -666,21 +791,12 @@ export default function GameDetailPage() {
             <Show when="signed-in">
               {isCreator ? (
                 <>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4 mr-1.5"/>Panaikinti žaidimą</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Panaikinti žaidimą?</AlertDialogTitle>
-                        <AlertDialogDescription>Visi dalyviai bus pašalinti. Šio veiksmo atšaukti negalima.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Atšaukti</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => del.mutate()}>Panaikinti</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <CancelGameDialog
+                    gameId={id}
+                    hasBooking={!!data.bookingId}
+                    onConfirmed={() => del.mutateAsync()}
+                    pending={del.isPending}
+                  />
 
                   {isEnded && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
                   <InviteSection gameId={id} />

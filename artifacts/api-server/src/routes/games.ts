@@ -23,6 +23,7 @@ import { calculateTeamElo } from "../lib/elo";
 import { sendMatchInviteEmail } from "../lib/email";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
+import { computeRefund, hoursBeforeStart } from "./bookings";
 import crypto from "node:crypto";
 
 // ─── Local helpers shared with bookings flow (kept inline to avoid cross-route imports) ──
@@ -389,6 +390,71 @@ router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // DELETE /games/:id — creator only
+// GET /games/:id/refund-preview — host-cancellation refund preview (mirrors bookings preview).
+// Returns canCancel:false with reason when the game has no linked paid booking — the host can
+// still delete the game in that case (no money is at stake), the dialog just shows a plain warning.
+router.get("/games/:id/refund-preview", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const userId = getCurrentUserId(req)!;
+
+  const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
+  if (!g) { res.status(404).json({ error: "Not found" }); return; }
+  if (g.creatorUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+
+  if (!g.bookingId) {
+    res.json({
+      gameId: g.id,
+      bookingId: null,
+      hasBooking: false,
+      totalPrice: 0,
+      hoursBeforeStart: 0,
+      refundPercent: 0,
+      refundAmount: 0,
+      refundable: false,
+      canCancel: true,
+    });
+    return;
+  }
+
+  const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, g.bookingId));
+  if (!booking) {
+    res.json({
+      gameId: g.id,
+      bookingId: g.bookingId,
+      hasBooking: false,
+      totalPrice: 0,
+      hoursBeforeStart: 0,
+      refundPercent: 0,
+      refundAmount: 0,
+      refundable: false,
+      canCancel: true,
+    });
+    return;
+  }
+
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const tier = computeRefund(totalPriceEur, hours);
+  const canCancel = booking.status !== "cancelled" && hours > 0;
+  let reason: string | undefined;
+  if (booking.status === "cancelled") reason = "Rezervacija jau atšaukta.";
+  else if (hours <= 0) reason = "Žaidimas jau prasidėjo arba pasibaigė.";
+
+  res.json({
+    gameId: g.id,
+    bookingId: booking.id,
+    hasBooking: true,
+    totalPrice: totalPriceEur,
+    hoursBeforeStart: Math.round(hours * 10) / 10,
+    refundPercent: tier.refundPercent,
+    refundAmount: tier.refundAmount,
+    refundable: tier.refundable,
+    canCancel,
+    ...(reason ? { reason } : {}),
+  });
+});
+
 router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const userId = getCurrentUserId(req)!;
@@ -396,15 +462,107 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
   if (!g) { res.status(404).json({ error: "Not found" }); return; }
   if (g.creatorUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  // Collect all participants before deleting (except creator)
+  // ─── Single-owner cancellation claim ─────────────────────────────────────────
+  // CAS the game into 'cancelling' so that concurrent DELETEs are rejected with 409.
+  // Without this, a second request could race past the booking-CAS (which would
+  // already be claimed) and delete the game while the first request's Stripe call
+  // is still in flight, producing "game deleted but booking still confirmed and
+  // no refund issued" if Stripe then fails and the first request rolls booking back.
+  const originalStatus = g.status;
+  const claimGame = await db
+    .update(gamesTable)
+    .set({ status: "cancelling" })
+    .where(and(eq(gamesTable.id, id), ne(gamesTable.status, "cancelling")))
+    .returning();
+  if (claimGame.length === 0) {
+    res.status(409).json({ error: "Atšaukimas jau vykdomas. Bandykite po akimirkos." });
+    return;
+  }
+
+  // ─── If a paid Korts.lt booking is linked, mirror the standard booking-cancel + refund flow ──
+  let refundedAmount = 0;
+  let refundPercent = 0;
+  if (g.bookingId) {
+    const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, g.bookingId));
+    if (booking && booking.status !== "cancelled") {
+      const totalPriceEur = Number(booking.totalPrice);
+      const hours = hoursBeforeStart(booking.date, booking.startTime);
+      if (hours <= 0) {
+        res.status(400).json({ error: "Žaidimas jau prasidėjo arba pasibaigė", code: "CANCEL_TOO_LATE" });
+        return;
+      }
+      const tier = computeRefund(totalPriceEur, hours);
+
+      // CAS on booking status to prevent double-refund if the host clicks twice or the
+      // sweeper races us on a still-pending booking.
+      const claimed = await db
+        .update(bookingsTable)
+        .set({ status: "cancelled" })
+        .where(and(eq(bookingsTable.id, booking.id), ne(bookingsTable.status, "cancelled")))
+        .returning();
+
+      if (claimed.length > 0) {
+        let stripeRefundId: string | null = null;
+        if (
+          tier.refundable &&
+          tier.refundAmount > 0 &&
+          booking.stripePaymentIntentId &&
+          !booking.stripePaymentIntentId.startsWith("mock_")
+        ) {
+          try {
+            const stripe = await getUncachableStripeClient();
+            const refund = await stripe.refunds.create(
+              {
+                payment_intent: booking.stripePaymentIntentId,
+                amount: Math.round(tier.refundAmount * 100),
+                reason: "requested_by_customer",
+              },
+              { idempotencyKey: `cancel-game-${g.id}` },
+            );
+            stripeRefundId = refund.id;
+            logger.info(
+              { gameId: g.id, bookingId: booking.id, refundId: refund.id, amount: tier.refundAmount },
+              "Stripe refund issued for host-cancelled game",
+            );
+          } catch (err) {
+            logger.error({ err, gameId: g.id, bookingId: booking.id }, "Stripe refund failed");
+            // Roll back BOTH booking and game status so the host can retry.
+            // Without restoring game.status, the next attempt would 409 forever.
+            await db
+              .update(bookingsTable)
+              .set({ status: booking.status })
+              .where(eq(bookingsTable.id, booking.id));
+            await db
+              .update(gamesTable)
+              .set({ status: originalStatus })
+              .where(eq(gamesTable.id, g.id));
+            res.status(502).json({ error: "Nepavyko grąžinti pinigų. Bandykite dar kartą." });
+            return;
+          }
+        }
+
+        await db
+          .update(bookingsTable)
+          .set({ refundAmount: String(tier.refundAmount), stripeRefundId })
+          .where(eq(bookingsTable.id, booking.id));
+
+        refundedAmount = tier.refundAmount;
+        refundPercent = tier.refundPercent;
+      }
+    }
+  }
+
+  // Collect all participants before deleting (except creator) so we can notify them.
   const participants = await db
     .select()
     .from(gameParticipantsTable)
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
 
+  // bookingId on games has ON DELETE SET NULL, so the booking row (now 'cancelled')
+  // survives for refund history; participants/results/chat cascade-delete with the game.
   await db.delete(gamesTable).where(eq(gamesTable.id, id));
 
-  // Notify participants that the game was cancelled
+  // Notify all joined participants that the host cancelled.
   const sportLabel = g.sport.replace(/_/g, " ");
   const gameDate = new Date(g.datetime).toLocaleDateString("lt-LT");
   for (const p of participants) {
@@ -419,7 +577,7 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
     }
   }
 
-  res.json({ ok: true });
+  res.json({ ok: true, refundAmount: refundedAmount, refundPercent });
 });
 
 // POST /games/:id/join
