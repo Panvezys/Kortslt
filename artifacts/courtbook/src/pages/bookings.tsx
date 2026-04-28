@@ -224,6 +224,11 @@ function CancelBookingDialog({
   const refundEur = preview?.refundAmount ?? 0;
   const isFreeSlot = (preview?.totalPrice ?? 0) <= 0;
   const isLate = !preview?.refundable;
+  const tierKey = (preview?.refundPercent ?? 0) >= 80
+    ? "bookings.cancel.tier80"
+    : (preview?.refundPercent ?? 0) >= 50
+      ? "bookings.cancel.tier50"
+      : "bookings.cancel.tier0";
 
   const handleConfirm = async () => {
     if (!bookingId) return;
@@ -247,11 +252,7 @@ function CancelBookingDialog({
               : preview.canCancel
               ? isFreeSlot
                 ? t("bookings.cancel.freeSlot").replace("{hours}", hours.toFixed(1))
-                : isLate
-                ? t("bookings.cancel.lateWarning").replace("{hours}", hours.toFixed(1))
-                : t("bookings.cancel.message")
-                    .replace("{hours}", hours.toFixed(1))
-                    .replace("{refund}", refundEur.toFixed(2))
+                : t(tierKey)
               : preview.reason ?? t("bookings.cancel.notAllowed")}
           </DialogDescription>
         </DialogHeader>
@@ -388,7 +389,7 @@ function BookingCard({
               {t("bookings.rate")}
             </Button>
           )}
-          {isUpcoming && booking.status !== "cancelled" && (
+          {isUpcoming && booking.status === "confirmed" && (
             <Button
               variant="ghost"
               size="sm"
