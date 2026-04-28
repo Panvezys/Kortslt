@@ -1,5 +1,10 @@
 User-agent: *
 Allow: /
+Allow: /privacy
+Allow: /delete-account
+Allow: /terms
+Allow: /faq
+Allow: /contact
 Disallow: /admin
 Disallow: /admin/
 Disallow: /owner
@@ -15,5 +20,13 @@ Disallow: /payment-success
 Disallow: /payment-cancel
 Disallow: /booking-confirmed
 Disallow: /api/
+
+# Facebook link-preview scrapers — must be able to fetch /delete-account
+# (required for app-store data-deletion URL compliance)
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Facebot
+Allow: /
 
 Sitemap: https://korts.lt/sitemap.xml

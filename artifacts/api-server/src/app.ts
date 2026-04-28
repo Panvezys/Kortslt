@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import compression from "compression";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import { botPassthroughMiddleware } from "./middlewares/botPassthrough";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { handleStripeWebhook } from "./routes/stripe-webhook";
@@ -141,10 +142,38 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
+// ─── Bot / Scraper passthrough ────────────────────────────────────────────────
+// Must be mounted BEFORE clerkMiddleware() so that social-media scrapers
+// (facebookexternalhit, Facebot, Twitterbot, Googlebot, …) are served the SPA
+// index.html directly without going through Clerk auth processing.
+// This prevents 403s on public pages like /delete-account and /privacy when
+// Facebook's Open Graph scraper or similar tools fetch them.
+//
+// NOTE: No Helmet or security middleware is registered in this server that
+// would block non-browser user-agents. The only security-related headers are
+// the per-route Cache-Control / X-Content-Type-Options set on static-asset
+// routes above, which are harmless to crawlers.
+if (fs.existsSync(frontendDist)) {
+  app.use(botPassthroughMiddleware(frontendDist));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Public routes ────────────────────────────────────────────────────────────
+// In @clerk/express, clerkMiddleware() does NOT block unauthenticated requests
+// by default — access control is enforced per-route via requireAuth().
+// The list below is intentionally documented here as the canonical source of
+// truth for which routes are public, even though Clerk in Express does not
+// consume a "publicRoutes" array the way Next.js middleware does.
+//
+// Publicly accessible (no authentication required):
+//   / /privacy /delete-account /terms /faq /contact
+//   /courts/** /coaches/** /trainers/** /tournaments/** /games/**
+//   /ranks /owners /list-your-court /become-coach /become-owner
+//   /sitemap.xml /robots.txt /api/health /api/courts/** /api/stats/**
 app.use(clerkMiddleware());
 
 app.use("/api", router);
