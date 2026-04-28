@@ -174,6 +174,7 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     return;
   }
 
+  let stripePaymentIntentId: string | null = null;
   if (!sessionId.startsWith("mock_")) {
     try {
       const stripe = await getUncachableStripeClient();
@@ -182,6 +183,10 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
         res.status(402).json({ error: "Payment not completed" });
         return;
       }
+      stripePaymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
     } catch (err) {
       logger.error({ err }, "Stripe retrieve session error");
     }
@@ -191,7 +196,10 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
 
   const [booking] = await db
     .update(bookingsTable)
-    .set({ status: newStatus })
+    .set({
+      status: newStatus,
+      ...(stripePaymentIntentId ? { stripePaymentIntentId } : {}),
+    })
     .where(eq(bookingsTable.stripeSessionId, sessionId))
     .returning();
 

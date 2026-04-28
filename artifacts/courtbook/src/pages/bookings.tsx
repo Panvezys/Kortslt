@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { useListBookings, useCancelBooking, useCreateReview, getListBookingsQueryKey, customFetch } from "@workspace/api-client-react";
+import { useListBookings, useCancelBooking, useCreateReview, getListBookingsQueryKey, customFetch, useGetRefundPreview } from "@workspace/api-client-react";
 import { format, parseISO, isFuture, isToday } from "date-fns";
 import { lt } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -201,16 +201,113 @@ type BookingItem = {
   totalPrice: number;
   status: "pending" | "confirmed" | "cancelled";
   createdAt?: string;
+  refundAmount?: number;
 };
 
-function getStatusBadge(status: string, t: ReturnType<typeof useT>) {
+function CancelBookingDialog({
+  bookingId,
+  onClose,
+  onConfirmed,
+}: {
+  bookingId: number | null;
+  onClose: () => void;
+  onConfirmed: (id: number) => Promise<void>;
+}) {
+  const t = useT();
+  const open = bookingId !== null;
+  const { data: preview, isLoading } = useGetRefundPreview(bookingId ?? 0, {
+    query: { enabled: open },
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const hours = preview?.hoursBeforeStart ?? 0;
+  const refundEur = preview?.refundAmount ?? 0;
+  const isFreeSlot = (preview?.totalPrice ?? 0) <= 0;
+  const isLate = !preview?.refundable;
+
+  const handleConfirm = async () => {
+    if (!bookingId) return;
+    setSubmitting(true);
+    try {
+      await onConfirmed(bookingId);
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("bookings.cancel.title")}</DialogTitle>
+          <DialogDescription>
+            {isLoading || !preview
+              ? t("bookings.cancel.loading")
+              : preview.canCancel
+              ? isFreeSlot
+                ? t("bookings.cancel.freeSlot").replace("{hours}", hours.toFixed(1))
+                : isLate
+                ? t("bookings.cancel.lateWarning").replace("{hours}", hours.toFixed(1))
+                : t("bookings.cancel.message")
+                    .replace("{hours}", hours.toFixed(1))
+                    .replace("{refund}", refundEur.toFixed(2))
+              : preview.reason ?? t("bookings.cancel.notAllowed")}
+          </DialogDescription>
+        </DialogHeader>
+
+        {preview && preview.canCancel && !isFreeSlot && (
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{t("bookings.cancel.totalPaid")}</span>
+              <span className="font-medium">€{preview.totalPrice.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">{t("bookings.cancel.refundPercent")}</span>
+              <span className="font-medium">{preview.refundPercent}%</span>
+            </div>
+            <div className="flex justify-between border-t pt-1.5 mt-1.5">
+              <span className="font-semibold">{t("bookings.cancel.refundAmount")}</span>
+              <span className={`font-bold ${isLate ? "text-destructive" : "text-green-600 dark:text-green-400"}`}>
+                €{refundEur.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">{t("bookings.cancel.policyShort")}</p>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            {t("bookings.cancel.keep")}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={submitting || !preview?.canCancel}
+          >
+            {submitting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null}
+            {t("bookings.cancel.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function getStatusBadge(status: string, t: ReturnType<typeof useT>, refundAmount?: number) {
   switch (status) {
     case "confirmed":
       return <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />{t("bookings.status.confirmed")}</Badge>;
     case "pending":
       return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs"><Clock className="w-3 h-3 mr-1" />{t("bookings.status.pending")}</Badge>;
-    case "cancelled":
-      return <Badge variant="destructive" className="text-xs"><XCircle className="w-3 h-3 mr-1" />{t("bookings.status.cancelled")}</Badge>;
+    case "cancelled": {
+      const r = Number(refundAmount ?? 0);
+      const label = r > 0
+        ? `${t("bookings.status.cancelled")} · ${t("bookings.cancel.refunded")} €${r.toFixed(2)}`
+        : `${t("bookings.status.cancelled")} · ${t("bookings.cancel.noRefund")}`;
+      return <Badge variant="destructive" className="text-xs"><XCircle className="w-3 h-3 mr-1" />{label}</Badge>;
+    }
     default:
       return <Badge variant="outline" className="text-xs">{status}</Badge>;
   }
@@ -251,7 +348,7 @@ function BookingCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {getStatusBadge(booking.status, t)}
+          {getStatusBadge(booking.status, t, booking.refundAmount)}
           <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
         </div>
       </div>
@@ -315,18 +412,30 @@ export default function Bookings() {
   const [ratingBooking, setRatingBooking] = useState<{
     id: number; courtName?: string; courtId: number; customerName: string;
   } | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<number | null>(null);
 
   const { data: bookings, isLoading } = useListBookings({});
   const cancelBooking = useCancelBooking();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const handleCancel = async (id: number) => {
-    if (!confirm(t("owner.confirmDelete"))) return;
+  const handleCancelConfirmed = async (id: number) => {
     try {
-      await cancelBooking.mutateAsync({ id });
-      toast({ title: t("bookings.status.cancelled") });
+      const result = await cancelBooking.mutateAsync({ id });
+      const refunded = Number((result as any)?.refundAmount ?? 0);
+      toast({
+        title: t("bookings.status.cancelled"),
+        description: refunded > 0
+          ? t("bookings.cancel.toastRefunded").replace("{amount}", refunded.toFixed(2))
+          : t("bookings.cancel.toastNoRefund"),
+      });
       queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: ["court-activity"] });
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.some(
+          (k) => typeof k === "string" && k.includes("/availability"),
+        ),
+      });
     } catch {
       toast({ title: "Klaida", variant: "destructive" });
     }
@@ -438,7 +547,11 @@ export default function Bookings() {
               return (
                 <BookingCard
                   key={booking.id}
-                  booking={{ ...booking, date: new Date(booking.date) }}
+                  booking={{
+                    ...booking,
+                    date: new Date(booking.date),
+                    refundAmount: Number((booking as any).refundAmount ?? 0),
+                  }}
                   isUpcoming={isUpcoming}
                   onRate={() => setRatingBooking({
                     id: booking.id,
@@ -446,7 +559,7 @@ export default function Bookings() {
                     courtId: booking.courtId,
                     customerName: booking.customerName,
                   })}
-                  onCancel={() => handleCancel(booking.id)}
+                  onCancel={() => setCancelTargetId(booking.id)}
                   cancelling={cancelBooking.isPending}
                 />
               );
@@ -459,6 +572,12 @@ export default function Bookings() {
         open={!!ratingBooking}
         onClose={() => setRatingBooking(null)}
         booking={ratingBooking}
+      />
+
+      <CancelBookingDialog
+        bookingId={cancelTargetId}
+        onClose={() => setCancelTargetId(null)}
+        onConfirmed={handleCancelConfirmed}
       />
     </Layout>
   );

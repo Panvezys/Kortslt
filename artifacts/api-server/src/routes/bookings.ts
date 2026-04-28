@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, or, sql } from "drizzle-orm";
+import { eq, and, inArray, or, sql, ne } from "drizzle-orm";
 import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
 import {
@@ -12,7 +12,28 @@ import {
   ListBookingsResponse,
 } from "@workspace/api-zod";
 import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { getUncachableStripeClient } from "../stripeClient";
+import { logger } from "../lib/logger";
 import { z } from "zod";
+
+// ─── Refund tier policy ──────────────────────────────────────────────────────
+// >= 48h before start: 80% refund
+// >= 24h and < 48h:    50% refund
+// <  24h:              0% refund
+function computeRefund(totalPriceEur: number, hoursBeforeStart: number) {
+  if (hoursBeforeStart >= 48) {
+    return { refundPercent: 80, refundAmount: Math.round(totalPriceEur * 0.80 * 100) / 100, refundable: true };
+  }
+  if (hoursBeforeStart >= 24) {
+    return { refundPercent: 50, refundAmount: Math.round(totalPriceEur * 0.50 * 100) / 100, refundable: true };
+  }
+  return { refundPercent: 0, refundAmount: 0, refundable: false };
+}
+
+function hoursBeforeStart(date: string, startTime: string): number {
+  const start = new Date(`${String(date).slice(0, 10)}T${startTime}:00`);
+  return (start.getTime() - Date.now()) / (1000 * 60 * 60);
+}
 
 function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
   if (dayOfWeek === 0 || dayOfWeek === 6) return false;
@@ -43,8 +64,12 @@ function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: s
   return {
     ...booking,
     totalPrice: Number(booking.totalPrice),
+    refundAmount: Number(booking.refundAmount ?? 0),
     rentedItems: booking.rentedItems ?? undefined,
     courtName: courtName ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
   };
 }
 
@@ -377,13 +402,135 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [cancelled] = await db
+  if (booking.status === "cancelled") {
+    res.json(CancelBookingResponse.parse(formatBooking(booking)));
+    return;
+  }
+
+  // ─── Refund tier calculation ─────────────────────────────────────────────
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const isAdminOverride = role === "admin"; // admins always get full refund
+  const tier = isAdminOverride
+    ? { refundPercent: 100, refundAmount: totalPriceEur, refundable: totalPriceEur > 0 }
+    : computeRefund(totalPriceEur, hours);
+
+  // Non-admin: prevent cancelling a booking that has already started/ended.
+  if (!isAdminOverride && hours <= 0) {
+    res.status(400).json({ error: "Booking has already started or ended", code: "CANCEL_TOO_LATE" });
+    return;
+  }
+
+  // ─── Atomic compare-and-set on status to prevent double-refund ──────────
+  // Only proceed if we successfully transitioned status from non-cancelled to cancelled.
+  const claimed = await db
     .update(bookingsTable)
     .set({ status: "cancelled" })
+    .where(and(eq(bookingsTable.id, params.data.id), ne(bookingsTable.status, "cancelled")))
+    .returning();
+
+  if (claimed.length === 0) {
+    // Another request beat us to it — return current state without issuing a refund.
+    const [current] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, params.data.id));
+    res.json(CancelBookingResponse.parse(formatBooking(current)));
+    return;
+  }
+
+  // ─── Issue Stripe refund if applicable ───────────────────────────────────
+  let stripeRefundId: string | null = null;
+  if (
+    tier.refundable &&
+    tier.refundAmount > 0 &&
+    booking.stripePaymentIntentId &&
+    !booking.stripePaymentIntentId.startsWith("mock_")
+  ) {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const refund = await stripe.refunds.create(
+        {
+          payment_intent: booking.stripePaymentIntentId,
+          amount: Math.round(tier.refundAmount * 100),
+          reason: "requested_by_customer",
+        },
+        { idempotencyKey: `cancel-booking-${booking.id}` },
+      );
+      stripeRefundId = refund.id;
+      logger.info(
+        { bookingId: booking.id, refundId: refund.id, amount: tier.refundAmount },
+        "Stripe refund issued",
+      );
+    } catch (err) {
+      logger.error({ err, bookingId: booking.id }, "Stripe refund failed");
+      // Roll back the status transition so admin can retry / investigate.
+      await db
+        .update(bookingsTable)
+        .set({ status: booking.status })
+        .where(eq(bookingsTable.id, booking.id));
+      res.status(502).json({ error: "Refund failed at payment provider" });
+      return;
+    }
+  }
+
+  const [cancelled] = await db
+    .update(bookingsTable)
+    .set({
+      refundAmount: String(tier.refundAmount),
+      stripeRefundId,
+    })
     .where(eq(bookingsTable.id, params.data.id))
     .returning();
 
   res.json(CancelBookingResponse.parse(formatBooking(cancelled)));
+});
+
+// ─── Refund preview (modal calls this before confirming cancellation) ────────
+router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable, courtOwnerUserId: courtsTable.ownerUserId })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(eq(bookingsTable.id, id));
+
+  if (!rows[0]) { res.status(404).json({ error: "Booking not found" }); return; }
+
+  const { booking, courtOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = courtOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const isAdminOverride = role === "admin";
+  const tier = isAdminOverride
+    ? { refundPercent: 100, refundAmount: totalPriceEur, refundable: totalPriceEur > 0 }
+    : computeRefund(totalPriceEur, hours);
+
+  // Admins can always cancel; regular users only before start.
+  const canCancel = booking.status !== "cancelled" && (isAdminOverride || hours > 0);
+  let reason: string | undefined;
+  if (booking.status === "cancelled") reason = "Booking is already cancelled.";
+  else if (hours <= 0) reason = "Booking has already started or ended.";
+
+  res.json({
+    bookingId: booking.id,
+    totalPrice: totalPriceEur,
+    hoursBeforeStart: Math.round(hours * 10) / 10,
+    refundPercent: tier.refundPercent,
+    refundAmount: tier.refundAmount,
+    refundable: tier.refundable,
+    canCancel,
+    ...(reason ? { reason } : {}),
+  });
 });
 
 router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => {

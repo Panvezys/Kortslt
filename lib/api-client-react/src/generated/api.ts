@@ -16,8 +16,6 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-type QueryOpts<T, E = ErrorType<unknown>, D = T> = Omit<UseQueryOptions<T, E, D, QueryKey>, "queryKey"> & { queryKey?: QueryKey };
-
 import type {
   AvailabilityResponse,
   Booking,
@@ -36,6 +34,7 @@ import type {
   ListCourtsParams,
   PopularCourt,
   PricingSchedule,
+  RefundPreview,
   Review,
   SetPricingBody,
   StatsSummary,
@@ -74,7 +73,11 @@ export const getHealthCheckQueryOptions = <
   TData = Awaited<ReturnType<typeof healthCheck>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof healthCheck>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof healthCheck>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
@@ -105,7 +108,11 @@ export function useHealthCheck<
   TData = Awaited<ReturnType<typeof healthCheck>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof healthCheck>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof healthCheck>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
@@ -156,7 +163,11 @@ export const getListCourtsQueryOptions = <
 >(
   params?: ListCourtsParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listCourts>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCourts>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -190,7 +201,11 @@ export function useListCourts<
 >(
   params?: ListCourtsParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listCourts>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCourts>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -316,7 +331,11 @@ export const getGetCourtQueryOptions = <
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourt>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourt>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -353,7 +372,11 @@ export function useGetCourt<
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourt>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourt>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -590,7 +613,11 @@ export const getGetCourtAvailabilityQueryOptions = <
   id: number,
   params: GetCourtAvailabilityParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourtAvailability>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtAvailability>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -632,7 +659,11 @@ export function useGetCourtAvailability<
   id: number,
   params: GetCourtAvailabilityParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourtAvailability>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtAvailability>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -672,7 +703,11 @@ export const getGetCourtPricingQueryOptions = <
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourtPricing>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPricing>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -711,7 +746,11 @@ export function useGetCourtPricing<
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getCourtPricing>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPricing>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -833,7 +872,11 @@ export const getListCitiesQueryOptions = <
   TData = Awaited<ReturnType<typeof listCities>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof listCities>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCities>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
@@ -864,7 +907,11 @@ export function useListCities<
   TData = Awaited<ReturnType<typeof listCities>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof listCities>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCities>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListCitiesQueryOptions(options);
@@ -915,7 +962,11 @@ export const getListBookingsQueryOptions = <
 >(
   params?: ListBookingsParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listBookings>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBookings>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -949,7 +1000,11 @@ export function useListBookings<
 >(
   params?: ListBookingsParams,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listBookings>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBookings>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1075,7 +1130,11 @@ export const getGetBookingQueryOptions = <
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getBooking>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBooking>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -1114,7 +1173,11 @@ export function useGetBooking<
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof getBooking>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBooking>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1128,7 +1191,7 @@ export function useGetBooking<
 }
 
 /**
- * @summary Cancel a booking
+ * @summary Cancel a booking (with tiered partial refund)
  */
 export const getCancelBookingUrl = (id: number) => {
   return `/api/bookings/${id}`;
@@ -1189,7 +1252,7 @@ export type CancelBookingMutationResult = NonNullable<
 export type CancelBookingMutationError = ErrorType<unknown>;
 
 /**
- * @summary Cancel a booking
+ * @summary Cancel a booking (with tiered partial refund)
  */
 export const useCancelBooking = <
   TError = ErrorType<unknown>,
@@ -1210,6 +1273,93 @@ export const useCancelBooking = <
 > => {
   return useMutation(getCancelBookingMutationOptions(options));
 };
+
+/**
+ * @summary Preview refund amount for a booking cancellation
+ */
+export const getGetRefundPreviewUrl = (id: number) => {
+  return `/api/bookings/${id}/refund-preview`;
+};
+
+export const getRefundPreview = async (
+  id: number,
+  options?: RequestInit,
+): Promise<RefundPreview> => {
+  return customFetch<RefundPreview>(getGetRefundPreviewUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRefundPreviewQueryKey = (id: number) => {
+  return [`/api/bookings/${id}/refund-preview`] as const;
+};
+
+export const getGetRefundPreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRefundPreview>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRefundPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRefundPreviewQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRefundPreview>>
+  > = ({ signal }) => getRefundPreview(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRefundPreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRefundPreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRefundPreview>>
+>;
+export type GetRefundPreviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Preview refund amount for a booking cancellation
+ */
+
+export function useGetRefundPreview<
+  TData = Awaited<ReturnType<typeof getRefundPreview>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRefundPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRefundPreviewQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List reviews for a court
@@ -1238,7 +1388,11 @@ export const getListCourtReviewsQueryOptions = <
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listCourtReviews>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCourtReviews>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ) => {
@@ -1277,7 +1431,11 @@ export function useListCourtReviews<
 >(
   id: number,
   options?: {
-    query?: QueryOpts<Awaited<ReturnType<typeof listCourtReviews>>>;
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCourtReviews>>,
+      TError,
+      TData
+    >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1575,7 +1733,11 @@ export const getGetStatsSummaryQueryOptions = <
   TData = Awaited<ReturnType<typeof getStatsSummary>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof getStatsSummary>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStatsSummary>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
@@ -1606,7 +1768,11 @@ export function useGetStatsSummary<
   TData = Awaited<ReturnType<typeof getStatsSummary>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof getStatsSummary>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getStatsSummary>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetStatsSummaryQueryOptions(options);
@@ -1642,7 +1808,11 @@ export const getGetPopularCourtsQueryOptions = <
   TData = Awaited<ReturnType<typeof getPopularCourts>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof getPopularCourts>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPopularCourts>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
@@ -1673,7 +1843,11 @@ export function useGetPopularCourts<
   TData = Awaited<ReturnType<typeof getPopularCourts>>,
   TError = ErrorType<unknown>,
 >(options?: {
-  query?: QueryOpts<Awaited<ReturnType<typeof getPopularCourts>>>;
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPopularCourts>>,
+    TError,
+    TData
+  >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetPopularCourtsQueryOptions(options);

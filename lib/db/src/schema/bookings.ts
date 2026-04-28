@@ -17,6 +17,9 @@ export const bookingsTable = pgTable("bookings", {
   rentedItems: text("rented_items"),
   notes: text("notes"),
   stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  stripeRefundId: text("stripe_refund_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

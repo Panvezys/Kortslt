@@ -18,10 +18,6 @@ export const CourtType = {
   football: "football",
   badminton: "badminton",
   squash: "squash",
-  table_tennis: "table_tennis",
-  golf: "golf",
-  snooker: "snooker",
-  bowling: "bowling",
 } as const;
 
 export type CourtCondition =
@@ -32,8 +28,6 @@ export const CourtCondition = {
   good: "good",
   fair: "fair",
 } as const;
-
-export type CourtStatus = "pending" | "approved" | "rejected";
 
 export interface Court {
   id: number;
@@ -48,9 +42,7 @@ export interface Court {
   imageUrl?: string;
   ownerName: string;
   ownerEmail: string;
-  ownerUserId?: string;
   amenities?: string[];
-  amenityPhotos?: string;
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
@@ -59,15 +51,6 @@ export interface Court {
   totalBookings?: number;
   phone?: string;
   openingHours?: string[];
-  status?: CourtStatus;
-  ownershipDocUrl?: string;
-  rejectionReason?: string;
-  peakPricePerHour?: number;
-  rentableItems?: string;
-  socialFacebook?: string;
-  socialInstagram?: string;
-  socialWhatsapp?: string;
-  socialWebsite?: string;
   createdAt: string;
 }
 
@@ -81,10 +64,6 @@ export const CreateCourtBodyType = {
   football: "football",
   badminton: "badminton",
   squash: "squash",
-  table_tennis: "table_tennis",
-  golf: "golf",
-  snooker: "snooker",
-  bowling: "bowling",
 } as const;
 
 export type CreateCourtBodyCondition =
@@ -113,13 +92,6 @@ export interface CreateCourtBody {
   maxPlayers: number;
   surface?: string;
   condition?: CreateCourtBodyCondition;
-  ownershipDocUrl?: string;
-  peakPricePerHour?: number;
-  rentableItems?: string;
-  socialFacebook?: string;
-  socialInstagram?: string;
-  socialWhatsapp?: string;
-  socialWebsite?: string;
 }
 
 export interface TimeSlot {
@@ -174,18 +146,29 @@ export interface Booking {
   totalPrice: number;
   status: BookingStatus;
   stripeSessionId?: string;
+  refundAmount?: number;
+  stripeRefundId?: string;
   createdAt: string;
+}
+
+export interface RefundPreview {
+  bookingId: number;
+  totalPrice: number;
+  hoursBeforeStart: number;
+  refundPercent: number;
+  refundAmount: number;
+  refundable: boolean;
+  canCancel: boolean;
+  reason?: string;
 }
 
 export interface CreateBookingBody {
   courtId: number;
   customerName: string;
   customerEmail: string;
-  customerPhone?: string;
   date: string;
   startTime: string;
   endTime: string;
-  rentedItems?: string;
 }
 
 export interface CreateCheckoutBody {
@@ -210,7 +193,6 @@ export interface StatsSummary {
   totalRevenue: number;
   tennisCourts: number;
   basketballCourts: number;
-  padelCourts: number;
 }
 
 export interface PopularCourt {
@@ -225,7 +207,6 @@ export interface PopularCourt {
   condition?: string;
   bookingCount: number;
   revenue: number;
-  rating?: number;
 }
 
 export interface Review {
@@ -261,8 +242,6 @@ export type ListCourtsParams = {
   isIndoor?: boolean;
   minPrice?: number;
   maxPrice?: number;
-  ownerEmail?: string;
-  ownerUserId?: string;
 };
 
 export type ListCourtsType =
@@ -293,7 +272,6 @@ export type GetCourtAvailabilityParams = {
 export type ListBookingsParams = {
   courtId?: number;
   status?: ListBookingsStatus;
-  customerEmail?: string;
 };
 
 export type ListBookingsStatus =

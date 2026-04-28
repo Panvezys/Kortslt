@@ -19,5 +19,7 @@ export interface Booking {
   totalPrice: number;
   status: BookingStatus;
   stripeSessionId?: string;
+  refundAmount?: number;
+  stripeRefundId?: string;
   createdAt: Date;
 }

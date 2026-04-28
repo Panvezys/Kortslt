@@ -298,7 +298,7 @@ paths:
     delete:
       operationId: cancelBooking
       tags: [bookings]
-      summary: Cancel a booking
+      summary: Cancel a booking (with tiered partial refund)
       parameters:
         - name: id
           in: path
@@ -312,6 +312,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/refund-preview:
+    get:
+      operationId: getRefundPreview
+      tags: [bookings]
+      summary: Preview refund amount for a booking cancellation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Refund preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundPreview"
 
   /courts/{id}/reviews:
     get:
@@ -676,6 +695,10 @@ components:
           enum: [pending, confirmed, cancelled]
         stripeSessionId:
           type: string
+        refundAmount:
+          type: number
+        stripeRefundId:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -690,6 +713,34 @@ components:
         - totalPrice
         - status
         - createdAt
+
+    RefundPreview:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+        totalPrice:
+          type: number
+        hoursBeforeStart:
+          type: number
+        refundPercent:
+          type: integer
+        refundAmount:
+          type: number
+        refundable:
+          type: boolean
+        canCancel:
+          type: boolean
+        reason:
+          type: string
+      required:
+        - bookingId
+        - totalPrice
+        - hoursBeforeStart
+        - refundPercent
+        - refundAmount
+        - refundable
+        - canCancel
 
     CreateBookingBody:
       type: object

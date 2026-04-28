@@ -1,0 +1,42 @@
+"I need to implement a comprehensive cancellation and partial refund feature for court bookings. Please execute this in phases across the database, backend, and frontend.
+
+Phase 1: Database Updates
+
+Update the bookings table schema. Add the following columns: status (enum: 'PENDING', 'CONFIRMED', 'CANCELLED'), refund_amount (integer, in cents, default 0), and stripe_refund_id (string, nullable).
+
+Phase 2: Backend Logic & Stripe Integration
+
+Create a POST /api/bookings/:id/cancel endpoint.
+
+Implement this strict business logic to calculate the refund:
+
+Fetch the booking from the database and verify the user requesting the cancellation owns the booking.
+
+Calculate the difference in hours between Date.now() and the booking_start_time.
+
+Tier 1 (>= 48 hours): Calculate 80% of the original amount_paid.
+
+Tier 2 (>= 24 hours AND < 48 hours): Calculate 50% of the original amount_paid.
+
+Tier 3 (< 24 hours): 0% refund.
+
+If Tier 1 or 2: Make an API call to stripe.refunds.create(), passing the original payment_intent and the calculated partial amount in cents.
+
+Update the database record: set status to 'CANCELLED', store the refund_amount, and save the stripe_refund_id (if applicable).
+
+Crucial: Make that exact timeslot AVAILABLE again in the calendar/court availability logic so someone else can book it.
+
+Phase 3: Frontend (My Bookings UI)
+
+On the 'My Bookings' page, add a 'Cancel Booking' button for future bookings.
+
+When clicked, do not cancel immediately. Open a Confirmation Modal.
+
+The modal must dynamically calculate and display: "You are cancelling X hours before your booking. Based on our policy, you will receive a refund of €Y. Do you want to proceed?"
+
+If the booking is < 24 hours away, the modal should warn: "Late cancellation: You are cancelling less than 24 hours before your booking. You will not receive a refund, but your slot will be freed up."
+
+Once confirmed, trigger the backend endpoint, close the modal, and update the UI badge to say 'Cancelled' (and disable the cancel button).
+
+Phase 4: Transparency Rules
+Add a small disclaimer on the Checkout/Payment page right above the 'Pay' button: 'Cancellations 48h prior: 80% refund. 24h prior: 50% refund. Under 24h: Non-refundable.'

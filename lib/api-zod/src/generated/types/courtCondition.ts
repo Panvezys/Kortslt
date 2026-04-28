@@ -11,7 +11,6 @@ export type CourtCondition =
 
 export const CourtCondition = {
   excellent: "excellent",
-  very_good: "very_good",
   good: "good",
   fair: "fair",
 } as const;

@@ -1,0 +1,35 @@
+Implementing cancellations touches almost every part of your app. Here is exactly what happens behind the scenes and what else you need to prepare.
+
+A. The "My Bookings" Page (User View)
+Visual Status Badges: Instead of just showing the date and time, bookings need clear status labels like [Confirmed], [Cancelled - 50% Refunded], or [Cancelled - No Refund].
+
+Historical Accuracy: Cancelled bookings should not disappear from the user's history. They should remain visible so the user has a record of the transaction and the refund.
+
+B. Notifications (Emails/SMS)
+You will need to set up two types of automated emails when a cancellation happens:
+
+To the User (The Receipt): * Subject: "Your Booking Cancellation & Refund Info - Korts.lt"
+
+Body: Confirm the slot is cancelled. State the exact amount refunded (e.g., "€10.00 has been refunded to your original payment method. Please allow 5-10 business days for it to appear on your statement").
+
+To the Court Owner/Admin: * Subject: "Slot Opened: Cancellation on [Date]"
+
+Body: "A booking for [Date/Time] has been cancelled. The court is now marked as available on the public calendar. You retained €X.XX from the cancellation fee."
+
+C. Where to display the Rules (Legal & Trust)
+To completely protect yourself from Stripe Chargebacks, the policy must be visible in three places:
+
+Checkout Page: (Covered in the prompt above). Just a single sentence near the "Pay" button.
+
+Confirmation Email: When they first book the court, the email receipt must have a "Cancellation Policy" footer.
+
+Terms of Service Page (/terms): You need a dedicated paragraph detailing the 48h/24h breakdown and explaining that Stripe processing times may delay the funds reaching their bank.
+
+D. The Owner's Dashboard (Admin View)
+Your admin panel needs a significant update to track this, otherwise your accounting will be a mess.
+
+Financial Metrics: Your dashboard must distinguish between Gross Revenue (total money taken) and Net Revenue (money kept after refunds and Stripe fees).
+
+Calendar View: The admin calendar needs to visually show that a slot was cancelled but is now open again (perhaps a hollow box instead of a solid green booked box).
+
+Manual Override: As the owner, you need a "Force Cancel & Full Refund" button on your dashboard. Sometimes users have legitimate emergencies (injury, extreme weather), and you might want to bypass your own 48h rule to provide good customer service.

@@ -11,7 +11,6 @@ export type ListCourtsCondition =
 
 export const ListCourtsCondition = {
   excellent: "excellent",
-  very_good: "very_good",
   good: "good",
   fair: "fair",
 } as const;
