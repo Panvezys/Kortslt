@@ -64,7 +64,14 @@ router.post("/payments/create-checkout", requireAuth, async (req, res): Promise<
   } catch (err) {
     logger.warn("Stripe not configured — using mock checkout");
     const mockSessionId = `mock_session_${bookingId}_${Date.now()}`;
-    await db.update(bookingsTable).set({ stripeSessionId: mockSessionId }).where(eq(bookingsTable.id, bookingId));
+    await db
+      .update(bookingsTable)
+      .set({ stripeSessionId: mockSessionId, status: "confirmed" })
+      .where(eq(bookingsTable.id, bookingId));
+    await db
+      .update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + 1` })
+      .where(eq(courtsTable.id, booking.courtId));
     const mockSuccessUrl = `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id=${mockSessionId}`;
     res.json(CreateCheckoutSessionResponse.parse({ sessionId: mockSessionId, url: mockSuccessUrl }));
     return;
@@ -326,9 +333,8 @@ router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<voi
     return;
   }
 
-  // Respect instantBookingEnabled for free courts too
-  const instantEnabled = rows[0].instantBookingEnabled !== false;
-  const newStatus = instantEnabled ? "confirmed" : "pending";
+  // All bookings are instant — no manual approval required
+  const newStatus = "confirmed";
 
   const [booking] = await db
     .update(bookingsTable)
@@ -336,7 +342,7 @@ router.post("/payments/confirm-free", requireAuth, async (req, res): Promise<voi
     .where(eq(bookingsTable.id, bookingId))
     .returning();
 
-  if (instantEnabled) {
+  {
     await db
       .update(courtsTable)
       .set({ totalBookings: sql`total_bookings + 1` })
