@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, Phone, Mail, CheckCircle2, AlertCircle, Info } from "lucide-react";
+import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -52,14 +53,113 @@ interface Tournament {
   status: string;
   format: string;
   registrationCount: number;
+  organizerId?: string | null;
+  ownerUserId?: string | null;
+  facilityName?: string | null;
+  facilityVerified?: boolean;
 }
 
+interface BracketMatch {
+  matchId: string;
+  round: number;
+  p1: { regId: number; name: string } | null;
+  p2: { regId: number; name: string } | null;
+  winner: { regId: number; name: string } | null;
+  score: string | null;
+  nextMatchId: string | null;
+}
+
+interface BracketRound { round: number; matches: BracketMatch[] }
+interface BracketData { format: string; generatedAt: string; rounds: BracketRound[] }
+
 interface Court { id: number; name: string; city: string; address: string; phone: string | null; }
+
+function BracketView({
+  bracket,
+  isOrganizer,
+  onEditMatch,
+}: {
+  bracket: BracketData;
+  isOrganizer: boolean;
+  onEditMatch: (m: BracketMatch) => void;
+}) {
+  if (!bracket.rounds?.length) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Tinklelis tuščias</div>;
+  }
+  return (
+    <div className="overflow-x-auto -mx-4 px-4">
+      <div className="flex gap-6 min-w-max pb-2">
+        {bracket.rounds.map((round, rIdx) => (
+          <div key={round.round} className="flex flex-col justify-around gap-3 min-w-[220px]">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center mb-1">
+              {rIdx === bracket.rounds.length - 1
+                ? "Finalas"
+                : rIdx === bracket.rounds.length - 2
+                  ? "Pusfinalis"
+                  : `Raundas ${round.round}`}
+            </div>
+            <div
+              className="flex flex-col gap-3 flex-1 justify-around"
+              style={{ paddingTop: `${rIdx * 20}px`, paddingBottom: `${rIdx * 20}px` }}
+            >
+              {round.matches.map((m) => {
+                const isBye = (!m.p1 && m.p2) || (m.p1 && !m.p2);
+                const isComplete = !!m.winner;
+                const canEdit = isOrganizer && m.p1 && m.p2 && !isComplete;
+                return (
+                  <div
+                    key={m.matchId}
+                    className={`rounded-lg border-2 overflow-hidden text-xs ${
+                      isComplete ? "border-primary/40 bg-primary/5" : isBye ? "border-dashed border-border bg-muted/30" : "border-border bg-card"
+                    } ${canEdit ? "cursor-pointer hover:border-primary hover:shadow" : ""}`}
+                    onClick={() => canEdit && onEditMatch(m)}
+                  >
+                    <div className={`flex items-center justify-between px-2.5 py-1.5 border-b border-border/50 ${
+                      m.winner?.regId === m.p1?.regId ? "bg-primary/10 font-semibold" : ""
+                    }`}>
+                      <span className="truncate flex items-center gap-1">
+                        {m.winner?.regId === m.p1?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+                        <span className="truncate">{m.p1?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
+                      </span>
+                      {isComplete && m.score && (
+                        <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{m.score.split("-")[0]}</span>
+                      )}
+                    </div>
+                    <div className={`flex items-center justify-between px-2.5 py-1.5 ${
+                      m.winner?.regId === m.p2?.regId ? "bg-primary/10 font-semibold" : ""
+                    }`}>
+                      <span className="truncate flex items-center gap-1">
+                        {m.winner?.regId === m.p2?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+                        <span className="truncate">{m.p2?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
+                      </span>
+                      {isComplete && m.score && (
+                        <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{m.score.split("-")[1]}</span>
+                      )}
+                    </div>
+                    {canEdit && (
+                      <div className="px-2 py-1 bg-primary/10 text-[10px] text-primary text-center font-medium">
+                        Įvesti rezultatą
+                      </div>
+                    )}
+                    {isBye && !isComplete && (
+                      <div className="px-2 py-1 text-[10px] text-muted-foreground text-center italic">BYE</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function TournamentDetail() {
   const { id } = useParams();
   const tournamentId = parseInt(id || "0", 10);
   const { user, isSignedIn } = useUser();
+  const { getToken } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -67,6 +167,9 @@ export default function TournamentDetail() {
   const [playerEmail, setPlayerEmail] = useState("");
   const [playerPhone, setPlayerPhone] = useState("");
   const [registered, setRegistered] = useState(false);
+  const [scoreMatch, setScoreMatch] = useState<BracketMatch | null>(null);
+  const [scoreInput, setScoreInput] = useState("");
+  const [winnerChoice, setWinnerChoice] = useState<number | null>(null);
 
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: ["tournament", tournamentId],
@@ -86,6 +189,64 @@ export default function TournamentDetail() {
       return r.json();
     },
     enabled: !!tournament?.courtId,
+  });
+
+  const isOrganizer = !!user && !!tournament && (
+    user.id === tournament.organizerId || user.id === tournament.ownerUserId
+  );
+
+  const { data: bracket } = useQuery<BracketData | null>({
+    queryKey: ["tournament-bracket", tournamentId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/tournaments/${tournamentId}/bracket`);
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !isNaN(tournamentId),
+  });
+
+  const generateBracketMutation = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      const r = await fetch(`${API}/tournaments/${tournamentId}/generate-bracket`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error ?? "Nepavyko sugeneruoti tinklelio");
+      }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tournament-bracket", tournamentId] });
+      toast({ title: "Tinklelis sugeneruotas" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const matchResultMutation = useMutation({
+    mutationFn: async (vars: { matchId: string; winnerRegId: number; score?: string }) => {
+      const token = await getToken();
+      const r = await fetch(`${API}/tournaments/${tournamentId}/match-result`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(vars),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error ?? "Nepavyko išsaugoti rezultato");
+      }
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tournament-bracket", tournamentId] });
+      setScoreMatch(null);
+      setScoreInput("");
+      setWinnerChoice(null);
+      toast({ title: "Rezultatas išsaugotas" });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
   });
 
   const registerMutation = useMutation({
@@ -182,6 +343,22 @@ export default function TournamentDetail() {
                 </span>
               </div>
               <h1 className="text-3xl font-bold">{tournament.name}</h1>
+              {(tournament.facilityVerified || tournament.prizeInfo) && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {tournament.facilityVerified && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-600 border border-green-500/30">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Patvirtintas aikštynas
+                    </span>
+                  )}
+                  {tournament.prizeInfo && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-yellow-500/15 text-yellow-700 border border-yellow-500/30">
+                      <Trophy className="w-3.5 h-3.5" />
+                      Prizinis fondas
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -229,6 +406,48 @@ export default function TournamentDetail() {
                   Prizai
                 </p>
                 <p className="text-sm text-muted-foreground">{tournament.prizeInfo}</p>
+              </div>
+            )}
+
+            {/* Bracket */}
+            {(bracket || isOrganizer) && (
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-base flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    Tinklelis
+                  </h2>
+                  {isOrganizer && (
+                    <Button
+                      size="sm"
+                      variant={bracket ? "outline" : "default"}
+                      onClick={() => {
+                        if (bracket && !confirm("Pergeneruoti tinklelį? Esami rezultatai bus prarasti.")) return;
+                        generateBracketMutation.mutate();
+                      }}
+                      disabled={generateBracketMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      <Trophy className="w-3.5 h-3.5" />
+                      {bracket ? "Pergeneruoti" : "Sugeneruoti tinklelį"}
+                    </Button>
+                  )}
+                </div>
+                {bracket ? (
+                  <BracketView
+                    bracket={bracket}
+                    isOrganizer={isOrganizer}
+                    onEditMatch={(m) => {
+                      setScoreMatch(m);
+                      setScoreInput(m.score ?? "");
+                      setWinnerChoice(m.winner?.regId ?? null);
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground py-6 text-center">
+                    Tinklelis dar nesugeneruotas. Po registracijos uždarymo paspauskite mygtuką viršuje.
+                  </p>
+                )}
               </div>
             )}
 
@@ -335,6 +554,65 @@ export default function TournamentDetail() {
           </div>
         </div>
       </div>
+      {/* Score entry dialog (organizer-only) */}
+      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); setScoreInput(""); setWinnerChoice(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Įvesti rezultatą</DialogTitle>
+          </DialogHeader>
+          {scoreMatch && (
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground">Pasirinkite nugalėtoją:</p>
+              <div className="grid grid-cols-1 gap-2">
+                {scoreMatch.p1 && (
+                  <button
+                    type="button"
+                    onClick={() => setWinnerChoice(scoreMatch.p1!.regId)}
+                    className={`flex items-center justify-between rounded-lg border-2 px-3 py-2.5 text-sm transition-colors ${
+                      winnerChoice === scoreMatch.p1.regId ? "border-primary bg-primary/10 font-semibold" : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <span>{scoreMatch.p1.name}</span>
+                    {winnerChoice === scoreMatch.p1.regId && <Crown className="w-4 h-4 text-yellow-500" />}
+                  </button>
+                )}
+                {scoreMatch.p2 && (
+                  <button
+                    type="button"
+                    onClick={() => setWinnerChoice(scoreMatch.p2!.regId)}
+                    className={`flex items-center justify-between rounded-lg border-2 px-3 py-2.5 text-sm transition-colors ${
+                      winnerChoice === scoreMatch.p2.regId ? "border-primary bg-primary/10 font-semibold" : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <span>{scoreMatch.p2.name}</span>
+                    {winnerChoice === scoreMatch.p2.regId && <Crown className="w-4 h-4 text-yellow-500" />}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Rezultatas (neprivaloma, pvz. 6-3)</Label>
+                <Input value={scoreInput} onChange={e => setScoreInput(e.target.value)} placeholder="6-3" className="h-9 text-sm" />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setScoreMatch(null); setScoreInput(""); setWinnerChoice(null); }}>Atšaukti</Button>
+            <Button
+              disabled={!winnerChoice || matchResultMutation.isPending}
+              onClick={() => {
+                if (!scoreMatch || !winnerChoice) return;
+                matchResultMutation.mutate({
+                  matchId: scoreMatch.matchId,
+                  winnerRegId: winnerChoice,
+                  score: scoreInput.trim() || undefined,
+                });
+              }}
+            >
+              {matchResultMutation.isPending ? "Saugoma..." : "Išsaugoti"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

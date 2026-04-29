@@ -58,6 +58,7 @@ const OwnerSettings = lazy(() => import("@/pages/owner/settings"));
 const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
 const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
 const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
+const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
 
 const queryClient = new QueryClient();
 
@@ -200,6 +201,7 @@ function Router() {
       <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
       <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
       <Route path="/owner/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCoaches /></Suspense></OwnerRoute>} />
+      <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />

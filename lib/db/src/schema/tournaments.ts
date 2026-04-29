@@ -1,11 +1,19 @@
-import { pgTable, text, serial, timestamp, numeric, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { courtsTable } from "./courts";
 
 export const tournamentsTable = pgTable("tournaments", {
   id: serial("id").primaryKey(),
-  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  // Legacy single-court reference (kept nullable so we can keep current FK behaviour but allow multi-court rows)
+  courtId: integer("court_id").references(() => courtsTable.id, { onDelete: "cascade" }),
+  // New multi-court support — primary source of truth for which courts the tournament uses.
+  // Stored as Postgres int[]; defaults to empty array for backward compatibility.
+  courtIds: integer("court_ids").array().notNull().default(sql`ARRAY[]::integer[]`),
   facilityId: integer("facility_id"),
+  // Original creator on the legacy single-court flow (kept for back-compat, equals organizerId for new rows)
   ownerUserId: text("owner_user_id").notNull(),
+  // The coach/user who is hosting the tournament. Distinct from facility owner who must approve.
+  organizerId: text("organizer_id"),
   name: text("name").notNull(),
   description: text("description"),
   sport: text("sport").notNull(),
@@ -16,8 +24,14 @@ export const tournamentsTable = pgTable("tournaments", {
   maxParticipants: integer("max_participants").notNull().default(16),
   entryFee: numeric("entry_fee", { precision: 10, scale: 2 }),
   prizeInfo: text("prize_info"),
+  // Registration lifecycle: draft / open / closed / completed
   status: text("status").notNull().default("draft"),
+  // Facility-owner approval lifecycle: pending / approved / rejected
+  approvalStatus: text("approval_status").notNull().default("approved"),
+  approvalMessage: text("approval_message"),
   format: text("format").notNull().default("single_elimination"),
+  // Single-elimination bracket structure produced by /generate-bracket
+  bracketData: jsonb("bracket_data"),
   isFeatured: boolean("is_featured").notNull().default(false),
   featuredUntil: timestamp("featured_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

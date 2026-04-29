@@ -14,6 +14,13 @@ type NotifType =
   | "facility_rejected"
   | "coach_approved"
   | "coach_rejected"
+  | "court_coach_approved"
+  | "court_coach_rejected"
+  | "coach_invite"
+  | "tournament_pending_review"
+  | "tournament_approved"
+  | "tournament_rejected"
+  | "tournament_match_ready"
   | "admin_pending_review"
   | "message";
 

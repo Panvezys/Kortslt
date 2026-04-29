@@ -21,6 +21,7 @@ function buildNavItems(facilityId?: number) {
     { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
     { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
+    { icon: Trophy,          label: "Turnyrai",       href: `${BASE_URL}/owner/tournaments` },
     { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
     { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
   ];

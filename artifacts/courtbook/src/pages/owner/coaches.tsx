@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  LayoutDashboard, Building2, CreditCard, Settings, Users,
+  LayoutDashboard, Building2, CreditCard, Settings, Users, Trophy,
   Menu, X, LogOut, Check, Trash2, Euro, MapPin, Mail,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ function buildNavItems() {
     { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
     { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
+    { icon: Trophy,          label: "Turnyrai",       href: `${BASE_URL}/owner/tournaments` },
     { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
     { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
   ];

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, Euro, Users, Trophy, Search, MapPin, Clock, X } from "lucide-react";
+import { CalendarDays, Euro, Users, Trophy, Search, MapPin, Clock, X, ShieldCheck } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -51,6 +51,9 @@ interface Tournament {
   status: string;
   format: string;
   registrationCount: number;
+  facilityName?: string | null;
+  facilityCity?: string | null;
+  facilityVerified?: boolean;
 }
 
 function TournamentCard({ t }: { t: Tournament }) {
@@ -82,6 +85,24 @@ function TournamentCard({ t }: { t: Tournament }) {
               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
             )}
           </div>
+
+          {/* Badges */}
+          {(t.facilityVerified || t.prizeInfo) && (
+            <div className="flex flex-wrap gap-1.5">
+              {t.facilityVerified && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-green-500/15 text-green-600 border border-green-500/30">
+                  <ShieldCheck className="w-3 h-3" />
+                  Patvirtintas aikštynas
+                </span>
+              )}
+              {t.prizeInfo && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-700 border border-yellow-500/30">
+                  <Trophy className="w-3 h-3" />
+                  Prizinis fondas
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Meta */}
           <div className="space-y-1.5 text-xs text-muted-foreground">
