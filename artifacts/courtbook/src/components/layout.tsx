@@ -316,6 +316,14 @@ function NavIconButton({ href, icon, label }: { href: string; icon: React.ReactN
   );
 }
 
+function OwnerDashboardButton() {
+  const { isOwner } = useRole();
+  if (!isOwner) return null;
+  return (
+    <NavIconButton href="/owner" icon={<LayoutDashboard className="h-4 w-4" />} label="Savininko skydelis" />
+  );
+}
+
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -363,6 +371,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Show when="signed-in">
                 <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
                 <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
+                <OwnerDashboardButton />
                 <NotificationBell />
                 <div className="hidden md:block">
                   <UserMenu />
