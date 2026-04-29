@@ -91,6 +91,10 @@ export function NotificationBell() {
     } catch { /* silent */ }
   }, [authFetch]);
 
+  const refreshNotifications = useCallback(async () => {
+    await Promise.all([fetchNotifs(), isAdmin ? fetchAdminNotifs() : Promise.resolve()]);
+  }, [fetchNotifs, fetchAdminNotifs, isAdmin]);
+
   useEffect(() => {
     if (!userId) return;
     fetchNotifs();
@@ -126,6 +130,7 @@ export function NotificationBell() {
     setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
       await authFetch(`/api/notifications/read-all`, { method: "POST" });
+      await refreshNotifications();
     } catch { /* silent */ }
   }
 
