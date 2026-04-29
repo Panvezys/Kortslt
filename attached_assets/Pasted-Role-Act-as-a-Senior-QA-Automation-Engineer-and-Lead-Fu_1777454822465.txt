@@ -1,0 +1,62 @@
+Role: Act as a Senior QA Automation Engineer and Lead Full-Stack Developer.
+
+Objective: Perform a comprehensive end-to-end audit, functional test, and bug-fix session for the entire Korts.lt platform. You must ensure every user journey is intuitive, bug-free, and professional.
+
+Step 1: Bypass Authentication for Testing
+Before testing, update artifacts/api-server/src/lib/auth.ts. Implement a bypass that allows any request to pass requireAuth, requireOwner, or requireCoach if a header x-replit-agent-auth matches a secret key (use 'REPLIT_TEST_BYPASS' for now). This will allow you to test API routes without hitting 401 errors.
+
+Step 2: Functional Test Suite (Execute & Fix)
+Please go through every file in the codebase and verify the following workflows. If a feature is broken, missing a check, or has a UI bug, fix it immediately.
+
+1. Facility & Court Management:
+
+Test creating a Facility and adding multiple Courts.
+
+Verify that photos upload correctly and display on the frontend.
+
+Test the 'Blocked Slots' feature to ensure owners can manually close courts.
+
+2. Booking & Payment Flow:
+
+Test the full Stripe Checkout flow for a court booking (both Registered User and Guest).
+
+Verify that once paid, the slot is blocked on the calendar and a 'Booking Confirmed' email/notification is triggered.
+
+Test the Tiered Refund logic: Cancel a booking at >48h (80%), >24h (50%), and <24h (0%) and verify Stripe refund calls.
+
+3. Social Games & Gamification:
+
+Test 'Host Pays All' vs. 'Split Cost' game creation.
+
+Verify the 15-minute 'Pending' hold during Stripe checkout.
+
+Test joining a game and the Reliability Score penalty if leaving within 12h of start.
+
+Verify the 24-hour ELO calculation cron job: ensure matches move to 'Completed' and points are awarded correctly.
+
+4. Coaching Marketplace:
+
+Test the 'Become a Coach' onboarding.
+
+Test the Bidirectional Approval: Coach applies to a facility -> Owner approves -> Coach appears on that facility's public page.
+
+Verify that 'Book Lesson' correctly identifies court availability.
+
+5. Automated Tournament Engine:
+
+Test creating a tournament and the Facility Owner's approval flow.
+
+Verify 'Automatic Bracket Generation': register 4, 8, or 16 test players and ensure a Single Elimination bracket is generated in the bracket_data JSONB.
+
+Test 'Automated Progression': Input a match result and verify the winner is automatically moved to the next round in the bracket.
+
+Step 3: UI/UX & Professionalism Audit
+
+Responsive Design: Check every page (Dashboard, Search, Profiles) on mobile, tablet, and desktop views. Fix any overlapping text or broken layouts.
+
+Interactivity: Ensure every dropdown, toggle, and button has a loading state and success/error toast notification.
+
+Empty States: Ensure that if a user has no bookings, no games, or no coaches, the page shows a professional "Empty State" with a Call-to-Action button rather than a blank screen.
+
+Step 4: Final Report
+Once finished, provide a detailed summary of every bug you found and fixed, and confirm that the entire 401-code obstacle has been resolved for your testing purposes

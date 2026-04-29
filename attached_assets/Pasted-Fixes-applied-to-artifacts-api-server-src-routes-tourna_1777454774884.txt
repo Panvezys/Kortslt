@@ -1,0 +1,26 @@
+Fixes applied to artifacts/api-server/src/routes/tournaments.ts:
+
+Security — public approval-status leak (GET /tournaments): Added a check so unauthenticated callers always get only approvalStatus='approved' rows, even when they pass ?includePending=1. Smoke-test confirmed: unauth + includePending=1 returns only approved tournaments.
+
+Bracket contract mismatch: Aligned the backend with the frontend by switching bracket players from plain strings to { regId, name } objects throughout (types, generator, applier, generate-bracket query, match-result endpoint, GET /bracket response). Now:
+
+GET /tournaments/:id/bracket returns the bracket object directly (not wrapped)
+POST /match-result accepts { matchId, winnerRegId, score? } matching the frontend mutation
+Winner/highlight/edit Dialog logic on the frontend will resolve correctly via regId
+Court-blocking atomicity:
+
+/owner/respond-to-tournament: wrapped status update + blocked-slot inserts in db.transaction() so an approval never lands without held slots; failure returns 500 and rolls back.
+Self-approved create flow (legacy /courts/:id/tournaments): if blocking fails after the tournament row was inserted, the row is automatically reverted to status='draft', approvalStatus='pending' and a 500 is returned, so the owner can retry without an "approved tournament with no court hold" inconsistency.
+Pre-existing typecheck errors in unrelated files (roles.ts, stats.ts, user-profiles.ts) are not part of this work and remain as before.
+
+Tournament Marketplace upgrade is now complete. Summary of what shipped:
+
+Multi-court hosting + organizerId + approval workflow with notifications
+Owner Tournament Requests page (/owner/tournaments) with Trophy "Turnyrai" nav across all owner pages
+Auto court-blocking on approval (atomic)
+Verified-facility + Prize-pool badges on tournament listings
+Single-elim bracket generation (random seed, BYE auto-advance to next power of 2)
+Visual <BracketView> with Crown winner icons, click-to-score Dialog for organizers
+Public bracket read endpoint
+replit.md updated with the full Tournaments Marketplace section
+Deferred (per your direction): Stripe Connect split-payments — needs a Connect onboarding subsystem for facility owners; the existing /register endpoint stays as-is until you're ready to refine the split.
