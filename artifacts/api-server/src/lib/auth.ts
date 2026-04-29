@@ -215,6 +215,31 @@ export async function requireCoach(req: Request, res: Response, next: NextFuncti
   }
 }
 
+/** Express middleware: requires role in {admin, owner, coach} — used for tournament organizers. */
+export async function requireCreator(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (isAgentBypass(req)) {
+      const r = bypassRole(req);
+      if (r === "admin" || r === "owner" || r === "coach") { applyBypassToReq(req); next(); return; }
+      res.status(403).json({ error: "Tik aikštynų savininkai ir treneriai gali organizuoti turnyrus." });
+      return;
+    }
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin" && role !== "owner" && role !== "coach") {
+      res.status(403).json({ error: "Tik aikštynų savininkai ir treneriai gali organizuoti turnyrus." });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** Returns true if the current request's userId matches the court owner (or is admin) */
 export async function isOwner(req: Request, ownerUserId: string | null | undefined): Promise<boolean> {
   if (isAgentBypass(req)) {

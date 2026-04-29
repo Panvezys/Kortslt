@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   LayoutDashboard, Building2, CreditCard, Settings, Users, Trophy,
-  CalendarDays, MapPin, CheckCircle2, XCircle, Clock, AlertCircle,
+  CalendarDays, MapPin, CheckCircle2, XCircle, Clock, AlertCircle, Plus,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -128,15 +128,23 @@ export default function OwnerTournamentsPage() {
 
         {/* Main */}
         <main className="flex-1 p-4 md:p-8 max-w-5xl">
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Trophy className="w-5 h-5 text-yellow-500" />
-              <h1 className="text-2xl font-bold">Turnyrų užklausos</h1>
+          <div className="mb-6 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Trophy className="w-5 h-5 text-primary" />
+                <h1 className="text-2xl font-bold">Turnyrai</h1>
+              </div>
+              <p className="text-sm text-muted-foreground max-w-2xl">
+                Kurkite naujus turnyrus arba patvirtinkite kitų organizatorių prašymus rengti turnyrus jūsų aikštynuose.
+                Patvirtinus, aikštelės tomis dienomis automatiškai užblokuojamos kasdieniniam rezervavimui.
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Patvirtinkite arba atmeskite organizatorių prašymus rengti turnyrus jūsų aikštynuose.
-              Patvirtinus, aikštelės tomis dienomis bus automatiškai užblokuotos kasdieniniam rezervavimui.
-            </p>
+            <Button asChild size="sm" className="gap-2 self-start shrink-0">
+              <Link href="/owner/tournaments/new">
+                <Plus className="w-4 h-4" />
+                Naujas turnyras
+              </Link>
+            </Button>
           </div>
 
           {isLoading ? (

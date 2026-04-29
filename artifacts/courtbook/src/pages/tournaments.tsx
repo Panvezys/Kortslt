@@ -229,7 +229,7 @@ export default function TournamentsPage() {
             </div>
             {canCreate && (
               <Button asChild size="sm" className="shrink-0 gap-2 self-start sm:self-auto">
-                <Link href="/owner/tournaments">
+                <Link href="/owner/tournaments/new">
                   <Plus className="w-4 h-4" />
                   Sukurti turnyrą
                 </Link>
@@ -305,7 +305,7 @@ export default function TournamentsPage() {
                     </Button>
                   ) : canCreate ? (
                     <Button asChild size="sm" className="gap-2">
-                      <Link href="/owner/tournaments">
+                      <Link href="/owner/tournaments/new">
                         <Plus className="w-4 h-4" />
                         Sukurti turnyrą
                       </Link>

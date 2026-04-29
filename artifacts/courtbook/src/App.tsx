@@ -59,6 +59,7 @@ const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
 const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
 const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
+const OwnerTournamentCreate = lazy(() => import("@/pages/owner/tournament-create"));
 
 const queryClient = new QueryClient();
 
@@ -169,6 +170,17 @@ function CoachRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Allows owners (incl. admins) and coaches — used for tournament-organizer pages. */
+function CreatorRoute({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isOwner, isCoach, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isOwner && !isCoach) return <Redirect to="/tournaments" />;
+  return <>{children}</>;
+}
+
 function WelcomeRoute() {
   return (
     <>
@@ -202,6 +214,7 @@ function Router() {
       <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
       <Route path="/owner/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCoaches /></Suspense></OwnerRoute>} />
       <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
+      <Route path="/owner/tournaments/new" component={() => <CreatorRoute><Suspense fallback={null}><OwnerTournamentCreate /></Suspense></CreatorRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />

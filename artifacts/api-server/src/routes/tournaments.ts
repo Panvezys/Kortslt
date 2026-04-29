@@ -8,7 +8,7 @@ import {
   facilitiesTable,
   courtBlockedSlotsTable,
 } from "@workspace/db";
-import { requireAuth, getCurrentUserId, isOwner, requireOwner } from "../lib/auth";
+import { requireAuth, getCurrentUserId, isOwner, requireOwner, requireCreator } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -422,7 +422,7 @@ router.post("/owner/respond-to-tournament", requireOwner, async (req, res): Prom
 // --- Organizer-initiated request --------------------------------------------
 
 // POST /tournaments/request — coach/owner requests to host a tournament at a third-party facility
-router.post("/tournaments/request", requireAuth, async (req, res): Promise<void> => {
+router.post("/tournaments/request", requireCreator, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
   const {
     facilityId,
