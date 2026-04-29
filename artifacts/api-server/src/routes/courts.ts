@@ -186,7 +186,7 @@ router.get("/courts", async (req, res): Promise<void> => {
       .where(and(...conditions));
 
     const filtered = rows.filter(r =>
-      r.court.facilityId == null || r.facilityStatus === "verified"
+      r.court.facilityId == null || r.facilityStatus === "active"
     );
 
     const courtIds = filtered.map(r => r.court.id);

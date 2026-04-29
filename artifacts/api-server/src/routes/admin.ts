@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and, inArray } from "drizzle-orm";
 import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable, userProfilesTable } from "@workspace/db";
 import { requireAdmin } from "../lib/auth";
 import { getAuth, clerkClient } from "@clerk/express";
@@ -106,33 +106,89 @@ router.get("/admin/facilities", requireAdmin, async (_req, res): Promise<void> =
   res.json(facilities);
 });
 
-/** PUT /admin/facilities/:id/approve — set verificationStatus = 'verified' */
+/** GET /admin/facilities/pending — only the verification queue */
+router.get("/admin/facilities/pending", requireAdmin, async (_req, res): Promise<void> => {
+  const facilities = await db
+    .select()
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.verificationStatus, "pending_verification"))
+    .orderBy(desc(facilitiesTable.createdAt));
+  res.json(facilities);
+});
+
+/**
+ * PUT /admin/facilities/:id/approve
+ * Move a 'pending_verification' facility to 'active'. Requires Stripe onboarding
+ * to be complete on the owner's account so we never publish a court that can't
+ * accept payments.
+ */
 router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  // Compare-and-set: the row is only updated if it is STILL in 'pending_verification'
+  // AND stripe is STILL complete. This prevents a stale stripe webhook (or another admin
+  // session) from racing the approval and producing a status drift.
   const [facility] = await db
     .update(facilitiesTable)
-    .set({ verificationStatus: "verified", rejectionReason: null })
-    .where(eq(facilitiesTable.id, id))
+    .set({
+      verificationStatus: "active",
+      adminVerified: true,
+      verificationNotes: null,
+      rejectionReason: null,
+    })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "pending_verification"),
+      eq(facilitiesTable.stripeOnboardingComplete, true),
+    ))
     .returning();
 
-  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!facility) {
+    // Disambiguate why the CAS missed: 404 vs wrong-state vs stripe-gate.
+    const [existing] = await db
+      .select({
+        id: facilitiesTable.id,
+        verificationStatus: facilitiesTable.verificationStatus,
+        stripeOnboardingComplete: facilitiesTable.stripeOnboardingComplete,
+      })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, id));
+    if (!existing) { res.status(404).json({ error: "Facility not found" }); return; }
+    if (existing.verificationStatus !== "pending_verification") {
+      res.status(400).json({
+        error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
+      });
+      return;
+    }
+    res.status(400).json({
+      error: "Negalima patvirtinti — savininkas dar neužbaigė Stripe Connect.",
+    });
+    return;
+  }
 
-  if (facility.ownerUserId) {
+  if (facility?.ownerUserId) {
     await db.insert(notificationsTable).values({
       userId: facility.ownerUserId,
       type: "facility_approved",
       title: `Objektas patvirtintas: ${facility.name}`,
-      body: "Jūsų objektas patvirtintas. Dabar galite priimti rezervacijas.",
+      body: "Jūsų objektas patvirtintas ir matomas paieškoje. Galite priimti rezervacijas.",
       link: `/owner/facility/${facility.id}`,
     }).catch(() => {});
   }
 
-  res.json({ id: facility.id, verificationStatus: facility.verificationStatus });
+  res.json({
+    id: facility.id,
+    verificationStatus: facility.verificationStatus,
+    adminVerified: facility.adminVerified,
+  });
 });
 
-/** PUT /admin/facilities/:id/reject — set verificationStatus = 'rejected' */
+/**
+ * PUT /admin/facilities/:id/reject
+ * Reverts the facility back to 'draft' and stores the admin's note in
+ * `verification_notes` (and legacy `rejection_reason`) so the owner sees why.
+ */
 const RejectFacilityBody = z.object({ reason: z.string().optional() });
 
 router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promise<void> => {
@@ -142,25 +198,100 @@ router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promi
   const body = RejectFacilityBody.safeParse(req.body);
   const reason = body.success ? (body.data.reason ?? null) : null;
 
+  // Compare-and-set: only allow reject from 'pending_verification' (the verification queue).
+  // This prevents accidental wipe of an 'active' or 'suspended' facility's status.
   const [facility] = await db
     .update(facilitiesTable)
-    .set({ verificationStatus: "rejected", rejectionReason: reason })
-    .where(eq(facilitiesTable.id, id))
+    .set({
+      verificationStatus: "draft",
+      adminVerified: false,
+      verificationNotes: reason,
+      rejectionReason: reason,
+    })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "pending_verification"),
+    ))
     .returning();
 
-  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!facility) {
+    // Disambiguate: 404 vs 400 (wrong state).
+    const [exists] = await db
+      .select({ id: facilitiesTable.id, verificationStatus: facilitiesTable.verificationStatus })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, id));
+    if (!exists) { res.status(404).json({ error: "Facility not found" }); return; }
+    res.status(400).json({
+      error: `Pataisymų galima prašyti tik iš patvirtinimo eilės. Dabartinis statusas: ${exists.verificationStatus}.`,
+    });
+    return;
+  }
 
   if (facility.ownerUserId) {
     await db.insert(notificationsTable).values({
       userId: facility.ownerUserId,
       type: "facility_rejected",
-      title: `Objektas atmestas: ${facility.name}`,
-      body: reason ? `Priežastis: ${reason}` : "Jūsų objektas buvo atmestas.",
-      link: "/owner",
+      title: `Reikia pataisymų: ${facility.name}`,
+      body: reason
+        ? `Administratoriaus pastaba: ${reason}`
+        : "Administratorius prašo pataisyti objekto duomenis prieš pakartotinį pateikimą.",
+      link: `/owner/facility/${facility.id}`,
     }).catch(() => {});
   }
 
-  res.json({ id: facility.id, verificationStatus: facility.verificationStatus, rejectionReason: facility.rejectionReason });
+  res.json({
+    id: facility.id,
+    verificationStatus: facility.verificationStatus,
+    verificationNotes: facility.verificationNotes,
+    rejectionReason: facility.rejectionReason,
+  });
+});
+
+/**
+ * PUT /admin/facilities/:id/suspend — manually disable an active facility.
+ */
+router.put("/admin/facilities/:id/suspend", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectFacilityBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  // Compare-and-set: only allow suspend from 'active'. Suspending a draft/onboarding/
+  // pending_verification facility makes no sense (already not public) and would let an
+  // admin skip the verification queue for a future re-activation.
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({ verificationStatus: "suspended", verificationNotes: reason })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "active"),
+    ))
+    .returning();
+
+  if (!facility) {
+    const [exists] = await db
+      .select({ id: facilitiesTable.id, verificationStatus: facilitiesTable.verificationStatus })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, id));
+    if (!exists) { res.status(404).json({ error: "Facility not found" }); return; }
+    res.status(400).json({
+      error: `Sustabdyti galima tik aktyvius objektus. Dabartinis statusas: ${exists.verificationStatus}.`,
+    });
+    return;
+  }
+
+  if (facility.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_rejected",
+      title: `Objektas sustabdytas: ${facility.name}`,
+      body: reason ?? "Jūsų objektas laikinai sustabdytas administratoriaus.",
+      link: `/owner/facility/${facility.id}`,
+    }).catch(() => {});
+  }
+
+  res.json({ id: facility.id, verificationStatus: facility.verificationStatus });
 });
 
 router.get("/admin/reset-stripe", requireAdmin, async (req, res): Promise<void> => {

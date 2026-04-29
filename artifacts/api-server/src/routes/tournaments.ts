@@ -599,7 +599,7 @@ router.get("/tournaments", async (req, res): Promise<void> => {
         ...formatTournament(r, countMap.get(r.id) ?? 0),
         facilityName: facMeta?.name ?? null,
         facilityCity: facMeta?.city ?? null,
-        facilityVerified: facMeta?.verificationStatus === "verified",
+        facilityVerified: facMeta?.verificationStatus === "active",
       };
     }),
   );
@@ -640,7 +640,7 @@ router.get("/tournaments/:id", async (req, res): Promise<void> => {
     if (fac) {
       facilityName = fac.name;
       facilityCity = fac.city;
-      facilityVerified = fac.verificationStatus === "verified";
+      facilityVerified = fac.verificationStatus === "active";
     }
   }
 
@@ -817,7 +817,7 @@ router.post("/tournaments/request", requireCreator, async (req, res): Promise<vo
 
   const [fac] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facId));
   if (!fac) { res.status(404).json({ error: "Facility not found" }); return; }
-  if (fac.verificationStatus !== "verified") {
+  if (fac.verificationStatus !== "active") {
     res.status(400).json({ error: "Facility is not verified" }); return;
   }
 

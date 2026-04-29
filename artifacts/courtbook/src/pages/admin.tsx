@@ -680,15 +680,19 @@ function CourtReviewDialog({
 // ─── Facilities panel ─────────────────────────────────────────────────────────
 
 const VERIFICATION_LABEL: Record<string, string> = {
-  pending: "Laukiama",
-  verified: "Patvirtinta",
-  rejected: "Atmesta",
+  draft: "Juodraštis",
+  onboarding: "Stripe registracija",
+  pending_verification: "Laukia patvirtinimo",
+  active: "Aktyvus",
+  suspended: "Sustabdytas",
 };
 
 const VERIFICATION_COLOR: Record<string, string> = {
-  pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  verified: "bg-green-500/10 text-green-400 border-green-500/30",
-  rejected: "bg-red-500/10 text-red-400 border-red-500/30",
+  draft: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+  onboarding: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  pending_verification: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  active: "bg-green-500/10 text-green-400 border-green-500/30",
+  suspended: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
 const CONNECT_LABEL: Record<string, string> = {
@@ -727,8 +731,13 @@ function FacilityReviewDialog({
 
   if (!facility) return null;
 
-  const isVerified = facility.verificationStatus === "verified";
-  const isRejected = facility.verificationStatus === "rejected";
+  const isActive = facility.verificationStatus === "active";
+  const isPendingVerification = facility.verificationStatus === "pending_verification";
+  const isOnboarding = facility.verificationStatus === "onboarding";
+  const isDraft = facility.verificationStatus === "draft";
+  const isSuspended = facility.verificationStatus === "suspended";
+  const stripeReady = !!facility.stripeOnboardingComplete;
+  const adminNote: string | null = facility.verificationNotes ?? facility.rejectionReason ?? null;
   const facilityDocUrl = safeDocUrl(facility.ownershipDocUrl);
 
   return (
@@ -771,12 +780,30 @@ function FacilityReviewDialog({
         </div>
 
         <div className="px-6 py-5 space-y-5">
-          {/* Rejection reason banner */}
-          {isRejected && facility.rejectionReason && (
+          {/* Admin note / rejection reason banner */}
+          {(isDraft || isSuspended) && adminNote && (
             <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-400">
-              <span className="font-medium">Atmetimo priežastis:</span> {facility.rejectionReason}
+              <span className="font-medium">Administratoriaus pastaba:</span> {adminNote}
             </div>
           )}
+
+          {/* Pipeline diagnostic for the admin */}
+          <div className="rounded-lg border bg-muted/20 px-4 py-3 text-xs space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className={stripeReady ? "text-green-500" : "text-amber-400"}>
+                {stripeReady ? "✓" : "○"}
+              </span>
+              <span className="text-muted-foreground">Stripe Connect:</span>
+              <span className="font-medium">{stripeReady ? "Užbaigta" : "Neužbaigta"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={facility.adminVerified ? "text-green-500" : "text-amber-400"}>
+                {facility.adminVerified ? "✓" : "○"}
+              </span>
+              <span className="text-muted-foreground">Admin patvirtinimas:</span>
+              <span className="font-medium">{facility.adminVerified ? "Patvirtinta" : "Nepatvirtinta"}</span>
+            </div>
+          </div>
 
           {/* Description */}
           {facility.description && (
@@ -908,37 +935,49 @@ function FacilityReviewDialog({
           {/* Decision area */}
           {!showRejectForm ? (
             <div className="flex flex-col sm:flex-row gap-3">
-              {!isVerified && (
+              {isPendingVerification && (
                 <Button
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
                   onClick={onApprove}
-                  disabled={isPendingApprove}
+                  disabled={isPendingApprove || !stripeReady}
+                  title={!stripeReady ? "Savininkas dar neužbaigė Stripe Connect" : undefined}
                 >
                   <Check className="w-4 h-4" />
-                  {isPendingApprove ? "Tvirtinama..." : "Patvirtinti objektą"}
+                  {isPendingApprove
+                    ? "Tvirtinama..."
+                    : stripeReady
+                      ? "Patvirtinti ir aktyvuoti"
+                      : "Laukiama Stripe duomenų"}
                 </Button>
               )}
-              {!isRejected && (
+              {(isPendingVerification || isActive) && (
                 <Button
                   variant="outline"
                   className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 gap-2"
                   onClick={() => { setShowRejectForm(true); setRejectReason(""); }}
                 >
-                  <X className="w-4 h-4" /> Atmesti objektą
+                  <X className="w-4 h-4" />
+                  {isActive ? "Grąžinti pataisymams" : "Prašyti pataisymų"}
                 </Button>
               )}
-              {isVerified && isRejected && (
-                <p className="text-sm text-muted-foreground text-center w-full">Šio objekto statusas jau nustatytas.</p>
+              {(isDraft || isOnboarding || isSuspended) && (
+                <p className="text-sm text-muted-foreground text-center w-full py-2">
+                  {isDraft && "Savininkas dar nepateikė objekto patvirtinimui."}
+                  {isOnboarding && "Savininkas užbaiginėja Stripe Connect registraciją."}
+                  {isSuspended && "Šis objektas yra sustabdytas."}
+                </p>
               )}
             </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Atmetimo priežastis <span className="text-red-400">*</span></label>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Pastaba savininkui <span className="text-red-400">*</span>
+                </label>
                 <Textarea
                   value={rejectReason}
                   onChange={e => setRejectReason(e.target.value)}
-                  placeholder="Pvz.: Pateikti dokumentai neatitinka reikalavimų. Prašome pateikti galiojantį nuosavybės dokumentą."
+                  placeholder="Pvz.: Prašome įkelti aiškesnes nuotraukas ir pridėti tikslų adresą su koordinatėmis."
                   rows={3}
                   className="resize-none"
                 />
@@ -951,7 +990,7 @@ function FacilityReviewDialog({
                   onClick={() => onReject(rejectReason)}
                   disabled={isPendingReject || !rejectReason.trim()}
                 >
-                  {isPendingReject ? "Atmetama..." : "Patvirtinti atmetimą"}
+                  {isPendingReject ? "Siunčiama..." : "Grąžinti pataisymams"}
                 </Button>
               </div>
             </div>
@@ -965,7 +1004,7 @@ function FacilityReviewDialog({
 function FacilitiesPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "rejected">("all");
+  const [filter, setFilter] = useState<"all" | "draft" | "onboarding" | "pending_verification" | "active" | "suspended">("all");
   const [search, setSearch] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [reviewFacility, setReviewFacility] = useState<any | null>(null);
@@ -979,11 +1018,15 @@ function FacilitiesPanel() {
   const approveMutation = useMutation({
     mutationFn: (id: number) => customFetch<any>(`/api/admin/facilities/${id}/approve`, { method: "PUT" }),
     onSuccess: (_, id) => {
-      toast({ title: "Objektas patvirtintas ✓" });
+      toast({ title: "Objektas aktyvuotas ✓" });
       qc.invalidateQueries({ queryKey: ["admin-facilities"] });
-      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "verified" } : prev);
+      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "active", adminVerified: true } : prev);
     },
-    onError: () => toast({ title: "Klaida tvirtinant", variant: "destructive" }),
+    onError: (err: any) => toast({
+      title: "Klaida tvirtinant",
+      description: extractApiError(err, "Patikrinkite, ar savininkas užbaigė Stripe Connect."),
+      variant: "destructive",
+    }),
   });
 
   const rejectMutation = useMutation({
@@ -993,11 +1036,35 @@ function FacilitiesPanel() {
       body: JSON.stringify({ reason }),
     }),
     onSuccess: (_, { id, reason }) => {
-      toast({ title: "Objektas atmestas" });
+      toast({ title: "Pataisymai išsiųsti savininkui" });
       qc.invalidateQueries({ queryKey: ["admin-facilities"] });
-      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "rejected", rejectionReason: reason } : prev);
+      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "draft", adminVerified: false, verificationNotes: reason, rejectionReason: reason } : prev);
     },
-    onError: () => toast({ title: "Klaida atmetant", variant: "destructive" }),
+    onError: (err: any) => toast({
+      title: "Klaida siunčiant pataisymus",
+      description: extractApiError(err, undefined),
+      variant: "destructive",
+    }),
+  });
+
+  // Suspend is the correct action for ACTIVE facilities (reject is only valid from
+  // 'pending_verification'). The server enforces this with a compare-and-set guard.
+  const suspendMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => customFetch<any>(`/api/admin/facilities/${id}/suspend`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    }),
+    onSuccess: (_, { id, reason }) => {
+      toast({ title: "Objektas sustabdytas" });
+      qc.invalidateQueries({ queryKey: ["admin-facilities"] });
+      setReviewFacility((prev: any) => prev?.id === id ? { ...prev, verificationStatus: "suspended", verificationNotes: reason } : prev);
+    },
+    onError: (err: any) => toast({
+      title: "Klaida sustabdant",
+      description: extractApiError(err, undefined),
+      variant: "destructive",
+    }),
   });
 
   const filtered = (filter === "all" ? facilities : facilities.filter((f: any) => f.verificationStatus === filter))
@@ -1013,16 +1080,18 @@ function FacilitiesPanel() {
     });
   const counts = {
     all: facilities.length,
-    pending:  facilities.filter((f: any) => f.verificationStatus === "pending").length,
-    verified: facilities.filter((f: any) => f.verificationStatus === "verified").length,
-    rejected: facilities.filter((f: any) => f.verificationStatus === "rejected").length,
+    draft: facilities.filter((f: any) => f.verificationStatus === "draft").length,
+    onboarding: facilities.filter((f: any) => f.verificationStatus === "onboarding").length,
+    pending_verification: facilities.filter((f: any) => f.verificationStatus === "pending_verification").length,
+    active: facilities.filter((f: any) => f.verificationStatus === "active").length,
+    suspended: facilities.filter((f: any) => f.verificationStatus === "suspended").length,
   };
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1.5 flex-wrap">
-          {(["all","pending","verified","rejected"] as const).map(s => (
+          {(["all","pending_verification","onboarding","draft","active","suspended"] as const).map(s => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -1074,8 +1143,8 @@ function FacilitiesPanel() {
                     <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3 h-3" />{f.city}{f.address ? `, ${f.address}` : ""}
                     </div>
-                    {f.rejectionReason && (
-                      <div className="text-xs text-red-400 mt-0.5">❌ {f.rejectionReason}</div>
+                    {(f.verificationNotes ?? f.rejectionReason) && (
+                      <div className="text-xs text-red-400 mt-0.5">❌ {f.verificationNotes ?? f.rejectionReason}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
@@ -1122,9 +1191,18 @@ function FacilitiesPanel() {
         open={reviewFacility !== null}
         onClose={() => setReviewFacility(null)}
         onApprove={() => reviewFacility && approveMutation.mutate(reviewFacility.id)}
-        onReject={(reason) => reviewFacility && rejectMutation.mutate({ id: reviewFacility.id, reason })}
+        onReject={(reason) => {
+          if (!reviewFacility) return;
+          // Active facilities → suspend (the only valid transition out of 'active');
+          // pending_verification → reject (sends back to draft with notes).
+          if (reviewFacility.verificationStatus === "active") {
+            suspendMutation.mutate({ id: reviewFacility.id, reason });
+          } else {
+            rejectMutation.mutate({ id: reviewFacility.id, reason });
+          }
+        }}
         isPendingApprove={approveMutation.isPending}
-        isPendingReject={rejectMutation.isPending}
+        isPendingReject={rejectMutation.isPending || suspendMutation.isPending}
       />
     </div>
   );

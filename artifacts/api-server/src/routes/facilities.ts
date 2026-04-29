@@ -1,14 +1,18 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
-import { sendAdminNotification } from "../lib/notify";
+import { sendAdminNotification, sendNotification } from "../lib/notify";
+import {
+  validateForVerification,
+  computeNextStatusOnSubmit,
+} from "../lib/facility-status";
 
 const router: IRouter = Router();
 
 // Public: minimal facility list for pickers (e.g. coach apply form).
-// Only verified facilities are exposed to avoid leaking unapproved owner data.
+// Only fully-active facilities are exposed to avoid leaking unapproved owner data.
 router.get("/facilities/public", async (_req, res): Promise<void> => {
   const rows = await db
     .select({
@@ -18,7 +22,7 @@ router.get("/facilities/public", async (_req, res): Promise<void> => {
       address: facilitiesTable.address,
     })
     .from(facilitiesTable)
-    .where(eq(facilitiesTable.verificationStatus, "verified"))
+    .where(eq(facilitiesTable.verificationStatus, "active"))
     .orderBy(facilitiesTable.name);
   res.json(rows);
 });
@@ -114,11 +118,9 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     .values({ ...parsed.data, ownerUserId: userId })
     .returning();
 
-  await sendAdminNotification(
-    "Naujas objektas laukia patvirtinimo",
-    `„${facility.name}" (${facility.city ?? "—"}) pateiktas peržiūrai.`,
-    "/admin",
-  );
+  // Note: new facilities default to 'draft' and are NOT in the verification queue yet.
+  // Admin notification fires only when the facility transitions into 'pending_verification'
+  // (see POST /facilities/:id/submit-for-verification and the stripe webhook).
 
   res.status(201).json({ ...facility, description: facility.description ?? undefined, courtCount: 0, sportTypes: [], courts: [] });
 });
@@ -180,6 +182,97 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 
   const [updated] = await db.update(facilitiesTable).set(updates).where(eq(facilitiesTable.id, id)).returning();
   res.json(updated);
+});
+
+/**
+ * POST /facilities/:id/submit-for-verification
+ *
+ * Owner moves a facility out of 'draft' (or back into the queue from 'onboarding')
+ * after filling in all required information. The "Gatekeeper" enforces:
+ *   - minimum data quality (≥3 photos, lat/lng, address)
+ *   - if Stripe Connect is not yet onboarded, status becomes 'onboarding'
+ *   - otherwise status becomes 'pending_verification' and admin is notified
+ */
+router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid facility ID" }); return; }
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!(await isOwner(req, facility.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  if (facility.verificationStatus === "active") {
+    res.status(400).json({ error: "Objektas jau aktyvus." });
+    return;
+  }
+  if (facility.verificationStatus === "pending_verification") {
+    res.status(400).json({ error: "Objektas jau laukia patvirtinimo." });
+    return;
+  }
+  if (facility.verificationStatus === "suspended") {
+    res.status(400).json({ error: "Objektas sustabdytas — kreipkitės į administratorių." });
+    return;
+  }
+
+  const issues = validateForVerification(facility);
+  if (issues.length > 0) {
+    res.status(400).json({
+      error: "Trūksta privalomų duomenų prieš pateikiant patvirtinimui.",
+      issues,
+    });
+    return;
+  }
+
+  const nextStatus = computeNextStatusOnSubmit(facility);
+
+  // Compare-and-set: only mutate if the row is STILL in the status we read. Prevents
+  // a concurrent admin action or stripe webhook from getting clobbered by a stale submit.
+  const [updated] = await db
+    .update(facilitiesTable)
+    .set({
+      verificationStatus: nextStatus,
+      verificationNotes: null,
+      rejectionReason: null,
+    })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, facility.verificationStatus),
+    ))
+    .returning();
+
+  if (!updated) {
+    res.status(409).json({
+      error: "Objekto būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą.",
+    });
+    return;
+  }
+
+  if (nextStatus === "pending_verification") {
+    await sendAdminNotification(
+      "Objektas laukia patvirtinimo",
+      `„${updated.name}" (${updated.city ?? "—"}) pateiktas peržiūrai.`,
+      "/admin",
+    );
+  } else {
+    // onboarding — let owner know they still need to finish Stripe Connect
+    await sendNotification(
+      userId,
+      "facility_rejected",
+      `„${updated.name}" — užbaikite Stripe Connect`,
+      "Užbaikite Stripe Connect duomenis, kad objektas galėtų judėti į patvirtinimo eilę.",
+      `/owner/facility/${updated.id}`,
+    );
+  }
+
+  res.json({
+    id: updated.id,
+    verificationStatus: updated.verificationStatus,
+    stripeOnboardingComplete: updated.stripeOnboardingComplete,
+  });
 });
 
 router.delete("/facilities/:id", requireAuth, async (req, res): Promise<void> => {

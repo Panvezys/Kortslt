@@ -143,9 +143,13 @@ router.post("/owner/onboard/step2", requireAuth, async (req, res): Promise<void>
     res.status(400).json({ error: "Complete step 1 first" }); return;
   }
 
+  // Save the verification document but do NOT change verification_status here.
+  // Status transitions are owned by POST /facilities/:id/submit-for-verification
+  // (the gatekeeper) which enforces ≥3 photos, lat/lng, etc. — and by the
+  // Stripe webhook for stripe-driven transitions.
   const [facility] = await db
     .update(facilitiesTable)
-    .set({ verificationDocUrl: parsed.data.verificationDocUrl, verificationStatus: "pending" })
+    .set({ verificationDocUrl: parsed.data.verificationDocUrl })
     .where(eq(facilitiesTable.id, parsed.data.facilityId))
     .returning();
 

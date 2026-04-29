@@ -127,7 +127,7 @@ router.get("/coaches/:id/facilities", async (req, res): Promise<void> => {
       // Standalone courts (no facility) pass this check via the OR.
       or(
         isNull(courtsTable.facilityId),
-        eq(facilitiesTable.verificationStatus, "verified"),
+        eq(facilitiesTable.verificationStatus, "active"),
       )!,
     ));
 

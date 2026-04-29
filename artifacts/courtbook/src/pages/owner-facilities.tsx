@@ -17,7 +17,7 @@ import { CourtIcon } from "@/components/sport-icon";
 import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
-  LayoutDashboard, Lock, AlertTriangle,
+  LayoutDashboard, Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -65,6 +65,10 @@ interface FacilityWithCourts {
   ownershipDocUrl?: string;
   stripeConnectStatus?: string;
   stripeConnectAccountId?: string;
+  stripeOnboardingComplete?: boolean;
+  adminVerified?: boolean;
+  verificationNotes?: string | null;
+  rejectionReason?: string | null;
   photos: string[];
   equipment: string[];
   courtCount: number;
@@ -76,19 +80,30 @@ interface FacilityWithCourts {
 type StripeStatus = "active" | "pending" | "not_connected" | string;
 
 function VerificationBadge({ status }: { status: string }) {
-  if (status === "verified") return (
+  if (status === "active") return (
     <Badge className="bg-green-500/15 text-green-500 border-green-500/30 gap-1">
-      <ShieldCheck className="w-3 h-3" /> Patvirtinta
+      <ShieldCheck className="w-3 h-3" /> Aktyvus
     </Badge>
   );
-  if (status === "pending") return (
+  if (status === "pending_verification") return (
     <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 gap-1">
-      <Shield className="w-3 h-3" /> Laukiama
+      <Hourglass className="w-3 h-3" /> Laukia patvirtinimo
     </Badge>
   );
-  return (
+  if (status === "onboarding") return (
+    <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 gap-1">
+      <CreditCard className="w-3 h-3" /> Stripe registracija
+    </Badge>
+  );
+  if (status === "suspended") return (
     <Badge className="bg-red-500/15 text-red-400 border-red-500/30 gap-1">
-      <ShieldAlert className="w-3 h-3" /> Nepatvirtinta
+      <Ban className="w-3 h-3" /> Sustabdytas
+    </Badge>
+  );
+  // 'draft' or anything unknown
+  return (
+    <Badge className="bg-slate-500/15 text-slate-300 border-slate-500/30 gap-1">
+      <FileEdit className="w-3 h-3" /> Juodraštis
     </Badge>
   );
 }
@@ -215,6 +230,42 @@ export default function OwnerFacilities() {
       variant: "destructive",
     }),
   });
+
+  const submitForVerificationMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ verificationStatus: string }>(`${API_URL}/facilities/${id}/submit-for-verification`, {
+        method: "POST",
+      }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      if (data?.verificationStatus === "pending_verification") {
+        toast({
+          title: "Pateikta patvirtinimui",
+          description: "Administratorius peržiūrės jūsų objektą per kelias darbo dienas.",
+        });
+      } else if (data?.verificationStatus === "onboarding") {
+        toast({
+          title: "Užbaikite Stripe Connect",
+          description: "Duomenys įrašyti, bet dar reikia užbaigti Stripe registraciją.",
+        });
+      } else {
+        toast({ title: "Statusas atnaujintas" });
+      }
+    },
+    onError: (err) => {
+      const detail = extractApiError(err, "Patikrinkite, ar užpildėte visus privalomus duomenis.");
+      toast({
+        title: "Negalima pateikti patvirtinimui",
+        description: detail,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmitForVerification = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    submitForVerificationMutation.mutate(id);
+  };
 
   const resetForm = () => {
     setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", companyName: "", registrationCode: "", latitude: 0, longitude: 0, postcode: "", ownershipDocUrl: "" });
@@ -511,6 +562,33 @@ export default function OwnerFacilities() {
                         </Badge>
                       )}
                     </div>
+
+                    {(facility.verificationStatus === "draft" || facility.verificationStatus === "onboarding") && facility.verificationNotes && (
+                      <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+                        <div className="font-semibold mb-1 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Administratoriaus pastaba
+                        </div>
+                        <p className="leading-relaxed whitespace-pre-wrap">{facility.verificationNotes}</p>
+                      </div>
+                    )}
+
+                    {(facility.verificationStatus === "draft" || facility.verificationStatus === "onboarding") && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="w-full mt-3 gap-2"
+                        onClick={(e) => handleSubmitForVerification(facility.id, e)}
+                        disabled={submitForVerificationMutation.isPending}
+                      >
+                        {submitForVerificationMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        Pateikti patvirtinimui
+                      </Button>
+                    )}
 
                     <div className="grid grid-cols-2 gap-2 mt-3">
                       <Button

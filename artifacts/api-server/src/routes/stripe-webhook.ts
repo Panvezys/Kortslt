@@ -27,6 +27,8 @@ import {
   sendBookingConfirmationEmail,
   sendOwnerBookingNotificationEmail,
 } from "../lib/email";
+import { sendNotification, sendAdminNotification } from "../lib/notify";
+import { computeStatusAfterStripeChange } from "../lib/facility-status";
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const sigHeader = req.headers["stripe-signature"];
@@ -211,8 +213,9 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
 }
 
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-  console.log(`Received webhook for account: ${account.id}`);
-  const newStatus = account.details_submitted ? "active" : "pending";
+  logger.info({ accountId: account.id, detailsSubmitted: account.details_submitted }, "stripe webhook: account.updated");
+  const stripeComplete = !!account.details_submitted;
+  const newStatus = stripeComplete ? "active" : "pending";
 
   // 1) User-level Connect (owner profile)
   await db
@@ -221,9 +224,13 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
     .where(eq(userProfilesTable.stripeAccountId, account.id));
 
   // 2) Facility-level Connect (per-facility payout account)
+  // Also persist the onboarding-complete boolean so the admin can decide when to approve.
   await db
     .update(facilitiesTable)
-    .set({ stripeConnectStatus: newStatus })
+    .set({
+      stripeConnectStatus: newStatus,
+      stripeOnboardingComplete: stripeComplete,
+    })
     .where(eq(facilitiesTable.stripeConnectAccountId, account.id));
 
   // 3) Court-level Connect (per-court payout account)
@@ -231,4 +238,79 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
     .update(courtsTable)
     .set({ stripeConnectStatus: newStatus })
     .where(eq(courtsTable.stripeConnectAccountId, account.id));
+
+  // ─── Owner-level cascade ───
+  // The most common shape on this platform is a single Stripe account at the owner-profile
+  // level that all of the owner's facilities share. Find every facility owned by this user
+  // (by joining via the profile) and re-evaluate the facility verification status.
+  const [profile] = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.stripeAccountId, account.id));
+
+  if (profile) {
+    // For each facility this owner has, sync stripeOnboardingComplete and let the helper
+    // decide whether the facility should advance / regress in the verification pipeline.
+    const ownedFacilities = await db
+      .select()
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.ownerUserId, profile.userId));
+
+    for (const f of ownedFacilities) {
+      const nextStatus = computeStatusAfterStripeChange(
+        f.verificationStatus,
+        stripeComplete,
+        f.adminVerified,
+      );
+
+      const transitions = nextStatus && nextStatus !== f.verificationStatus;
+
+      // ONE atomic compare-and-set per facility. The WHERE clause requires the row to
+      // still be in the status we read, so a concurrent admin approve/reject (active /
+      // draft transition) won't be silently overwritten by a stale stripe webhook.
+      const updated = await db
+        .update(facilitiesTable)
+        .set(
+          transitions
+            ? { stripeOnboardingComplete: stripeComplete, verificationStatus: nextStatus }
+            : { stripeOnboardingComplete: stripeComplete }
+        )
+        .where(and(
+          eq(facilitiesTable.id, f.id),
+          eq(facilitiesTable.verificationStatus, f.verificationStatus),
+        ))
+        .returning({ id: facilitiesTable.id });
+
+      // If the row's status changed under us, skip notifications for this iteration —
+      // whoever transitioned it (admin action, another webhook) is the source of truth.
+      if (updated.length === 0) continue;
+
+      if (transitions) {
+        // Notify owner about the transition so they're never surprised by a status change.
+        if (nextStatus === "pending_verification") {
+          sendNotification(
+            profile.userId,
+            "facility_approved",
+            `„${f.name}" — Stripe paruoštas`,
+            "Stripe Connect duomenys užbaigti. Objektas perduotas administratoriaus peržiūrai.",
+            `/owner/facility/${f.id}`,
+          ).catch(() => {});
+          // Also notify the admin so the verification queue is actively worked.
+          sendAdminNotification(
+            "Objektas laukia patvirtinimo (Stripe paruoštas)",
+            `„${f.name}" (${f.city ?? "—"}) automatiškai perėjo į patvirtinimo eilę po Stripe Connect užbaigimo.`,
+            "/admin",
+          ).catch(() => {});
+        } else if (nextStatus === "onboarding") {
+          sendNotification(
+            profile.userId,
+            "facility_rejected",
+            `„${f.name}" — reikia atnaujinti Stripe duomenis`,
+            "Stripe pranešė apie trūkstamą informaciją. Objektas laikinai pašalintas iš paieškos kol baigsite duomenis.",
+            `/owner/facility/${f.id}`,
+          ).catch(() => {});
+        }
+      }
+    }
+  }
 }
