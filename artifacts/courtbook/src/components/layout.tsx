@@ -138,7 +138,7 @@ function UserMenu() {
   const { signOut, openUserProfile } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
-  const { isAdmin, isOwner, isCoach } = useRole();
+  const { isAdmin, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
 
   const initials = user
@@ -181,12 +181,6 @@ function UserMenu() {
             Trenerio profilis
           </DropdownMenuItem>
         )}
-        {isOwner && (
-          <DropdownMenuItem onClick={() => setLocation("/owner")}>
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            {t("nav.ownerDashboard")}
-          </DropdownMenuItem>
-        )}
         {isAdmin && (
           <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
             <ShieldCheck className="mr-2 h-4 w-4" />
@@ -220,7 +214,7 @@ function MobileUserAvatar() {
   const { signOut } = useClerk();
   const [, setLocation] = useLocation();
   const t = useT();
-  const { isAdmin, isOwner, isCoach } = useRole();
+  const { isAdmin, isCoach } = useRole();
   const { theme, toggleTheme } = useTheme();
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
@@ -265,12 +259,6 @@ function MobileUserAvatar() {
             Trenerio profilis
           </DropdownMenuItem>
         )}
-        {isOwner && (
-          <DropdownMenuItem onClick={() => setLocation("/owner")}>
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            {t("nav.ownerDashboard")}
-          </DropdownMenuItem>
-        )}
         {isAdmin && (
           <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
             <ShieldCheck className="mr-2 h-4 w-4" />
@@ -313,6 +301,14 @@ function NavIconButton({ href, icon, label }: { href: string; icon: React.ReactN
     >
       {icon}
     </Link>
+  );
+}
+
+function OwnerDashboardButton() {
+  const { isOwner } = useRole();
+  if (!isOwner) return null;
+  return (
+    <NavIconButton href="/owner" icon={<LayoutDashboard className="h-4 w-4" />} label="Savininko skydelis" />
   );
 }
 
@@ -363,6 +359,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Show when="signed-in">
                 <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
                 <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
+                <OwnerDashboardButton />
                 <NotificationBell />
                 <div className="hidden md:block">
                   <UserMenu />
