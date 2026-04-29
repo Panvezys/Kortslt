@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  LayoutDashboard, Building2, CreditCard, Settings, Users, Trophy,
-  Euro, Percent, CalendarDays, BanknoteIcon, Bell, ChevronRight,
-  Plus, Phone, X, Menu, LogOut, CheckCircle2, Clock, BarChart3,
+  Building2,
+  Euro, Percent, CalendarDays, BanknoteIcon, ChevronRight,
+  Plus, Phone, X, CheckCircle2, Clock, BarChart3,
   ArrowUpRight,
 } from "lucide-react";
-import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
+import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -157,74 +157,6 @@ function SlotCell({
     >
       <Plus className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
     </div>
-  );
-}
-
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-
-function buildNavItems(facilityId?: number) {
-  return [
-    { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
-    { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
-    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
-    { icon: Trophy,          label: "Turnyrai",       href: `${BASE_URL}/owner/tournaments` },
-    { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
-    { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
-  ];
-}
-
-function Sidebar({ open, onClose, currentPath, facilityId }: { open: boolean; onClose: () => void; currentPath: string; facilityId?: number }) {
-  const [, navigate] = useLocation();
-  const NAV_ITEMS = buildNavItems(facilityId);
-  return (
-    <>
-      {open && (
-        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />
-      )}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-60 bg-card border-r border-border flex flex-col
-        transition-transform duration-200
-        ${open ? "translate-x-0" : "-translate-x-full"}
-        md:relative md:translate-x-0 md:flex md:z-auto
-      `}>
-        <div className="flex items-center justify-between px-5 h-16 border-b border-border shrink-0">
-          <Link href="/" className="font-bold text-lg tracking-tight">korts<span className="text-primary">.lt</span></Link>
-          <button onClick={onClose} className="md:hidden p-1 rounded hover:bg-muted transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">Valdymas</p>
-          {NAV_ITEMS.map(item => {
-            const active = currentPath === item.href || currentPath.startsWith(item.href + "?");
-            return (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={e => { e.preventDefault(); onClose(); navigate(item.href.replace(BASE_URL, "") || "/"); }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-        </nav>
-        <div className="border-t border-border px-3 py-3">
-          <button
-            onClick={() => navigate("/")}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Grįžti į svetainę
-          </button>
-        </div>
-      </aside>
-    </>
   );
 }
 
