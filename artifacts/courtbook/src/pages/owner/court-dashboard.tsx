@@ -29,8 +29,8 @@ const SPORT_EMOJIS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  cancelled: "bg-red-500/10 text-red-500 border-red-500/20",
-  rejected: "bg-red-500/10 text-red-500 border-red-500/20",
+  cancelled: "bg-destructive/10 text-destructive border-destructive/20",
+  rejected: "bg-destructive/10 text-destructive border-destructive/20",
 };
 const STATUS_LT: Record<string, string> = {
   confirmed: "Patvirtinta", pending: "Laukiama", cancelled: "Atšaukta", rejected: "Atmesta",

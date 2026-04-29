@@ -72,3 +72,15 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
 - **Resend**: Email service for sending booking confirmations and owner notifications. `RESEND_API_KEY` is a secret.
 - **Google Maps API**: Used for location picking in the owner dashboard and displaying court locations on detail pages.
 - **Leaflet/OpenStreetMap**: Interactive map display on the frontend.
+## UI Consistency Pass (April 2026)
+
+Standardization sweep across courtbook frontend:
+- **Shared primitives** (`artifacts/courtbook/src/components/`):
+  - `back-button.tsx` — Lucide ArrowLeft + Wouter Link, ghost button. Use on all detail pages.
+  - `empty-state.tsx` — Wraps `Empty/EmptyHeader/EmptyMedia/EmptyTitle` with icon/title/description/action props. Use on all list pages (border-2 border-dashed).
+  - `loading-button.tsx` — `<Button>` + Loader2 spinner, forwardRef. `loading` prop disables and swaps text to `loadingText`.
+- **DialogFooter** (`components/ui/dialog.tsx`): added `gap-2 sm:gap-0` so on mobile (`flex-col-reverse`) the Save button sits ON TOP and Cancel BELOW, with proper spacing.
+- **Theme tokens migration**: `bg-[#C5E041]` → `bg-primary`, `text-[#132D4C]` → `text-foreground`, `text-red-500`/`bg-red-500` (semantic destructive uses) → `text-destructive`/`bg-destructive`. Decorative gradients (e.g. `linear-gradient(135deg, #132D4C, #1a3d66)`) and Recharts stroke colors retained as raw hex (Recharts requires raw colors, gradients are deliberate brand decoration).
+- **EmptyState applied to**: bookings.tsx, favorites.tsx (×2), tournaments.tsx.
+- **BackButton applied to**: coach.tsx, booking-detail.tsx (success + error states).
+- **Note on `pages/owner.tsx`**: This file is NOT imported anywhere (superseded by `pages/owner/*` route folder). It is truncated/incomplete (ends mid-`<Textarea>` at line 428) which causes typecheck warnings, but does not affect runtime since it's dead code. Pre-existing condition; left as-is.

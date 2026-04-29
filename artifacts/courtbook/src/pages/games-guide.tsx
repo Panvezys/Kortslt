@@ -180,7 +180,7 @@ export default function GamesGuidePage() {
 
         <div className="container mx-auto px-4 relative z-10 py-24 md:py-36">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#C5E041]/15 border border-[#C5E041]/30 text-[#C5E041] text-xs font-semibold mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary text-xs font-semibold mb-6">
               <Swords className="h-3.5 w-3.5" />
               Konkurencinga sporto ekosistema
             </div>
@@ -342,7 +342,7 @@ export default function GamesGuidePage() {
                 style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}>
                 <div className="p-6 text-white">
                   <div className="flex items-center gap-2 mb-5">
-                    <Mail className="w-5 h-5 text-[#C5E041]" />
+                    <Mail className="w-5 h-5 text-primary" />
                     <span className="font-semibold text-sm">El. pašto kvietimai</span>
                   </div>
                   <p className="text-white/75 text-sm leading-relaxed mb-5">
@@ -576,7 +576,7 @@ export default function GamesGuidePage() {
       >
         <div className="container mx-auto px-4 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-semibold mb-6">
-            <Zap className="h-3.5 w-3.5 text-[#C5E041]" />
+            <Zap className="h-3.5 w-3.5 text-primary" />
             Pradėkite šiandien
           </div>
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-5">

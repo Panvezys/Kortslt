@@ -69,7 +69,7 @@ function GameCard({ g }: { g: Game }) {
     <Link href={`/games/${g.id}`}>
       <div className="group relative rounded-2xl border border-border hover:border-primary/50 hover:shadow-xl transition-all overflow-hidden cursor-pointer bg-card">
         {/* Top accent */}
-        <div className={`h-1.5 ${isRated ? "bg-gradient-to-r from-purple-500 to-purple-400" : full ? "bg-orange-500/60" : "bg-gradient-to-r from-[#C5E041] to-[#C5E041]/60"}`} />
+        <div className={`h-1.5 ${isRated ? "bg-gradient-to-r from-purple-500 to-purple-400" : full ? "bg-orange-500/60" : "bg-gradient-to-r from-primary to-primary/60"}`} />
 
         <div className="p-4 sm:p-5 space-y-3.5">
           <div className="flex items-start justify-between gap-3">
@@ -116,7 +116,7 @@ function GameCard({ g }: { g: Game }) {
             {full ? (
               <Badge className="bg-orange-500/15 text-orange-500 border-orange-500/30">Užpildyta</Badge>
             ) : (
-              <Badge className="bg-[#C5E041]/15 text-[#8aa72e] border-[#C5E041]/30">
+              <Badge className="bg-primary/15 text-primary-foreground border-primary/30">
                 {g.slotsLeft} laisv{g.slotsLeft === 1 ? "a vieta" : "ų vietų"}
               </Badge>
             )}
@@ -349,7 +349,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               type="button"
               onClick={() => setVenue("korts")}
               className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                venue === "korts" ? "border-[#C5E041] bg-[#C5E041]/10" : "border-border hover:border-border/80"
+                venue === "korts" ? "border-primary bg-primary/10" : "border-border hover:border-border/80"
               }`}
             >
               <Calendar className="w-5 h-5" />
@@ -359,7 +359,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           </div>
 
           {venue === "korts" && (
-            <div className="space-y-3 rounded-lg border border-[#C5E041]/40 bg-[#C5E041]/5 p-3">
+            <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
               <div>
                 <Label>Aikštė</Label>
                 {courtsQ.isLoading ? (
@@ -476,7 +476,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Atšaukti</Button>
           <Button onClick={() => create.mutate()} disabled={create.isPending || (venue === "korts" && (!courtId || !bookingStart || !bookingEnd))}
-            className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold">
             {create.isPending ? (venue === "korts" ? "Nukreipiama į Stripe..." : "Kuriama...") : (venue === "korts" ? `Apmokėti ir sukurti${selectedRangePrice != null ? ` (€${selectedRangePrice.toFixed(2)})` : ""}` : "Sukurti žaidimą")}
           </Button>
         </DialogFooter>
@@ -535,8 +535,8 @@ export default function GamesPage() {
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(19,45,76,0.4), rgba(19,45,76,0.3), rgba(19,45,76,0.85))" }} />
           <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto">
             <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-9 h-9 rounded-xl bg-[#C5E041]/20 backdrop-blur-sm border border-[#C5E041]/30 flex items-center justify-center">
-                <Trophy className="w-4.5 h-4.5 text-[#C5E041]" />
+              <div className="w-9 h-9 rounded-xl bg-primary/20 backdrop-blur-sm border border-primary/30 flex items-center justify-center">
+                <Trophy className="w-4.5 h-4.5 text-primary" />
               </div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white drop-shadow">Žaidimai</h1>
             </div>
@@ -546,7 +546,7 @@ export default function GamesPage() {
             <div className="mt-3 flex gap-2 flex-wrap">
               <Show when="signed-in">
                 <Button size="sm" onClick={() => setCreateOpen(true)}
-                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold border-0">
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold border-0">
                   <Plus className="w-3.5 h-3.5 mr-1.5" />Sukurti žaidimą
                 </Button>
               </Show>
@@ -608,7 +608,7 @@ export default function GamesPage() {
           {(games?.length ?? 0) > 0 && (
             <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#C5E041]"/>
+                <span className="w-2 h-2 rounded-full bg-primary"/>
                 {filtered.length} žaidim{filtered.length === 1 ? "as" : "ų"}
               </span>
               {games?.filter(g => g.matchType === "rated").length ? (
@@ -632,7 +632,7 @@ export default function GamesPage() {
               <p className="text-sm text-muted-foreground mt-1 mb-5">Būkite pirmas — sukurkite žaidimą ir kvieskite partnerius!</p>
               <Show when="signed-in">
                 <Button onClick={() => setCreateOpen(true)}
-                  className="bg-[#C5E041] text-[#132D4C] hover:bg-[#d4ee56] font-bold">
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold">
                   <Plus className="w-4 h-4 mr-2"/>Sukurti žaidimą
                 </Button>
               </Show>

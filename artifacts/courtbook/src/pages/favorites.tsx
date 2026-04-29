@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
+import { EmptyState } from "@/components/empty-state";
 import { Heart, Building2, GraduationCap, MapPin, Star } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
@@ -81,14 +82,16 @@ export default function FavoritesPage() {
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
             </div>
           ) : favorites.length === 0 ? (
-            <div className="bg-card border rounded-xl py-20 text-center text-muted-foreground text-sm shadow-sm">
-              <Building2 className="w-12 h-12 mx-auto mb-4 opacity-20" />
-              <p className="font-medium mb-1">{t("profile.noFavorites")}</p>
-              <p className="text-xs mb-4">Paspauskite ❤ ant aikštelės, kad ją išsaugotumėte</p>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/courts">{t("bookings.browseCourts")}</Link>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Building2 className="w-12 h-12" />}
+              title={t("profile.noFavorites")}
+              description="Paspauskite ❤ ant aikštelės, kad ją išsaugotumėte"
+              action={
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                </Button>
+              }
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {favorites.map((court) => {
@@ -142,14 +145,16 @@ export default function FavoritesPage() {
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
             </div>
           ) : coachFavorites.length === 0 ? (
-            <div className="bg-card border rounded-xl py-20 text-center text-muted-foreground text-sm shadow-sm">
-              <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-20" />
-              <p className="font-medium mb-1">Nėra mėgstamų trenerių</p>
-              <p className="text-xs mb-4">Paspauskite ❤ ant trenerio, kad jį išsaugotumėte</p>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/coaches">Naršyti trenerius</Link>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<GraduationCap className="w-12 h-12" />}
+              title="Nėra mėgstamų trenerių"
+              description="Paspauskite ❤ ant trenerio, kad jį išsaugotumėte"
+              action={
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/coaches">Naršyti trenerius</Link>
+                </Button>
+              }
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {coachFavorites.map((coach) => (

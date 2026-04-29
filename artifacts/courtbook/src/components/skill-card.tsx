@@ -134,8 +134,8 @@ export function SkillCard({ userId, className }: SkillCardProps) {
       {/* Header */}
       <div className="p-5 pb-4" style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}>
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-xl bg-[#C5E041]/20 flex items-center justify-center">
-            <Shield className="w-4 h-4 text-[#C5E041]" />
+          <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center">
+            <Shield className="w-4 h-4 text-primary" />
           </div>
           <h3 className="font-bold text-white">Įgūdžių kortelė</h3>
         </div>

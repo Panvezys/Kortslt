@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
+import { EmptyState } from "@/components/empty-state";
 import { useListBookings, useCancelBooking, useCreateReview, getListBookingsQueryKey, customFetch, useGetRefundPreview } from "@workspace/api-client-react";
 import { format, parseISO, isFuture, isToday } from "date-fns";
 import { lt } from "date-fns/locale";
@@ -536,13 +537,11 @@ export default function Bookings() {
               </div>
             ))
           ) : displayed.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">{tab === "upcoming" ? "Nėra ateinančių rezervacijų" : "Nėra praeities rezervacijų"}</p>
-              <p className="text-sm mt-1">
-                {tab === "upcoming" ? "Rezervuokite aikštelę ir ji pasirodys čia." : "Jūsų praeitos rezervacijos bus rodomos čia."}
-              </p>
-            </div>
+            <EmptyState
+              icon={<Calendar className="w-10 h-10" />}
+              title={tab === "upcoming" ? "Nėra ateinančių rezervacijų" : "Nėra praeities rezervacijų"}
+              description={tab === "upcoming" ? "Rezervuokite aikštelę ir ji pasirodys čia." : "Jūsų praeitos rezervacijos bus rodomos čia."}
+            />
           ) : (
             displayed.map((booking) => {
               const startDt = new Date(booking.date);

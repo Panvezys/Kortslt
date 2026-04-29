@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
+import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -263,11 +264,11 @@ export default function TournamentsPage() {
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground">
-              <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-lg font-medium">Turnyrų nerasta</p>
-              <p className="text-sm mt-1">Pabandykite pakeisti filtrus</p>
-            </div>
+            <EmptyState
+              icon={<Trophy className="w-12 h-12" />}
+              title="Turnyrų nerasta"
+              description="Pabandykite pakeisti filtrus"
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filtered.map(t => <TournamentCard key={t.id} t={t} />)}

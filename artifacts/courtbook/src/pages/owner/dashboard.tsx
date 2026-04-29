@@ -841,7 +841,7 @@ export default function OwnerDashboard() {
                       {refundedTotal > 0 && (
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-muted-foreground">Grąžinta</span>
-                          <span className="text-red-500 tabular-nums">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-destructive tabular-nums">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       )}
                       <Separator className="my-3" />

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
+import { BackButton } from "@/components/back-button";
 import {
-  CheckCircle2, Calendar, Clock, ArrowLeft, MapPin, Phone, Mail,
+  CheckCircle2, Calendar, Clock, MapPin, Phone, Mail,
   User, CreditCard, Loader2, XCircle, ExternalLink, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -111,9 +112,7 @@ export default function BookingDetail() {
         <div className="container flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <XCircle className="w-12 h-12 text-destructive" />
           <p className="text-lg font-medium">{error ?? "Rezervacija nerasta"}</p>
-          <Button onClick={() => setLocation("/bookings")} variant="outline">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Grįžti
-          </Button>
+          <BackButton href="/bookings" label="Grįžti" />
         </div>
       </Layout>
     );
@@ -136,13 +135,7 @@ export default function BookingDetail() {
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-lg">
         {/* Back button */}
-        <button
-          onClick={() => setLocation("/bookings")}
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Visos rezervacijos
-        </button>
+        <BackButton to="/bookings" label="Visos rezervacijos" />
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-6">

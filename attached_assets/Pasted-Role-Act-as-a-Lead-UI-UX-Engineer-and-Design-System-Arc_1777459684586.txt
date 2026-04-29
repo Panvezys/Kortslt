@@ -1,0 +1,58 @@
+Role: Act as a Lead UI/UX Engineer and Design System Architect.
+
+Objective: Audit the entire courtbook frontend to ensure 100% visual and functional continuity across all menus, panels, forms, and navigation elements.
+
+Part 1: Navigation & Header Consistency
+
+Breadcrumbs & Back Buttons: Every sub-page (e.g., booking-detail, coach-detail, tournament-detail) must have a consistent "Back" navigation pattern. Ensure they use the same icon, same placement (top-left), and same "Back to [Parent]" text style.
+
+Dropdown Menus: Audit the User Profile dropdown and any Action dropdowns. Ensure they use the DropdownMenu shadcn component with consistent padding, font size, and hover states.
+
+Active States: In the Sidebar and Main Nav, ensure the "Active" route is highlighted using the exact same primary color and font weight across all roles (Owner, Coach, Player).
+
+Part 2: Edit Panels & Overlays (Dialogs/Sheets)
+
+The "Exit" Pattern: All edit panels (Courts, Profile, Tournament) must use either a Dialog (Modal) or Sheet (Side Drawer). Verify that:
+
+The "Close" (X) button is in the same corner.
+
+The "Cancel" button is always on the left and "Save/Confirm" is always on the right (or vice versa, but it must be identical everywhere).
+
+Responsive Logic: Ensure that on Mobile, large Edit Panels automatically switch from Dialog to Drawer (bottom-sheet) for better thumb-reachability, using a consistent transition.
+
+Part 3: Form & Input Standardisation
+
+Input Styling: Check all text inputs, textareas, and select boxes. Ensure they all use the same border-radius, border-color, and focus-ring color (e.g., ring-primary).
+
+Validation States: When a user makes an error, the "Red" error text and border must use the exact same Tailwind hex code (text-destructive) and placement across every form in the app.
+
+Dropdown Lists: Ensure that Select components use the same height and chevron icon style.
+
+Part 4: Color Palette & Typography Audit
+
+Hardcoded Colors: Search for any "hardcoded" hex codes (e.g., #3b82f6) in the .tsx files. Replace them with Tailwind theme variables (e.g., bg-primary, text-muted-foreground) to ensure Dark Mode and Light Mode work perfectly on every page.
+
+Icon Consistency: Ensure the same icon library (e.g., Lucide React) is used throughout. For example, don't use a "trash" icon for deleting a court and a "cross" icon for deleting a coach—standardize them.
+
+Part 5: Feedback Loops (Functional Continuity)
+
+Loading States: Audit every button that triggers an API call (Booking, Saving, Joining). Ensure they all use a consistent "Spinner" or "Loading..." text state to prevent double-clicks.
+
+Toasts/Notifications: Ensure that "Success" toasts always appear in the same corner (e.g., Bottom-Right) and use the same duration and styling across all features.
+
+Empty States: Every list page (My Bookings, My Tournaments, etc.) must use a consistent "Empty State" component with a centered icon, a title, and a clear "Action" button.
+
+Part 6: Action Plan
+
+Identify any component that deviates from the shadcn/ui standard.
+
+Fix any page that uses custom CSS instead of the global Tailwind theme.
+
+Provide a report of the "UI Cleanup" performed to ensure the app looks like a premium, professional product.
+
+Why these specific points matter:
+The "Back" Button: This is the most common UX failure. If a user has to search for the "Back" button because it's in a different spot on the Coach page than the Court page, they lose "spatial awareness" of your app.
+
+The "Exit" Pattern: Users build muscle memory. If "Cancel" is a red button on one page and a grey link on another, they will eventually click the wrong thing and get frustrated.
+
+Hardcoded Colors: This is the #1 cause of "Broken Dark Mode." By forcing the Agent to use theme variables (like border-input), you ensure that if you ever want to change your brand color from Blue to Green, you only have to change it in one file (tailwind.config.js).

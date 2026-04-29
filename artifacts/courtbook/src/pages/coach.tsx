@@ -12,6 +12,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search } from "lucide-react";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { Link } from "wouter";
+import { BackButton } from "@/components/back-button";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -284,11 +285,7 @@ export default function CoachPage() {
       <div className="container mx-auto px-4 py-12 max-w-2xl space-y-6">
 
         {/* Back link */}
-        <Link href="/coaches">
-          <Button variant="ghost" size="sm" className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
-            ← Visi treneriai
-          </Button>
-        </Link>
+        <BackButton to="/coaches" label="Visi treneriai" />
 
         {/* Header card */}
         <div className="bg-card border rounded-2xl p-6 shadow-sm">

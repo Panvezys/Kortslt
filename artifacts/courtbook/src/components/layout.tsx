@@ -205,7 +205,7 @@ function UserMenu() {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
-          className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
+          className="text-destructive focus:text-destructive focus:bg-destructive/10"
         >
           <LogOut className="mr-2 h-4 w-4" />
           {t("nav.signOut")}
@@ -288,7 +288,7 @@ function MobileUserAvatar() {
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => signOut({ redirectUrl: "/" })}
-          className="text-red-500 focus:text-red-500 focus:bg-red-500/10"
+          className="text-destructive focus:text-destructive focus:bg-destructive/10"
         >
           <LogOut className="mr-2 h-4 w-4" />
           {t("nav.signOut")}

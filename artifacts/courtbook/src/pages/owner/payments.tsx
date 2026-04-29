@@ -229,11 +229,11 @@ export default function OwnerPayments() {
             <div className="bg-card border border-border rounded-2xl p-4">
               <div className="flex items-start justify-between mb-3">
                 <p className="text-xs text-muted-foreground font-medium">Grąžinta klientams</p>
-                <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center">
-                  <Undo2 className="h-4 w-4 text-red-500" />
+                <div className="w-8 h-8 rounded-xl bg-destructive/10 flex items-center justify-center">
+                  <Undo2 className="h-4 w-4 text-destructive" />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-red-500">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold text-destructive">−€{refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               <p className="text-xs text-muted-foreground mt-1">Iš atšauktų rezervacijų</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
@@ -287,13 +287,13 @@ export default function OwnerPayments() {
                         className="flex items-center gap-4 flex-1 min-w-0"
                       >
                         <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                          b.status === "confirmed" ? "bg-emerald-500/10" : b.status === "pending" ? "bg-amber-500/10" : "bg-red-500/10"
+                          b.status === "confirmed" ? "bg-emerald-500/10" : b.status === "pending" ? "bg-amber-500/10" : "bg-destructive/10"
                         }`}>
                           {b.status === "confirmed"
                             ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                             : b.status === "pending"
                               ? <Clock className="h-4 w-4 text-amber-500" />
-                              : <X className="h-4 w-4 text-red-500" />
+                              : <X className="h-4 w-4 text-destructive" />
                           }
                         </div>
                         <div className="flex-1 min-w-0">
@@ -321,7 +321,7 @@ export default function OwnerPayments() {
                         <button
                           type="button"
                           onClick={() => setForceCancelTarget(b)}
-                          className="shrink-0 px-2 py-1.5 text-[11px] font-medium rounded-md border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-1"
+                          className="shrink-0 px-2 py-1.5 text-[11px] font-medium rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-1"
                           title="Priverstinis atšaukimas (apeina 24h/48h taisyklę)"
                         >
                           <AlertTriangle className="h-3 w-3" />
@@ -455,7 +455,7 @@ function ForceCancelDialog({
         </button>
 
         <div className="flex items-center gap-2 mb-1">
-          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <AlertTriangle className="h-5 w-5 text-destructive" />
           <h2 className="text-lg font-bold">Priverstinis atšaukimas</h2>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
@@ -518,7 +518,7 @@ function ForceCancelDialog({
         </div>
 
         {(validationError || serverError) && (
-          <p className="text-xs text-red-500 mb-3">{validationError ?? serverError}</p>
+          <p className="text-xs text-destructive mb-3">{validationError ?? serverError}</p>
         )}
 
         <div className="flex gap-2">
