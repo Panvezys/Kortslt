@@ -5,9 +5,9 @@ import {
   type SetScore,
   getSportConfig,
   validateScore,
-} from "@workspace/db";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
+} from "@workspace/db/sports-config";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export interface SportScoreInputProps {
   sport: string;

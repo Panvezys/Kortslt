@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck, Layers } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
-import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db";
+import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db/sports-config";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
