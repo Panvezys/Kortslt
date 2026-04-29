@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2 } from "lucide-react";
+import { SportIcon, sportColor } from "@/components/sport-icon";
+import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2, ExternalLink, CalendarDays } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -85,6 +86,50 @@ interface DM {
   contextId: number | null;
   readAt: string | null;
   createdAt: string;
+}
+interface MyGame {
+  id: number;
+  sport: string;
+  city: string;
+  placeName: string | null;
+  datetime: string;
+  status: string;
+  matchType: string;
+  playersNeeded: number;
+  participants: { userId: string; userName: string }[];
+}
+interface GameChatMsg {
+  id: number;
+  gameId: number;
+  senderUserId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+}
+
+const SPORT_LABELS: Record<string, string> = {
+  tennis: "Tenisas",
+  padel: "Padelis",
+  badminton: "Badmintonas",
+  squash: "Skvošas",
+  basketball: "Krepšinis",
+  football: "Futbolas",
+  table_tennis: "Stalo tenisas",
+  golf: "Golfas",
+  volleyball: "Tinklinis",
+};
+const sportLabel = (s: string) => SPORT_LABELS[s] ?? s;
+
+function formatGameWhen(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("lt-LT", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export interface OpenChatDetail {
@@ -297,6 +342,197 @@ function ChatThreadView({
   );
 }
 
+function GameChatView({
+  game, onBack,
+}: {
+  game: MyGame;
+  onBack: () => void;
+}) {
+  const { user } = useUser();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: messages, isLoading } = useQuery<GameChatMsg[]>({
+    queryKey: ["game-chat", game.id],
+    queryFn: () => customFetch<GameChatMsg[]>(`${API}/games/${game.id}/chat`),
+    refetchInterval: 8000,
+  });
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const send = useMutation({
+    mutationFn: () => customFetch(`${API}/games/${game.id}/chat`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        senderName: user?.fullName || user?.firstName || "Vartotojas",
+        body: text.trim(),
+      }),
+    }),
+    onSuccess: () => {
+      setText("");
+      qc.invalidateQueries({ queryKey: ["game-chat", game.id] });
+    },
+    onError: (e: any) => toast({ title: "Nepavyko siųsti", description: e?.message, variant: "destructive" }),
+  });
+
+  const sportBg = sportColor[game.sport] ?? "#6b7280";
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="border-b border-border shrink-0">
+        <div className="p-3 flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 -ml-1" onClick={onBack} aria-label="Atgal">
+            <ArrowLeft className="w-4 h-4"/>
+          </Button>
+          <div
+            className="h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-white"
+            style={{ backgroundColor: sportBg }}
+          >
+            <SportIcon sport={game.sport} className="w-4 h-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-sm truncate">
+              {sportLabel(game.sport)} · {game.placeName ?? game.city}
+            </div>
+            <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <UsersIcon className="w-3 h-3" />
+              {game.participants.length}/{game.playersNeeded} dalyvių
+            </div>
+          </div>
+        </div>
+        <Link
+          href={`/games/${game.id}`}
+          className="block px-3 pb-2 -mt-1"
+        >
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-primary/10 text-primary px-2 py-1 rounded-md hover:bg-primary/15 transition-colors max-w-full">
+            <CalendarDays className="w-3 h-3 shrink-0" />
+            <span className="truncate">{formatGameWhen(game.datetime)}</span>
+            <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+          </div>
+        </Link>
+      </div>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-2/3"/>
+            <Skeleton className="h-10 w-1/2 ml-auto"/>
+          </div>
+        ) : (messages ?? []).length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50"/>
+            <p className="text-xs">Dar nėra žinučių. Pradėkite pokalbį!</p>
+          </div>
+        ) : (
+          (messages ?? []).map((m) => {
+            const isMine = m.senderUserId === user?.id;
+            return (
+              <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${
+                  isMine
+                    ? "bg-primary text-primary-foreground rounded-br-md"
+                    : "bg-muted rounded-bl-md"
+                }`}>
+                  {!isMine && (
+                    <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">
+                      {m.senderName}
+                    </div>
+                  )}
+                  <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+                  <div className={`text-[10px] mt-0.5 ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                    {timeAgo(m.createdAt)}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <form
+        className="border-t border-border p-2 flex items-center gap-2 shrink-0"
+        onSubmit={(e) => { e.preventDefault(); if (text.trim() && !send.isPending) send.mutate(); }}
+      >
+        <Input
+          placeholder="Parašykite žinutę grupei..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className="flex-1 h-9"
+          autoFocus
+        />
+        <Button type="submit" size="icon" className="h-9 w-9 shrink-0" disabled={!text.trim() || send.isPending}>
+          <Send className="w-4 h-4"/>
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+function GameThreadsList({
+  games, isLoading, onPick,
+}: {
+  games: MyGame[] | undefined;
+  isLoading: boolean;
+  onPick: (g: MyGame) => void;
+}) {
+  const upcoming = [...(games ?? [])]
+    .filter(g => g.status !== "cancelled" && g.status !== "completed")
+    .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime());
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {isLoading ? (
+        <div className="p-3 space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14"/>)}
+        </div>
+      ) : upcoming.length === 0 ? (
+        <div className="p-6 text-center text-muted-foreground">
+          <UsersIcon className="w-10 h-10 mx-auto mb-2 opacity-50"/>
+          <p className="text-sm font-medium">Nėra aktyvių žaidimų</p>
+          <p className="text-xs mt-1">Prisijunkite prie žaidimo, kad galėtumėte rašyti grupei.</p>
+        </div>
+      ) : (
+        <div>
+          {upcoming.map((g) => {
+            const sportBg = sportColor[g.sport] ?? "#6b7280";
+            return (
+              <button
+                key={g.id}
+                onClick={() => onPick(g)}
+                className="w-full text-left p-3 flex gap-3 border-b border-border/60 hover:bg-muted/40 transition-colors"
+              >
+                <div
+                  className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 text-white"
+                  style={{ backgroundColor: sportBg }}
+                >
+                  <SportIcon sport={g.sport} className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-semibold text-sm truncate">
+                      {sportLabel(g.sport)} · {g.placeName ?? g.city}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground shrink-0">
+                      {g.participants.length}/{g.playersNeeded}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground truncate">
+                    <CalendarDays className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{formatGameWhen(g.datetime)}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChatThreadsList({
   threads, isLoading, currentUserId, onPick,
 }: {
@@ -358,13 +594,22 @@ function ChatThreadsList({
 function ChatBubbleInner() {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"people" | "games">("people");
   const [active, setActive] = useState<{ userId: string; userName: string; imageUrl?: string | null; ctxType?: string; ctxId?: number } | null>(null);
+  const [activeGame, setActiveGame] = useState<MyGame | null>(null);
 
   const { data: threads, isLoading: threadsLoading } = useQuery<Thread[]>({
     queryKey: ["dm-threads"],
     queryFn: () => customFetch<Thread[]>(`${API}/dm/threads`),
     enabled: !!user,
     refetchInterval: 15000,
+  });
+
+  const { data: myGames, isLoading: gamesLoading } = useQuery<MyGame[]>({
+    queryKey: ["my-games-chat"],
+    queryFn: () => customFetch<MyGame[]>(`${API}/games/my`),
+    enabled: !!user && open,
+    refetchInterval: 30000,
   });
 
   const { data: unread } = useQuery<{ count: number }>({
@@ -428,16 +673,20 @@ function ChatBubbleInner() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (active) setActive(null);
+        else if (activeGame) setActiveGame(null);
         else setOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, active]);
+  }, [open, active, activeGame]);
 
   const toggle = useCallback(() => {
     setOpen(v => {
-      if (v) setActive(null);
+      if (v) {
+        setActive(null);
+        setActiveGame(null);
+      }
       return !v;
     });
   }, []);
@@ -468,7 +717,7 @@ function ChatBubbleInner() {
           aria-label="Žinutės"
         >
           <div className="border-b border-border p-3 flex items-center justify-between shrink-0 bg-primary/5">
-            {active ? (
+            {active || activeGame ? (
               <div className="flex items-center gap-2 min-w-0">
                 <MessageCircle className="w-4 h-4 text-primary shrink-0"/>
                 <span className="font-semibold text-sm truncate">Pokalbis</span>
@@ -496,13 +745,53 @@ function ChatBubbleInner() {
               ctxId={active.ctxId}
               onBack={() => setActive(null)}
             />
-          ) : (
-            <ChatThreadsList
-              threads={threads}
-              isLoading={threadsLoading}
-              currentUserId={user?.id}
-              onPick={(t) => setActive({ userId: t.otherUserId, userName: t.otherUserName, imageUrl: t.otherUserImageUrl })}
+          ) : activeGame ? (
+            <GameChatView
+              game={activeGame}
+              onBack={() => setActiveGame(null)}
             />
+          ) : (
+            <>
+              <div className="border-b border-border flex shrink-0 bg-card">
+                <button
+                  onClick={() => setTab("people")}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+                    tab === "people"
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5"/> Žmonės
+                  {unreadCount > 0 && (
+                    <Badge className="h-4 min-w-4 px-1 ml-0.5 bg-red-500 hover:bg-red-500 text-white text-[10px]">{unreadCount}</Badge>
+                  )}
+                </button>
+                <button
+                  onClick={() => setTab("games")}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+                    tab === "games"
+                      ? "text-primary border-b-2 border-primary"
+                      : "text-muted-foreground hover:text-foreground border-b-2 border-transparent"
+                  }`}
+                >
+                  <UsersIcon className="w-3.5 h-3.5"/> Žaidimai
+                </button>
+              </div>
+              {tab === "people" ? (
+                <ChatThreadsList
+                  threads={threads}
+                  isLoading={threadsLoading}
+                  currentUserId={user?.id}
+                  onPick={(t) => setActive({ userId: t.otherUserId, userName: t.otherUserName, imageUrl: t.otherUserImageUrl })}
+                />
+              ) : (
+                <GameThreadsList
+                  games={myGames}
+                  isLoading={gamesLoading}
+                  onPick={(g) => setActiveGame(g)}
+                />
+              )}
+            </>
           )}
         </div>
       )}
