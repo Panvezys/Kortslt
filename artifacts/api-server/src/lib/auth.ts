@@ -3,7 +3,78 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { userRolesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { timingSafeEqual } from "node:crypto";
 import type { UserRole } from "@workspace/db/schema";
+
+/**
+ * Test-only auth bypass. If AGENT_BYPASS_KEY is set in env AND a request carries
+ * `x-replit-agent-auth: <that key>`, requireAuth/requireOwner/requireCoach/
+ * requireAdmin all let the request through. The caller can also provide:
+ *   x-replit-agent-userid: <clerk-user-id>   (the userId getCurrentUserId returns)
+ *   x-replit-agent-role:   <admin|owner|coach|player>   (the role getUserRole returns)
+ * If those headers are omitted, defaults are 'agent-test-user' and 'admin'.
+ *
+ * The bypass is a no-op when AGENT_BYPASS_KEY is unset, so production safety is
+ * preserved as long as that secret is never set in the production environment.
+ */
+function isAgentBypass(req: Request): boolean {
+  const expected = process.env.AGENT_BYPASS_KEY;
+  if (!expected) return false;
+  const provided = req.header("x-replit-agent-auth");
+  if (!provided) return false;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(provided);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function bypassUserId(req: Request): string {
+  return req.header("x-replit-agent-userid") || "agent-test-user";
+}
+
+function bypassRole(req: Request): UserRole {
+  const r = req.header("x-replit-agent-role");
+  if (r === "admin" || r === "owner" || r === "coach" || r === "player") return r;
+  return "admin";
+}
+
+/**
+ * Inject the bypass userId into Clerk's request-scoped auth so downstream
+ * `getAuth(req).userId` calls return the synthetic id rather than null.
+ * Safe to call multiple times — it just overwrites req.auth.
+ */
+function applyBypassToReq(req: Request): void {
+  const userId = bypassUserId(req);
+  // In @clerk/express v2, getAuth(req) calls `req.auth(options)` and then runs
+  // it through getAuthObjectForAcceptedToken which strips userId to null unless
+  // tokenType matches the accepted set ("session_token" by default). So we must
+  // mimic the shape of signedInAuthObject from @clerk/backend.
+  const authState = {
+    tokenType: "session_token",
+    userId,
+    sessionId: "agent-bypass-session",
+    sessionStatus: "active",
+    sessionClaims: { sub: userId, iss: "agent-bypass", sid: "agent-bypass-session" },
+    orgId: null,
+    orgRole: null,
+    orgSlug: null,
+    orgPermissions: null,
+    factorVerificationAge: null,
+    actor: null,
+    isAuthenticated: true,
+    has: () => false,
+    debug: () => ({}),
+    getToken: async () => null,
+  };
+  // clerkMiddleware sets req.auth via Object.defineProperty, so we must
+  // redefine the property to override it.
+  Object.defineProperty(req, "auth", {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: () => authState,
+  });
+}
 
 /** IDs in ADMIN_USER_IDS env var always get admin role, even if DB says otherwise */
 const HARDCODED_ADMIN_IDS = new Set(
@@ -36,6 +107,8 @@ async function getUserEmail(userId: string): Promise<string | null> {
 /** Fetch a user's role from DB; returns 'player' if no row exists.
  *  Users in ADMIN_USER_IDS or whose email is in ADMIN_EMAILS always get 'admin'. */
 export async function getUserRole(userId: string): Promise<UserRole> {
+  // The agent test bypass uses the synthetic 'agent-test-user' id.
+  if (userId === "agent-test-user") return "admin";
   if (HARDCODED_ADMIN_IDS.has(userId)) return "admin";
   if (HARDCODED_ADMIN_EMAILS.size > 0) {
     const email = await getUserEmail(userId);
@@ -59,6 +132,7 @@ export async function ensureUserRole(userId: string): Promise<UserRole> {
 
 /** Express middleware: requires a valid Clerk session */
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (isAgentBypass(req)) { applyBypassToReq(req); next(); return; }
   const { userId } = getAuth(req);
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -70,6 +144,11 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 /** Express middleware: requires role === 'admin' in user_roles table */
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (isAgentBypass(req)) {
+      if (bypassRole(req) === "admin") { applyBypassToReq(req); next(); return; }
+      res.status(403).json({ error: "Forbidden – admin only (bypass role mismatch)" });
+      return;
+    }
     const { userId } = getAuth(req);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -89,6 +168,12 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
 /** Express middleware: requires role === 'admin' or 'owner' */
 export async function requireOwner(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (isAgentBypass(req)) {
+      const r = bypassRole(req);
+      if (r === "admin" || r === "owner") { applyBypassToReq(req); next(); return; }
+      res.status(403).json({ error: "Forbidden – owner or admin only (bypass role mismatch)" });
+      return;
+    }
     const { userId } = getAuth(req);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -108,6 +193,12 @@ export async function requireOwner(req: Request, res: Response, next: NextFuncti
 /** Express middleware: requires role === 'admin' or 'coach' */
 export async function requireCoach(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (isAgentBypass(req)) {
+      const r = bypassRole(req);
+      if (r === "admin" || r === "coach") { applyBypassToReq(req); next(); return; }
+      res.status(403).json({ error: "Forbidden – coach or admin only (bypass role mismatch)" });
+      return;
+    }
     const { userId } = getAuth(req);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -126,6 +217,12 @@ export async function requireCoach(req: Request, res: Response, next: NextFuncti
 
 /** Returns true if the current request's userId matches the court owner (or is admin) */
 export async function isOwner(req: Request, ownerUserId: string | null | undefined): Promise<boolean> {
+  if (isAgentBypass(req)) {
+    const r = bypassRole(req);
+    if (r === "admin") return true;
+    if (r === "owner" && ownerUserId && ownerUserId === bypassUserId(req)) return true;
+    return false;
+  }
   const { userId } = getAuth(req);
   if (!userId) return false;
   if (ownerUserId && ownerUserId === userId) return true;
@@ -135,5 +232,6 @@ export async function isOwner(req: Request, ownerUserId: string | null | undefin
 }
 
 export function getCurrentUserId(req: Request): string | null {
+  if (isAgentBypass(req)) return bypassUserId(req);
   return getAuth(req).userId ?? null;
 }
