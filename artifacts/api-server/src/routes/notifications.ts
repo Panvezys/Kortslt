@@ -18,6 +18,7 @@ router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
     .orderBy(desc(notificationsTable.createdAt))
     .limit(50);
 
+  res.set("Cache-Control", "no-store");
   res.json(rows);
 });
 
@@ -57,7 +58,17 @@ router.get("/admin/notifications", requireAdmin, async (req, res): Promise<void>
     .where(eq(notificationsTable.userId, ADMIN_NOTIF_USER))
     .orderBy(desc(notificationsTable.createdAt))
     .limit(50);
+  res.set("Cache-Control", "no-store");
   res.json(rows);
+});
+
+/** POST /admin/notifications/read-all — mark all admin notifications as read */
+router.post("/admin/notifications/read-all", requireAdmin, async (req, res): Promise<void> => {
+  await db
+    .update(notificationsTable)
+    .set({ read: true })
+    .where(and(eq(notificationsTable.userId, ADMIN_NOTIF_USER), eq(notificationsTable.read, false)));
+  res.json({ ok: true });
 });
 
 /** PATCH /admin/notifications/:id/read — mark admin notification as read */

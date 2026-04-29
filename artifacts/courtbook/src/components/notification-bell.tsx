@@ -129,7 +129,13 @@ export function NotificationBell() {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
-      await authFetch(`/api/notifications/read-all`, { method: "POST" });
+      const calls: Promise<unknown>[] = [
+        authFetch(`/api/notifications/read-all`, { method: "POST" }),
+      ];
+      if (isAdmin) {
+        calls.push(authFetch(`/api/admin/notifications/read-all`, { method: "POST" }));
+      }
+      await Promise.all(calls);
       await refreshNotifications();
     } catch { /* silent */ }
   }
