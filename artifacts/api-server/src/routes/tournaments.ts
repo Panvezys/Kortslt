@@ -10,25 +10,82 @@ import {
 } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner, requireOwner, requireCreator } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
+import {
+  type SportScore,
+  type SportConfig,
+  getSportConfig,
+  validateScore,
+  deriveWinner,
+  setsWonFromScore,
+  pointsWonFromScore,
+} from "@workspace/db";
 
 const router: IRouter = Router();
 
 type TournamentRow = typeof tournamentsTable.$inferSelect;
 
+// --- Bracket type model ------------------------------------------------------
+
 interface BracketPlayer { regId: number; name: string }
 interface BracketMatch {
   matchId: string;
   round: number;
+  /** Optional group id ("A", "B", ...) when the match is part of a round-robin/hybrid group. */
+  groupId?: string;
   p1: BracketPlayer | null;
   p2: BracketPlayer | null;
   winner: BracketPlayer | null;
-  score: string | null;
+  /**
+   * Structured sport-typed score (preferred). Legacy rows may have a plain string.
+   * Reads must tolerate both shapes.
+   */
+  score: SportScore | string | null;
+  /** Where to send the winner in a knockout. Null in round-robin matches and finals. */
   nextMatchId: string | null;
 }
-interface BracketData {
+
+interface RoundRobinGroup {
+  groupId: string;
+  players: BracketPlayer[];
+  matches: BracketMatch[];
+}
+
+interface SingleEliminationData {
   format: "single_elimination";
   generatedAt: string;
   rounds: Array<{ round: number; matches: BracketMatch[] }>;
+}
+
+interface RoundRobinData {
+  format: "round_robin";
+  generatedAt: string;
+  groupSize: number;
+  groups: RoundRobinGroup[];
+}
+
+interface HybridData {
+  format: "hybrid";
+  generatedAt: string;
+  groupSize: number;
+  groups: RoundRobinGroup[];
+  /** Playoffs are auto-seeded once all group matches are completed. */
+  playoffs: { rounds: Array<{ round: number; matches: BracketMatch[] }> } | null;
+  /** Number of teams advancing per group to playoffs (default 2). */
+  advancePerGroup: number;
+}
+
+type BracketData = SingleEliminationData | RoundRobinData | HybridData;
+
+interface StandingsRow {
+  regId: number;
+  name: string;
+  played: number;
+  won: number;
+  lost: number;
+  setsDiff: number;
+  pointsDiff: number;
+  /** Composite ranking points (3 per win, 1 per draw — draws disallowed currently). */
+  rankPoints: number;
 }
 
 function formatTournament(t: TournamentRow, registrationCount?: number) {
@@ -70,22 +127,100 @@ function formatReg(r: typeof tournamentRegistrationsTable.$inferSelect) {
 
 // --- Bracket helpers ---------------------------------------------------------
 
-function generateSingleEliminationBracket(players: BracketPlayer[]): BracketData | null {
+function shuffle<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * Build a "seeded" bracket slot order so that top seeds are spread across the bracket
+ * (1 vs N, 2 vs N-1, top seeds in opposite halves). For N=4 → [1,4,2,3]; N=8 → [1,8,4,5,2,7,3,6].
+ */
+function seededBracketOrder(n: number): number[] {
+  let order: number[] = [1, 2];
+  while (order.length < n) {
+    const doubled = order.length * 2;
+    const expanded: number[] = [];
+    for (const s of order) {
+      expanded.push(s);
+      expanded.push(doubled + 1 - s);
+    }
+    order = expanded;
+  }
+  return order;
+}
+
+function buildSingleElimRounds(padded: (BracketPlayer | null)[]): SingleEliminationData {
+  const slots = padded.length;
+  const totalRounds = Math.log2(slots);
+  const rounds: SingleEliminationData["rounds"] = [];
+  let perRound = slots / 2;
+  for (let r = 1; r <= totalRounds; r++) {
+    const matches: BracketMatch[] = [];
+    for (let i = 0; i < perRound; i++) {
+      matches.push({
+        matchId: `r${r}-m${i + 1}`,
+        round: r,
+        p1: null,
+        p2: null,
+        winner: null,
+        score: null,
+        nextMatchId: r < totalRounds ? `r${r + 1}-m${Math.floor(i / 2) + 1}` : null,
+      });
+    }
+    rounds.push({ round: r, matches });
+    perRound = perRound / 2;
+  }
+  for (let i = 0; i < slots / 2; i++) {
+    rounds[0].matches[i].p1 = padded[i * 2];
+    rounds[0].matches[i].p2 = padded[i * 2 + 1];
+  }
+  // Cascade BYE auto-wins forward
+  for (let r = 0; r < rounds.length; r++) {
+    for (let i = 0; i < rounds[r].matches.length; i++) {
+      const m = rounds[r].matches[i];
+      if (m.p1 && !m.p2) m.winner = m.p1;
+      else if (!m.p1 && m.p2) m.winner = m.p2;
+      if (m.winner && m.nextMatchId) {
+        const next = rounds[r + 1]?.matches.find((x) => x.matchId === m.nextMatchId);
+        if (next) {
+          if (i % 2 === 0) next.p1 = m.winner;
+          else next.p2 = m.winner;
+        }
+      }
+    }
+  }
+  return { format: "single_elimination", generatedAt: new Date().toISOString(), rounds };
+}
+
+/**
+ * Build a deterministic seeded single-elim bracket. Players are interpreted as already ranked
+ * (index 0 = top seed). BYEs (null padding) are placed against the highest seeds.
+ */
+function generateSeededSingleElim(seeds: BracketPlayer[]): SingleEliminationData | null {
+  const valid = seeds.filter((p) => p && p.name);
+  if (valid.length < 2) return null;
+  const slotCount = Math.pow(2, Math.ceil(Math.log2(valid.length)));
+  const order = seededBracketOrder(slotCount);
+  const padded: (BracketPlayer | null)[] = order.map((rank) => valid[rank - 1] ?? null);
+  return buildSingleElimRounds(padded);
+}
+
+function generateSingleEliminationBracket(players: BracketPlayer[]): SingleEliminationData | null {
   const valid = players.filter((p) => p && p.name);
   if (valid.length < 2) return null;
 
-  // Random seeding (Fisher-Yates)
-  const shuffled = [...valid];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
+  const shuffled = shuffle(valid);
   const slots = Math.pow(2, Math.ceil(Math.log2(shuffled.length)));
   const padded: (BracketPlayer | null)[] = [...shuffled];
   while (padded.length < slots) padded.push(null);
 
   const totalRounds = Math.log2(slots);
-  const rounds: BracketData["rounds"] = [];
+  const rounds: SingleEliminationData["rounds"] = [];
   let perRound = slots / 2;
   for (let r = 1; r <= totalRounds; r++) {
     const matches: BracketMatch[] = [];
@@ -104,7 +239,6 @@ function generateSingleEliminationBracket(players: BracketPlayer[]): BracketData
     perRound = perRound / 2;
   }
 
-  // Seed round 1
   for (let i = 0; i < slots / 2; i++) {
     rounds[0].matches[i].p1 = padded[i * 2];
     rounds[0].matches[i].p2 = padded[i * 2 + 1];
@@ -133,36 +267,265 @@ function generateSingleEliminationBracket(players: BracketPlayer[]): BracketData
   };
 }
 
+/** Distribute players into groups of approximately `groupSize`. Last group may be smaller. */
+function partitionGroups(players: BracketPlayer[], groupSize = 4): BracketPlayer[][] {
+  const shuffled = shuffle(players);
+  const groupCount = Math.max(1, Math.ceil(shuffled.length / groupSize));
+  // Snake distribution to keep group sizes balanced rather than dumping leftovers in the last group.
+  const groups: BracketPlayer[][] = Array.from({ length: groupCount }, () => []);
+  shuffled.forEach((p, i) => groups[i % groupCount].push(p));
+  return groups;
+}
+
+function buildGroupMatches(groupId: string, players: BracketPlayer[]): BracketMatch[] {
+  const matches: BracketMatch[] = [];
+  let idx = 1;
+  // Round-robin: each pair plays once.
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      matches.push({
+        matchId: `g${groupId}-m${idx++}`,
+        round: 1,
+        groupId,
+        p1: players[i],
+        p2: players[j],
+        winner: null,
+        score: null,
+        nextMatchId: null,
+      });
+    }
+  }
+  return matches;
+}
+
+function generateRoundRobin(players: BracketPlayer[], groupSize = 4): RoundRobinData | null {
+  const valid = players.filter((p) => p && p.name);
+  if (valid.length < 2) return null;
+  const partitions = partitionGroups(valid, groupSize);
+  const groups: RoundRobinGroup[] = partitions.map((ps, i) => {
+    const groupId = String.fromCharCode(65 + i); // A, B, C, ...
+    return {
+      groupId,
+      players: ps,
+      matches: buildGroupMatches(groupId, ps),
+    };
+  });
+  return { format: "round_robin", generatedAt: new Date().toISOString(), groupSize, groups };
+}
+
+function generateHybrid(players: BracketPlayer[], groupSize = 4, advancePerGroup = 2): HybridData | null {
+  const rr = generateRoundRobin(players, groupSize);
+  if (!rr) return null;
+  return {
+    format: "hybrid",
+    generatedAt: rr.generatedAt,
+    groupSize: rr.groupSize,
+    groups: rr.groups,
+    playoffs: null,
+    advancePerGroup,
+  };
+}
+
+/** Compute standings for a single round-robin group. */
+function computeGroupStandings(group: RoundRobinGroup): StandingsRow[] {
+  const rows: Record<number, StandingsRow> = {};
+  for (const p of group.players) {
+    rows[p.regId] = {
+      regId: p.regId,
+      name: p.name,
+      played: 0,
+      won: 0,
+      lost: 0,
+      setsDiff: 0,
+      pointsDiff: 0,
+      rankPoints: 0,
+    };
+  }
+  // Track head-to-head: h2h[a][b] = 1 if a beat b in their direct match, else absent.
+  const h2h: Record<number, Record<number, number>> = {};
+  for (const m of group.matches) {
+    if (!m.winner || !m.p1 || !m.p2) continue;
+    const a = rows[m.p1.regId];
+    const b = rows[m.p2.regId];
+    if (!a || !b) continue;
+    a.played++;
+    b.played++;
+    const winnerIsA = m.winner.regId === m.p1.regId;
+    if (winnerIsA) {
+      a.won++; b.lost++;
+      a.rankPoints += 3;
+      (h2h[m.p1.regId] ??= {})[m.p2.regId] = 1;
+    } else {
+      b.won++; a.lost++;
+      b.rankPoints += 3;
+      (h2h[m.p2.regId] ??= {})[m.p1.regId] = 1;
+    }
+    // Score-based diffs (only when score is structured)
+    if (m.score && typeof m.score === "object") {
+      const pts = pointsWonFromScore(m.score);
+      const sets = setsWonFromScore(m.score);
+      a.pointsDiff += pts.a - pts.b;
+      b.pointsDiff += pts.b - pts.a;
+      a.setsDiff += sets.a - sets.b;
+      b.setsDiff += sets.b - sets.a;
+    }
+  }
+  return Object.values(rows).sort((x, y) => {
+    if (y.rankPoints !== x.rankPoints) return y.rankPoints - x.rankPoints;
+    // Head-to-head when two teams are tied on rank points
+    const xBeatY = h2h[x.regId]?.[y.regId] === 1;
+    const yBeatX = h2h[y.regId]?.[x.regId] === 1;
+    if (xBeatY && !yBeatX) return -1;
+    if (yBeatX && !xBeatY) return 1;
+    if (y.setsDiff !== x.setsDiff) return y.setsDiff - x.setsDiff;
+    if (y.pointsDiff !== x.pointsDiff) return y.pointsDiff - x.pointsDiff;
+    return x.name.localeCompare(y.name);
+  });
+}
+
+function allGroupMatchesComplete(groups: RoundRobinGroup[]): boolean {
+  return groups.every((g) => g.matches.every((m) => m.winner != null));
+}
+
+/** Build the playoff bracket for hybrid: top N of each group advance, cross-seeded. */
+function seedHybridPlayoffs(groups: RoundRobinGroup[], advancePerGroup: number): HybridData["playoffs"] {
+  const seedsPerGroup = groups.map((g) => computeGroupStandings(g).slice(0, advancePerGroup));
+  // Cross-seed: G1.1 vs G2.2, G2.1 vs G1.2, etc. For >2 groups we just chain pairs.
+  const seeds: BracketPlayer[] = [];
+  // Walk by seed-rank then by group, alternating across groups so #1 and #2 of the same group end up in opposite halves.
+  for (let rank = 0; rank < advancePerGroup; rank++) {
+    groups.forEach((_, gi) => {
+      const row = seedsPerGroup[gi]?.[rank];
+      if (row) seeds.push({ regId: row.regId, name: row.name });
+    });
+  }
+  if (seeds.length < 2) return null;
+  // Deterministic seeded bracket so cross-group seeding is preserved (G1.1 vs G2.2 etc.).
+  const bracket = generateSeededSingleElim(seeds);
+  if (!bracket) return null;
+  // Re-key match ids so they don't collide with group match ids.
+  const playoffs = {
+    rounds: bracket.rounds.map((r) => ({
+      round: r.round,
+      matches: r.matches.map((m) => ({
+        ...m,
+        matchId: `p-${m.matchId}`,
+        nextMatchId: m.nextMatchId ? `p-${m.nextMatchId}` : null,
+      })),
+    })),
+  };
+  return playoffs;
+}
+
 function applyMatchResult(
   bracket: BracketData,
   matchId: string,
   winnerRegId: number,
-  score: string | null,
+  score: SportScore | string | null,
+  sportCfg: SportConfig,
 ): { ok: true; nextMatchId: string | null; nextOpponent: BracketPlayer | null } | { ok: false; error: string } {
-  for (let r = 0; r < bracket.rounds.length; r++) {
-    const idx = bracket.rounds[r].matches.findIndex((m) => m.matchId === matchId);
-    if (idx === -1) continue;
-    const m = bracket.rounds[r].matches[idx];
-    if (!m.p1 || !m.p2) return { ok: false, error: "Match cannot be scored until both players are decided" };
-    const winner = m.p1.regId === winnerRegId ? m.p1 : m.p2.regId === winnerRegId ? m.p2 : null;
-    if (!winner) return { ok: false, error: "Winner must be one of the match players" };
-    m.winner = winner;
-    m.score = score ?? null;
-    let nextOpponent: BracketPlayer | null = null;
-    if (m.nextMatchId) {
-      const next = bracket.rounds[r + 1]?.matches.find((x) => x.matchId === m.nextMatchId);
-      if (next) {
-        if (idx % 2 === 0) next.p1 = winner;
-        else next.p2 = winner;
-        nextOpponent = idx % 2 === 0 ? next.p2 : next.p1;
-        // Auto-advance if opposing slot was a BYE that already resolved
-        if (next.p1 && !next.p2) next.winner = next.p1;
-        else if (!next.p1 && next.p2) next.winner = next.p2;
+  // Helper: locate a match in any of the supported structures.
+  const locate = (): { match: BracketMatch; siblingIndex: number; rounds?: SingleEliminationData["rounds"] } | null => {
+    if (bracket.format === "single_elimination") {
+      for (let r = 0; r < bracket.rounds.length; r++) {
+        const idx = bracket.rounds[r].matches.findIndex((m) => m.matchId === matchId);
+        if (idx !== -1) return { match: bracket.rounds[r].matches[idx], siblingIndex: idx, rounds: bracket.rounds };
+      }
+      return null;
+    }
+    if (bracket.format === "round_robin") {
+      for (const g of bracket.groups) {
+        const m = g.matches.find((x) => x.matchId === matchId);
+        if (m) return { match: m, siblingIndex: -1 };
+      }
+      return null;
+    }
+    // hybrid
+    for (const g of bracket.groups) {
+      const m = g.matches.find((x) => x.matchId === matchId);
+      if (m) return { match: m, siblingIndex: -1 };
+    }
+    if (bracket.playoffs) {
+      for (let r = 0; r < bracket.playoffs.rounds.length; r++) {
+        const idx = bracket.playoffs.rounds[r].matches.findIndex((m) => m.matchId === matchId);
+        if (idx !== -1) return { match: bracket.playoffs.rounds[r].matches[idx], siblingIndex: idx, rounds: bracket.playoffs.rounds };
       }
     }
-    return { ok: true, nextMatchId: m.nextMatchId, nextOpponent };
+    return null;
+  };
+
+  const found = locate();
+  if (!found) return { ok: false, error: "Match not found in bracket" };
+  const m = found.match;
+  if (!m.p1 || !m.p2) return { ok: false, error: "Match cannot be scored until both players are decided" };
+
+  // Validate score against sport config when structured
+  let resolvedWinnerRegId = winnerRegId;
+  if (score && typeof score === "object") {
+    const errs = validateScore(score, sportCfg);
+    if (errs.length > 0) return { ok: false, error: errs[0].message };
+    const side = deriveWinner(score, sportCfg);
+    if (!side) return { ok: false, error: "Lygiosios negalimos – nustatykite nugalėtoją." };
+    resolvedWinnerRegId = side === "a" ? m.p1.regId : m.p2.regId;
   }
-  return { ok: false, error: "Match not found in bracket" };
+
+  const winner = m.p1.regId === resolvedWinnerRegId ? m.p1 : m.p2.regId === resolvedWinnerRegId ? m.p2 : null;
+  if (!winner) return { ok: false, error: "Winner must be one of the match players" };
+
+  m.winner = winner;
+  m.score = score ?? null;
+
+  let nextOpponent: BracketPlayer | null = null;
+  // Knockout advancement (single_elim or hybrid playoffs)
+  if (m.nextMatchId && found.rounds) {
+    const idx = found.siblingIndex;
+    const next = found.rounds.find((r) => r.matches.some((x) => x.matchId === m.nextMatchId))?.matches.find((x) => x.matchId === m.nextMatchId);
+    if (next) {
+      if (idx % 2 === 0) next.p1 = winner;
+      else next.p2 = winner;
+      nextOpponent = idx % 2 === 0 ? next.p2 : next.p1;
+      if (next.p1 && !next.p2) next.winner = next.p1;
+      else if (!next.p1 && next.p2) next.winner = next.p2;
+    }
+  }
+
+  // Hybrid: when all group matches are complete, auto-seed the playoff bracket
+  if (bracket.format === "hybrid" && !bracket.playoffs && allGroupMatchesComplete(bracket.groups)) {
+    bracket.playoffs = seedHybridPlayoffs(bracket.groups, bracket.advancePerGroup);
+  }
+
+  return { ok: true, nextMatchId: m.nextMatchId, nextOpponent };
+}
+
+/** Top-level dispatch used by /generate-bracket. */
+function generateBracket(format: string, players: BracketPlayer[]): BracketData | null {
+  switch (format) {
+    case "round_robin":
+      return generateRoundRobin(players, 4);
+    case "hybrid":
+      return generateHybrid(players, 4, 2);
+    case "single_elimination":
+    default:
+      return generateSingleEliminationBracket(players);
+  }
+}
+
+/** Build a result_data snapshot with standings (round-robin/hybrid) for client convenience. */
+function buildResultData(bracket: BracketData): unknown {
+  if (bracket.format === "single_elimination") return null;
+  const standings = bracket.groups.map((g) => ({
+    groupId: g.groupId,
+    rows: computeGroupStandings(g),
+  }));
+  if (bracket.format === "round_robin") {
+    return { format: "round_robin", standings, updatedAt: new Date().toISOString() };
+  }
+  return {
+    format: "hybrid",
+    standings,
+    playoffsSeeded: bracket.playoffs != null,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function* eachDateInRange(startDate: string, endDate: string): Generator<string> {
@@ -551,7 +914,7 @@ async function loadOrganizerEditableTournament(req: Request, id: number): Promis
   return { ok: true, tournament: t };
 }
 
-// POST /tournaments/:id/generate-bracket — organizer-only single-elim bracket
+// POST /tournaments/:id/generate-bracket — organizer-only bracket generation (single-elim / round-robin / hybrid)
 router.post("/tournaments/:id/generate-bracket", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -564,17 +927,21 @@ router.post("/tournaments/:id/generate-bracket", requireAuth, async (req, res): 
     .from(tournamentRegistrationsTable)
     .where(and(eq(tournamentRegistrationsTable.tournamentId, id), eq(tournamentRegistrationsTable.status, "confirmed")));
 
-  const bracket = generateSingleEliminationBracket(regs.map((r) => ({ regId: r.regId, name: r.playerName })));
+  const players = regs.map((r) => ({ regId: r.regId, name: r.playerName }));
+  const bracket = generateBracket(t.format ?? "single_elimination", players);
   if (!bracket) {
-    res.status(400).json({ error: "Need at least 2 confirmed players to generate a bracket" });
+    res.status(400).json({ error: "Reikia bent 2 patvirtintų dalyvių, kad būtų galima sugeneruoti tinklelį" });
     return;
   }
 
-  await db.update(tournamentsTable).set({ bracketData: bracket }).where(eq(tournamentsTable.id, id));
-  res.json({ ok: true, bracketData: bracket, tournamentName: t.name });
+  const resultData = buildResultData(bracket);
+  await db.update(tournamentsTable)
+    .set({ bracketData: bracket, resultData: resultData ?? null })
+    .where(eq(tournamentsTable.id, id));
+  res.json({ ok: true, bracketData: bracket, resultData, tournamentName: t.name });
 });
 
-// POST /tournaments/:id/match-result — organizer-only score entry
+// POST /tournaments/:id/match-result — organizer-only score entry (sport-typed)
 router.post("/tournaments/:id/match-result", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -583,38 +950,69 @@ router.post("/tournaments/:id/match-result", requireAuth, async (req, res): Prom
   const t = result.tournament;
 
   const { matchId, winnerRegId, score } = req.body ?? {};
-  const winnerRegIdNum = typeof winnerRegId === "number" ? winnerRegId : parseInt(String(winnerRegId), 10);
-  if (typeof matchId !== "string" || isNaN(winnerRegIdNum)) {
-    res.status(400).json({ error: "matchId and winnerRegId are required" }); return;
+  // For SET_BASED / POINT_BASED scores, winner can be derived; we still accept explicit winnerRegId for legacy callers.
+  const winnerRegIdNum = winnerRegId == null ? NaN : (typeof winnerRegId === "number" ? winnerRegId : parseInt(String(winnerRegId), 10));
+  if (typeof matchId !== "string") {
+    res.status(400).json({ error: "matchId yra privalomas" }); return;
+  }
+  // Either a structured score (preferred) or an explicit winnerRegId is required.
+  const hasStructuredScore = score && typeof score === "object" && (score.type === "SET_BASED" || score.type === "POINT_BASED");
+  if (!hasStructuredScore && isNaN(winnerRegIdNum)) {
+    res.status(400).json({ error: "Reikia rezultato arba laimėtojo." }); return;
   }
 
-  const bracket = t.bracketData as BracketData | null;
-  if (!bracket) { res.status(400).json({ error: "Bracket has not been generated yet" }); return; }
+  const sportCfg = getSportConfig(t.sport);
 
-  const upd = applyMatchResult(bracket, matchId, winnerRegIdNum, typeof score === "string" ? score : null);
-  if (!upd.ok) { res.status(400).json({ error: upd.error }); return; }
+  // Run inside a transaction with row-level lock so two simultaneous match-result submissions
+  // can't lose each other's writes (read-modify-write race on bracketData JSON).
+  const txResult = await db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ bracketData: tournamentsTable.bracketData })
+      .from(tournamentsTable)
+      .where(eq(tournamentsTable.id, id))
+      .for("update");
+    const bracket = (locked?.bracketData ?? null) as BracketData | null;
+    if (!bracket) return { ok: false as const, status: 400, error: "Tinklelis dar nesugeneruotas" };
 
-  await db.update(tournamentsTable).set({ bracketData: bracket }).where(eq(tournamentsTable.id, id));
+    const upd = applyMatchResult(
+      bracket,
+      matchId,
+      winnerRegIdNum,
+      hasStructuredScore ? (score as SportScore) : (typeof score === "string" ? score : null),
+      sportCfg,
+    );
+    if (!upd.ok) return { ok: false as const, status: 400, error: upd.error };
 
-  // Notify the next opponent if there is one
+    const resultData = buildResultData(bracket);
+    await tx.update(tournamentsTable)
+      .set({ bracketData: bracket, resultData: resultData ?? null })
+      .where(eq(tournamentsTable.id, id));
+    return { ok: true as const, bracket, resultData, nextOpponent: upd.nextOpponent };
+  });
+
+  if (!txResult.ok) { res.status(txResult.status).json({ error: txResult.error }); return; }
+  const bracket = txResult.bracket;
+  const resultData = txResult.resultData;
+  const upd = { nextOpponent: txResult.nextOpponent };
+
+  // Notify the next opponent if there is one (knockout flows only)
   if (upd.nextOpponent) {
     const [reg] = await db
       .select({ userId: tournamentRegistrationsTable.userId })
       .from(tournamentRegistrationsTable)
       .where(eq(tournamentRegistrationsTable.id, upd.nextOpponent.regId));
-    const winnerName = bracket.rounds.flatMap((r) => r.matches).find((m) => m.matchId === matchId)?.winner?.name ?? "varžovas";
     if (reg?.userId) {
       await sendNotification(
         reg.userId,
         "tournament_match_ready",
         "Jūsų kitas mačas paruoštas",
-        `Turnyras „${t.name}" — laukia kito etapo varžybos prieš ${winnerName}`,
+        `Turnyras „${t.name}" — laukia kito etapo varžybos`,
         `/tournaments/${id}`,
       ).catch(() => {});
     }
   }
 
-  res.json({ ok: true, bracketData: bracket });
+  res.json({ ok: true, bracketData: bracket, resultData });
 });
 
 // --- Legacy create/edit (kept for back-compat) -------------------------------

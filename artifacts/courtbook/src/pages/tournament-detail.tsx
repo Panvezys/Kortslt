@@ -11,8 +11,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck } from "lucide-react";
+import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck, Layers } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
+import { SportScoreInput } from "@/components/sport-score-input";
+import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -34,7 +36,8 @@ const STATUS_COLORS: Record<string, string> = {
 const FORMAT_LABELS: Record<string, string> = {
   single_elimination: "Viengubas pašalinimas",
   double_elimination: "Dvigubas pašalinimas",
-  round_robin: "Round Robin",
+  round_robin: "Grupių etapas",
+  hybrid: "Mišrus (grupės + atkrintamosios)",
   league: "Lyga",
 };
 
@@ -59,98 +62,344 @@ interface Tournament {
   facilityVerified?: boolean;
 }
 
+interface BracketPlayer { regId: number; name: string }
 interface BracketMatch {
   matchId: string;
   round: number;
-  p1: { regId: number; name: string } | null;
-  p2: { regId: number; name: string } | null;
-  winner: { regId: number; name: string } | null;
-  score: string | null;
+  groupId?: string;
+  p1: BracketPlayer | null;
+  p2: BracketPlayer | null;
+  winner: BracketPlayer | null;
+  /** Structured sport score (preferred) or legacy string. */
+  score: SportScore | string | null;
   nextMatchId: string | null;
 }
 
 interface BracketRound { round: number; matches: BracketMatch[] }
-interface BracketData { format: string; generatedAt: string; rounds: BracketRound[] }
+interface RoundRobinGroup { groupId: string; players: BracketPlayer[]; matches: BracketMatch[] }
+
+interface SingleEliminationData { format: "single_elimination"; generatedAt: string; rounds: BracketRound[] }
+interface RoundRobinData { format: "round_robin"; generatedAt: string; groupSize: number; groups: RoundRobinGroup[] }
+interface HybridData {
+  format: "hybrid";
+  generatedAt: string;
+  groupSize: number;
+  groups: RoundRobinGroup[];
+  playoffs: { rounds: BracketRound[] } | null;
+  advancePerGroup: number;
+}
+
+type BracketData = SingleEliminationData | RoundRobinData | HybridData;
 
 interface Court { id: number; name: string; city: string; address: string; phone: string | null; }
 
-function BracketView({
-  bracket,
+/** Render a single match's score, sport-aware, with a legacy string fallback. */
+function renderScoreSides(m: BracketMatch, sport: string): { a: string; b: string } {
+  const s = m.score;
+  if (!s) return { a: "", b: "" };
+  if (typeof s === "string") {
+    const [a = "", b = ""] = s.split("-");
+    return { a: a.trim(), b: b.trim() };
+  }
+  if (s.type === "POINT_BASED") return { a: String(s.a), b: String(s.b) };
+  if (s.type === "SET_BASED") {
+    return {
+      a: s.sets.map((x) => x.a).join(" "),
+      b: s.sets.map((x) => x.b).join(" "),
+    };
+  }
+  // Final fallback – use formatScore (returns "a-b" style)
+  const cfg = getSportConfig(sport);
+  const txt = formatScore(s, cfg);
+  const [a = "", b = ""] = txt.split("-");
+  return { a, b };
+}
+
+function MatchCard({
+  m,
+  sport,
   isOrganizer,
   onEditMatch,
 }: {
-  bracket: BracketData;
+  m: BracketMatch;
+  sport: string;
   isOrganizer: boolean;
   onEditMatch: (m: BracketMatch) => void;
 }) {
-  if (!bracket.rounds?.length) {
+  const isBye = (!m.p1 && m.p2) || (m.p1 && !m.p2);
+  const isComplete = !!m.winner;
+  const canEdit = isOrganizer && !!m.p1 && !!m.p2 && !isComplete;
+  const sides = renderScoreSides(m, sport);
+  return (
+    <div
+      className={`rounded-lg border-2 overflow-hidden text-xs ${
+        isComplete ? "border-primary/40 bg-primary/5" : isBye ? "border-dashed border-border bg-muted/30" : "border-border bg-card"
+      } ${canEdit ? "cursor-pointer hover:border-primary hover:shadow" : ""}`}
+      onClick={() => canEdit && onEditMatch(m)}
+    >
+      <div className={`flex items-center justify-between px-2.5 py-1.5 border-b border-border/50 ${
+        m.winner?.regId === m.p1?.regId ? "bg-primary/10 font-semibold" : ""
+      }`}>
+        <span className="truncate flex items-center gap-1 min-w-0">
+          {m.winner?.regId === m.p1?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+          <span className="truncate">{m.p1?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
+        </span>
+        {isComplete && sides.a && (
+          <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{sides.a}</span>
+        )}
+      </div>
+      <div className={`flex items-center justify-between px-2.5 py-1.5 ${
+        m.winner?.regId === m.p2?.regId ? "bg-primary/10 font-semibold" : ""
+      }`}>
+        <span className="truncate flex items-center gap-1 min-w-0">
+          {m.winner?.regId === m.p2?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
+          <span className="truncate">{m.p2?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
+        </span>
+        {isComplete && sides.b && (
+          <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{sides.b}</span>
+        )}
+      </div>
+      {canEdit && (
+        <div className="px-2 py-1 bg-primary/10 text-[10px] text-primary text-center font-medium">
+          Įvesti rezultatą
+        </div>
+      )}
+      {isBye && !isComplete && (
+        <div className="px-2 py-1 text-[10px] text-muted-foreground text-center italic">BYE</div>
+      )}
+    </div>
+  );
+}
+
+interface StandingsRow {
+  regId: number;
+  name: string;
+  played: number;
+  won: number;
+  lost: number;
+  setsDiff: number;
+  pointsDiff: number;
+  rankPoints: number;
+}
+
+/** Compute standings client-side from a group's matches. Mirrors the API logic (incl. head-to-head tiebreak). */
+function computeStandings(group: RoundRobinGroup): StandingsRow[] {
+  const rows: Record<number, StandingsRow> = {};
+  for (const p of group.players) {
+    rows[p.regId] = { regId: p.regId, name: p.name, played: 0, won: 0, lost: 0, setsDiff: 0, pointsDiff: 0, rankPoints: 0 };
+  }
+  const h2h: Record<number, Record<number, number>> = {};
+  for (const m of group.matches) {
+    if (!m.winner || !m.p1 || !m.p2) continue;
+    const a = rows[m.p1.regId]; const b = rows[m.p2.regId];
+    if (!a || !b) continue;
+    a.played++; b.played++;
+    if (m.winner.regId === m.p1.regId) {
+      a.won++; b.lost++; a.rankPoints += 3;
+      (h2h[m.p1.regId] ??= {})[m.p2.regId] = 1;
+    } else {
+      b.won++; a.lost++; b.rankPoints += 3;
+      (h2h[m.p2.regId] ??= {})[m.p1.regId] = 1;
+    }
+    if (m.score && typeof m.score === "object") {
+      if (m.score.type === "SET_BASED") {
+        let aSets = 0, bSets = 0, aPts = 0, bPts = 0;
+        for (const s of m.score.sets) {
+          aPts += s.a; bPts += s.b;
+          if (s.a > s.b) aSets++; else if (s.b > s.a) bSets++;
+        }
+        a.setsDiff += aSets - bSets; b.setsDiff += bSets - aSets;
+        a.pointsDiff += aPts - bPts; b.pointsDiff += bPts - aPts;
+      } else if (m.score.type === "POINT_BASED") {
+        a.pointsDiff += m.score.a - m.score.b;
+        b.pointsDiff += m.score.b - m.score.a;
+      }
+    }
+  }
+  return Object.values(rows).sort((x, y) => {
+    if (y.rankPoints !== x.rankPoints) return y.rankPoints - x.rankPoints;
+    const xBeatY = h2h[x.regId]?.[y.regId] === 1;
+    const yBeatX = h2h[y.regId]?.[x.regId] === 1;
+    if (xBeatY && !yBeatX) return -1;
+    if (yBeatX && !xBeatY) return 1;
+    if (y.setsDiff !== x.setsDiff) return y.setsDiff - x.setsDiff;
+    if (y.pointsDiff !== x.pointsDiff) return y.pointsDiff - x.pointsDiff;
+    return x.name.localeCompare(y.name);
+  });
+}
+
+function StandingsTable({ group, advance }: { group: RoundRobinGroup; advance?: number }) {
+  const rows = computeStandings(group);
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-border text-muted-foreground">
+            <th className="text-left py-1.5 pr-2 font-medium">#</th>
+            <th className="text-left py-1.5 px-2 font-medium">Žaidėjas</th>
+            <th className="text-center py-1.5 px-1.5 font-medium">Ž</th>
+            <th className="text-center py-1.5 px-1.5 font-medium">L</th>
+            <th className="text-center py-1.5 px-1.5 font-medium">P</th>
+            <th className="text-center py-1.5 px-1.5 font-medium" title="Setų skirtumas">±S</th>
+            <th className="text-center py-1.5 px-1.5 font-medium" title="Taškų skirtumas">±T</th>
+            <th className="text-center py-1.5 pl-1.5 font-semibold">Tšk</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const advances = advance != null && i < advance;
+            return (
+              <tr key={r.regId} className={`border-b border-border/50 ${advances ? "bg-primary/5" : ""}`}>
+                <td className="py-1.5 pr-2 text-muted-foreground tabular-nums">{i + 1}</td>
+                <td className="py-1.5 px-2 truncate max-w-[160px]">
+                  <span className={advances ? "font-semibold" : ""}>{r.name}</span>
+                  {advances && <span className="ml-1.5 text-[10px] text-primary font-medium">↑</span>}
+                </td>
+                <td className="text-center px-1.5 tabular-nums">{r.played}</td>
+                <td className="text-center px-1.5 tabular-nums text-green-600">{r.won}</td>
+                <td className="text-center px-1.5 tabular-nums text-muted-foreground">{r.lost}</td>
+                <td className="text-center px-1.5 tabular-nums">{r.setsDiff > 0 ? `+${r.setsDiff}` : r.setsDiff}</td>
+                <td className="text-center px-1.5 tabular-nums">{r.pointsDiff > 0 ? `+${r.pointsDiff}` : r.pointsDiff}</td>
+                <td className="text-center pl-1.5 tabular-nums font-bold">{r.rankPoints}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GroupBlock({
+  group,
+  sport,
+  isOrganizer,
+  onEditMatch,
+  advance,
+}: {
+  group: RoundRobinGroup;
+  sport: string;
+  isOrganizer: boolean;
+  onEditMatch: (m: BracketMatch) => void;
+  advance?: number;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background/50 p-3 space-y-3">
+      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+        <Layers className="w-3.5 h-3.5 text-primary" />
+        Grupė {group.groupId}
+      </h3>
+      <StandingsTable group={group} advance={advance} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+        {group.matches.map((m) => (
+          <MatchCard key={m.matchId} m={m} sport={sport} isOrganizer={isOrganizer} onEditMatch={onEditMatch} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SingleEliminationView({
+  rounds,
+  sport,
+  isOrganizer,
+  onEditMatch,
+  titleOverride,
+}: {
+  rounds: BracketRound[];
+  sport: string;
+  isOrganizer: boolean;
+  onEditMatch: (m: BracketMatch) => void;
+  titleOverride?: (rIdx: number) => string;
+}) {
+  if (!rounds.length) {
     return <div className="text-sm text-muted-foreground py-8 text-center">Tinklelis tuščias</div>;
   }
   return (
     <div className="overflow-x-auto -mx-4 px-4">
       <div className="flex gap-6 min-w-max pb-2">
-        {bracket.rounds.map((round, rIdx) => (
+        {rounds.map((round, rIdx) => (
           <div key={round.round} className="flex flex-col justify-around gap-3 min-w-[220px]">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground text-center mb-1">
-              {rIdx === bracket.rounds.length - 1
-                ? "Finalas"
-                : rIdx === bracket.rounds.length - 2
-                  ? "Pusfinalis"
-                  : `Raundas ${round.round}`}
+              {titleOverride
+                ? titleOverride(rIdx)
+                : rIdx === rounds.length - 1
+                  ? "Finalas"
+                  : rIdx === rounds.length - 2
+                    ? "Pusfinalis"
+                    : `Raundas ${round.round}`}
             </div>
             <div
               className="flex flex-col gap-3 flex-1 justify-around"
               style={{ paddingTop: `${rIdx * 20}px`, paddingBottom: `${rIdx * 20}px` }}
             >
-              {round.matches.map((m) => {
-                const isBye = (!m.p1 && m.p2) || (m.p1 && !m.p2);
-                const isComplete = !!m.winner;
-                const canEdit = isOrganizer && m.p1 && m.p2 && !isComplete;
-                return (
-                  <div
-                    key={m.matchId}
-                    className={`rounded-lg border-2 overflow-hidden text-xs ${
-                      isComplete ? "border-primary/40 bg-primary/5" : isBye ? "border-dashed border-border bg-muted/30" : "border-border bg-card"
-                    } ${canEdit ? "cursor-pointer hover:border-primary hover:shadow" : ""}`}
-                    onClick={() => canEdit && onEditMatch(m)}
-                  >
-                    <div className={`flex items-center justify-between px-2.5 py-1.5 border-b border-border/50 ${
-                      m.winner?.regId === m.p1?.regId ? "bg-primary/10 font-semibold" : ""
-                    }`}>
-                      <span className="truncate flex items-center gap-1">
-                        {m.winner?.regId === m.p1?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
-                        <span className="truncate">{m.p1?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
-                      </span>
-                      {isComplete && m.score && (
-                        <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{m.score.split("-")[0]}</span>
-                      )}
-                    </div>
-                    <div className={`flex items-center justify-between px-2.5 py-1.5 ${
-                      m.winner?.regId === m.p2?.regId ? "bg-primary/10 font-semibold" : ""
-                    }`}>
-                      <span className="truncate flex items-center gap-1">
-                        {m.winner?.regId === m.p2?.regId && <Crown className="w-3 h-3 text-yellow-500 shrink-0" />}
-                        <span className="truncate">{m.p2?.name ?? <span className="italic text-muted-foreground">—</span>}</span>
-                      </span>
-                      {isComplete && m.score && (
-                        <span className="text-muted-foreground tabular-nums shrink-0 ml-2">{m.score.split("-")[1]}</span>
-                      )}
-                    </div>
-                    {canEdit && (
-                      <div className="px-2 py-1 bg-primary/10 text-[10px] text-primary text-center font-medium">
-                        Įvesti rezultatą
-                      </div>
-                    )}
-                    {isBye && !isComplete && (
-                      <div className="px-2 py-1 text-[10px] text-muted-foreground text-center italic">BYE</div>
-                    )}
-                  </div>
-                );
-              })}
+              {round.matches.map((m) => (
+                <MatchCard key={m.matchId} m={m} sport={sport} isOrganizer={isOrganizer} onEditMatch={onEditMatch} />
+              ))}
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function BracketView({
+  bracket,
+  sport,
+  isOrganizer,
+  onEditMatch,
+}: {
+  bracket: BracketData;
+  sport: string;
+  isOrganizer: boolean;
+  onEditMatch: (m: BracketMatch) => void;
+}) {
+  if (bracket.format === "single_elimination") {
+    return <SingleEliminationView rounds={bracket.rounds} sport={sport} isOrganizer={isOrganizer} onEditMatch={onEditMatch} />;
+  }
+  if (bracket.format === "round_robin") {
+    return (
+      <div className="space-y-4">
+        {bracket.groups.map((g) => (
+          <GroupBlock key={g.groupId} group={g} sport={sport} isOrganizer={isOrganizer} onEditMatch={onEditMatch} />
+        ))}
+      </div>
+    );
+  }
+  // hybrid
+  return (
+    <div className="space-y-5">
+      <div className="space-y-4">
+        {bracket.groups.map((g) => (
+          <GroupBlock
+            key={g.groupId}
+            group={g}
+            sport={sport}
+            isOrganizer={isOrganizer}
+            onEditMatch={onEditMatch}
+            advance={bracket.advancePerGroup}
+          />
+        ))}
+      </div>
+      {bracket.playoffs ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-primary" />
+            Atkrintamosios
+          </h3>
+          <SingleEliminationView
+            rounds={bracket.playoffs.rounds}
+            sport={sport}
+            isOrganizer={isOrganizer}
+            onEditMatch={onEditMatch}
+          />
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground text-center">
+          Atkrintamosios bus sugeneruotos baigus visus grupių mačus.
+        </div>
+      )}
     </div>
   );
 }
@@ -168,8 +417,8 @@ export default function TournamentDetail() {
   const [playerPhone, setPlayerPhone] = useState("");
   const [registered, setRegistered] = useState(false);
   const [scoreMatch, setScoreMatch] = useState<BracketMatch | null>(null);
-  const [scoreInput, setScoreInput] = useState("");
-  const [winnerChoice, setWinnerChoice] = useState<number | null>(null);
+  const [scoreValue, setScoreValue] = useState<SportScore | null>(null);
+  const [scoreValid, setScoreValid] = useState(false);
 
   const { data: tournament, isLoading } = useQuery<Tournament>({
     queryKey: ["tournament", tournamentId],
@@ -226,7 +475,7 @@ export default function TournamentDetail() {
   });
 
   const matchResultMutation = useMutation({
-    mutationFn: async (vars: { matchId: string; winnerRegId: number; score?: string }) => {
+    mutationFn: async (vars: { matchId: string; score?: SportScore; winnerRegId?: number }) => {
       const token = await getToken();
       const r = await fetch(`${API}/tournaments/${tournamentId}/match-result`, {
         method: "POST",
@@ -242,8 +491,8 @@ export default function TournamentDetail() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tournament-bracket", tournamentId] });
       setScoreMatch(null);
-      setScoreInput("");
-      setWinnerChoice(null);
+      setScoreValue(null);
+      setScoreValid(false);
       toast({ title: "Rezultatas išsaugotas" });
     },
     onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
@@ -436,11 +685,12 @@ export default function TournamentDetail() {
                 {bracket ? (
                   <BracketView
                     bracket={bracket}
+                    sport={tournament.sport}
                     isOrganizer={isOrganizer}
                     onEditMatch={(m) => {
                       setScoreMatch(m);
-                      setScoreInput(m.score ?? "");
-                      setWinnerChoice(m.winner?.regId ?? null);
+                      setScoreValue(m.score && typeof m.score === "object" ? m.score : null);
+                      setScoreValid(false);
                     }}
                   />
                 ) : (
@@ -554,57 +804,57 @@ export default function TournamentDetail() {
           </div>
         </div>
       </div>
-      {/* Score entry dialog (organizer-only) */}
-      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); setScoreInput(""); setWinnerChoice(null); } }}>
+      {/* Score entry dialog (organizer-only) — uses sport-aware input */}
+      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); setScoreValue(null); setScoreValid(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Įvesti rezultatą</DialogTitle>
           </DialogHeader>
           {scoreMatch && (
             <div className="space-y-4 pt-2">
-              <p className="text-sm text-muted-foreground">Pasirinkite nugalėtoją:</p>
-              <div className="grid grid-cols-1 gap-2">
-                {scoreMatch.p1 && (
-                  <button
-                    type="button"
-                    onClick={() => setWinnerChoice(scoreMatch.p1!.regId)}
-                    className={`flex items-center justify-between rounded-lg border-2 px-3 py-2.5 text-sm transition-colors ${
-                      winnerChoice === scoreMatch.p1.regId ? "border-primary bg-primary/10 font-semibold" : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <span>{scoreMatch.p1.name}</span>
-                    {winnerChoice === scoreMatch.p1.regId && <Crown className="w-4 h-4 text-yellow-500" />}
-                  </button>
-                )}
-                {scoreMatch.p2 && (
-                  <button
-                    type="button"
-                    onClick={() => setWinnerChoice(scoreMatch.p2!.regId)}
-                    className={`flex items-center justify-between rounded-lg border-2 px-3 py-2.5 text-sm transition-colors ${
-                      winnerChoice === scoreMatch.p2.regId ? "border-primary bg-primary/10 font-semibold" : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <span>{scoreMatch.p2.name}</span>
-                    {winnerChoice === scoreMatch.p2.regId && <Crown className="w-4 h-4 text-yellow-500" />}
-                  </button>
-                )}
+              <div className="flex items-center justify-between text-sm bg-muted/40 rounded-lg px-3 py-2">
+                <span className="truncate">{scoreMatch.p1?.name ?? "—"}</span>
+                <span className="text-muted-foreground text-xs px-2">vs</span>
+                <span className="truncate">{scoreMatch.p2?.name ?? "—"}</span>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Rezultatas (neprivaloma, pvz. 6-3)</Label>
-                <Input value={scoreInput} onChange={e => setScoreInput(e.target.value)} placeholder="6-3" className="h-9 text-sm" />
-              </div>
+              <SportScoreInput
+                sport={tournament.sport}
+                labelA={scoreMatch.p1?.name ?? "A"}
+                labelB={scoreMatch.p2?.name ?? "B"}
+                value={scoreValue}
+                onChange={(s, valid) => { setScoreValue(s); setScoreValid(valid); }}
+                showErrors
+                disabled={matchResultMutation.isPending}
+              />
+              {scoreValue && scoreValid && (() => {
+                const cfg = getSportConfig(tournament.sport);
+                const side = deriveWinner(scoreValue, cfg);
+                if (!side) return (
+                  <p className="text-xs text-destructive">Lygiosios negalimos – nustatykite nugalėtoją.</p>
+                );
+                const winner = side === "a" ? scoreMatch.p1 : scoreMatch.p2;
+                return (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                    Nugalėtojas: <span className="font-semibold text-foreground">{winner?.name ?? "—"}</span>
+                  </p>
+                );
+              })()}
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setScoreMatch(null); setScoreInput(""); setWinnerChoice(null); }}>Atšaukti</Button>
+            <Button variant="outline" onClick={() => { setScoreMatch(null); setScoreValue(null); setScoreValid(false); }}>Atšaukti</Button>
             <Button
-              disabled={!winnerChoice || matchResultMutation.isPending}
+              disabled={!scoreValue || !scoreValid || matchResultMutation.isPending || (() => {
+                if (!scoreValue) return true;
+                const cfg = getSportConfig(tournament.sport);
+                return deriveWinner(scoreValue, cfg) == null;
+              })()}
               onClick={() => {
-                if (!scoreMatch || !winnerChoice) return;
+                if (!scoreMatch || !scoreValue) return;
                 matchResultMutation.mutate({
                   matchId: scoreMatch.matchId,
-                  winnerRegId: winnerChoice,
-                  score: scoreInput.trim() || undefined,
+                  score: scoreValue,
                 });
               }}
             >

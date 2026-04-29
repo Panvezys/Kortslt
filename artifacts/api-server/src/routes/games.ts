@@ -20,6 +20,14 @@ import {
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { calculateTeamElo } from "../lib/elo";
+import {
+  type SportScore,
+  getSportConfig,
+  validateScore,
+  deriveWinner,
+  setsWonFromScore,
+  pointsWonFromScore,
+} from "@workspace/db";
 import { sendMatchInviteEmail } from "../lib/email";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
@@ -883,29 +891,81 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  const { scoreTeamA, scoreTeamB } = req.body ?? {};
-  if (scoreTeamA === undefined || scoreTeamB === undefined) {
-    res.status(400).json({ error: "scoreTeamA and scoreTeamB required" }); return;
-  }
+  // Accept either a structured `score` (preferred, sport-typed) or legacy scoreTeamA/scoreTeamB.
+  const { scoreTeamA, scoreTeamB, score } = req.body ?? {};
+  const hasStructured = score && typeof score === "object" && (score.type === "SET_BASED" || score.type === "POINT_BASED");
 
-  // Check no result yet
-  const [existing] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
-  if (existing) { res.status(400).json({ error: "Result already reported" }); return; }
+  let teamAScore: number;
+  let teamBScore: number;
+  let structuredScore: SportScore | null = null;
+
+  if (hasStructured) {
+    const cfg = getSportConfig(g.sport);
+    const errs = validateScore(score as SportScore, cfg);
+    if (errs.length > 0) { res.status(400).json({ error: errs[0].message }); return; }
+    structuredScore = score as SportScore;
+    // Casual games drive ELO — require an unambiguous winner (no ties).
+    const side = deriveWinner(structuredScore, cfg);
+    if (!side) {
+      res.status(400).json({ error: "Lygiosios negalimos – nustatykite nugalėtoją." }); return;
+    }
+    if (cfg.scoringType === "SET_BASED") {
+      const sets = setsWonFromScore(structuredScore);
+      teamAScore = sets.a;
+      teamBScore = sets.b;
+    } else {
+      const pts = pointsWonFromScore(structuredScore);
+      teamAScore = pts.a;
+      teamBScore = pts.b;
+    }
+  } else {
+    if (scoreTeamA === undefined || scoreTeamB === undefined) {
+      res.status(400).json({ error: "scoreTeamA and scoreTeamB required" }); return;
+    }
+    teamAScore = Number(scoreTeamA);
+    teamBScore = Number(scoreTeamB);
+    if (
+      !Number.isFinite(teamAScore) || !Number.isFinite(teamBScore) ||
+      !Number.isInteger(teamAScore) || !Number.isInteger(teamBScore) ||
+      teamAScore < 0 || teamBScore < 0
+    ) {
+      res.status(400).json({ error: "Rezultatas turi būti neneigiamas sveikasis skaičius." }); return;
+    }
+    if (teamAScore === teamBScore) {
+      res.status(400).json({ error: "Lygiosios negalimos – nustatykite nugalėtoją." }); return;
+    }
+  }
 
   // 24h auto-confirm window
   const autoConfirmAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-  const [result] = await db.insert(gameResultsTable).values({
-    gameId: id,
-    reportedByUserId: userId,
-    scoreTeamA: Number(scoreTeamA),
-    scoreTeamB: Number(scoreTeamB),
-    status: "pending_verification",
-    autoConfirmAt,
-  }).returning();
+  // Wrap insert in a transaction with a row-lock on the game so concurrent submissions can't race
+  // (one will see the other's freshly-inserted result inside the same lock window).
+  const insertOutcome = await db.transaction(async (tx) => {
+    await tx.select({ id: gamesTable.id })
+      .from(gamesTable)
+      .where(eq(gamesTable.id, id))
+      .for("update");
+    const [existing] = await tx.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
+    if (existing) return { ok: false as const, error: "Result already reported" };
 
-  // Update game status
-  await db.update(gamesTable).set({ status: "pending_verification" }).where(eq(gamesTable.id, id));
+    const [created] = await tx.insert(gameResultsTable).values({
+      gameId: id,
+      reportedByUserId: userId,
+      scoreTeamA: teamAScore,
+      scoreTeamB: teamBScore,
+      status: "pending_verification",
+      autoConfirmAt,
+    }).returning();
+
+    await tx.update(gamesTable)
+      .set({ status: "pending_verification", ...(structuredScore ? { resultData: structuredScore } : {}) })
+      .where(eq(gamesTable.id, id));
+    return { ok: true as const, result: created };
+  });
+
+  if (!insertOutcome.ok) { res.status(400).json({ error: insertOutcome.error }); return; }
+  const result = insertOutcome.result;
 
   // Notify all participants (except creator) to confirm
   const participants = await db.select().from(gameParticipantsTable)
@@ -917,7 +977,7 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
         p.userId,
         "result_confirmation",
         "Patvirtinkite žaidimo rezultatą",
-        `${g.creatorName} paskelbė žaidimo rezultatą: ${scoreTeamA}:${scoreTeamB}. Patvirtinkite per 24h.`,
+        `${g.creatorName} paskelbė žaidimo rezultatą: ${teamAScore}:${teamBScore}. Patvirtinkite per 24h.`,
         `/games/${id}`,
       );
     }

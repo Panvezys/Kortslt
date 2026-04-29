@@ -32,6 +32,8 @@ export const tournamentsTable = pgTable("tournaments", {
   format: text("format").notNull().default("single_elimination"),
   // Single-elimination bracket structure produced by /generate-bracket
   bracketData: jsonb("bracket_data"),
+  // Aggregated, sport-specific result/standings payload (round-robin standings, hybrid playoff seeds, etc.)
+  resultData: jsonb("result_data"),
   isFeatured: boolean("is_featured").notNull().default(false),
   featuredUntil: timestamp("featured_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

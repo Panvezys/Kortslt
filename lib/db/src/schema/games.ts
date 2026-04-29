@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { bookingsTable } from "./bookings";
 
 export const gamesTable = pgTable("games", {
@@ -24,6 +24,8 @@ export const gamesTable = pgTable("games", {
   requiresApproval: boolean("requires_approval").notNull().default(false),
   teamCount: integer("team_count").notNull().default(2),
   inviteToken: text("invite_token"),
+  // Sport-specific structured score (SetScore[] for SET_BASED, {a,b} for POINT_BASED).
+  resultData: jsonb("result_data"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

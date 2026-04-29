@@ -72,6 +72,20 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
 - **Resend**: Email service for sending booking confirmations and owner notifications. `RESEND_API_KEY` is a secret.
 - **Google Maps API**: Used for location picking in the owner dashboard and displaying court locations on detail pages.
 - **Leaflet/OpenStreetMap**: Interactive map display on the frontend.
+## Multi-Sport Scoring + Round-Robin/Hybrid Tournament Formats (April 2026)
+
+- **Sports config (`lib/db/src/sports-config.ts`, re-exported from `@workspace/db`)**: Per-sport scoring rules. `SET_BASED` (tennis/padel/squash/table tennis/badminton — best of 3 sets) vs `POINT_BASED` (basketball/football/golf/snooker/bowling — single total). `SportScore` discriminated union (`{type:"SET_BASED", sets:[{a,b}]}` | `{type:"POINT_BASED", a, b}`). Helpers: `validateScore`, `deriveWinner`, `setsWonFromScore`, `pointsWonFromScore`, `formatScore`.
+- **Schema (`lib/db/src/schema/`)**: `tournamentsTable.resultData jsonb` (standings snapshot for round-robin/hybrid) and `gamesTable.resultData jsonb` (structured score). Synced via `db:push --force`.
+- **Tournament generators (`artifacts/api-server/src/routes/tournaments.ts`)**: Discriminated union `BracketData = SingleEliminationData | RoundRobinData | HybridData`. `generateBracket(format, players)` dispatcher. Round-robin: snake-distributed groups of 4. Hybrid: groups + auto-seeded knockout playoffs once all group matches complete. **Seeded** playoff bracket via `seededBracketOrder(n)` + `generateSeededSingleElim(seeds)` (1vN, 2v(N-1) pattern, no shuffle) so cross-group seeding (G1.1 vs G2.2, G2.1 vs G1.2) is preserved.
+- **Standings (`computeGroupStandings`)**: Sorted by `rankPoints` (3pts/win, no draws) → **head-to-head** (winner of direct match ranks higher) → `setsDiff` → `pointsDiff` → name. Same logic mirrored client-side in `tournament-detail.tsx`.
+- **Match-result race protection**: `POST /tournaments/:id/match-result` runs the read-modify-write of `bracketData` inside `db.transaction` with `SELECT ... FOR UPDATE` row lock on the tournament row, preventing lost updates from concurrent submissions (critical for hybrid playoff auto-seed when last 2 group matches submit simultaneously).
+- **Casual games (`POST /games/:id/result` in `routes/games.ts`)**: Accepts structured `score` (preferred, sport-validated) or legacy `scoreTeamA/scoreTeamB`. Both paths reject ties (ELO requires unambiguous winner). Legacy path validates finite non-negative integers. Insert wrapped in transaction with `FOR UPDATE` lock on the game row to prevent double-insert races. Structured score persisted to `gamesTable.resultData`; integer summary derived for ELO.
+- **UI components**:
+  - `artifacts/courtbook/src/components/sport-score-input.tsx` — sport-aware input (3 set rows for SET_BASED, large home/away inputs for POINT_BASED) with inline validation and structured-score output.
+  - `tournament-detail.tsx` — `MatchCard`, `StandingsTable` (cols: Ž/L/P/±S/±T/Tšk), `GroupBlock`, `SingleEliminationView`, hybrid-aware `BracketView`. Score dialog uses `SportScoreInput` with `deriveWinner` preview.
+  - `tournament-create.tsx` — format dropdown (single elimination / round robin / hybrid).
+  - `game-detail.tsx` — `ReportResultDialog` uses `SportScoreInput` with non-tie gating.
+
 ## UI Consistency Pass (April 2026)
 
 Standardization sweep across courtbook frontend:

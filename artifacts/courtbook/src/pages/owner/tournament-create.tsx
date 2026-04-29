@@ -124,6 +124,7 @@ export default function TournamentCreatePage() {
   const [prizeInfo, setPrizeInfo] = useState("");
   const [courtIds, setCourtIds] = useState<number[]>([]);
   const [message, setMessage] = useState("");
+  const [format, setFormat] = useState<string>("single_elimination");
 
   // Filter courts to those matching the chosen sport (if any)
   const filteredCourts = useMemo(() => {
@@ -155,7 +156,7 @@ export default function TournamentCreatePage() {
           maxParticipants: Number(maxParticipants),
           entryFee: entryFee ? Number(entryFee) : undefined,
           prizeInfo: prizeInfo.trim() || undefined,
-          format: "single_elimination",
+          format,
           message: message.trim() || undefined,
         }),
       });
@@ -329,10 +330,29 @@ export default function TournamentCreatePage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[4, 8, 16, 32].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                    {[4, 8, 12, 16, 24, 32, 48, 64].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="format">Formatas</Label>
+              <Select value={format} onValueChange={setFormat}>
+                <SelectTrigger id="format" className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="single_elimination">Viengubas pašalinimas (klasikinis tinklelis)</SelectItem>
+                  <SelectItem value="round_robin">Grupės — kiekvienas su kiekvienu (4 dalyvių grupėse)</SelectItem>
+                  <SelectItem value="hybrid">Mišrus — grupės + atkrintamosios (top 2 iš grupės)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {format === "single_elimination" && "Klasikinis bracket. Pralaimėjęs iškrenta. Greičiausias formatas."}
+                {format === "round_robin" && "Visi grupėje žaidžia tarpusavyje. Garantuoja kelis mačus kiekvienam dalyviui."}
+                {format === "hybrid" && "Grupių etapas + tiesioginės atkrintamosios. Geriausia patirtis didesniems turnyrams."}
+              </p>
             </div>
 
             <div>

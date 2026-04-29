@@ -1,0 +1,70 @@
+1. The Strategy: JSONB and Sport Adapters
+Instead of creating 50 different database tables for 50 different sports, we will use a JSONB column for scores.
+
+The "Score Schema": Each sport will have a definition file that tells the UI how to look.
+
+Tennis/Padel: Shows 3 sets of input fields.
+
+Basketball/Football: Shows two simple "Home/Away" number fields.
+
+The Tournament Engine: We will implement a "Generator Factory" that can produce either a Knockout Bracket or a Round Robin Table.
+
+2. The Master "Multi-Sport & Group Stage" Prompt
+Copy and paste this into your Replit Agent:
+
+Role: Senior Full-Stack Architect.
+
+Objective: Implement a flexible, sport-specific scoring system and add "Group Stage" (Round Robin) support to the Tournament Engine.
+
+Part 1: Flexible Scoring Schema
+
+Database Update: In both gamesTable and tournamentsTable, ensure there is a result_data JSONB column.
+
+Sport Definitions: Create a constant file lib/sports-config.ts that defines the scoring type for each sport:
+
+SET_BASED (Tennis, Padel, Squash): Validates scores as sets (e.g., 6-4, 3-6, 7-6).
+
+POINT_BASED (Basketball, Football, Badminton): Validates scores as simple totals (e.g., 98-102).
+
+TEAM_SIZE: Define default sizes (e.g., Basketball 5v5, Padel 2v2).
+
+Part 2: The Tournament "Group Stage" Engine
+
+New Format: Add round_robin and hybrid (Group Stage + Knockout) to the format options in tournamentsTable.
+
+Generator Update: Update the /generate-bracket logic:
+
+If round_robin: Divide participants into groups of 4. Generate a "Matches" list where everyone in the group plays each other.
+
+If hybrid: Generate the groups, then create a second-stage knockout bracket for the top 2 from each group.
+
+Standings Logic: Create a helper to calculate a "Standings Table" for Round Robin based on points_won, sets_difference, and head-to-head results.
+
+Part 3: Dynamic UI "Scorecards"
+
+Frontend Component: Create a SportScoreInput component that reads the sport type:
+
+If Tennis: Render inputs for Set 1, Set 2, and Set 3.
+
+If Basketball: Render two large numeric inputs for the final score.
+
+Validation: Ensure the UI prevents impossible scores (e.g., a Tennis set cannot be 8-7 unless it's a specific tie-break rule).
+
+Part 4: Games Section (Casual Matches)
+
+Result Entry: Update the "Enter Result" flow for casual games. Instead of a single "Who won?" toggle, use the new SportScoreInput.
+
+ELO Impact: Ensure the ELO math (elo.ts) still works. For now, a "Win is a Win," but the system should store the granular score for the match history.
+
+Part 5: Integration
+
+Update the tournament-detail.tsx to switch between a "Bracket View" (for Knockouts) and a "Table View" (for Group Stages).
+
+Ensure the "Automated Progression" logic works for Group Stages: once all matches in a group are finished, the system should identify the top 2 players and move them to the "Playoffs" bracket.
+
+Why this works:
+The Basketball/Football Problem: By using POINT_BASED logic, you can handle games that end on time (40 minutes) or on score (21 points) without changing your database.
+
+The "Group Stage" Demand: Round Robin is the most requested feature for amateur sports because it guarantees everyone multiple games. This will make your platform much more attractive to organizers.
+
+JSONB Flexibility: If you decide to add a new sport tomorrow (like Darts or Volleyball), you don't need to run a database migration. You just add one entry to your sports-config.ts and the UI adapts automatically.

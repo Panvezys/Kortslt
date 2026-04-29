@@ -172,19 +172,23 @@ function ReportResultDialog({ gameId, isCreator, result, sport }: {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [scoreA, setScoreA] = useState("0");
-  const [scoreB, setScoreB] = useState("0");
+  const [score, setScore] = useState<SportScore | null>(null);
+  const [valid, setValid] = useState(false);
+
+  const winnerSide = score && valid ? deriveWinner(score, getSportConfig(sport)) : null;
 
   const report = useMutation({
     mutationFn: () => customFetch(`${API}/games/${gameId}/result`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scoreTeamA: Number(scoreA), scoreTeamB: Number(scoreB) }),
+      body: JSON.stringify({ score }),
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["game", gameId] });
       qc.invalidateQueries({ queryKey: ["game-result", gameId] });
       toast({ title: "Rezultatas paskelbtas!", description: "Dalyviai gali patvirtinti per 24h." });
       setOpen(false);
+      setScore(null);
+      setValid(false);
     },
     onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
   });
@@ -237,24 +241,28 @@ function ReportResultDialog({ gameId, isCreator, result, sport }: {
           <DialogTitle>Paskelbti žaidimo rezultatą</DialogTitle>
           <DialogDescription>Dalyviai gaus pranešimą ir turės 24h patvirtinti.</DialogDescription>
         </DialogHeader>
-        <div className="flex items-center gap-4 py-4">
-          <div className="flex-1">
-            <Label className="text-sm font-semibold mb-2 block text-center">Komanda A</Label>
-            <Input type="number" min={0} value={scoreA}
-              onChange={e => setScoreA(e.target.value)}
-              className="text-center text-2xl font-bold h-14" />
-          </div>
-          <div className="text-2xl font-bold text-muted-foreground mt-6">:</div>
-          <div className="flex-1">
-            <Label className="text-sm font-semibold mb-2 block text-center">Komanda B</Label>
-            <Input type="number" min={0} value={scoreB}
-              onChange={e => setScoreB(e.target.value)}
-              className="text-center text-2xl font-bold h-14" />
-          </div>
+        <div className="py-2">
+          <SportScoreInput
+            sport={sport}
+            labelA="Komanda A"
+            labelB="Komanda B"
+            value={score}
+            onChange={(s, v) => { setScore(s); setValid(v); }}
+            showErrors
+            disabled={report.isPending}
+          />
+          {score && valid && !winnerSide && (
+            <p className="mt-3 text-xs text-destructive">Lygiosios negalimos – pakoreguokite rezultatą.</p>
+          )}
+          {winnerSide && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Nugalėtoja: <span className="font-semibold text-foreground">Komanda {winnerSide === "a" ? "A" : "B"}</span>
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Atšaukti</Button>
-          <Button onClick={() => report.mutate()} disabled={report.isPending}>
+          <Button onClick={() => report.mutate()} disabled={!score || !valid || !winnerSide || report.isPending}>
             {report.isPending ? "Skelbiama..." : "Paskelbti"}
           </Button>
         </DialogFooter>
