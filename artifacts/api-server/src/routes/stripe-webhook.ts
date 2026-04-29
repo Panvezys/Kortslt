@@ -28,7 +28,7 @@ import {
   sendOwnerBookingNotificationEmail,
 } from "../lib/email";
 import { sendNotification, sendAdminNotification } from "../lib/notify";
-import { computeStatusAfterStripeChange } from "../lib/facility-status";
+import { computeStatusAfterStripeChange, isStripeAccountReady } from "../lib/facility-status";
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const sigHeader = req.headers["stripe-signature"];
@@ -213,8 +213,21 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
 }
 
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-  logger.info({ accountId: account.id, detailsSubmitted: account.details_submitted }, "stripe webhook: account.updated");
-  const stripeComplete = !!account.details_submitted;
+  // Strict readiness: details_submitted alone is insufficient — an account can have
+  // details_submitted=true but charges_enabled=false or a disabled_reason set, in
+  // which case the owner cannot actually accept money. See isStripeAccountReady.
+  const stripeComplete = isStripeAccountReady(account);
+  logger.info(
+    {
+      accountId: account.id,
+      detailsSubmitted: account.details_submitted,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      disabledReason: account.requirements?.disabled_reason ?? null,
+      stripeComplete,
+    },
+    "stripe webhook: account.updated",
+  );
   const newStatus = stripeComplete ? "active" : "pending";
 
   // 1) User-level Connect (owner profile)

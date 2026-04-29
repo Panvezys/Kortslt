@@ -4,6 +4,7 @@ import { db, userProfilesTable } from "@workspace/db";
 import { getCurrentUserId, requireAuth } from "../lib/auth";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
+import { isStripeAccountReady } from "../lib/facility-status";
 
 const router: IRouter = Router();
 
@@ -121,7 +122,10 @@ router.get("/stripe/connect/status", requireAuth, async (req, res): Promise<void
 
   try {
     const account = await stripe.accounts.retrieve(profile.stripeAccountId);
-    const newStatus = account.details_submitted ? "active" : "pending";
+    // Strict readiness — see isStripeAccountReady. An account that submitted
+    // details but isn't actually charges/payouts-enabled stays "pending" so the
+    // owner sees they still need to fix something on Stripe's side.
+    const newStatus = isStripeAccountReady(account) ? "active" : "pending";
     if (newStatus !== profile.stripeAccountStatus) {
       await db
         .update(userProfilesTable)
@@ -133,6 +137,7 @@ router.get("/stripe/connect/status", requireAuth, async (req, res): Promise<void
       accountId: profile.stripeAccountId,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
+      disabledReason: account.requirements?.disabled_reason ?? null,
     });
   } catch (err) {
     logger.error({ err }, "Stripe accounts.retrieve failed");

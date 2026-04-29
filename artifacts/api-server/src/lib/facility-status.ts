@@ -107,6 +107,36 @@ export function computeStatusAfterStripeChange(
   return null;
 }
 
+/**
+ * Strict Stripe Connect readiness predicate. A Connect account is only
+ * considered "ready" — i.e. safe to mark the facility live and accept money —
+ * when ALL of these are true:
+ *   - details_submitted: owner finished onboarding form
+ *   - charges_enabled: Stripe will actually accept payments
+ *   - payouts_enabled: Stripe will actually pay the owner
+ *   - requirements.disabled_reason is empty: no restriction or hold
+ *
+ * Used in: stripe webhook (account.updated), /stripe/connect/status,
+ * facility submit-for-verification, and the admin approval gate (transitively
+ * via the persisted `stripeOnboardingComplete` boolean).
+ */
+export interface StripeReadinessInput {
+  details_submitted?: boolean | null;
+  charges_enabled?: boolean | null;
+  payouts_enabled?: boolean | null;
+  requirements?: { disabled_reason?: string | null } | null;
+}
+
+export function isStripeAccountReady(account: StripeReadinessInput | null | undefined): boolean {
+  if (!account) return false;
+  return (
+    account.details_submitted === true &&
+    account.charges_enabled === true &&
+    account.payouts_enabled === true &&
+    !account.requirements?.disabled_reason
+  );
+}
+
 /** Public-facing labels (Lithuanian). */
 export const FACILITY_STATUS_LABELS: Record<FacilityStatus, string> = {
   draft: "Juodraštis",

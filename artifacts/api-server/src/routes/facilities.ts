@@ -1,13 +1,62 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, facilitiesTable, courtsTable } from "@workspace/db";
+import { db, facilitiesTable, courtsTable, userProfilesTable } from "@workspace/db";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 import { sendAdminNotification, sendNotification } from "../lib/notify";
 import {
   validateForVerification,
   computeNextStatusOnSubmit,
+  isStripeAccountReady,
 } from "../lib/facility-status";
+import { getUncachableStripeClient } from "../stripeClient";
+import { logger } from "../lib/logger";
+
+/**
+ * Cheap readiness check using only the cached `stripeAccountStatus` on the
+ * owner's profile. The webhook keeps this column accurate using the strict
+ * isStripeAccountReady predicate, so 'active' implies the strict predicate
+ * passed at the time of the last account.updated event.
+ *
+ * Used on the hot path of facility creation to avoid a Stripe round trip.
+ */
+async function ownerStripeReadyCached(userId: string): Promise<boolean> {
+  const [profile] = await db
+    .select({ stripeAccountId: userProfilesTable.stripeAccountId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId));
+  if (!profile?.stripeAccountId) return false;
+  return profile.stripeAccountStatus === "active";
+}
+
+/**
+ * Source-of-truth readiness check that calls Stripe directly. Returns one of:
+ *   - { ready: true }            — Stripe says the account is fully ready
+ *   - { ready: false }           — Stripe says the account is NOT ready
+ *   - { ready: false, error: … } — Stripe call failed; caller must NOT promote
+ *
+ * Used at the verification gate. Fail-closed by design: when we can't reach
+ * Stripe, we refuse to advance the facility rather than trusting a possibly
+ * stale cache. The caller surfaces a 503 so the owner retries later.
+ */
+async function ownerStripeReadyLive(
+  userId: string,
+): Promise<{ ready: boolean; error?: string }> {
+  const [profile] = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId));
+  if (!profile?.stripeAccountId) return { ready: false };
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    const account = await stripe.accounts.retrieve(profile.stripeAccountId);
+    return { ready: isStripeAccountReady(account) };
+  } catch (err: any) {
+    logger.warn({ err, userId }, "ownerStripeReadyLive: Stripe call failed — failing closed");
+    return { ready: false, error: err?.message ?? "Stripe unreachable" };
+  }
+}
 
 const router: IRouter = Router();
 
@@ -113,9 +162,20 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // If the owner already has a "ready" Stripe Connect account, pre-populate the new
+  // facility's stripeOnboardingComplete=true so they don't get stuck in 'onboarding'
+  // when they later submit it. We use the cached profile status here for speed; the
+  // submit-for-verification endpoint does a live re-check so any cache drift is
+  // corrected before the facility actually enters the verification queue.
+  const stripeReady = await ownerStripeReadyCached(userId);
+
   const [facility] = await db
     .insert(facilitiesTable)
-    .values({ ...parsed.data, ownerUserId: userId })
+    .values({
+      ...parsed.data,
+      ownerUserId: userId,
+      stripeOnboardingComplete: stripeReady,
+    })
     .returning();
 
   // Note: new facilities default to 'draft' and are NOT in the verification queue yet.
@@ -225,6 +285,25 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
       issues,
     });
     return;
+  }
+
+  // Live Stripe sync — fail-closed. Re-check readiness against Stripe directly
+  // before computing nextStatus so a missed webhook can't leave a facility stuck,
+  // AND a stripe outage can't promote a stale-cached facility past the gate.
+  const liveResult = await ownerStripeReadyLive(userId);
+  if (liveResult.error) {
+    // Stripe unreachable — refuse to advance. Owner retries when Stripe recovers.
+    res.status(503).json({
+      error: "Nepavyko pasiekti Stripe paslaugos. Bandykite dar kartą po kelių sekundžių.",
+    });
+    return;
+  }
+  if (liveResult.ready !== facility.stripeOnboardingComplete) {
+    await db
+      .update(facilitiesTable)
+      .set({ stripeOnboardingComplete: liveResult.ready })
+      .where(eq(facilitiesTable.id, id));
+    facility.stripeOnboardingComplete = liveResult.ready;
   }
 
   const nextStatus = computeNextStatusOnSubmit(facility);
