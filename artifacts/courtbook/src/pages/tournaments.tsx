@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarDays, Euro, Users, Trophy, Search, MapPin, Clock, X, ShieldCheck } from "lucide-react";
+import { CalendarDays, Euro, Users, Trophy, Search, Clock, X, ShieldCheck, Zap, Plus, ListOrdered } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
+import { useRole } from "@/lib/useRole";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -169,6 +170,8 @@ export default function TournamentsPage() {
   });
 
   const openCount = tournaments.filter(t => t.status === "open").length;
+  const { isOwner, isCoach } = useRole();
+  const canCreate = isOwner || isCoach;
 
   const activeFilters = (sport !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (search ? 1 : 0);
   const resetFilters = () => { setSearch(""); setSport("all"); setStatus("all"); };
@@ -206,6 +209,31 @@ export default function TournamentsPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 {openCount} turnyr{openCount === 1 ? "as" : "ai"} priima registracijas
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* USP banner: automated brackets */}
+        <div className="max-w-6xl mx-auto px-4 pt-6">
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-foreground">Automatinės lentelės</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Mūsų sistema automatiškai generuoja burtus ir seka rezultatus gyvai. Nugalėtojai keliami į kitą etapą iškart po patvirtinimo.
+                </p>
+              </div>
+            </div>
+            {canCreate && (
+              <Button asChild size="sm" className="shrink-0 gap-2 self-start sm:self-auto">
+                <Link href="/owner/tournaments">
+                  <Plus className="w-4 h-4" />
+                  Sukurti turnyrą
+                </Link>
+              </Button>
             )}
           </div>
         </div>
@@ -264,11 +292,60 @@ export default function TournamentsPage() {
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={<Trophy className="w-12 h-12" />}
-              title="Turnyrų nerasta"
-              description="Pabandykite pakeisti filtrus"
-            />
+            <div className="space-y-6">
+              <EmptyState
+                icon={<Trophy className="w-12 h-12" />}
+                title="Turnyrų nerasta"
+                description={activeFilters > 0 ? "Pabandykite pakeisti filtrus." : "Šiuo metu nėra paskelbtų turnyrų. Patikrinkite vėliau arba sukurkite savo."}
+                action={
+                  activeFilters > 0 ? (
+                    <Button variant="outline" size="sm" onClick={resetFilters} className="gap-2">
+                      <X className="w-4 h-4" />
+                      Valyti filtrus
+                    </Button>
+                  ) : canCreate ? (
+                    <Button asChild size="sm" className="gap-2">
+                      <Link href="/owner/tournaments">
+                        <Plus className="w-4 h-4" />
+                        Sukurti turnyrą
+                      </Link>
+                    </Button>
+                  ) : null
+                }
+              />
+
+              {/* Tournament Guide card — explains the format */}
+              <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                <div className="bg-muted/40 border-b border-border px-5 py-3 flex items-center gap-2">
+                  <ListOrdered className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-foreground text-sm">Turnyrų vadovas</h3>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-1.5 flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-primary" />
+                      Single Elimination (Pašalinimas)
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Klasikinis formatas: pralaimėjęs žaidėjas iškrenta, nugalėtojas keliasi į kitą etapą. Lentelės dydis automatiškai pritaikomas pagal dalyvių skaičių (4, 8 arba 16).
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    {[
+                      { step: "1", title: "Registruokitės", desc: "Pasirinkite turnyrą ir užsiregistruokite iki termino." },
+                      { step: "2", title: "Žaiskite mačus", desc: "Sistema sugeneruoja burtus ir paskirsto aikštynus." },
+                      { step: "3", title: "Tobulėkite", desc: "Rezultatai patvirtinami gyvai, ELO atnaujinamas iškart." },
+                    ].map(s => (
+                      <div key={s.step} className="rounded-xl border border-border bg-background p-3">
+                        <div className="text-xs font-bold text-primary mb-1">0{s.step}</div>
+                        <p className="font-medium text-sm text-foreground">{s.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{s.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filtered.map(t => <TournamentCard key={t.id} t={t} />)}

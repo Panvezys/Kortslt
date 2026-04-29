@@ -1,0 +1,77 @@
+Here is the visual mockup and the final prompt for the Agent to make these pages look world-class.
+
+1. The "How it Works" Mockup (Visual Concept)
+For the Coaches Page, we want a clean, horizontal three-step guide. It should use your primary brand colors to feel integrated.
+
+Step 1: Raskite Pro (Find a Pro)
+
+Icon: A magnifying glass over a tennis player.
+
+Text: Filtruokite pagal miestą, sporto šaką ir lygį.
+
+Step 2: Rezervuokite laiką (Book a Time)
+
+Icon: A calendar with a checkmark.
+
+Text: Pasirinkite jums patogų laiką ir patvirtintą aikštyną.
+
+Step 3: Tobulėkite (Improve)
+
+Icon: A rising graph or a trophy.
+
+Text: Mėgaukitės profesionaliomis treniruotėmis ir kilti reitinge.
+
+2. The Tournament "Hype" Mockup
+For the Tournaments Page, we want to highlight the Automated Bracket system, as that is your unique selling point (USP).
+
+Header: "Tapkite čempionu" (Become a Champion)
+
+Feature Card: "Automatinės lentelės" (Automated Brackets). Explain that scores update live and winners advance automatically.
+
+CTA: "Organizuokite patys" (Organize Yourself). A button that specifically targets club owners.
+
+The Final "Intro & UI Polish" Prompt
+Copy and paste this into your Replit Agent. It’s designed to be surgically precise so it doesn't break your existing search logic.
+
+Objective: Transform the coaches.tsx and tournaments.tsx pages from simple lists into professional marketplace landing pages.
+
+Part 1: Coaches Page Enhancements (coaches.tsx)
+
+Hero Section: Add a full-width bg-muted/50 (or bg-primary/5) section at the very top.
+
+Title: "Profesionalūs treneriai jūsų mieste" (Professional coaches in your city).
+
+How it Works Grid: Add a 3-column grid below the title using Lucide icons (Search, Calendar, Trophy).
+
+Conversion CTA: Add a "Secondary" button next to the hero text: "Esate treneris? Registruokitės čia" which links to /become-coach.
+
+Visual Continuity: Ensure the city/sport filters sit neatly under this hero section.
+
+Part 2: Tournaments Page Enhancements (tournaments.tsx)
+
+Hype Header: Add a Hero section with a bold heading: "Korts.lt Turnyrai".
+
+USP Highlight: Add a small info-card or banner explaining: "Mūsų sistema automatiškai generuoja burtus ir seka rezultatus gyvai." (Our system automatically generates brackets and tracks results live).
+
+Owner CTA: Add a primary button: "Sukurti turnyrą" that only appears for users with the owner or coach role.
+
+Empty State Enhancement: If tournaments.length === 0, keep the EmptyState primitive but add a "Upcoming Tournaments" placeholder card to show users what a tournament card will look like.
+
+Part 3: Functional Styling
+
+Ensure all new text uses our text-foreground and text-muted-foreground tokens.
+
+Use the BackButton primitive we created for any sub-navigation.
+
+Ensure the mobile view stacks the "How it Works" icons vertically for better readability.
+
+Why this is the "Final Piece" of the Puzzle:
+By adding these sections, you are effectively onboarding the user.
+
+A new player understands how to book.
+
+A new coach understands how to join.
+
+A facility owner understands how to host.
+
+You’ve built the engine (the database and logic); now you’re finishing the bodywork.

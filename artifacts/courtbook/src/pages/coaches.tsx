@@ -11,7 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search, SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronDown,
-  MapPin, CalendarDays, User, Euro, Clock, Trophy,
+  MapPin, CalendarDays, Euro, Clock,
+  GraduationCap, CalendarCheck, TrendingUp,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -579,6 +580,40 @@ export default function CoachesPage() {
               <Search className="h-3.5 w-3.5" />
               Ieškoti
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── How it works (3-step intro) ── */}
+      <section className="bg-primary/5 border-b border-border">
+        <div className="container mx-auto px-4 py-8 md:py-10">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-foreground">Kaip tai veikia</h2>
+              <p className="text-sm text-muted-foreground mt-1">Trys paprasti žingsniai iki pirmosios treniruotės.</p>
+            </div>
+            <Button asChild variant="outline" size="sm" className="gap-2 self-start md:self-auto">
+              <Link href="/become-coach">
+                <GraduationCap className="h-4 w-4" />
+                Esate treneris? Registruokitės čia
+              </Link>
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { icon: Search, title: "Raskite Pro", desc: "Filtruokite pagal miestą, sporto šaką ir lygį.", step: 1 },
+              { icon: CalendarCheck, title: "Rezervuokite laiką", desc: "Pasirinkite jums patogų laiką ir patvirtintą aikštyną.", step: 2 },
+              { icon: TrendingUp, title: "Tobulėkite", desc: "Mėgaukitės profesionaliomis treniruotėmis ir kilkite reitinge.", step: 3 },
+            ].map(({ icon: Icon, title, desc, step }) => (
+              <div key={step} className="relative bg-card border border-border rounded-2xl p-5 hover:border-primary/40 hover:shadow-sm transition-all">
+                <div className="absolute top-3 right-3 text-xs font-bold text-muted-foreground/40 tabular-nums">0{step}</div>
+                <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-semibold text-foreground mb-1">{title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
