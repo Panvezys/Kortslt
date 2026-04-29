@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useLocation, useParams, Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
-import { Layout } from "@/components/layout";
+import { OwnerLayout } from "@/components/owner-layout";
 import { CourtIcon } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
@@ -978,72 +978,6 @@ function MembershipPlanManager({ courtId }: { courtId: number }) {
   );
 }
 
-// ── Owner sidebar ──────────────────────────────────────────────────────────────
-
-function buildFacilityNavItems(facilityId: number | string) {
-  const fid = Number(facilityId);
-  return [
-    { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard?facility=${fid}` },
-    { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner/facility/${fid}` },
-    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments?facility=${fid}` },
-    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings?facility=${fid}` },
-  ];
-}
-
-function FacilitySidebar({ open, onClose, currentPath, facilityId, facilityName }: {
-  open: boolean; onClose: () => void; currentPath: string; facilityId: number | string; facilityName?: string;
-}) {
-  const [, navigate] = useLocation();
-  const NAV_ITEMS = buildFacilityNavItems(facilityId);
-  return (
-    <>
-      {open && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-60 bg-card border-r border-border flex flex-col
-        transition-transform duration-200
-        ${open ? "translate-x-0" : "-translate-x-full"}
-        md:relative md:translate-x-0 md:flex md:z-auto
-      `}>
-        <div className="flex items-center justify-between px-5 h-16 border-b border-border shrink-0">
-          <Link href="/" className="font-bold text-lg tracking-tight">korts<span className="text-primary">.lt</span></Link>
-          <button onClick={onClose} className="md:hidden p-1 rounded hover:bg-muted transition-colors"><X className="h-4 w-4" /></button>
-        </div>
-        {facilityName && (
-          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">Objektas</p>
-            <p className="text-sm font-medium truncate">{facilityName}</p>
-          </div>
-        )}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">Valdymas</p>
-          {NAV_ITEMS.map(item => {
-            const isActive = currentPath === item.href || (item.label === "Mano aikštelės" && currentPath.includes(`/owner/facility/${facilityId}`));
-            return (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={e => { e.preventDefault(); onClose(); navigate(item.href.replace(BASE_URL, "") || "/"); }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-        </nav>
-        <div className="border-t border-border px-3 py-3">
-          <button onClick={() => navigate("/")} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-            <LogOut className="h-4 w-4" />
-            Grįžti į svetainę
-          </button>
-        </div>
-      </aside>
-    </>
-  );
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function OwnerFacilityDetail() {
@@ -1054,7 +988,6 @@ export default function OwnerFacilityDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mapKey, setMapKey] = useState(0);
@@ -1335,55 +1268,42 @@ export default function OwnerFacilityDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facility, courts]);
 
-  const currentPath = `${BASE_URL}/owner/facility/${id}`;
-
   if (facilityLoading || courtsLoading) {
     return (
-      <div className="flex h-screen bg-muted/20 overflow-hidden">
-        <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id ?? 0} />
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <div className="h-16 border-b border-border flex items-center px-6"><Skeleton className="h-5 w-48" /></div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[1,2,3].map(i => <Skeleton key={i} className="h-64 rounded-2xl" />)}
-            </div>
+      <OwnerLayout facilityId={id ? Number(id) : undefined} title="Aikštelės">
+        <div className="p-4 md:p-6 space-y-4">
+          <Skeleton className="h-5 w-48" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[1,2,3].map(i => <Skeleton key={i} className="h-64 rounded-2xl" />)}
           </div>
         </div>
-      </div>
+      </OwnerLayout>
     );
   }
 
   if (!facility) {
     return (
-      <div className="flex h-screen bg-muted/20 overflow-hidden">
-        <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id ?? 0} />
-        <div className="flex-1 flex items-center justify-center">
+      <OwnerLayout facilityId={id ? Number(id) : undefined} title="Aikštelės">
+        <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <h2 className="text-xl font-semibold mb-2">Objektas nerastas</h2>
             <Button onClick={() => navigate("/owner")}>Grįžti</Button>
           </div>
         </div>
-      </div>
+      </OwnerLayout>
     );
   }
 
   return (
-    <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <FacilitySidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={id!} facilityName={facility.name} />
-
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Top bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
-              <Menu className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="font-bold text-base leading-tight">{facility.name}</h1>
-              <p className="text-xs text-muted-foreground">Aikštelės</p>
-            </div>
+    <OwnerLayout facilityId={Number(id)} facilityName={facility.name} title="Aikštelės">
+      <div className="p-4 md:p-6">
+        {/* Page header (facility-scoped actions) */}
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{facility.name}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Aikštelės</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setFacilityEditOpen(true)}>
               <Edit2 className="w-3.5 h-3.5" /> Redaguoti objektą
             </Button>
@@ -1393,10 +1313,9 @@ export default function OwnerFacilityDetail() {
               </Badge>
             )}
           </div>
-        </header>
+        </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
-          {/* Facility stats row */}
+        {/* Facility stats row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <div className="bg-card border border-border rounded-2xl p-4">
               <p className="text-xs text-muted-foreground mb-1">Kortai</p>
@@ -2002,9 +1921,8 @@ export default function OwnerFacilityDetail() {
               queryClient.invalidateQueries({ queryKey: ["admin-facilities"] });
             }}
           />
-        </div>
       </div>
-    </div>
+    </OwnerLayout>
   );
 }
 

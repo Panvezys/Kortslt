@@ -87,16 +87,16 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
     <>
       {open && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          className="fixed inset-0 bg-black/50 z-[55] md:hidden"
           onClick={onClose}
         />
       )}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 w-60 bg-card border-r border-border flex flex-col
+          fixed inset-y-0 left-0 z-[60] w-60 bg-card border-r border-border flex flex-col
           transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full"}
-          md:sticky md:translate-x-0 md:flex md:z-auto md:self-start
+          md:sticky md:translate-x-0 md:flex md:self-start md:z-auto
           md:top-16 md:h-[calc(100dvh-4rem)]
         `}
       >
@@ -190,7 +190,7 @@ export function OwnerLayout({
           facilityName={facilityName}
         />
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-border bg-card sticky top-16 z-20">
+          <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-border bg-card">
             <button
               onClick={() => setSidebarOpen(true)}
               className="p-1.5 -ml-1 rounded hover:bg-muted transition-colors"

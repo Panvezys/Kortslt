@@ -432,15 +432,7 @@ function BookingInfoModal({ booking, onClose }: { booking: OwnerBooking; onClose
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function OwnerDashboard() {
-  const { user } = useUser();
-  const [location] = useLocation();
-  const currentPath = `${BASE_URL}${location}`;
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const facilityId = useMemo(() => {
-    const params = new URLSearchParams(window.location.search);
-    const v = params.get("facility");
-    return v ? Number(v) : undefined;
-  }, [location]);
+  const facilityId = useFacilityId();
   const [blockOpen, setBlockOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreCourtId, setManualPreCourtId] = useState<number | undefined>();
@@ -537,46 +529,14 @@ export default function OwnerDashboard() {
   ];
 
   return (
-    <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} currentPath={currentPath} facilityId={facilityId} />
-
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
-        {/* Top bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
-              <Menu className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="font-bold text-base leading-tight">
-                {data?.facility ? data.facility.name : "Suvestinė"}
-              </h1>
-              <p className="text-xs text-muted-foreground capitalize hidden sm:block">
-                {data?.facility ? "Suvestinė · " : ""}{todayLabel}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
-              <Bell className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-2 pl-2 border-l border-border ml-1">
-              {user?.imageUrl ? (
-                <img src={user.imageUrl} className="w-7 h-7 rounded-full object-cover" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                  {user?.firstName?.[0] ?? "O"}
-                </div>
-              )}
-              <span className="text-sm font-medium hidden sm:block">{user?.firstName ?? "Savininkas"}</span>
-            </div>
-          </div>
-        </header>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 md:p-6 space-y-5">
+    <OwnerLayout facilityId={facilityId} facilityName={data?.facility?.name} title="Suvestinė">
+      <div className="p-4 md:p-6 space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Suvestinė</h1>
+          <p className="text-sm text-muted-foreground capitalize mt-0.5">
+            {data?.facility ? `${data.facility.name} · ` : ""}{todayLabel}
+          </p>
+        </div>
 
             {/* Stats row */}
             <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -777,7 +737,7 @@ export default function OwnerDashboard() {
                         </div>
                       )}
                       <Separator className="my-3" />
-                      <a href={`${BASE_URL}/owner/payments`} className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                      <a href={`${BASE_URL}/owner/payments${facilityId ? `?facility=${facilityId}` : ""}`} className="text-xs text-primary hover:underline flex items-center gap-0.5">
                         Visos pajamos <ChevronRight className="h-3 w-3" />
                       </a>
                     </>
@@ -788,7 +748,7 @@ export default function OwnerDashboard() {
                 <div className="bg-card border border-border rounded-2xl flex-1 flex flex-col overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
                     <h3 className="text-sm font-semibold">Naujausi užsakymai</h3>
-                    <a href={`${BASE_URL}/owner/payments`} className="text-xs text-primary hover:underline flex items-center gap-0.5">
+                    <a href={`${BASE_URL}/owner/payments${facilityId ? `?facility=${facilityId}` : ""}`} className="text-xs text-primary hover:underline flex items-center gap-0.5">
                       Visi <ChevronRight className="h-3 w-3" />
                     </a>
                   </div>
@@ -846,8 +806,6 @@ export default function OwnerDashboard() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
       {/* Modals */}
       <ManualBookingModal
@@ -868,6 +826,6 @@ export default function OwnerDashboard() {
           onClose={() => setSelectedBooking(null)}
         />
       )}
-    </div>
+    </OwnerLayout>
   );
 }
