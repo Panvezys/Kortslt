@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, uniqueIndex } from "drizzle-orm/pg-core";
 import { courtsTable } from "./courts";
 
 export const coachesTable = pgTable("coaches", {
@@ -23,7 +23,9 @@ export const courtCoachesTable = pgTable("court_coaches", {
   courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
   coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  uniqCourtCoach: uniqueIndex("court_coaches_court_id_coach_id_unique").on(t.courtId, t.coachId),
+}));
 
 export const courtCoachInvitationsTable = pgTable("court_coach_invitations", {
   id: serial("id").primaryKey(),

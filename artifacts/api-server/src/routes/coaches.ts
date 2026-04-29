@@ -712,7 +712,14 @@ router.post("/owner/respond-to-coach", requireOwner, async (req, res): Promise<v
     const [existing] = await db.select().from(courtCoachesTable)
       .where(and(eq(courtCoachesTable.courtId, court.id), eq(courtCoachesTable.coachId, coach.id)));
     if (!existing) {
-      await db.insert(courtCoachesTable).values({ courtId: court.id, coachId: coach.id });
+      try {
+        await db.insert(courtCoachesTable).values({ courtId: court.id, coachId: coach.id });
+      } catch (err: unknown) {
+        // Postgres unique_violation (23505) — a concurrent approval already created the link.
+        // The end state (coach approved on this court) is what we want, so swallow and continue.
+        const code = (err as { code?: string } | null)?.code;
+        if (code !== "23505") throw err;
+      }
     }
     await sendNotification(invite.targetUserId, "court_coach_approved",
       "Paraiška patvirtinta",
