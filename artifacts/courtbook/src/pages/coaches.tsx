@@ -54,6 +54,7 @@ interface Coach {
   sports: string[];
   availabilityDescription?: string;
   phone?: string;
+  cities?: string[];
 }
 
 async function fetchCoaches(): Promise<Coach[]> {
@@ -262,7 +263,10 @@ export default function CoachesPage() {
       (c.bio ?? "").toLowerCase().includes(search.toLowerCase());
     const matchesSport = activeSports.size === ALL_SPORTS.length || c.sports.some(s => activeSports.has(s));
     const matchesPrice = c.pricePerHour == null || c.pricePerHour <= maxPrice;
-    return matchesSearch && matchesSport && matchesPrice;
+    const matchesCity = !searchCity || (c.cities ?? []).some(
+      city => city.toLowerCase() === searchCity.toLowerCase()
+    );
+    return matchesSearch && matchesSport && matchesPrice && matchesCity;
   });
 
   const sortedCoaches = [...filteredCoaches].sort((a, b) => {

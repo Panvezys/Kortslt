@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  LayoutDashboard, Building2, CreditCard, Settings,
+  LayoutDashboard, Building2, CreditCard, Settings, Users,
   Euro, Percent, CalendarDays, BanknoteIcon, Bell, ChevronRight,
   Plus, Phone, X, Menu, LogOut, CheckCircle2, Clock, BarChart3,
   ArrowUpRight,
@@ -166,6 +166,7 @@ function buildNavItems(facilityId?: number) {
   return [
     { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
+    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
     { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
     { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
   ];

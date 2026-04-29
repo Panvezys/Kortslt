@@ -105,6 +105,25 @@ export async function requireOwner(req: Request, res: Response, next: NextFuncti
   }
 }
 
+/** Express middleware: requires role === 'admin' or 'coach' */
+export async function requireCoach(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin" && role !== "coach") {
+      res.status(403).json({ error: "Forbidden – coach or admin only" });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** Returns true if the current request's userId matches the court owner (or is admin) */
 export async function isOwner(req: Request, ownerUserId: string | null | undefined): Promise<boolean> {
   const { userId } = getAuth(req);

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
-  LayoutDashboard, Building2, CreditCard, Settings,
+  LayoutDashboard, Building2, CreditCard, Settings, Users,
   Menu, X, LogOut, Save,
 } from "lucide-react";
 import { useUser } from "@clerk/react";
@@ -21,6 +21,7 @@ function buildNavItems(facilityId?: number) {
   return [
     { icon: LayoutDashboard, label: "Suvestinė",      href: facilityId ? `${BASE_URL}/owner/dashboard?facility=${facilityId}` : `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: facilityId ? `${BASE_URL}/owner/facility/${facilityId}` : `${BASE_URL}/owner` },
+    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
     { icon: CreditCard,      label: "Mokėjimai",      href: facilityId ? `${BASE_URL}/owner/payments?facility=${facilityId}` : `${BASE_URL}/owner/payments` },
     { icon: Settings,        label: "Nustatymai",     href: facilityId ? `${BASE_URL}/owner/settings?facility=${facilityId}` : `${BASE_URL}/owner/settings` },
   ];

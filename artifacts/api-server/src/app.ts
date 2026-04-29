@@ -78,7 +78,7 @@ app.use("/courts", express.static(courtsDir, {
 // ─── Sitemap (must be BEFORE static middleware so it takes precedence over
 // the stale /sitemap.xml file copied into dist/public by Vite) ───────────────
 // Dynamically generated XML sitemap for Google Search Console / Bing.
-// Lists all public, indexable routes plus approved courts/coaches/trainers/
+// Lists all public, indexable routes plus approved courts/coaches/
 // tournaments/games. See routes/sitemap.ts for details.
 app.use(sitemapRouter);
 
@@ -171,7 +171,7 @@ app.use(express.urlencoded({ extended: true }));
 //
 // Publicly accessible (no authentication required):
 //   / /privacy /delete-account /terms /faq /contact
-//   /courts/** /coaches/** /trainers/** /tournaments/** /games/**
+//   /courts/** /coaches/** /tournaments/** /games/**
 //   /ranks /owners /list-your-court /become-coach /become-owner
 //   /sitemap.xml /robots.txt /api/health /api/courts/** /api/stats/**
 app.use(clerkMiddleware());

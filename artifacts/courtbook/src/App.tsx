@@ -30,8 +30,6 @@ import SignInPage from "@/pages/sign-in";
 import SignUpPage from "@/pages/sign-up";
 import CoachPage from "@/pages/coach";
 import CoachesPage from "@/pages/coaches";
-import TrainersPage from "@/pages/trainers";
-import TrainerDetail from "@/pages/trainer-detail";
 import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
 import ListYourCourt from "@/pages/list-your-court";
@@ -58,6 +56,7 @@ const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
 const OwnerDashboard = lazy(() => import("@/pages/owner/dashboard"));
 const OwnerSettings = lazy(() => import("@/pages/owner/settings"));
 const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
+const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
 const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 
 const queryClient = new QueryClient();
@@ -200,6 +199,7 @@ function Router() {
       <Route path="/owner/dashboard" component={() => <OwnerRoute><Suspense fallback={null}><OwnerDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
       <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
+      <Route path="/owner/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCoaches /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
@@ -210,8 +210,6 @@ function Router() {
       <Route path="/booking-confirmed" component={BookingConfirmed} />
       <Route path="/payment-cancel" component={PaymentCancel} />
       <Route path="/coaches" component={CoachesPage} />
-      <Route path="/trainers" component={TrainersPage} />
-      <Route path="/trainers/:id" component={TrainerDetail} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
       <Route path="/games" component={GamesPage} />

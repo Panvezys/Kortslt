@@ -7,6 +7,22 @@ import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
+// Public: minimal facility list for pickers (e.g. coach apply form).
+// Only verified facilities are exposed to avoid leaking unapproved owner data.
+router.get("/facilities/public", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: facilitiesTable.id,
+      name: facilitiesTable.name,
+      city: facilitiesTable.city,
+      address: facilitiesTable.address,
+    })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.verificationStatus, "verified"))
+    .orderBy(facilitiesTable.name);
+  res.json(rows);
+});
+
 router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   if (!userId) {

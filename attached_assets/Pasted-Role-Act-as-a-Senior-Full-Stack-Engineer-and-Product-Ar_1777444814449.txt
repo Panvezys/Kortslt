@@ -1,0 +1,51 @@
+Role: Act as a Senior Full-Stack Engineer and Product Architect.
+
+Objective: Consolidate our "Coaching" and "Training" systems into a single, professional "Coaches Marketplace" and build a bidirectional approval workflow between Coaches and Facility Owners.
+
+Part 1: Cleanup & Consolidation
+
+Delete the Trainer System: Completely remove the trainers table and all associated logic. Delete the following files: lib/db/src/schema/trainers.ts, artifacts/api-server/src/routes/trainers.ts, artifacts/courtbook/src/pages/trainers.tsx, and trainer-detail.tsx.
+
+Standardize on Coaches: We will exclusively use the coachesTable, courtCoachesTable, and courtCoachInvitationsTable architecture.
+
+Part 2: Bidirectional Approval Workflow (Logic)
+
+Update courtCoachInvitationsTable: Ensure the initiated_by column supports both 'owner' (Facility inviting a Coach) and 'coach' (Coach applying to a Facility).
+
+Endpoint - Coach Requests: Create a POST route /api/coaches/apply-to-facility where a Coach can search for a facility and send a request to teach there.
+
+Endpoint - Owner Response: Create a POST route /api/owner/respond-to-coach where a Facility Owner can ACCEPT or REJECT a pending coach request.
+
+Automation: If a request is ACCEPTED, automatically insert a record into courtCoachesTable to link them.
+
+Part 3: The Coach Experience (UI)
+
+Coach Dashboard Update: On the Coach’s private profile/dashboard, add a 'My Facilities' section.
+
+Facility Search: Add a search bar or list of available Facilities (from the facilities table). Allow the Coach to click 'Apply to teach here'.
+
+Status Tracking: Show the Coach their pending applications and which facilities they are currently 'Active' at.
+
+Part 4: The Owner Experience (UI)
+
+Manage Staff Tab: In the Owner Dashboard, add a 'Coaches & Staff' tab.
+
+Pending Requests: Display a list of Coaches waiting for approval to work at their courts. Show the Coach’s bio, sports, and price.
+
+Roster Management: Display a list of already approved Coaches. Provide a 'Remove' button to unlink a coach if they no longer work there.
+
+Part 5: The Public Marketplace (Frontend)
+
+Coach Profile Page (coach.tsx): Update the profile to dynamically list every Facility where that coach is approved to teach.
+
+Facility Page Integration: On the individual Court/Facility page, add a 'Available Coaches' section that shows the profiles of coaches linked to that specific court.
+
+Professional UI: Enhance the coaches.tsx search page with filters for Sport and City. Ensure the cards look premium (showing the coach's badge, price, and primary sports).
+
+Part 6: Roles & Permissions
+
+Ensure that only users with the coach role can apply to facilities.
+
+Ensure that only users with the owner role can approve coaches for their specific facilities.
+
+Ensure the 'Become a Coach' flow (become-coach.tsx) correctly updates the user's role in the database/Clerk upon approval.

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
-import { db, coachesTable, courtCoachesTable, courtCoachInvitationsTable, courtsTable } from "@workspace/db";
-import { requireAuth, getCurrentUserId, isOwner, getUserRole } from "../lib/auth";
+import { eq, and, desc, inArray, or, isNull } from "drizzle-orm";
+import { db, coachesTable, courtCoachesTable, courtCoachInvitationsTable, courtsTable, facilitiesTable } from "@workspace/db";
+import { requireAuth, getCurrentUserId, isOwner, getUserRole, requireCoach, requireOwner } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { sendCoachInviteEmail } from "../lib/email";
 
@@ -35,26 +35,52 @@ function formatPublicCoach(c: typeof coachesTable.$inferSelect) {
   };
 }
 
-// GET /coaches — list approved coaches, or filter by courtId
+// GET /coaches — list approved coaches, or filter by courtId. Each coach is
+// enriched with `cities: string[]` from the courts/facilities they teach at.
 router.get("/coaches", async (req, res): Promise<void> => {
   const courtId = req.query.courtId ? parseInt(req.query.courtId as string, 10) : null;
 
+  let coaches: Array<typeof coachesTable.$inferSelect>;
   if (courtId !== null && !isNaN(courtId)) {
     const rows = await db
       .select({ coach: coachesTable })
       .from(courtCoachesTable)
       .innerJoin(coachesTable, eq(courtCoachesTable.coachId, coachesTable.id))
       .where(and(eq(courtCoachesTable.courtId, courtId), eq(coachesTable.status, "approved")));
-    res.json(rows.map((r) => formatPublicCoach(r.coach)));
-    return;
+    coaches = rows.map(r => r.coach);
+  } else {
+    coaches = await db
+      .select()
+      .from(coachesTable)
+      .where(eq(coachesTable.status, "approved"))
+      .orderBy(coachesTable.createdAt);
   }
 
-  const coaches = await db
-    .select()
-    .from(coachesTable)
-    .where(eq(coachesTable.status, "approved"))
-    .orderBy(coachesTable.createdAt);
-  res.json(coaches.map(formatPublicCoach));
+  if (coaches.length === 0) { res.json([]); return; }
+
+  const cityRows = await db
+    .select({
+      coachId: courtCoachesTable.coachId,
+      facilityCity: facilitiesTable.city,
+      courtCity: courtsTable.city,
+    })
+    .from(courtCoachesTable)
+    .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(inArray(courtCoachesTable.coachId, coaches.map(c => c.id)));
+
+  const citiesByCoach = new Map<number, Set<string>>();
+  for (const row of cityRows) {
+    const c = row.facilityCity ?? row.courtCity;
+    if (!c) continue;
+    if (!citiesByCoach.has(row.coachId)) citiesByCoach.set(row.coachId, new Set());
+    citiesByCoach.get(row.coachId)!.add(c);
+  }
+
+  res.json(coaches.map(c => ({
+    ...formatPublicCoach(c),
+    cities: Array.from(citiesByCoach.get(c.id) ?? []),
+  })));
 });
 
 // GET /coaches/me — get own coach profile
@@ -78,6 +104,55 @@ router.get("/coaches/:id", async (req, res): Promise<void> => {
     .where(and(eq(coachesTable.id, id), eq(coachesTable.status, "approved")));
   if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
   res.json(formatPublicCoach(coach));
+});
+
+// GET /coaches/:id/facilities — public list of facilities/courts a coach is approved at.
+// Only publicly-visible courts (status approved/active) and verified facilities are returned.
+router.get("/coaches/:id/facilities", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [coach] = await db.select().from(coachesTable)
+    .where(and(eq(coachesTable.id, id), eq(coachesTable.status, "approved")));
+  if (!coach) { res.json([]); return; }
+
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtCoachesTable)
+    .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(and(
+      eq(courtCoachesTable.coachId, id),
+      inArray(courtsTable.status, ["approved", "active"]),
+      // If court is in a facility, that facility must be verified.
+      // Standalone courts (no facility) pass this check via the OR.
+      or(
+        isNull(courtsTable.facilityId),
+        eq(facilitiesTable.verificationStatus, "verified"),
+      )!,
+    ));
+
+  type Group = {
+    facilityId: number | null;
+    facilityName: string | null;
+    city: string | null;
+    address: string | null;
+    courts: Array<{ id: number; name: string }>;
+  };
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const key = r.facility?.id != null ? `f${r.facility.id}` : `c${r.court.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        facilityId: r.facility?.id ?? null,
+        facilityName: r.facility?.name ?? r.court.name,
+        city: r.facility?.city ?? r.court.city ?? null,
+        address: r.facility?.address ?? r.court.address ?? null,
+        courts: [],
+      });
+    }
+    groups.get(key)!.courts.push({ id: r.court.id, name: r.court.name });
+  }
+  res.json(Array.from(groups.values()));
 });
 
 // POST /coaches — create coach profile (coach role required, one per user)
@@ -421,6 +496,259 @@ router.put("/courts/:id/coach-invitations/:inviteId", requireAuth, async (req, r
   }
 
   res.json({ ok: true });
+});
+
+// ─── Facility-level coach marketplace ────────────────────────────────────────
+
+// POST /coaches/apply-to-facility — coach applies to teach at every court in a facility
+router.post("/coaches/apply-to-facility", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const { facilityId, message } = req.body ?? {};
+  const fid = Number(facilityId);
+  if (!Number.isFinite(fid)) { res.status(400).json({ error: "facilityId is required" }); return; }
+
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, fid));
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+
+  const [coach] = await db.select().from(coachesTable).where(eq(coachesTable.userId, userId));
+  if (!coach) { res.status(400).json({ error: "Create your coach profile first" }); return; }
+
+  const facilityCourts = await db.select().from(courtsTable).where(eq(courtsTable.facilityId, fid));
+  if (facilityCourts.length === 0) { res.status(400).json({ error: "Facility has no courts" }); return; }
+
+  const courtIds = facilityCourts.map(c => c.id);
+
+  // Skip courts where this coach is already approved
+  const alreadyLinked = await db.select({ courtId: courtCoachesTable.courtId })
+    .from(courtCoachesTable)
+    .where(and(eq(courtCoachesTable.coachId, coach.id), inArray(courtCoachesTable.courtId, courtIds)));
+  const linkedCourtIds = new Set(alreadyLinked.map(r => r.courtId));
+
+  // Skip courts with an existing pending invitation by this coach
+  const existingPending = await db.select({ courtId: courtCoachInvitationsTable.courtId })
+    .from(courtCoachInvitationsTable)
+    .where(and(
+      eq(courtCoachInvitationsTable.targetUserId, userId),
+      eq(courtCoachInvitationsTable.initiatedBy, "coach"),
+      eq(courtCoachInvitationsTable.status, "pending"),
+      inArray(courtCoachInvitationsTable.courtId, courtIds),
+    ));
+  const pendingCourtIds = new Set(existingPending.map(r => r.courtId));
+
+  const toInsert = facilityCourts
+    .filter(c => !linkedCourtIds.has(c.id) && !pendingCourtIds.has(c.id))
+    .map(c => ({
+      courtId: c.id,
+      targetUserId: userId,
+      targetEmail: coach.email,
+      targetName: coach.name,
+      initiatedBy: "coach" as const,
+      status: "pending" as const,
+      message: message ?? null,
+    }));
+
+  if (toInsert.length === 0) {
+    res.status(409).json({ error: "Already applied or active at every court in this facility", created: 0 });
+    return;
+  }
+
+  const created = await db.insert(courtCoachInvitationsTable).values(toInsert).returning();
+
+  await sendNotification(facility.ownerUserId, "coach_application",
+    "Naujas trenerio prašymas",
+    `${coach.name} prašo dirbti „${facility.name}"`,
+    `/owner/coaches`,
+  ).catch(() => {});
+
+  res.status(201).json({
+    created: created.length,
+    skipped: facilityCourts.length - created.length,
+    invitations: created.map(i => ({ ...i, createdAt: i.createdAt.toISOString() })),
+  });
+});
+
+// GET /coaches/me/applications — own invitations (both directions) with court+facility info
+router.get("/coaches/me/applications", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const rows = await db
+    .select({
+      invitation: courtCoachInvitationsTable,
+      court: courtsTable,
+      facility: facilitiesTable,
+    })
+    .from(courtCoachInvitationsTable)
+    .innerJoin(courtsTable, eq(courtCoachInvitationsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtCoachInvitationsTable.targetUserId, userId))
+    .orderBy(desc(courtCoachInvitationsTable.createdAt));
+
+  res.json(rows.map(r => ({
+    id: r.invitation.id,
+    courtId: r.invitation.courtId,
+    courtName: r.court.name,
+    facilityId: r.facility?.id ?? null,
+    facilityName: r.facility?.name ?? null,
+    city: r.facility?.city ?? r.court.city ?? null,
+    initiatedBy: r.invitation.initiatedBy,
+    status: r.invitation.status,
+    message: r.invitation.message,
+    createdAt: r.invitation.createdAt.toISOString(),
+  })));
+});
+
+// GET /coaches/me/facilities — facilities the coach is approved at, grouped
+router.get("/coaches/me/facilities", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const [coach] = await db.select().from(coachesTable).where(eq(coachesTable.userId, userId));
+  if (!coach) { res.json([]); return; }
+
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtCoachesTable)
+    .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtCoachesTable.coachId, coach.id));
+
+  // Group by facility (or by orphan court if no facility)
+  type Group = {
+    facilityId: number | null;
+    facilityName: string | null;
+    city: string | null;
+    courts: Array<{ id: number; name: string }>;
+  };
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const key = r.facility?.id != null ? `f${r.facility.id}` : `c${r.court.id}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        facilityId: r.facility?.id ?? null,
+        facilityName: r.facility?.name ?? null,
+        city: r.facility?.city ?? r.court.city ?? null,
+        courts: [],
+      });
+    }
+    groups.get(key)!.courts.push({ id: r.court.id, name: r.court.name });
+  }
+  res.json(Array.from(groups.values()));
+});
+
+// GET /owner/coach-requests — pending coach-initiated invitations across owner's courts
+router.get("/owner/coach-requests", requireOwner, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const rows = await db
+    .select({
+      invitation: courtCoachInvitationsTable,
+      court: courtsTable,
+      facility: facilitiesTable,
+      coach: coachesTable,
+    })
+    .from(courtCoachInvitationsTable)
+    .innerJoin(courtsTable, eq(courtCoachInvitationsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .leftJoin(coachesTable, eq(courtCoachInvitationsTable.targetUserId, coachesTable.userId))
+    .where(and(
+      eq(courtsTable.ownerUserId, userId),
+      eq(courtCoachInvitationsTable.initiatedBy, "coach"),
+      eq(courtCoachInvitationsTable.status, "pending"),
+    ))
+    .orderBy(desc(courtCoachInvitationsTable.createdAt));
+
+  res.json(rows.map(r => ({
+    invitationId: r.invitation.id,
+    courtId: r.court.id,
+    courtName: r.court.name,
+    facilityId: r.facility?.id ?? null,
+    facilityName: r.facility?.name ?? null,
+    message: r.invitation.message,
+    createdAt: r.invitation.createdAt.toISOString(),
+    coach: r.coach ? formatPublicCoach(r.coach) : {
+      id: null,
+      userId: r.invitation.targetUserId,
+      name: r.invitation.targetName ?? "Treneris",
+      email: r.invitation.targetEmail ?? null,
+    },
+  })));
+});
+
+// POST /owner/respond-to-coach — owner approves or rejects a pending coach request
+router.post("/owner/respond-to-coach", requireOwner, async (req, res): Promise<void> => {
+  const { invitationId, decision } = req.body ?? {};
+  const id = Number(invitationId);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "invitationId required" }); return; }
+  if (decision !== "approve" && decision !== "reject") {
+    res.status(400).json({ error: "decision must be 'approve' or 'reject'" }); return;
+  }
+
+  const [invite] = await db.select().from(courtCoachInvitationsTable)
+    .where(eq(courtCoachInvitationsTable.id, id));
+  if (!invite) { res.status(404).json({ error: "Invitation not found" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, invite.courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const canEdit = await isOwner(req, court.ownerUserId);
+  if (!canEdit) { res.status(403).json({ error: "Forbidden – not the court owner" }); return; }
+
+  if (invite.status !== "pending") {
+    res.status(409).json({ error: `Invitation already ${invite.status}` }); return;
+  }
+
+  await db.update(courtCoachInvitationsTable)
+    .set({ status: decision === "approve" ? "approved" : "rejected" })
+    .where(eq(courtCoachInvitationsTable.id, id));
+
+  if (decision === "approve" && invite.targetUserId) {
+    let [coach] = await db.select().from(coachesTable)
+      .where(eq(coachesTable.userId, invite.targetUserId));
+    if (!coach) {
+      [coach] = await db.insert(coachesTable).values({
+        userId: invite.targetUserId,
+        name: invite.targetName ?? "Treneris",
+        email: invite.targetEmail ?? "",
+        status: "approved",
+        sports: [],
+      }).returning();
+    }
+    const [existing] = await db.select().from(courtCoachesTable)
+      .where(and(eq(courtCoachesTable.courtId, court.id), eq(courtCoachesTable.coachId, coach.id)));
+    if (!existing) {
+      await db.insert(courtCoachesTable).values({ courtId: court.id, coachId: coach.id });
+    }
+    await sendNotification(invite.targetUserId, "court_coach_approved",
+      "Paraiška patvirtinta",
+      `Jūs priimtas kaip treneris į „${court.name}"`,
+      `/coach/me`,
+    ).catch(() => {});
+  } else if (decision === "reject" && invite.targetUserId) {
+    await sendNotification(invite.targetUserId, "court_coach_rejected",
+      "Paraiška atmesta",
+      `Jūsų paraiška „${court.name}" buvo atmesta`,
+      `/coach/me`,
+    ).catch(() => {});
+  }
+
+  res.json({ ok: true, status: decision === "approve" ? "approved" : "rejected" });
+});
+
+// GET /owner/coach-roster — all approved coaches across owner's courts (for roster management)
+router.get("/owner/coach-roster", requireOwner, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable, coach: coachesTable })
+    .from(courtCoachesTable)
+    .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
+    .innerJoin(coachesTable, eq(courtCoachesTable.coachId, coachesTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.ownerUserId, userId))
+    .orderBy(courtsTable.name);
+
+  res.json(rows.map(r => ({
+    courtId: r.court.id,
+    courtName: r.court.name,
+    facilityId: r.facility?.id ?? null,
+    facilityName: r.facility?.name ?? null,
+    coach: formatPublicCoach(r.coach),
+  })));
 });
 
 export default router;

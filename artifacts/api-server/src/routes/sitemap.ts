@@ -3,7 +3,6 @@ import {
   db,
   courtsTable,
   coachesTable,
-  trainersTable,
   tournamentsTable,
   gamesTable,
 } from "@workspace/db";
@@ -47,7 +46,6 @@ const STATIC_ROUTES: Array<Pick<UrlEntry, "loc" | "changefreq" | "priority">> = 
   { loc: "/",               changefreq: "daily",   priority: 1.0 },
   { loc: "/courts",         changefreq: "daily",   priority: 0.9 },
   { loc: "/coaches",        changefreq: "daily",   priority: 0.8 },
-  { loc: "/trainers",       changefreq: "weekly",  priority: 0.7 },
   { loc: "/tournaments",    changefreq: "daily",   priority: 0.7 },
   { loc: "/games",          changefreq: "daily",   priority: 0.7 },
   { loc: "/games/guide",    changefreq: "monthly", priority: 0.5 },
@@ -82,7 +80,7 @@ router.get("/sitemap.xml", async (req: Request, res: Response): Promise<void> =>
   try {
     const origin = getSiteOrigin(req);
 
-    const [courts, coaches, trainers, tournaments, games] = await Promise.all([
+    const [courts, coaches, tournaments, games] = await Promise.all([
       db
         .select({ id: courtsTable.id, createdAt: courtsTable.createdAt })
         .from(courtsTable)
@@ -91,11 +89,6 @@ router.get("/sitemap.xml", async (req: Request, res: Response): Promise<void> =>
         .select({ id: coachesTable.id })
         .from(coachesTable)
         .where(eq(coachesTable.status, "approved")),
-      db
-        .select({ id: trainersTable.id, courtStatus: courtsTable.status })
-        .from(trainersTable)
-        .innerJoin(courtsTable, eq(trainersTable.courtId, courtsTable.id))
-        .where(eq(courtsTable.status, "approved")),
       db
         .select({ id: tournamentsTable.id, status: tournamentsTable.status })
         .from(tournamentsTable),
@@ -116,11 +109,6 @@ router.get("/sitemap.xml", async (req: Request, res: Response): Promise<void> =>
         loc: `/coach/${c.id}`,
         changefreq: "weekly" as const,
         priority: 0.6,
-      })),
-      ...trainers.map((t) => ({
-        loc: `/trainers/${t.id}`,
-        changefreq: "weekly" as const,
-        priority: 0.5,
       })),
       ...tournaments
         .filter((t) => t.status && t.status !== "draft" && t.status !== "cancelled")

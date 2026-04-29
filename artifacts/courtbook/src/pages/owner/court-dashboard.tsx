@@ -86,6 +86,7 @@ function buildNavItems(facilityId: number | string | null) {
   if (!facilityId) return [
     { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
     { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
+    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
     { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
     { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
   ];
@@ -93,6 +94,7 @@ function buildNavItems(facilityId: number | string | null) {
   return [
     { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard?facility=${fid}` },
     { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner/facility/${fid}` },
+    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
     { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments?facility=${fid}` },
     { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings?facility=${fid}` },
   ];
