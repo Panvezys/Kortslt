@@ -1556,9 +1556,410 @@ function CoachesPanel() {
   );
 }
 
+// ─── Owners Panel ─────────────────────────────────────────────────────────────
+interface OwnerRoleRequest {
+  userId: string;
+  role: string;
+  pendingRole: string | null;
+  requestData: string | null;
+  status: string;
+  createdAt: string;
+}
+
+function OwnersPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [reviewRequest, setReviewRequest] = useState<OwnerRoleRequest | null>(null);
+  const [rejectDialog, setRejectDialog] = useState<OwnerRoleRequest | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const { data: allRequests, isLoading, isError } = useQuery<OwnerRoleRequest[]>({
+    queryKey: ["admin-role-requests"],
+    queryFn: () => customFetch<OwnerRoleRequest[]>("/api/admin/role-requests"),
+    retry: false,
+  });
+
+  const ownerRequests = (allRequests ?? []).filter(r => r.pendingRole === "owner");
+
+  const approveMutation = useMutation({
+    mutationFn: (userId: string) =>
+      customFetch(`/api/admin/role-requests/${userId}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "Savininkas patvirtintas" });
+      setReviewRequest(null);
+    },
+    onError: () => toast({ title: "Klaida patvirtinant", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ userId, reason }: { userId: string; reason: string }) =>
+      customFetch(`/api/admin/role-requests/${userId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-role-requests"] });
+      toast({ title: "Prašymas atmestas" });
+      setRejectDialog(null);
+      setReviewRequest(null);
+      setRejectReason("");
+    },
+    onError: () => toast({ title: "Klaida atmestant", variant: "destructive" }),
+  });
+
+  const getReqData = (r: OwnerRoleRequest) => {
+    try { return r.requestData ? JSON.parse(r.requestData) : {}; } catch { return {}; }
+  };
+
+  const BIZ_FIELD_LABELS: Record<string, string> = {
+    companyName: "Juridinis pavadinimas", registrationCode: "Įmonės kodas",
+    vatNumber: "PVM kodas", websiteUrl: "Svetainė", address: "Adresas",
+    city: "Miestas", postcode: "Pašto kodas", phone: "Telefonas",
+    email: "El. paštas", description: "Aprašymas",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {ownerRequests.length === 0
+            ? "Nėra laukiančių savininko prašymų."
+            : `${ownerRequests.length} laukiantis prašymas.`}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-role-requests"] })}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+        </Button>
+      </div>
+
+      {isLoading && <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>}
+      {isError && <div className="py-8 text-center text-muted-foreground">Nepavyko įkelti prašymų.</div>}
+
+      {!isLoading && ownerRequests.length === 0 && !isError && (
+        <div className="py-16 flex flex-col items-center text-muted-foreground gap-2">
+          <Building2 className="w-10 h-10 opacity-20" />
+          <p>Šiuo metu nėra laukiančių savininko prašymų</p>
+        </div>
+      )}
+
+      {!isLoading && ownerRequests.length > 0 && (
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-4 py-3 font-medium">Pareiškėjas</th>
+                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Įmonė</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Pateikta</th>
+                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ownerRequests.map(r => {
+                const data = getReqData(r);
+                return (
+                  <tr key={r.userId} className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                    onClick={() => setReviewRequest(r)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="w-4 h-4 text-primary/50" />
+                        </div>
+                        <div>
+                          <code className="text-xs font-mono text-muted-foreground/70">{r.userId.slice(0, 22)}…</code>
+                          {data.email && <div className="text-xs text-muted-foreground">{data.email}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <div className="font-medium">{data.companyName ?? "—"}</div>
+                      {data.registrationCode && <div className="text-xs text-muted-foreground">{data.registrationCode}</div>}
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
+                      {new Date(r.createdAt).toLocaleDateString("lt-LT")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                          onClick={e => { e.stopPropagation(); setReviewRequest(r); }}>
+                          <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Review dialog */}
+      <Dialog open={reviewRequest !== null} onOpenChange={open => { if (!open) setReviewRequest(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" /> Savininko prašymas
+            </DialogTitle>
+          </DialogHeader>
+          {reviewRequest && (() => {
+            const data = getReqData(reviewRequest);
+            return (
+              <div className="space-y-4 pt-1">
+                <div className="bg-muted/30 border rounded-xl p-4 space-y-2 text-sm">
+                  {Object.entries(BIZ_FIELD_LABELS).map(([key, label]) =>
+                    data[key] ? (
+                      <div key={key} className="flex items-start gap-2">
+                        <span className="text-muted-foreground min-w-32 text-xs pt-0.5">{label}</span>
+                        <span className="font-medium text-foreground break-all">{String(data[key])}</span>
+                      </div>
+                    ) : null
+                  )}
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <Button variant="outline" className="text-red-400 border-red-500/30 hover:bg-red-500/5"
+                    onClick={() => { setRejectDialog(reviewRequest); setReviewRequest(null); }}>
+                    Atmesti
+                  </Button>
+                  <Button
+                    onClick={() => approveMutation.mutate(reviewRequest.userId)}
+                    disabled={approveMutation.isPending}>
+                    {approveMutation.isPending ? "Tvirtinama..." : "✓ Patvirtinti"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject reason dialog */}
+      <Dialog open={rejectDialog !== null} onOpenChange={open => { if (!open) { setRejectDialog(null); setRejectReason(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Atmesti prašymą</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Textarea
+              placeholder="Atmetimo priežastis (neprivaloma)..."
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              rows={3}
+            />
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => { setRejectDialog(null); setRejectReason(""); }}>Atšaukti</Button>
+              <Button variant="destructive" disabled={rejectMutation.isPending}
+                onClick={() => rejectDialog && rejectMutation.mutate({ userId: rejectDialog.userId, reason: rejectReason })}>
+                {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Edit Approvals Panel ──────────────────────────────────────────────────────
+interface EditRequest {
+  id: number;
+  ownerUserId: string;
+  entityType: string;
+  requestedData: string;
+  currentData: string | null;
+  status: string;
+  adminNotes: string | null;
+  createdAt: string;
+}
+
+function EditRequestsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [reviewReq, setReviewReq] = useState<EditRequest | null>(null);
+  const [rejectNotes, setRejectNotes] = useState("");
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+
+  const { data: allReqs, isLoading, isError } = useQuery<EditRequest[]>({
+    queryKey: ["admin-edit-requests"],
+    queryFn: () => customFetch<EditRequest[]>("/api/admin/edit-requests"),
+    retry: false,
+  });
+
+  const filtered = (allReqs ?? []).filter(r => filter === "all" || r.status === filter);
+
+  const approveMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch(`/api/admin/edit-requests/${id}/approve`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-edit-requests"] });
+      toast({ title: "Pakeitimai patvirtinti" });
+      setReviewReq(null);
+    },
+    onError: () => toast({ title: "Klaida patvirtinant", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, notes }: { id: number; notes: string }) =>
+      customFetch(`/api/admin/edit-requests/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-edit-requests"] });
+      toast({ title: "Prašymas atmestas" });
+      setReviewReq(null);
+      setRejectNotes("");
+    },
+    onError: () => toast({ title: "Klaida atmestant", variant: "destructive" }),
+  });
+
+  const parseJson = (s: string | null | undefined) => {
+    if (!s) return {};
+    try { return JSON.parse(s); } catch { return {}; }
+  };
+
+  const FIELD_LABELS: Record<string, string> = {
+    companyName: "Juridinis pavadinimas", registrationCode: "Įmonės kodas",
+    vatNumber: "PVM kodas", websiteUrl: "Svetainė", address: "Adresas",
+    city: "Miestas", postcode: "Pašto kodas", description: "Aprašymas",
+  };
+
+  const counts = {
+    all: (allReqs ?? []).length,
+    pending: (allReqs ?? []).filter(r => r.status === "pending").length,
+    approved: (allReqs ?? []).filter(r => r.status === "approved").length,
+    rejected: (allReqs ?? []).filter(r => r.status === "rejected").length,
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3 flex-wrap justify-between">
+        <div className="flex gap-1.5 flex-wrap">
+          {(["pending", "approved", "rejected", "all"] as const).map(s => (
+            <button key={s} onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border ${
+                filter === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted/60"
+              }`}>
+              {s === "all" ? "Visi" : s === "pending" ? "Laukiama" : s === "approved" ? "Patvirtinta" : "Atmesta"} ({counts[s]})
+            </button>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["admin-edit-requests"] })}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Atnaujinti
+        </Button>
+      </div>
+
+      {isLoading && <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>}
+      {isError && <div className="py-8 text-center text-muted-foreground">Nepavyko įkelti prašymų.</div>}
+
+      {!isLoading && filtered.length === 0 && !isError && (
+        <div className="py-16 flex flex-col items-center text-muted-foreground gap-2">
+          <FileText className="w-10 h-10 opacity-20" />
+          <p>Šiuo metu nėra redagavimo prašymų</p>
+        </div>
+      )}
+
+      {!isLoading && filtered.length > 0 && (
+        <div className="rounded-xl border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/50 border-b">
+                <th className="text-left px-4 py-3 font-medium">Savininkas</th>
+                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Laukai</th>
+                <th className="text-left px-4 py-3 font-medium">Statusas</th>
+                <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(r => {
+                const requested = parseJson(r.requestedData);
+                const fields = Object.keys(requested).map(k => FIELD_LABELS[k] ?? k);
+                return (
+                  <tr key={r.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
+                    onClick={() => setReviewReq(r)}>
+                    <td className="px-4 py-3">
+                      <code className="text-xs font-mono text-muted-foreground/70">{r.ownerUserId.slice(0, 22)}…</code>
+                      <div className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("lt-LT")}</div>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
+                      {fields.join(", ") || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={r.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                          onClick={e => { e.stopPropagation(); setReviewReq(r); }}>
+                          <Eye className="w-3.5 h-3.5" /> Peržiūrėti
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Review dialog */}
+      <Dialog open={reviewReq !== null} onOpenChange={open => { if (!open) { setReviewReq(null); setRejectNotes(""); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" /> Verslo informacijos redagavimo prašymas
+            </DialogTitle>
+          </DialogHeader>
+          {reviewReq && (() => {
+            const requested = parseJson(reviewReq.requestedData);
+            const current = parseJson(reviewReq.currentData);
+            return (
+              <div className="space-y-4 pt-1">
+                <div className="bg-muted/30 border rounded-xl p-4 space-y-2 text-sm">
+                  {Object.entries(requested).map(([key, newVal]) => (
+                    <div key={key} className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">{FIELD_LABELS[key] ?? key}</p>
+                      {current[key] && current[key] !== newVal && (
+                        <p className="line-through text-muted-foreground/50 text-xs">{String(current[key])}</p>
+                      )}
+                      <p className="font-medium text-green-400">{String(newVal)}</p>
+                    </div>
+                  ))}
+                </div>
+                {reviewReq.status === "pending" ? (
+                  <div className="space-y-3">
+                    <Textarea placeholder="Pastabos (neprivaloma)..." value={rejectNotes}
+                      onChange={e => setRejectNotes(e.target.value)} rows={2} />
+                    <div className="flex gap-3 justify-end">
+                      <Button variant="outline" className="text-red-400 border-red-500/30 hover:bg-red-500/5"
+                        disabled={rejectMutation.isPending}
+                        onClick={() => rejectMutation.mutate({ id: reviewReq.id, notes: rejectNotes })}>
+                        {rejectMutation.isPending ? "Atmetama..." : "Atmesti"}
+                      </Button>
+                      <Button onClick={() => approveMutation.mutate(reviewReq.id)} disabled={approveMutation.isPending}>
+                        {approveMutation.isPending ? "Tvirtinama..." : "✓ Patvirtinti"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <StatusBadge status={reviewReq.status} />
+                    {reviewReq.adminNotes && <span>{reviewReq.adminNotes}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AdminTab = "courts" | "users" | "facilities" | "coaches";
+type AdminTab = "courts" | "users" | "facilities" | "coaches" | "owners" | "editRequests";
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
@@ -1589,10 +1990,12 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: "facilities", label: "Objektai",   icon: <ShieldCheck className="w-4 h-4" /> },
-    { id: "courts",     label: "Aikštelės",  icon: <Building2 className="w-4 h-4" /> },
-    { id: "coaches",    label: "Treneriai",  icon: <GraduationCap className="w-4 h-4" /> },
-    { id: "users",      label: "Vartotojai", icon: <Users className="w-4 h-4" /> },
+    { id: "facilities",   label: "Objektai",     icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: "courts",       label: "Aikštelės",    icon: <Building2 className="w-4 h-4" /> },
+    { id: "coaches",      label: "Treneriai",    icon: <GraduationCap className="w-4 h-4" /> },
+    { id: "owners",       label: "Savininkai",   icon: <Trophy className="w-4 h-4" /> },
+    { id: "editRequests", label: "Redavimai",    icon: <FileText className="w-4 h-4" /> },
+    { id: "users",        label: "Vartotojai",   icon: <Users className="w-4 h-4" /> },
   ];
 
   return (
@@ -1623,10 +2026,12 @@ export default function AdminDashboard() {
         </div>
 
         {/* Panel */}
-        {activeTab === "facilities" && <FacilitiesPanel />}
-        {activeTab === "courts"     && <CourtsPanel />}
-        {activeTab === "coaches"    && <CoachesPanel />}
-        {activeTab === "users"      && <UsersPanel />}
+        {activeTab === "facilities"   && <FacilitiesPanel />}
+        {activeTab === "courts"       && <CourtsPanel />}
+        {activeTab === "coaches"      && <CoachesPanel />}
+        {activeTab === "owners"       && <OwnersPanel />}
+        {activeTab === "editRequests" && <EditRequestsPanel />}
+        {activeTab === "users"        && <UsersPanel />}
       </div>
     </Layout>
   );

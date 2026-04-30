@@ -995,6 +995,62 @@ export default function Profile() {
           </div>
         </div>
 
+        {/* ── Owner application progress card ── */}
+        {(isPending || isRejected) && pendingRole === "owner" && (
+          <div className={`rounded-2xl border shadow-sm overflow-hidden ${isRejected ? "border-red-500/30 bg-red-500/5" : "border-yellow-500/30 bg-yellow-500/5"}`}>
+            <div className={`flex items-center gap-3 px-5 py-3.5 border-b ${isRejected ? "border-red-500/20 bg-red-500/10" : "border-yellow-500/20 bg-yellow-500/10"}`}>
+              <Building2 className={`w-5 h-5 ${isRejected ? "text-red-400" : "text-yellow-400"}`} />
+              <h2 className="font-semibold text-sm">Savininko prašymo būsena</h2>
+              {isRejected
+                ? <Badge className="ml-auto bg-red-500/20 text-red-400 border-red-500/30">Atmesta</Badge>
+                : <Badge className="ml-auto bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Peržiūrima</Badge>
+              }
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {!isRejected && (
+                <div className="flex items-start gap-4">
+                  {[
+                    { label: "Prašymas pateiktas", done: true },
+                    { label: "Administratoriaus peržiūra", done: false, active: true },
+                    { label: "Patvirtinimas ir prieiga", done: false },
+                  ].map((step, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1.5 flex-1">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-sm font-bold transition-colors ${
+                        step.done ? "bg-green-500/20 border-green-500 text-green-400"
+                        : step.active ? "bg-yellow-500/20 border-yellow-500 text-yellow-400 animate-pulse"
+                        : "bg-muted border-muted-foreground/30 text-muted-foreground"
+                      }`}>
+                        {step.done ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+                      </div>
+                      <span className={`text-xs text-center font-medium ${step.done ? "text-green-400" : step.active ? "text-yellow-400" : "text-muted-foreground"}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isRejected ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Jūsų savininko prašymas buvo atmestas.</p>
+                  {rejectionReason && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 text-sm">
+                      <p className="font-medium text-foreground mb-0.5">Atmetimo priežastis:</p>
+                      <p className="text-muted-foreground">{rejectionReason}</p>
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="mt-1 border-red-500/30 text-red-400 hover:bg-red-500/5" asChild>
+                    <Link href="/become-owner">Pateikti naują prašymą</Link>
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Administratorius peržiūri jūsų prašymą. Gavę patvirtinimą, galėsite prisijungti prie savininko skydelio ir pridėti aikšteles.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Stats row ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard

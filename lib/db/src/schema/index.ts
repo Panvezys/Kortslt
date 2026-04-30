@@ -17,3 +17,4 @@ export * from "./user-profiles";
 export * from "./notification-settings";
 export * from "./sports";
 export * from "./memberships";
+export * from "./owner-edit-requests";

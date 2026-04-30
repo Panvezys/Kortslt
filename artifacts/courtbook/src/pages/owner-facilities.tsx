@@ -19,6 +19,7 @@ import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
   Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
+  Phone, Mail, Globe, FileText, Clock, CheckCircle2, XCircle, Info,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -59,12 +60,30 @@ interface FacilityWithCourts {
   adminVerified?: boolean;
   verificationNotes?: string | null;
   rejectionReason?: string | null;
+  vatNumber?: string;
+  websiteUrl?: string;
   photos: string[];
   equipment: string[];
   courtCount: number;
   sportTypes: string[];
   courts: FacilityCourt[];
   createdAt: string;
+}
+
+interface OwnerBizInfo {
+  id: number;
+  companyName: string | null;
+  registrationCode: string | null;
+  vatNumber: string | null;
+  websiteUrl: string | null;
+  address: string | null;
+  city: string | null;
+  postcode: string | null;
+  phone: string | null;
+  email: string | null;
+  description: string | null;
+  hasPendingEdit: boolean;
+  pendingEdit: { requestedData: string; createdAt: string } | null;
 }
 
 type StripeStatus = "active" | "pending" | "not_connected" | string;
@@ -95,6 +114,231 @@ function VerificationBadge({ status }: { status: string }) {
     <Badge className="bg-slate-500/15 text-slate-300 border-slate-500/30 gap-1">
       <FileEdit className="w-3 h-3" /> Juodraštis
     </Badge>
+  );
+}
+
+// ─── Business Info Panel ───────────────────────────────────────────────────────
+function BusinessInfoPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: info, isLoading, isError } = useQuery<OwnerBizInfo>({
+    queryKey: ["owner-business-info"],
+    queryFn: () => customFetch<OwnerBizInfo>(`${API_URL}/owner/business-info`),
+    retry: false,
+  });
+
+  const [editForm, setEditForm] = useState({
+    phone: "", email: "",
+    companyName: "", registrationCode: "", vatNumber: "", websiteUrl: "",
+    address: "", city: "", postcode: "", description: "",
+  });
+
+  useEffect(() => {
+    if (info) {
+      setEditForm({
+        phone: info.phone ?? "",
+        email: info.email ?? "",
+        companyName: info.companyName ?? "",
+        registrationCode: info.registrationCode ?? "",
+        vatNumber: info.vatNumber ?? "",
+        websiteUrl: info.websiteUrl ?? "",
+        address: info.address ?? "",
+        city: info.city ?? "",
+        postcode: info.postcode ?? "",
+        description: info.description ?? "",
+      });
+    }
+  }, [info]);
+
+  const handleSave = async () => {
+    const phoneErr = validatePhone(editForm.phone, { required: false });
+    const emailErr = validateEmail(editForm.email, { required: false });
+    if (phoneErr) { toast({ title: "Klaida", description: phoneErr, variant: "destructive" }); return; }
+    if (emailErr) { toast({ title: "Klaida", description: emailErr, variant: "destructive" }); return; }
+    if (editForm.websiteUrl && !/^https?:\/\/.+\..+/.test(editForm.websiteUrl)) {
+      toast({ title: "Klaida", description: "Įveskite teisingą URL", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      const body: Record<string, string> = {};
+      if (editForm.phone !== (info?.phone ?? "")) body.phone = editForm.phone;
+      if (editForm.email !== (info?.email ?? "")) body.email = editForm.email;
+      if (editForm.companyName !== (info?.companyName ?? "")) body.companyName = editForm.companyName;
+      if (editForm.registrationCode !== (info?.registrationCode ?? "")) body.registrationCode = editForm.registrationCode;
+      if (editForm.vatNumber !== (info?.vatNumber ?? "")) body.vatNumber = editForm.vatNumber;
+      if (editForm.websiteUrl !== (info?.websiteUrl ?? "")) body.websiteUrl = editForm.websiteUrl;
+      if (editForm.address !== (info?.address ?? "")) body.address = editForm.address;
+      if (editForm.city !== (info?.city ?? "")) body.city = editForm.city;
+      if (editForm.postcode !== (info?.postcode ?? "")) body.postcode = editForm.postcode;
+      if (editForm.description !== (info?.description ?? "")) body.description = editForm.description;
+      if (Object.keys(body).length === 0) { setEditing(false); return; }
+      const result = await customFetch<{ directUpdated: string[]; reviewSubmitted: string[] }>(
+        `${API_URL}/owner/business-info`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      );
+      await qc.invalidateQueries({ queryKey: ["owner-business-info"] });
+      const msgs: string[] = [];
+      if (result.directUpdated?.length) msgs.push(`Kontaktai atnaujinti.`);
+      if (result.reviewSubmitted?.length) msgs.push(`${result.reviewSubmitted.length} laukai pateikti peržiūrai.`);
+      toast({ title: "Išsaugota", description: msgs.join(" ") || "Atnaujinta." });
+      setEditing(false);
+    } catch (e: unknown) {
+      toast({ title: "Klaida", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) return <div className="bg-card border rounded-2xl p-5 space-y-2"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-64" /></div>;
+  if (isError || !info) return null;
+
+  const pendingFields: string[] = (() => {
+    if (!info.pendingEdit) return [];
+    try { return Object.keys(JSON.parse(info.pendingEdit.requestedData)); } catch { return []; }
+  })();
+
+  const fieldLabel: Record<string, string> = {
+    companyName: "Juridinis pavadinimas", registrationCode: "Įmonės kodas",
+    vatNumber: "PVM kodas", websiteUrl: "Svetainė", address: "Adresas",
+    city: "Miestas", postcode: "Pašto kodas", description: "Aprašymas",
+  };
+
+  return (
+    <div className="bg-card border rounded-2xl shadow-sm overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-muted/30 transition-colors"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 text-primary" />
+          </div>
+          <div className="text-left">
+            <p className="font-semibold text-sm">Verslo informacija</p>
+            <p className="text-xs text-muted-foreground">{info.companyName ?? "Nepateikta"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {info.hasPendingEdit && (
+            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs gap-1">
+              <Clock className="w-3 h-3" /> Laukia peržiūros
+            </Badge>
+          )}
+          <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border/60">
+          {info.hasPendingEdit && (
+            <div className="mx-5 mt-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-muted-foreground flex gap-2">
+              <Info className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-foreground mb-0.5">Pakeitimai laukia administratoriaus peržiūros</p>
+                <p className="text-xs">Laukai: {pendingFields.map(f => fieldLabel[f] ?? f).join(", ")}</p>
+              </div>
+            </div>
+          )}
+
+          {!editing ? (
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                {[
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Juridinis pavadinimas", value: info.companyName },
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Įmonės kodas", value: info.registrationCode },
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "PVM kodas", value: info.vatNumber },
+                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Svetainė", value: info.websiteUrl },
+                  { icon: <MapPin className="w-3.5 h-3.5" />, label: "Adresas", value: [info.address, info.city, info.postcode].filter(Boolean).join(", ") || null },
+                  { icon: <Phone className="w-3.5 h-3.5" />, label: "Telefonas", value: info.phone },
+                  { icon: <Mail className="w-3.5 h-3.5" />, label: "El. paštas", value: info.email },
+                ].map(({ icon, label, value }) => (
+                  <div key={label} className="flex items-start gap-2">
+                    <div className="text-muted-foreground mt-0.5 shrink-0">{icon}</div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      {value
+                        ? <p className="font-medium truncate text-foreground">{value}</p>
+                        : <p className="text-muted-foreground/50 italic text-xs">Nepateikta</p>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="pt-2">
+                <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 text-xs text-muted-foreground flex gap-1.5 items-start">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Telefono ir el. pašto pakeitimai įsigalios nedelsiant. Kiti laukai bus atnaujinti po administratoriaus peržiūros.
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setEditing(true)} className="gap-1.5">
+                <Edit2 className="w-3.5 h-3.5" /> Redaguoti
+              </Button>
+            </div>
+          ) : (
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> Telefonas <span className="text-green-400 font-normal">(nedelsiant)</span>
+                  </label>
+                  <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="+370..." />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium flex items-center gap-1">
+                    <Mail className="w-3 h-3" /> El. paštas <span className="text-green-400 font-normal">(nedelsiant)</span>
+                  </label>
+                  <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} placeholder="info@klubas.lt" />
+                </div>
+              </div>
+
+              <div className="bg-muted/20 rounded-xl border border-border/60 p-4 space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock className="w-3 h-3" /> Laukai su peržiūra
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Juridinis pavadinimas</label>
+                    <Input value={editForm.companyName} onChange={e => setEditForm(f => ({ ...f, companyName: e.target.value }))} placeholder="UAB Pavadinimas" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Įmonės kodas</label>
+                    <Input value={editForm.registrationCode} onChange={e => setEditForm(f => ({ ...f, registrationCode: e.target.value }))} placeholder="302457891" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">PVM kodas</label>
+                    <Input value={editForm.vatNumber} onChange={e => setEditForm(f => ({ ...f, vatNumber: e.target.value }))} placeholder="LT302457891" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium flex items-center gap-1"><Globe className="w-3 h-3" /> Svetainė</label>
+                    <Input value={editForm.websiteUrl} onChange={e => setEditForm(f => ({ ...f, websiteUrl: e.target.value }))} placeholder="https://klubas.lt" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Gatvė</label>
+                    <Input value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} placeholder="Laisvės al. 23" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">Miestas</label>
+                    <Input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="Kaunas" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEditing(false)} className="gap-1"><XCircle className="w-3.5 h-3.5" /> Atšaukti</Button>
+                <Button size="sm" disabled={saving} onClick={handleSave} className="gap-1">
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  Išsaugoti
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -409,6 +653,10 @@ export default function OwnerFacilities() {
               <Plus className="w-4 h-4" /> Naujas objektas
             </Button>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <BusinessInfoPanel />
         </div>
 
         {!isLoading && facilities && facilities.length > 0 && (

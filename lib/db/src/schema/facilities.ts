@@ -51,6 +51,8 @@ export const facilitiesTable = pgTable("facilities", {
   cancellationWindow: integer("cancellation_window"),
   advanceBookingLimit: integer("advance_booking_limit"),
   businessHours: text("business_hours"),
+  vatNumber: text("vat_number"),
+  websiteUrl: text("website_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

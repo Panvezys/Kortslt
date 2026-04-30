@@ -32,6 +32,7 @@ import ownerCourtStatsRouter from "./owner-court-stats";
 import deleteUserDataRouter from "./delete-user-data";
 import diagnosticRouter from "./diagnostic";
 import guestBookingsRouter from "./guest-bookings";
+import ownerBusinessInfoRouter from "./owner-business-info";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(ownerCourtStatsRouter);
 router.use(deleteUserDataRouter);
 router.use(diagnosticRouter);
 router.use(guestBookingsRouter);
+router.use(ownerBusinessInfoRouter);
 
 export default router;
