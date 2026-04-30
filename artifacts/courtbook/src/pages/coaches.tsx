@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
 import { format } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
@@ -397,7 +397,7 @@ export default function CoachesPage() {
           {/* ── Sport pills (identical to home.tsx) ── */}
           <div className="flex gap-2 flex-wrap mb-4">
             {ALL_SPORTS.map(sport => {
-              const color = sportColor[sport] ?? "#84cc16";
+              const color = getSportColor(sport);
               const active = searchSport === sport;
               return (
                 <button

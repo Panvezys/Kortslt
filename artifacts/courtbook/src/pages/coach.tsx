@@ -10,7 +10,7 @@ import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search } from "lucide-react";
-import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
 import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -600,7 +600,7 @@ export default function CoachPage() {
               <div className="flex flex-wrap gap-2">
                 {SPORT_OPTIONS.map(sport => {
                   const active = (form.sports ?? []).includes(sport);
-                  const color = sportColor[sport] ?? "#84cc16";
+                  const color = getSportColor(sport);
                   return (
                     <button
                       key={sport}

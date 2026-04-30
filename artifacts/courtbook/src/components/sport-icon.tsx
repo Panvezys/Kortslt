@@ -332,6 +332,24 @@ export function SportIcon({ sport, ...props }: SvgProps & { sport: string }) {
   }
 }
 
+/**
+ * Neutral fallback for sports that aren't in {@link sportColor}. Uses a muted
+ * slate gray so an unknown sport never gets silently rendered in the lime
+ * tennis brand color (which would otherwise mislabel it as tennis).
+ */
+export const SPORT_COLOR_FALLBACK = "#64748b";
+
+/**
+ * Returns the brand color for a known sport, or a neutral gray for any
+ * unrecognised sport key. Centralises the lookup so call sites don't inline
+ * `sportColor[sport] ?? "#84cc16"`, which previously made unknown sports
+ * appear identical to tennis.
+ */
+export function getSportColor(sport?: string | null): string {
+  if (!sport) return SPORT_COLOR_FALLBACK;
+  return sportColor[sport] ?? SPORT_COLOR_FALLBACK;
+}
+
 export const sportColor: Record<string, string> = {
   tennis:             "#84cc16",
   basketball:         "#f97316",
@@ -480,7 +498,7 @@ export function SportPill({
   showLabel = true,
   className = "",
 }: SportPillProps) {
-  const color = sportColor[sport] ?? "#84cc16";
+  const color = getSportColor(sport);
   const label = SPORT_LABELS[sport] ?? sport;
   const s = PILL_SIZE[size];
 

@@ -4,7 +4,7 @@ import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Court } from "@workspace/api-client-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { MapPin } from "lucide-react";
-import { SportIcon, sportColor as SPORT_COLOR } from "@/components/sport-icon";
+import { SportIcon, sportColor as SPORT_COLOR, getSportColor } from "@/components/sport-icon";
 import { useTheme } from "./theme-provider";
 
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
@@ -207,7 +207,7 @@ function useInfoWindowStyles() {
 
 function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
   useInfoWindowStyles();
-  const color = SPORT_COLOR[court.type] ?? "#84cc16";
+  const color = getSportColor(court.type);
   const img = resolveCourtImage(court.imageUrl);
   const isDark = theme === "dark";
   const bg = isDark ? "#0d0f14" : "#ffffff";

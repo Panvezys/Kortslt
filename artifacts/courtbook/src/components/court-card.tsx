@@ -10,7 +10,7 @@ import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
-import { SportIcon, sportColor, SportPill } from "@/components/sport-icon";
+import { SportIcon, SportPill, getSportColor } from "@/components/sport-icon";
 
 function StarRating({ rating }: { rating?: number }) {
   const t = useT();
@@ -47,7 +47,7 @@ export function CourtCard({ court }: { court: Court }) {
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
   const [photoIdx, setPhotoIdx] = useState(0);
-  const sport = { color: sportColor[court.type] ?? "#84cc16" };
+  const sport = { color: getSportColor(court.type) };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;
   const favorited = isFavorite(court.id);

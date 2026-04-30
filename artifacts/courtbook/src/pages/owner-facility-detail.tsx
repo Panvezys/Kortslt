@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from "react"
 import { useLocation, useParams, Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { OwnerLayout } from "@/components/owner-layout";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
   useGetCourtPricing, useSetCourtPricing, customFetch,
@@ -1403,7 +1403,7 @@ export default function OwnerFacilityDetail() {
                               {Object.keys(SPORT_LABELS).filter(k => k !== "table-tennis").map((val) => (
                                 <SelectItem key={val} value={val}>
                                   <span className="inline-flex items-center gap-2">
-                                    <SportIcon sport={val} size={14} strokeWidth={2} style={{ color: sportColor[val] ?? "#84cc16" }} />
+                                    <SportIcon sport={val} size={14} strokeWidth={2} style={{ color: getSportColor(val) }} />
                                     {SPORT_LABELS[val]}
                                   </span>
                                 </SelectItem>
@@ -1705,7 +1705,7 @@ export default function OwnerFacilityDetail() {
                     <img src={resolveCourtImage(court.imageUrl) ?? undefined} alt={court.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/15">
-                      <SportIcon sport={court.type} size={48} strokeWidth={1.5} style={{ color: sportColor[court.type] ?? "#84cc16" }} className="opacity-70" />
+                      <SportIcon sport={court.type} size={48} strokeWidth={1.5} style={{ color: getSportColor(court.type) }} className="opacity-70" />
                     </div>
                   )}
                   <div className="absolute top-2 left-2">
@@ -2319,7 +2319,7 @@ function FacilityTournaments({ facilityId, facilityCourts }: { facilityId: numbe
             return (
               <div key={t.id} className="flex flex-wrap items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 transition-colors">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <SportIcon sport={t.sport} size={26} strokeWidth={1.75} style={{ color: sportColor[t.sport] ?? "#84cc16" }} />
+                  <SportIcon sport={t.sport} size={26} strokeWidth={1.75} style={{ color: getSportColor(t.sport) }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

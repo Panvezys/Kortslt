@@ -2,7 +2,7 @@ import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Flame, ArrowLeft, Info } from "lucide-react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, getSportColor } from "@/components/sport-icon";
 
 const TIERS = [
   {
@@ -150,7 +150,7 @@ export default function RanksPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SPORTS.map(s => (
                 <div key={s.key} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <SportIcon sport={s.key} size={20} strokeWidth={1.75} style={{ color: sportColor[s.key] ?? "#84cc16" }} />
+                  <SportIcon sport={s.key} size={20} strokeWidth={1.75} style={{ color: getSportColor(s.key) }} />
                   <span className="text-sm font-medium">{s.label}</span>
                 </div>
               ))}

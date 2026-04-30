@@ -7,7 +7,7 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, getSportColor } from "@/components/sport-icon";
 import { useT } from "@/lib/i18n";
 
 export default function FavoritesPage() {
@@ -85,7 +85,7 @@ export default function FavoritesPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {favorites.map((court) => {
-                const color = sportColor[court.type] ?? "#84cc16";
+                const color = getSportColor(court.type);
                 return (
                   <Link key={court.id} href={`/courts/${court.id}`}>
                     <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">

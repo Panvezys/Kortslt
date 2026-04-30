@@ -15,7 +15,7 @@ import { useT, useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
-import { SportIcon, sportColor, SportPill } from "@/components/sport-icon";
+import { SportIcon, sportColor, SportPill, getSportColor } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -189,7 +189,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
   const [btnHovered, setBtnHovered] = useState(false);
   const imgSrc = resolveCourtImage(court.imageUrl, court.type);
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
-  const color = sportColor[court.type] ?? "#84cc16";
+  const color = getSportColor(court.type);
 
   return (
     <Card
@@ -470,8 +470,8 @@ export default function Home() {
                         onClick={() => { setSearchName(""); setDropdownOpen(false); }}
                       >
                         <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted dark:hover:bg-white/10 transition-colors cursor-pointer border-b border-border dark:border-white/5 last:border-b-0">
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${sportColor[court.type] ?? "#84cc16"}22` }}>
-                            <SportIcon sport={court.type} size={14} strokeWidth={2} style={{ color: sportColor[court.type] ?? "#84cc16" }} />
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${getSportColor(court.type)}22` }}>
+                            <SportIcon sport={court.type} size={14} strokeWidth={2} style={{ color: getSportColor(court.type) }} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground dark:text-white truncate">{court.name}</p>
@@ -507,7 +507,7 @@ export default function Home() {
                       Visi sportai
                     </DropdownMenuItem>
                     {ALL_SPORTS.map(sport => {
-                      const color = sportColor[sport] ?? "#84cc16";
+                      const color = getSportColor(sport);
                       const active = searchSport === sport;
                       return (
                         <DropdownMenuItem
@@ -920,7 +920,7 @@ export default function Home() {
               <div className="space-y-1">
                 {ALL_SPORTS.map(sport => {
                   const active = activeSports.has(sport);
-                  const color = sportColor[sport] ?? "#84cc16";
+                  const color = getSportColor(sport);
                   const count = (courts ?? []).filter(c => c.type === sport).length;
                   return (
                     <button
@@ -982,7 +982,7 @@ export default function Home() {
               </button>
               {ALL_SPORTS.filter(s => (courts ?? []).some(c => c.type === s)).map(sport => {
                 const active = activeSports.has(sport);
-                const color = sportColor[sport] ?? "#84cc16";
+                const color = getSportColor(sport);
                 const count = (courts ?? []).filter(c => c.type === sport).length;
                 return (
                   <button
