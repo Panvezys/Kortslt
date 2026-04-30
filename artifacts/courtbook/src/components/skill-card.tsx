@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Trophy, TrendingUp } from "lucide-react";
+import { SPORT_LABELS, SPORT_EMOJIS as SPORT_ICON } from "@/components/sport-icon";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -16,23 +17,6 @@ interface UserRating {
   draws: number;
   tier: { name: string; color: string };
 }
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  "table-tennis": "Stalo tenisas", table_tennis: "Stalo tenisas",
-  golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-  volleyball: "Tinklinis", hockey: "Ledo ritulys", futsal: "Futsalas",
-  floorball: "Florbolai", "beach-volleyball": "Paplūdimio tinklinis",
-  pickleball: "Pikliboulas",
-};
-
-const SPORT_ICON: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏸", football: "⚽",
-  badminton: "🏸", squash: "🟡", "table-tennis": "🏓", table_tennis: "🏓",
-  golf: "⛳", bowling: "🎳", volleyball: "🏐", hockey: "🏒",
-  futsal: "⚽", floorball: "🏒", "beach-volleyball": "🏐", pickleball: "🏓",
-};
 
 const TIER_CONFIG: Record<string, { gradient: string; textColor: string; bgColor: string; borderColor: string; label: string }> = {
   Diamond: {

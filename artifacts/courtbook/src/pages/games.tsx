@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SportIcon } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock, Search, X, Swords, Shield, Info } from "lucide-react";
@@ -20,15 +20,6 @@ import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-export const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  "table-tennis": "Stalo tenisas", table_tennis: "Stalo tenisas",
-  golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-  volleyball: "Tinklinis", hockey: "Ledo ritulys", futsal: "Futsalas",
-  floorball: "Florbolai", "beach-volleyball": "Paplūdimio tinklinis",
-  pickleball: "Pikliboulas",
-};
 const SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table-tennis", "volleyball", "hockey", "futsal", "floorball", "beach-volleyball", "golf", "bowling", "pickleball"];
 
 const SKILL_LABELS: Record<string, string> = {

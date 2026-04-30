@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useRole } from "@/lib/useRole";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
+import { SPORT_LABELS } from "@/components/sport-icon";
 
 function safeDocUrl(url: string | undefined | null): string | undefined {
   if (!url) return undefined;
@@ -32,19 +33,6 @@ function safeDocUrl(url: string | undefined | null): string | undefined {
     return undefined;
   }
 }
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas",
-  basketball: "Krepšinis",
-  padel: "Padelis",
-  football: "Futbolas",
-  badminton: "Badmintonas",
-  squash: "Skvoše",
-  table_tennis: "Stalo tenisas",
-  golf: "Golfas",
-  snooker: "Snukeris",
-  bowling: "Boulingas",
-};
 
 type UserRole = "admin" | "owner" | "player";
 

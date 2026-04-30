@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from "react"
 import { useLocation, useParams, Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { OwnerLayout } from "@/components/owner-layout";
-import { CourtIcon } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
   useGetCourtPricing, useSetCourtPricing, customFetch,
@@ -115,17 +115,6 @@ for (let h = 0; h <= 23; h++) {
     HOUR_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
   }
 }
-
-const SPORT_EMOJIS: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽",
-  badminton: "🏸", squash: "🎯", table_tennis: "🏓", golf: "⛳",
-  snooker: "🎱", bowling: "🎳",
-};
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;

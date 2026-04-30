@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck, Layers } from "lucide-react";
-import { SportIcon } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db/sports-config";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -20,11 +20,6 @@ import { validateEmail, validatePhone } from "@/lib/validators";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 const STATUS_LABELS: Record<string, string> = {
   draft: "Rengiamas", open: "Registracija atidaryta", closed: "Registracija uždaryta", completed: "Baigtas",
 };

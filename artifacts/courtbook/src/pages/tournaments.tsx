@@ -9,17 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, Euro, Users, Trophy, Search, Clock, X, ShieldCheck, Zap, Plus, ListOrdered } from "lucide-react";
-import { SportIcon } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
 import { useRole } from "@/lib/useRole";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Rengiamas", open: "Registracija", closed: "Uždaryta", completed: "Baigtas",

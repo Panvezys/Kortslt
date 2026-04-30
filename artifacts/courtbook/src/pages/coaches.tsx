@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
 import { format } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
@@ -37,12 +37,7 @@ const HERO_IMAGES = [
 ];
 
 const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
-const sportLT: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-};
-const SPORT_LABELS = sportLT;
+const sportLT = SPORT_LABELS;
 
 interface Coach {
   id: number;

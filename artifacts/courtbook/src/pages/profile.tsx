@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useSearch, useLocation } from "wouter";
 import { useT } from "@/lib/i18n";
-import { SportIcon } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
 import { SkillCard } from "@/components/skill-card";
 import { useRole } from "@/lib/useRole";
 import {
@@ -101,12 +101,7 @@ interface UserSportsData {
   ratings?: SportRating[];
 }
 
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
-const ALL_SPORTS = Object.keys(SPORT_LABELS);
+const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
 
 const LEVEL_LABELS: Record<string, string> = {
   beginner: "Pradedantysis",

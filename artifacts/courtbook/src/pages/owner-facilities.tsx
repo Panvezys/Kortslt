@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
-import { CourtIcon } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
 import { validateEmail, validatePhone } from "@/lib/validators";
 import {
   Plus, Building2, MapPin, ChevronRight,
@@ -23,17 +23,6 @@ import {
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
-
-const SPORT_EMOJIS: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏓", football: "⚽",
-  badminton: "🏸", squash: "🎯", table_tennis: "🏓", golf: "⛳",
-  snooker: "🎱", bowling: "🎳",
-};
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 
 interface FacilityCourt {
   id: number;

@@ -10,7 +10,7 @@ import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search } from "lucide-react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
 import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -19,12 +19,6 @@ const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
 const SPORT_OPTIONS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
-
 interface Coach {
   id: number;
   userId: string;

@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
+import { SPORT_LABELS } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -48,12 +49,6 @@ interface FacilitySummary {
   id: number;
   name: string;
 }
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 
 export default function OwnerTournamentsPage() {
   const { getToken } = useAuth();

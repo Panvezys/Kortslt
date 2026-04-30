@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { SportIcon } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
@@ -30,15 +30,6 @@ import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-export const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
-  "table-tennis": "Stalo tenisas", table_tennis: "Stalo tenisas",
-  golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-  volleyball: "Tinklinis", hockey: "Ledo ritulys", futsal: "Futsalas",
-  floorball: "Florbolai", "beach-volleyball": "Paplūdimio tinklinis",
-  pickleball: "Pikliboulas",
-};
 const SKILL_LABELS: Record<string, string> = {
   any: "Bet koks", beginner: "Pradedantysis", intermediate: "Vidutinis", advanced: "Pažengęs",
 };

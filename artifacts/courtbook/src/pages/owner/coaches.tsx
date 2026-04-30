@@ -6,17 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2, Euro, MapPin, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-};
 
 interface PendingRequest {
   invitationId: number;

@@ -233,3 +233,62 @@ export const sportAbbr: Record<string, string> = {
   snooker:      "SN",
   bowling:      "BW",
 };
+
+/**
+ * SINGLE SOURCE OF TRUTH — sport display labels (Lithuanian).
+ * All UI surfaces must import from here. Aliases like "table-tennis" map to
+ * the same label as "table_tennis" so legacy slugs keep working.
+ */
+export const SPORT_LABELS: Record<string, string> = {
+  tennis:               "Tenisas",
+  basketball:           "Krepšinis",
+  padel:                "Padelis",
+  football:             "Futbolas",
+  badminton:            "Badmintonas",
+  squash:               "Skvošas",
+  table_tennis:         "Stalo tenisas",
+  "table-tennis":       "Stalo tenisas",
+  golf:                 "Golfas",
+  snooker:              "Snukeris",
+  bowling:              "Boulingas",
+  volleyball:           "Tinklinis",
+  hockey:               "Ledo ritulys",
+  futsal:               "Futsalas",
+  floorball:            "Florbolas",
+  "beach-volleyball":   "Paplūdimio tinklinis",
+  pickleball:           "Pickleball",
+};
+
+export function getSportLabel(sport?: string | null): string {
+  if (!sport) return "";
+  return SPORT_LABELS[sport] ?? sport;
+}
+
+/**
+ * SINGLE SOURCE OF TRUTH — sport emojis. Used for compact text contexts
+ * (rank badges, chat fallbacks). Visual SVG should use <SportIcon>.
+ */
+export const SPORT_EMOJIS: Record<string, string> = {
+  tennis:               "🎾",
+  basketball:           "🏀",
+  padel:                "🏓",
+  football:             "⚽",
+  badminton:            "🏸",
+  squash:               "🎯",
+  table_tennis:         "🏓",
+  "table-tennis":       "🏓",
+  golf:                 "⛳",
+  snooker:              "🎱",
+  bowling:              "🎳",
+  volleyball:           "🏐",
+  hockey:               "🏒",
+  futsal:               "⚽",
+  floorball:            "🏑",
+  "beach-volleyball":   "🏐",
+  pickleball:           "🏓",
+};
+
+export function getSportEmoji(sport?: string | null): string {
+  if (!sport) return "🏅";
+  return SPORT_EMOJIS[sport] ?? "🏅";
+}

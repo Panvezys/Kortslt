@@ -15,24 +15,16 @@ export const TIERS: TierInfo[] = [
   { name: "Bronze",  cls: "text-orange-600 border-orange-500/30", bgCls: "bg-orange-700/15", emoji: "🥉", minElo: 0 },
 ];
 
-export const SPORT_EMOJIS: Record<string, string> = {
-  tennis: "🎾", basketball: "🏀", padel: "🏸", football: "⚽",
-  badminton: "🏸", squash: "🎾", table_tennis: "🏓", "table-tennis": "🏓",
-  golf: "⛳", snooker: "🎱", bowling: "🎳", volleyball: "🏐",
-  hockey: "🏒", futsal: "⚽", floorball: "🏑", "beach-volleyball": "🏐",
-  pickleball: "🏸",
-};
+// Re-export from the canonical sport-icon source so labels/emojis stay in sync.
+export { SPORT_EMOJIS, SPORT_LABELS, getSportEmoji, getSportLabel } from "@/components/sport-icon";
+import { getSportEmoji as _getSportEmoji } from "@/components/sport-icon";
 
 export function getTier(elo: number): TierInfo {
   return TIERS.find(t => elo >= t.minElo) ?? TIERS[TIERS.length - 1];
 }
 
-export function getSportEmoji(sport: string): string {
-  return SPORT_EMOJIS[sport] ?? "🏅";
-}
-
 export function getRankLabel(sport: string, elo: number): string {
   const tier = getTier(elo);
-  const emoji = getSportEmoji(sport);
+  const emoji = _getSportEmoji(sport);
   return `${emoji} ${tier.name} ${elo}`;
 }

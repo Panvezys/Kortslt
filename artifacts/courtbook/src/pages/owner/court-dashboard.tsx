@@ -10,22 +10,12 @@ import {
   LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
   Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban, Trophy,
 } from "lucide-react";
-import { CourtIcon } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
 
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", padel: "Padelis", squash: "Skvošas",
-  badminton: "Badmintonas", basketball: "Krepšinis", football: "Futbolas",
-  volleyball: "Tinklinis", table_tennis: "Stalo tenisas", pickleball: "Pickleball",
-};
-const SPORT_EMOJIS: Record<string, string> = {
-  tennis: "🎾", padel: "🏓", squash: "🟠", badminton: "🏸",
-  basketball: "🏀", football: "⚽", volleyball: "🏐", table_tennis: "🏓",
-  pickleball: "🥒",
-};
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",

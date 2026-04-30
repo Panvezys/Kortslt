@@ -26,12 +26,7 @@ import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
-
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
-  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
-  football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
-};
+import { SPORT_LABELS } from "@/components/sport-icon";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;

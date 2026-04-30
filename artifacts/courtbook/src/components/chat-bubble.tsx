@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
 import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2, ExternalLink, CalendarDays } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -107,17 +107,6 @@ interface GameChatMsg {
   createdAt: string;
 }
 
-const SPORT_LABELS: Record<string, string> = {
-  tennis: "Tenisas",
-  padel: "Padelis",
-  badminton: "Badmintonas",
-  squash: "Skvošas",
-  basketball: "Krepšinis",
-  football: "Futbolas",
-  table_tennis: "Stalo tenisas",
-  golf: "Golfas",
-  volleyball: "Tinklinis",
-};
 const sportLabel = (s: string) => SPORT_LABELS[s] ?? s;
 
 function formatGameWhen(iso: string) {
