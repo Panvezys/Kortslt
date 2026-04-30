@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LayoutDashboard, Building2, CreditCard, Settings,
   LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
-  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban,
+  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban, Trophy,
 } from "lucide-react";
 import { CourtIcon } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
