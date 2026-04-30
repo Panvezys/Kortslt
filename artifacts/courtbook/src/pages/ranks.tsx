@@ -53,6 +53,9 @@ const SPORTS = [
   { key: "badminton", label: "Badmintonas" }, { key: "table_tennis", label: "Stalo tenisas" },
   { key: "squash", label: "Skvošas" }, { key: "golf", label: "Golfas" },
   { key: "bowling", label: "Boulingas" }, { key: "snooker", label: "Snukeris" },
+  { key: "volleyball", label: "Tinklinis" }, { key: "hockey", label: "Ledo ritulys" },
+  { key: "futsal", label: "Futsalas" }, { key: "floorball", label: "Florbolas" },
+  { key: "beach-volleyball", label: "Paplūdimio tinklinis" }, { key: "pickleball", label: "Pickleball" },
 ];
 
 const ELO_EXAMPLES = [

@@ -168,6 +168,105 @@ export function BowlingIcon(props: SvgProps) {
   );
 }
 
+/** Volleyball — ball with three curved seam panels meeting at the top-left */
+export function VolleyballIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2.2 8.5 C 8 12 14 12 21.8 8.5" strokeWidth={sw} />
+      <path d="M4 18 C 9 14 14 10 19.5 5" strokeWidth={sw} />
+      <path d="M19.5 19 C 16 14 14 9 12 2.2" strokeWidth={sw} />
+    </Svg>
+  );
+}
+
+/** Hockey — two crossed sticks (with hooked blades) over a puck */
+export function HockeyIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      {/* Left stick: shaft from top-left + blade at bottom */}
+      <line x1="3" y1="3" x2="13" y2="13" strokeWidth={sw} />
+      <path d="M13 13 L20 13 L20 16 L16 16 Z" strokeWidth={sw} />
+      {/* Right stick: shaft from top-right + blade at bottom (mirrored) */}
+      <line x1="21" y1="3" x2="11" y2="13" strokeWidth={sw} />
+      <path d="M11 13 L4 13 L4 16 L8 16 Z" strokeWidth={sw} />
+      {/* Puck */}
+      <ellipse cx="12" cy="20.5" rx="4" ry="1.3" strokeWidth={sw} />
+    </Svg>
+  );
+}
+
+/** Futsal — indoor court layout (rectangle, halfway line, centre circle, penalty arcs) */
+export function FutsalIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  const thin = Math.max(0.7, sw * 0.6);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="6" width="18" height="12" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="6" x2="12" y2="18" strokeWidth={thin} />
+      <circle cx="12" cy="12" r="2" strokeWidth={thin} />
+      <path d="M3 9.5 Q 7 12 3 14.5" strokeWidth={thin} fill="none" />
+      <path d="M21 9.5 Q 17 12 21 14.5" strokeWidth={thin} fill="none" />
+    </Svg>
+  );
+}
+
+/** Floorball — straight stick with curved blade and a perforated plastic ball */
+export function FloorballIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      {/* Stick shaft */}
+      <line x1="7" y1="3" x2="15" y2="13" strokeWidth={sw} />
+      {/* Curved blade */}
+      <path d="M15 13 Q 19.5 14 20.5 17 Q 17.5 17 14 16 Z" strokeWidth={sw} />
+      {/* Perforated ball */}
+      <circle cx="6" cy="20" r="2.6" strokeWidth={sw} />
+      <circle cx="5" cy="19.4" r="0.45" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="20.4" r="0.45" fill="currentColor" stroke="none" />
+      <circle cx="6.4" cy="18.6" r="0.45" fill="currentColor" stroke="none" />
+      <circle cx="5.4" cy="21.2" r="0.45" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/** Beach volleyball — volleyball-style ball above a wavy sand line */
+export function BeachVolleyballIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      {/* Ball with three seams */}
+      <circle cx="11" cy="10.5" r="7.5" strokeWidth={sw} />
+      <path d="M3.7 10.5 Q 11 6 18.3 10.5" strokeWidth={sw} />
+      <path d="M3.7 10.5 Q 11 15 18.3 10.5" strokeWidth={sw} />
+      <path d="M11 3 Q 7 10.5 11 18" strokeWidth={sw} />
+      {/* Sand wave */}
+      <path d="M2 21.5 Q 5 20 8 21.5 T 14 21.5 T 20 21.5 T 22 21" strokeWidth={sw} fill="none" />
+    </Svg>
+  );
+}
+
+/** Pickleball — rectangular paddle with rounded face + small perforated ball */
+export function PickleballIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      {/* Paddle face */}
+      <rect x="3" y="2.5" width="11" height="13" rx="2" strokeWidth={sw} />
+      {/* Handle */}
+      <line x1="8.5" y1="15.5" x2="8.5" y2="22" strokeWidth={sw} />
+      <line x1="6.5" y1="22" x2="10.5" y2="22" strokeWidth={sw} />
+      {/* Perforated ball */}
+      <circle cx="18.5" cy="17" r="3" strokeWidth={sw} />
+      <circle cx="17.4" cy="16.4" r="0.45" fill="currentColor" stroke="none" />
+      <circle cx="19.5" cy="16.4" r="0.45" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="18" r="0.45" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
 /** Court — generic tennis-style court diagram (outer frame, doubles alleys, net, service boxes) */
 export function CourtIcon(props: SvgProps) {
   const sw = props.strokeWidth ?? 1.6;
@@ -190,48 +289,87 @@ export function CourtIcon(props: SvgProps) {
   );
 }
 
-export type SportType = "tennis" | "basketball" | "padel" | "football" | "badminton" | "squash" | "table_tennis" | "golf" | "snooker" | "bowling";
+export type SportType =
+  | "tennis"
+  | "basketball"
+  | "padel"
+  | "football"
+  | "badminton"
+  | "squash"
+  | "table_tennis"
+  | "golf"
+  | "snooker"
+  | "bowling"
+  | "volleyball"
+  | "hockey"
+  | "futsal"
+  | "floorball"
+  | "beach-volleyball"
+  | "pickleball";
 
 export function SportIcon({ sport, ...props }: SvgProps & { sport: string }) {
   switch (sport) {
-    case "tennis":       return <TennisIcon {...props} />;
-    case "basketball":   return <BasketballIcon {...props} />;
-    case "padel":        return <PadelIcon {...props} />;
-    case "football":     return <FootballIcon {...props} />;
-    case "badminton":    return <BadmintonIcon {...props} />;
-    case "squash":       return <SquashIcon {...props} />;
-    case "table_tennis": return <TableTennisIcon {...props} />;
-    case "golf":         return <GolfIcon {...props} />;
-    case "snooker":      return <SnookerIcon {...props} />;
-    case "bowling":      return <BowlingIcon {...props} />;
-    default:             return <TennisIcon {...props} />;
+    case "tennis":             return <TennisIcon {...props} />;
+    case "basketball":         return <BasketballIcon {...props} />;
+    case "padel":              return <PadelIcon {...props} />;
+    case "football":           return <FootballIcon {...props} />;
+    case "badminton":          return <BadmintonIcon {...props} />;
+    case "squash":             return <SquashIcon {...props} />;
+    case "table_tennis":
+    case "table-tennis":       return <TableTennisIcon {...props} />;
+    case "golf":               return <GolfIcon {...props} />;
+    case "snooker":            return <SnookerIcon {...props} />;
+    case "bowling":            return <BowlingIcon {...props} />;
+    case "volleyball":         return <VolleyballIcon {...props} />;
+    case "hockey":             return <HockeyIcon {...props} />;
+    case "futsal":             return <FutsalIcon {...props} />;
+    case "floorball":          return <FloorballIcon {...props} />;
+    case "beach-volleyball":   return <BeachVolleyballIcon {...props} />;
+    case "pickleball":         return <PickleballIcon {...props} />;
+    // Neutral fallback so any unrecognised sport key never renders the
+    // tennis-racket glyph and mislabels facilities/games.
+    default:                   return <CourtIcon {...props} />;
   }
 }
 
 export const sportColor: Record<string, string> = {
-  tennis:       "#84cc16",
-  basketball:   "#f97316",
-  padel:        "#3b82f6",
-  football:     "#22c55e",
-  badminton:    "#a855f7",
-  squash:       "#06b6d4",
-  table_tennis: "#f43f5e",
-  golf:         "#ca8a04",
-  snooker:      "#0d9488",
-  bowling:      "#dc2626",
+  tennis:             "#84cc16",
+  basketball:         "#f97316",
+  padel:              "#3b82f6",
+  football:           "#22c55e",
+  badminton:          "#a855f7",
+  squash:             "#06b6d4",
+  table_tennis:       "#f43f5e",
+  "table-tennis":     "#f43f5e",
+  golf:               "#ca8a04",
+  snooker:            "#0d9488",
+  bowling:            "#dc2626",
+  volleyball:         "#eab308",
+  hockey:             "#6366f1",
+  futsal:             "#10b981",
+  floorball:          "#e11d48",
+  "beach-volleyball": "#0ea5e9",
+  pickleball:         "#65a30d",
 };
 
 export const sportAbbr: Record<string, string> = {
-  tennis:       "TN",
-  basketball:   "BB",
-  padel:        "PD",
-  football:     "FT",
-  badminton:    "BM",
-  squash:       "SQ",
-  table_tennis: "TT",
-  golf:         "GL",
-  snooker:      "SN",
-  bowling:      "BW",
+  tennis:             "TN",
+  basketball:         "BB",
+  padel:              "PD",
+  football:           "FT",
+  badminton:          "BM",
+  squash:             "SQ",
+  table_tennis:       "TT",
+  "table-tennis":     "TT",
+  golf:               "GL",
+  snooker:            "SN",
+  bowling:            "BW",
+  volleyball:         "VB",
+  hockey:             "HK",
+  futsal:             "FS",
+  floorball:          "FB",
+  "beach-volleyball": "BV",
+  pickleball:         "PB",
 };
 
 /**
