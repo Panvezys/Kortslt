@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
-import { SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -154,9 +154,7 @@ export default function OwnerTournamentsPage() {
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-700 font-medium">
-                        {SPORT_LABELS[t.sport] ?? t.sport}
-                      </span>
+                      <SportPill sport={t.sport} />
                       <span>·</span>
                       <span>{t.facilityName} {t.facilityCity && `(${t.facilityCity})`}</span>
                     </div>
