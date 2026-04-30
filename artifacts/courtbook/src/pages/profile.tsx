@@ -886,6 +886,7 @@ export default function Profile() {
   const search = useSearch();
   const initialTab = (new URLSearchParams(search).get("tab") as Tab | null) ?? "sports";
   const VALID_TABS: Tab[] = ["sports", "games"];
+  const [cancellingOwnerRequest, setCancellingOwnerRequest] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(
     VALID_TABS.includes(initialTab) ? initialTab : "sports"
   );
@@ -1043,9 +1044,33 @@ export default function Profile() {
                   </Button>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  Administratorius peržiūri jūsų prašymą. Gavę patvirtinimą, galėsite prisijungti prie savininko skydelio ir pridėti aikšteles.
-                </p>
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Administratorius peržiūri jūsų prašymą. Gavę patvirtinimą, galėsite prisijungti prie savininko skydelio ir pridėti aikšteles.
+                  </p>
+                  <div className="pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/5 hover:text-red-300"
+                      disabled={cancellingOwnerRequest}
+                      onClick={async () => {
+                        if (!confirm("Ar tikrai norite atšaukti savininko prašymą?")) return;
+                        setCancellingOwnerRequest(true);
+                        try {
+                          await customFetch(`${API}/me/role-request`, { method: "DELETE" });
+                          await refreshRole();
+                        } catch (e) {
+                          alert((e as Error).message || "Nepavyko atšaukti prašymo");
+                        } finally {
+                          setCancellingOwnerRequest(false);
+                        }
+                      }}
+                    >
+                      {cancellingOwnerRequest ? "Atšaukiama…" : "Atšaukti prašymą"}
+                    </Button>
+                  </div>
+                </>
               )}
             </div>
           </div>

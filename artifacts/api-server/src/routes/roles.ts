@@ -85,6 +85,41 @@ router.post("/me/request-role", requireAuth, async (req, res): Promise<void> => 
   res.json(row);
 });
 
+/** DELETE /me/role-request — cancel the user's pending role request */
+router.delete("/me/role-request", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [existing] = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, userId));
+  if (!existing || existing.status !== "pending_approval" || !existing.pendingRole) {
+    res.status(400).json({ error: "Nėra aktyvaus prašymo, kurį būtų galima atšaukti" });
+    return;
+  }
+
+  const cancelledRole = existing.pendingRole;
+
+  const [row] = await db
+    .update(userRolesTable)
+    .set({
+      status: "active",
+      pendingRole: null,
+      requestData: null,
+      rejectionReason: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(userRolesTable.userId, userId))
+    .returning();
+
+  const roleLabel = cancelledRole === "coach" ? "trenerio" : "savininko";
+  await sendAdminNotification(
+    `${roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1)} rolės užklausa atšaukta`,
+    `Vartotojas atšaukė savo prašymą gauti ${roleLabel} teises.`,
+    "/admin/roles",
+  ).catch(() => {});
+
+  res.json(row);
+});
+
 /** GET /admin/role-requests — list all pending role requests (admin only) */
 router.get("/admin/role-requests", requireAdmin, async (_req, res): Promise<void> => {
   const rows = await db

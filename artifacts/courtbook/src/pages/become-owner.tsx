@@ -27,8 +27,31 @@ export default function BecomeOwnerPage() {
   const qc = useQueryClient();
 
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [done, setDone] = useState(false);
   const [mapKey] = useState(() => Math.random());
+
+  async function cancelRequest() {
+    if (!confirm("Ar tikrai norite atšaukti savininko prašymą?")) return;
+    setCancelling(true);
+    try {
+      const r = await fetch(`${API}/me/role-request`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Klaida");
+      }
+      await qc.invalidateQueries({ queryKey: ["me-role"] });
+      toast({ title: "Prašymas atšauktas", description: "Jūsų savininko prašymas buvo atšauktas." });
+      setLocation("/profile");
+    } catch (e: unknown) {
+      toast({ title: "Klaida", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   const [form, setForm] = useState({
     companyName: "",
