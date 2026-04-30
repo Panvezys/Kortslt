@@ -1810,8 +1810,8 @@ export default function OwnerFacilityDetail() {
                       </div>
                     )}
 
-                    {/* Submit for review */}
-                    {["draft", "hidden"].includes((court as any).status ?? "draft") && (
+                    {/* Submit for review — only before first approval */}
+                    {["draft", "rejected"].includes((court as any).status ?? "draft") && (
                       <Button
                         size="sm"
                         variant="outline"
