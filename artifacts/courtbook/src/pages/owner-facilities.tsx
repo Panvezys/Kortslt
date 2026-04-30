@@ -18,7 +18,7 @@ import { validateEmail, validatePhone } from "@/lib/validators";
 import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
-  LayoutDashboard, Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
+  Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -602,26 +602,6 @@ export default function OwnerFacilities() {
                       </Button>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/owner/facility/${facility.id}`); }}
-                      >
-                        <CourtIcon size={16} />
-                        Aikštelės
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                        onClick={(e) => { e.stopPropagation(); navigate(`/owner/dashboard?facility=${facility.id}`); }}
-                      >
-                        <LayoutDashboard className="w-4 h-4" />
-                        Suvestinė
-                      </Button>
-                    </div>
                   </div>
                 </div>
               );
