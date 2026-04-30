@@ -1,6 +1,16 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
-import { db, facilitiesTable, courtsTable, userProfilesTable } from "@workspace/db";
+import {
+  db,
+  facilitiesTable,
+  courtsTable,
+  userProfilesTable,
+  bookingsTable,
+  gamesTable,
+  reviewsTable,
+  courtPricingTable,
+} from "@workspace/db";
+import { inArray, gte, or } from "drizzle-orm";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 import { sendAdminNotification, sendNotification } from "../lib/notify";
@@ -370,7 +380,70 @@ router.delete("/facilities/:id", requireAuth, async (req, res): Promise<void> =>
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  await db.delete(facilitiesTable).where(eq(facilitiesTable.id, params.data.id));
+
+  // Collect every court that belongs to this facility — we need their IDs to
+  // cascade-delete dependent rows that don't have a DB-level FK constraint
+  // (court_pricing, reviews, bookings, games), as well as those that do but
+  // would otherwise be orphaned because facilities → courts is ON DELETE SET NULL.
+  const facilityCourts = await db
+    .select({ id: courtsTable.id })
+    .from(courtsTable)
+    .where(eq(courtsTable.facilityId, params.data.id));
+  const courtIds = facilityCourts.map((c) => c.id);
+
+  // Safety guard: refuse to delete if there are upcoming PAID bookings that
+  // would be silently dropped. The owner must refund/cancel them first.
+  if (courtIds.length > 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    const [{ count: futurePaid } = { count: 0 }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bookingsTable)
+      .where(
+        and(
+          inArray(bookingsTable.courtId, courtIds),
+          gte(bookingsTable.date, today),
+          eq(bookingsTable.status, "paid"),
+        ),
+      );
+    if (futurePaid > 0) {
+      res.status(409).json({
+        error: `Negalima ištrinti: yra ${futurePaid} būsimų apmokėtų rezervacijų. Pirmiausia jas atšaukite ir grąžinkite pinigus.`,
+      });
+      return;
+    }
+  }
+
+  // Manual cascade in a transaction. Order matters:
+  //  1) Delete leaf rows that reference courts/facility without an FK.
+  //  2) Delete the courts (DB CASCADE handles court_blocked_slots,
+  //     court_coaches, court_photos, tournaments(court_id),
+  //     court_memberships, user_memberships, court_coach_invitations).
+  //  3) Delete the facility itself.
+  await db.transaction(async (tx) => {
+    if (courtIds.length > 0) {
+      await tx.delete(reviewsTable).where(inArray(reviewsTable.courtId, courtIds));
+      await tx.delete(courtPricingTable).where(inArray(courtPricingTable.courtId, courtIds));
+      await tx.delete(bookingsTable).where(inArray(bookingsTable.courtId, courtIds));
+      await tx
+        .delete(gamesTable)
+        .where(
+          or(
+            inArray(gamesTable.courtId, courtIds),
+            eq(gamesTable.facilityId, params.data.id),
+          ),
+        );
+      await tx.delete(courtsTable).where(inArray(courtsTable.id, courtIds));
+    } else {
+      // Even with no courts, games may still reference the facility directly.
+      await tx.delete(gamesTable).where(eq(gamesTable.facilityId, params.data.id));
+    }
+    await tx.delete(facilitiesTable).where(eq(facilitiesTable.id, params.data.id));
+  });
+
+  req.log.info(
+    { facilityId: params.data.id, ownerUserId: userId, deletedCourts: courtIds.length },
+    "facility deleted by owner",
+  );
   res.status(204).send();
 });
 

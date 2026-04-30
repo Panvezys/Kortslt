@@ -342,10 +342,14 @@ export default function OwnerFacilities() {
     }
   };
 
-  const handleDelete = (id: number, e: React.MouseEvent) => {
+  const handleDelete = (facility: FacilityWithCourts, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Ar tikrai norite ištrinti šį objektą? Visos aikštelės liks be objekto.")) {
-      deleteMutation.mutate(id);
+    const courtCount = facility.courtCount ?? 0;
+    const warning = courtCount > 0
+      ? `Ar tikrai norite ištrinti objektą „${facility.name}"?\n\nKartu bus negrįžtamai ištrinta:\n• ${courtCount} aikštelė(-s)\n• visos kainos, blokavimai ir nuotraukos\n• istorija (rezervacijos, atsiliepimai, žaidimai, turnyrai)\n\nVeiksmas negrįžtamas.`
+      : `Ar tikrai norite ištrinti objektą „${facility.name}"? Veiksmas negrįžtamas.`;
+    if (confirm(warning)) {
+      deleteMutation.mutate(facility.id);
     }
   };
 
@@ -487,15 +491,14 @@ export default function OwnerFacilities() {
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      {facility.courtCount === 0 && (
-                        <button
-                          onClick={(e) => handleDelete(facility.id, e)}
-                          className="p-1.5 rounded-lg bg-black/50 text-red-400 hover:bg-black/70 transition-colors backdrop-blur-sm"
-                          title="Ištrinti"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={(e) => handleDelete(facility, e)}
+                        disabled={deleteMutation.isPending}
+                        className="p-1.5 rounded-lg bg-black/50 text-red-400 hover:bg-black/70 transition-colors backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Ištrinti"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
                     {facility.sportTypes.length > 0 && (
