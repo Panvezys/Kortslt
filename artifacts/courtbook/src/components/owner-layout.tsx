@@ -10,6 +10,7 @@ import {
   Menu,
   MessageSquare,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 
@@ -159,6 +160,21 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             );
           })}
         </nav>
+        <div className="shrink-0 border-t border-border/60 p-3">
+          <a
+            href={`${BASE_URL}/owner`}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onClose();
+              navigate("/owner");
+            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors w-full"
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            Grįžti į objektus
+          </a>
+        </div>
       </aside>
     </>
   );
