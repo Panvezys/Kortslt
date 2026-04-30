@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { userRolesTable, userRoleSchema, coachesTable } from "@workspace/db/schema";
+import { userRolesTable, coachesTable } from "@workspace/db/schema";
 import { requireAuth, requireAdmin, ensureUserRole, getCurrentUserId } from "../lib/auth";
 import { getAuth, clerkClient } from "@clerk/express";
 import { z } from "zod";
@@ -131,38 +131,44 @@ router.get("/admin/role-requests", requireAdmin, async (_req, res): Promise<void
 
 /** POST /admin/role-requests/:userId/approve — approve a role request */
 router.post("/admin/role-requests/:userId/approve", requireAdmin, async (req, res): Promise<void> => {
-  const { userId } = req.params;
+  const userId = String(req.params.userId);
 
   const [existing] = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, userId));
   if (!existing || existing.status !== "pending_approval" || !existing.pendingRole) {
     res.status(404).json({ error: "No pending role request found" }); return;
   }
 
-  const newRole = existing.pendingRole as string;
-  const requestData = existing.requestData ? (() => { try { return JSON.parse(existing.requestData!); } catch { return {}; } })() : {};
+  const newRole = existing.pendingRole;
+  const requestData: Record<string, unknown> = existing.requestData
+    ? (() => { try { return JSON.parse(existing.requestData!) as Record<string, unknown>; } catch { return {}; } })()
+    : {};
 
   if (newRole === "coach") {
+    const sportsArr: string[] = Array.isArray(requestData.sports)
+      ? (requestData.sports as unknown[]).map(String)
+      : [];
+    const pricePerHour = requestData.pricePerHour != null ? String(requestData.pricePerHour) : null;
     await db
       .insert(coachesTable)
       .values({
         userId,
-        name: requestData.name ?? "Coach",
-        email: requestData.email ?? "",
-        bio: requestData.bio ?? null,
-        photoUrl: requestData.photoUrl ?? null,
-        pricePerHour: requestData.pricePerHour ? String(requestData.pricePerHour) : null,
-        sports: Array.isArray(requestData.sports) ? requestData.sports : [],
-        availabilityDescription: requestData.availabilityDescription ?? null,
-        phone: requestData.phone ?? null,
+        name: (requestData.name as string | undefined) ?? "Coach",
+        email: (requestData.email as string | undefined) ?? "",
+        bio: (requestData.bio as string | undefined) ?? null,
+        photoUrl: (requestData.photoUrl as string | undefined) ?? null,
+        pricePerHour,
+        sports: sportsArr,
+        availabilityDescription: (requestData.availabilityDescription as string | undefined) ?? null,
+        phone: (requestData.phone as string | undefined) ?? null,
       })
       .onConflictDoUpdate({
         target: coachesTable.userId,
         set: {
-          bio: requestData.bio ?? null,
-          sports: Array.isArray(requestData.sports) ? requestData.sports : [],
-          pricePerHour: requestData.pricePerHour ? String(requestData.pricePerHour) : null,
-          availabilityDescription: requestData.availabilityDescription ?? null,
-          phone: requestData.phone ?? null,
+          bio: (requestData.bio as string | undefined) ?? null,
+          sports: sportsArr,
+          pricePerHour,
+          availabilityDescription: (requestData.availabilityDescription as string | undefined) ?? null,
+          phone: (requestData.phone as string | undefined) ?? null,
         },
       });
   }
@@ -180,13 +186,18 @@ router.post("/admin/role-requests/:userId/approve", requireAdmin, async (req, re
     .where(eq(userRolesTable.userId, userId))
     .returning();
 
+  // Sync Clerk publicMetadata so JWT/session reflects the new role
+  await clerkClient.users
+    .updateUserMetadata(userId, { publicMetadata: { role: newRole } })
+    .catch(() => {});
+
   res.json(row);
 });
 
 /** POST /admin/role-requests/:userId/reject — reject a role request */
 router.post("/admin/role-requests/:userId/reject", requireAdmin, async (req, res): Promise<void> => {
-  const { userId } = req.params;
-  const { reason } = req.body;
+  const userId = String(req.params.userId);
+  const { reason } = req.body as { reason?: string };
 
   const [row] = await db
     .update(userRolesTable)
@@ -211,18 +222,23 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
 
   if (rows.length === 0) { res.json([]); return; }
 
-  // Enrich with Clerk user data (name, email, avatar)
+  // Enrich with Clerk user data (name, email, avatar). Chunk in batches of 100
+  // because the Clerk SDK caps `limit` at 100 per request.
   const userIds = rows.map(r => r.userId);
-  let clerkUsers: Record<string, { name: string | null; email: string | null; avatarUrl: string | null }> = {};
-  try {
-    const clerkResp = await clerkClient.users.getUserList({ userId: userIds, limit: 500 });
-    for (const cu of clerkResp.data) {
-      const name = [cu.firstName, cu.lastName].filter(Boolean).join(" ") || null;
-      const email = cu.emailAddresses?.[0]?.emailAddress ?? null;
-      clerkUsers[cu.id] = { name, email, avatarUrl: cu.imageUrl ?? null };
+  const clerkUsers: Record<string, { name: string | null; email: string | null; avatarUrl: string | null }> = {};
+  const CHUNK = 100;
+  for (let i = 0; i < userIds.length; i += CHUNK) {
+    const chunk = userIds.slice(i, i + CHUNK);
+    try {
+      const clerkResp = await clerkClient.users.getUserList({ userId: chunk, limit: CHUNK });
+      for (const cu of clerkResp.data) {
+        const name = [cu.firstName, cu.lastName].filter(Boolean).join(" ") || null;
+        const email = cu.emailAddresses?.[0]?.emailAddress ?? null;
+        clerkUsers[cu.id] = { name, email, avatarUrl: cu.imageUrl ?? null };
+      }
+    } catch {
+      // If a Clerk call fails, proceed without enrichment for that chunk
     }
-  } catch {
-    // If Clerk call fails, proceed without enrichment
   }
 
   const enriched = rows.map(r => ({
@@ -235,11 +251,11 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
   res.json(enriched);
 });
 
-const SetRoleBody = z.object({ role: userRoleSchema });
+const SetRoleBody = z.object({ role: z.enum(["player", "coach", "owner", "admin"]) });
 
 /** PUT /admin/users/:userId/role — set a user's role directly (admin only) */
 router.put("/admin/users/:userId/role", requireAdmin, async (req, res): Promise<void> => {
-  const { userId } = req.params;
+  const userId = String(req.params.userId);
   const parsed = SetRoleBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid role." });
@@ -255,13 +271,24 @@ router.put("/admin/users/:userId/role", requireAdmin, async (req, res): Promise<
     })
     .returning();
 
+  // Sync Clerk publicMetadata so the JWT/session reflects the new role
+  await clerkClient.users
+    .updateUserMetadata(userId, { publicMetadata: { role: parsed.data.role } })
+    .catch(() => {});
+
   res.json(row);
 });
 
 /** DELETE /admin/users/:userId/role — revert to player */
 router.delete("/admin/users/:userId/role", requireAdmin, async (req, res): Promise<void> => {
-  const { userId } = req.params;
+  const userId = String(req.params.userId);
   await db.delete(userRolesTable).where(eq(userRolesTable.userId, userId));
+
+  // Reset Clerk publicMetadata role to player so the JWT/session is consistent
+  await clerkClient.users
+    .updateUserMetadata(userId, { publicMetadata: { role: "player" } })
+    .catch(() => {});
+
   res.json({ userId, role: "player" });
 });
 
