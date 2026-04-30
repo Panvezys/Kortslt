@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { format } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
@@ -91,19 +91,9 @@ function CoachCard({ coach }: { coach: Coach }) {
 
           {coach.sports.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {coach.sports.slice(0, 3).map(s => {
-                const color = sportColor[s] ?? "#84cc16";
-                return (
-                  <span
-                    key={s}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: color + "22", color }}
-                  >
-                    <SportIcon sport={s} size={10} strokeWidth={2} />
-                    {SPORT_LABELS[s] ?? s}
-                  </span>
-                );
-              })}
+              {coach.sports.slice(0, 3).map(s => (
+                <SportPill key={s} sport={s} variant="subtle" />
+              ))}
               {coach.sports.length > 3 && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                   +{coach.sports.length - 3}

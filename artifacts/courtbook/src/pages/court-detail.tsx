@@ -26,7 +26,7 @@ import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
-import { SPORT_LABELS } from "@/components/sport-icon";
+import { SPORT_LABELS, SportPill } from "@/components/sport-icon";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -140,9 +140,7 @@ function CoachesSectionForCourt({ courtId }: { courtId: number }) {
               {coach.sports.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {coach.sports.slice(0, 3).map(s => (
-                    <span key={s} className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5">
-                      {SPORT_LABELS[s] ?? s}
-                    </span>
+                    <SportPill key={s} sport={s} variant="subtle" />
                   ))}
                 </div>
               )}

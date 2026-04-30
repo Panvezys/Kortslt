@@ -2,7 +2,7 @@ import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Flame, ArrowLeft, Info } from "lucide-react";
-import { SPORT_EMOJIS } from "@/lib/rank-tier";
+import { SportIcon, sportColor } from "@/components/sport-icon";
 
 const TIERS = [
   {
@@ -147,7 +147,7 @@ export default function RanksPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SPORTS.map(s => (
                 <div key={s.key} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <span className="text-xl">{SPORT_EMOJIS[s.key] ?? "🏅"}</span>
+                  <SportIcon sport={s.key} size={20} strokeWidth={1.75} style={{ color: sportColor[s.key] ?? "#84cc16" }} />
                   <span className="text-sm font-medium">{s.label}</span>
                 </div>
               ))}

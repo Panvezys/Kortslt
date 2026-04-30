@@ -15,7 +15,7 @@ import { useT, useI18n } from "@/lib/i18n";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SportPill } from "@/components/sport-icon";
 import { sportLithuanian } from "@/components/court-map";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -224,13 +224,11 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span
-              className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all duration-200 ${hovered ? "text-white" : "bg-muted text-muted-foreground"}`}
-              style={hovered ? { background: color } : undefined}
-            >
-              <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
-              {sportLabel}
-            </span>
+            <SportPill
+              sport={court.type}
+              variant={hovered ? "solid" : "subtle"}
+              className="transition-all duration-200"
+            />
             <StarRatingSmall rating={court.rating} />
           </div>
           {court.pricePerHour && (

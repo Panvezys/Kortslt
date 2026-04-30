@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { validateEmail, validatePhone } from "@/lib/validators";
 import {
   Plus, Building2, MapPin, ChevronRight,
@@ -518,12 +518,7 @@ export default function OwnerFacilities() {
                     {facility.sportTypes.length > 0 && (
                       <div className="absolute bottom-3 left-3 flex gap-1">
                         {facility.sportTypes.slice(0, 5).map(sport => (
-                          <span
-                            key={sport}
-                            className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium"
-                          >
-                            {SPORT_EMOJIS[sport] || ""} {SPORT_LABELS[sport] || sport}
-                          </span>
+                          <SportPill key={sport} sport={sport} variant="solid" />
                         ))}
                         {facility.sportTypes.length > 5 && (
                           <span className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium">

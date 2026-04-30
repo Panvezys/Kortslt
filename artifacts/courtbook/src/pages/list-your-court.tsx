@@ -27,7 +27,7 @@ import {
   QrCode,
   Printer,
 } from "lucide-react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -228,19 +228,9 @@ export default function ListYourCourt() {
               Palaikomos sporto šakos
             </span>
             <div className="flex gap-2 flex-wrap">
-              {SPORTS.map(sport => {
-                const color = sportColor[sport] ?? "#84cc16";
-                return (
-                  <div
-                    key={sport}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-background"
-                    style={{ borderColor: color + "44", color }}
-                  >
-                    <SportIcon sport={sport} size={12} strokeWidth={2} />
-                    <span className="capitalize">{sport.replace("_", " ")}</span>
-                  </div>
-                );
-              })}
+              {SPORTS.map(sport => (
+                <SportPill key={sport} sport={sport} variant="outline" size="md" />
+              ))}
             </div>
           </div>
         </div>

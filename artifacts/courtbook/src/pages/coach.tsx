@@ -10,7 +10,7 @@ import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search } from "lucide-react";
-import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -329,19 +329,9 @@ export default function CoachPage() {
             <div className="mt-5 space-y-4">
               {displayCoach.sports.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {displayCoach.sports.map(s => {
-                    const color = sportColor[s] ?? "#84cc16";
-                    return (
-                      <span
-                        key={s}
-                        className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium"
-                        style={{ background: color + "22", color }}
-                      >
-                        <SportIcon sport={s} size={11} strokeWidth={2} />
-                        {SPORT_LABELS[s] ?? s}
-                      </span>
-                    );
-                  })}
+                  {displayCoach.sports.map(s => (
+                    <SportPill key={s} sport={s} variant="subtle" />
+                  ))}
                 </div>
               )}
 

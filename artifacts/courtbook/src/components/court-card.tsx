@@ -10,7 +10,7 @@ import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
-import { SportIcon, sportColor } from "@/components/sport-icon";
+import { SportIcon, sportColor, SportPill } from "@/components/sport-icon";
 
 const sportConfig: Record<string, { color: string }> = {
   tennis:       { color: sportColor.tennis },
@@ -176,13 +176,7 @@ export function CourtCard({ court }: { court: Court }) {
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start mb-2 gap-2">
           <div className="flex gap-1.5 flex-wrap items-center">
-            <span
-              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all duration-200 text-white"
-              style={{ background: sport.color }}
-            >
-              <SportIcon sport={court.type} size={11} strokeWidth={2} className="shrink-0" />
-              {sportLabel}
-            </span>
+            <SportPill sport={court.type} variant="solid" className="transition-all duration-200" />
             <StarRating rating={court.rating} />
             {(court as any).facilityVerified && (
               <Badge className="gap-1 text-[10px] px-1.5 py-0 bg-blue-500/15 text-blue-400 border-blue-500/30">

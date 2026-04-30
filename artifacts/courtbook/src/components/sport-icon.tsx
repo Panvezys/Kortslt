@@ -292,3 +292,80 @@ export function getSportEmoji(sport?: string | null): string {
   if (!sport) return "🏅";
   return SPORT_EMOJIS[sport] ?? "🏅";
 }
+
+/**
+ * SINGLE SOURCE OF TRUTH — sport "pill" badge used across the app.
+ *
+ * Renders the canonical small chip: colored {@link SportIcon} SVG + Lithuanian
+ * label from {@link SPORT_LABELS}, on a colored or muted rounded background.
+ * Replaces ad-hoc `{SPORT_EMOJIS[x]} {SPORT_LABELS[x]}` combos and one-off
+ * inline `<span><SportIcon/>{label}</span>` markup. Updating this component
+ * updates every sport tag in the app.
+ *
+ * Variants:
+ *   - `solid`  — colored background, white icon + text (e.g. court card).
+ *   - `subtle` — muted background, sport-colored icon, muted text (default,
+ *                e.g. find-a-court hover-off state, list rows).
+ *   - `outline` — transparent background, colored border + icon + text.
+ */
+export type SportPillVariant = "solid" | "subtle" | "outline";
+export type SportPillSize = "sm" | "md";
+
+type SportPillProps = {
+  sport: string;
+  variant?: SportPillVariant;
+  size?: SportPillSize;
+  showLabel?: boolean;
+  className?: string;
+};
+
+const PILL_SIZE: Record<SportPillSize, { text: string; padX: string; padY: string; gap: string; icon: number }> = {
+  sm: { text: "text-[10px]", padX: "px-2",   padY: "py-0.5", gap: "gap-1",   icon: 11 },
+  md: { text: "text-xs",     padX: "px-2.5", padY: "py-1",   gap: "gap-1.5", icon: 13 },
+};
+
+export function SportPill({
+  sport,
+  variant = "subtle",
+  size = "sm",
+  showLabel = true,
+  className = "",
+}: SportPillProps) {
+  const color = sportColor[sport] ?? "#84cc16";
+  const label = SPORT_LABELS[sport] ?? sport;
+  const s = PILL_SIZE[size];
+
+  let layoutClass = "";
+  let layoutStyle: React.CSSProperties | undefined;
+  let iconStyle: React.CSSProperties | undefined;
+
+  switch (variant) {
+    case "solid":
+      layoutClass = "text-white";
+      layoutStyle = { background: color };
+      iconStyle = { color: "#fff" };
+      break;
+    case "outline":
+      layoutClass = "border bg-transparent";
+      layoutStyle = { borderColor: color, color };
+      iconStyle = { color };
+      break;
+    case "subtle":
+    default:
+      layoutClass = "bg-muted text-muted-foreground";
+      iconStyle = { color };
+      break;
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center ${s.gap} ${s.text} font-semibold ${s.padX} ${s.padY} rounded-full ${layoutClass} ${className}`}
+      style={layoutStyle}
+      title={label}
+      aria-label={showLabel ? undefined : label}
+    >
+      <SportIcon sport={sport} size={s.icon} strokeWidth={2} className="shrink-0" style={iconStyle} aria-hidden="true" />
+      {showLabel && <span className="leading-none">{label}</span>}
+    </span>
+  );
+}

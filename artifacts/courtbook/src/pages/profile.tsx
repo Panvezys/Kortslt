@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useSearch, useLocation } from "wouter";
 import { useT } from "@/lib/i18n";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportIcon, SPORT_LABELS, sportColor } from "@/components/sport-icon";
 import { SkillCard } from "@/components/skill-card";
 import { useRole } from "@/lib/useRole";
 import {
@@ -49,7 +49,7 @@ import {
   Info,
   RefreshCw,
 } from "lucide-react";
-import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
+import { getTier } from "@/lib/rank-tier";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -442,13 +442,14 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
             <button
               key={s}
               onClick={() => setSelectedSport(s)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
                 selectedSport === s
                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                   : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
               }`}
             >
-              {SPORT_EMOJIS[s] ?? "🏅"} {SPORT_LABELS[s] ?? s}
+              <SportIcon sport={s} size={14} strokeWidth={2} />
+              {SPORT_LABELS[s] ?? s}
             </button>
           ))}
         </div>
@@ -458,8 +459,8 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
       {selectedSport ? (
         <div className="bg-card border rounded-xl shadow-sm p-5 space-y-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shrink-0">
-              {SPORT_EMOJIS[selectedSport] ?? "🏅"}
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <SportIcon sport={selectedSport} size={26} strokeWidth={1.75} style={{ color: sportColor[selectedSport] ?? "#84cc16" }} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -557,7 +558,7 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
                 <div key={s.sport} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-medium">
-                      <span>{SPORT_EMOJIS[s.sport] ?? "🏅"}</span>
+                      <SportIcon sport={s.sport} size={12} strokeWidth={2} style={{ color: sportColor[s.sport] ?? "#84cc16" }} />
                       <span>{SPORT_LABELS[s.sport] ?? s.sport}</span>
                       {s.gamesPlayed > 0 && (
                         <span className="text-muted-foreground font-normal">{s.gamesPlayed} žaid.</span>
@@ -633,7 +634,9 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
           <div className="divide-y">
             {data!.sportProfiles.map(sp => (
               <div key={sp.sport} className="px-5 py-3 flex items-center gap-3">
-                <span className="text-lg w-7 text-center">{SPORT_EMOJIS[sp.sport] ?? "🏅"}</span>
+                <span className="w-7 flex items-center justify-center">
+                  <SportIcon sport={sp.sport} size={20} strokeWidth={1.75} style={{ color: sportColor[sp.sport] ?? "#84cc16" }} />
+                </span>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-sm">{SPORT_LABELS[sp.sport] ?? sp.sport}</span>
                 </div>

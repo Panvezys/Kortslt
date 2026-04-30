@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, Trash2, Euro, MapPin, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
+import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -187,15 +187,9 @@ export default function OwnerCoachesPage() {
 
                         {req.coach.sports && req.coach.sports.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-2">
-                            {req.coach.sports.map(s => {
-                              const color = sportColor[s] ?? "#84cc16";
-                              return (
-                                <span key={s} className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: color + "22", color }}>
-                                  <SportIcon sport={s} size={10} strokeWidth={2} />
-                                  {SPORT_LABELS[s] ?? s}
-                                </span>
-                              );
-                            })}
+                            {req.coach.sports.map(s => (
+                              <SportPill key={s} sport={s} variant="subtle" />
+                            ))}
                           </div>
                         )}
 
@@ -280,9 +274,7 @@ export default function OwnerCoachesPage() {
                               </Link>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {r.coach.sports.slice(0, 3).map(s => (
-                                  <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
-                                    {SPORT_LABELS[s] ?? s}
-                                  </span>
+                                  <SportPill key={s} sport={s} variant="subtle" />
                                 ))}
                               </div>
                             </div>

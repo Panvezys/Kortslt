@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, type FormEvent } from "react"
 import { useLocation, useParams, Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { OwnerLayout } from "@/components/owner-layout";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
   useGetCourtPricing, useSetCourtPricing, customFetch,
@@ -1395,8 +1395,13 @@ export default function OwnerFacilityDetail() {
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl><SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger></FormControl>
                             <SelectContent>
-                              {Object.entries(SPORT_EMOJIS).map(([val, emoji]) => (
-                                <SelectItem key={val} value={val}>{emoji} {SPORT_LABELS[val]}</SelectItem>
+                              {Object.keys(SPORT_LABELS).filter(k => k !== "table-tennis").map((val) => (
+                                <SelectItem key={val} value={val}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <SportIcon sport={val} size={14} strokeWidth={2} style={{ color: sportColor[val] ?? "#84cc16" }} />
+                                    {SPORT_LABELS[val]}
+                                  </span>
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select><FormMessage />
@@ -1695,16 +1700,14 @@ export default function OwnerFacilityDetail() {
                     <img src={resolveCourtImage(court.imageUrl) ?? undefined} alt={court.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/15">
-                      <span className="text-4xl">{SPORT_EMOJIS[court.type] || "🏟️"}</span>
+                      <SportIcon sport={court.type} size={48} strokeWidth={1.5} style={{ color: sportColor[court.type] ?? "#84cc16" }} className="opacity-70" />
                     </div>
                   )}
                   <div className="absolute top-2 left-2">
                     <CourtStatusBadge status={(court as any).status} />
                   </div>
                   <div className="absolute top-2 right-2">
-                    <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs">
-                      {SPORT_EMOJIS[court.type]} {SPORT_LABELS[court.type]}
-                    </span>
+                    <SportPill sport={court.type} variant="solid" />
                   </div>
                 </div>
 
@@ -2311,7 +2314,7 @@ function FacilityTournaments({ facilityId, facilityCourts }: { facilityId: numbe
             return (
               <div key={t.id} className="flex flex-wrap items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 transition-colors">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-2xl">{SPORT_EMOJIS[t.sport] ?? "🏆"}</span>
+                  <SportIcon sport={t.sport} size={26} strokeWidth={1.75} style={{ color: sportColor[t.sport] ?? "#84cc16" }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

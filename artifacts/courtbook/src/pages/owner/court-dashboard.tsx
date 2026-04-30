@@ -10,7 +10,7 @@ import {
   LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
   Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban, Trophy,
 } from "lucide-react";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SPORT_EMOJIS } from "@/components/sport-icon";
+import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -413,9 +413,8 @@ export default function OwnerCourtDashboard() {
             <span className="text-muted-foreground/40">/</span>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg">{SPORT_EMOJIS[court.type] ?? "🏟️"}</span>
                 <h1 className="font-bold text-base leading-tight">{court.name}</h1>
-                <span className="text-xs text-muted-foreground hidden sm:inline">{SPORT_LABELS[court.type] ?? court.type}</span>
+                <SportPill sport={court.type} variant="subtle" className="hidden sm:inline-flex" />
               </div>
             </div>
           </div>
