@@ -15,6 +15,7 @@ import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircl
 import { SportIcon } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db/sports-config";
+import { validateEmail, validatePhone } from "@/lib/validators";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -526,8 +527,13 @@ export default function TournamentDetail() {
     const email = isSignedIn ? (user?.primaryEmailAddress?.emailAddress ?? playerEmail) : playerEmail;
 
     if (!name.trim()) { toast({ title: "Įveskite vardą", variant: "destructive" }); return; }
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast({ title: "Įveskite teisingą el. paštą", variant: "destructive" }); return;
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      toast({ title: emailErr, variant: "destructive" }); return;
+    }
+    const phoneErr = validatePhone(playerPhone, { required: false });
+    if (phoneErr) {
+      toast({ title: phoneErr, variant: "destructive" }); return;
     }
 
     registerMutation.mutate({

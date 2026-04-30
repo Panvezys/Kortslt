@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CourtImageUpload } from "@/components/court-image-upload";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { validateEmail, validatePhone } from "@/lib/validators";
 
 const STANDARD_AMENITIES = [
   { id: "floodlights", label: "Prožektoriai", icon: Lightbulb },
@@ -404,6 +405,10 @@ function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null;
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!courtId) return;
+    const emailErr = validateEmail(form.customerEmail);
+    if (emailErr) { toast({ title: emailErr, variant: "destructive" }); return; }
+    const phoneErr = validatePhone(form.customerPhone, { required: false });
+    if (phoneErr) { toast({ title: phoneErr, variant: "destructive" }); return; }
     setLoading(true);
     try {
       await customFetch(`${API_URL}/owner/bookings/manual`, {
@@ -525,11 +530,16 @@ function CoachManagementModal({ courtId }: { courtId: number }) {
   });
 
   const inviteMutation = useMutation({
-    mutationFn: (payload: { targetUserId?: string; targetEmail?: string; targetName?: string }) =>
-      customFetch(`${API_URL}/courts/${courtId}/coach-invite`, {
+    mutationFn: (payload: { targetUserId?: string; targetEmail?: string; targetName?: string }) => {
+      if (payload.targetEmail !== undefined) {
+        const emailErr = validateEmail(payload.targetEmail);
+        if (emailErr) throw new Error(emailErr);
+      }
+      return customFetch(`${API_URL}/courts/${courtId}/coach-invite`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: invitesQk });
       setInviteMode("idle");

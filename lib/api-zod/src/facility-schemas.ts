@@ -1,4 +1,5 @@
 import { z as zod } from "zod";
+import { OptionalEmailString, OptionalPhoneString } from "./validators";
 
 export const FacilityItem = zod.object({
   id: zod.number(),
@@ -29,8 +30,8 @@ export const CreateFacilityBody = zod.object({
   latitude: zod.number().optional(),
   longitude: zod.number().optional(),
   postcode: zod.string().optional(),
-  phone: zod.string().optional(),
-  email: zod.string().optional(),
+  phone: OptionalPhoneString,
+  email: OptionalEmailString,
   verificationDocUrl: zod.string().optional(),
   ownershipDocUrl: zod.string().refine(v => /^https:\/\//i.test(v) || /^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(v), "ownershipDocUrl must be an https URL or a valid uploaded document path").optional(),
   photos: zod.array(zod.string()).optional(),
@@ -48,8 +49,8 @@ export const UpdateFacilityBody = zod.object({
   latitude: zod.number().optional(),
   longitude: zod.number().optional(),
   postcode: zod.string().optional(),
-  phone: zod.string().optional(),
-  email: zod.string().optional(),
+  phone: OptionalPhoneString,
+  email: OptionalEmailString,
   verificationDocUrl: zod.string().optional(),
   ownershipDocUrl: zod.string().refine(v => /^https:\/\//i.test(v) || /^(\/)?courts\/docs\/[a-zA-Z0-9._-]+$/.test(v), "ownershipDocUrl must be an https URL or a valid uploaded document path").optional(),
   photos: zod.array(zod.string()).optional(),

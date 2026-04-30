@@ -73,11 +73,25 @@ export default function BecomeCoachPage() {
       ? form.sports.filter(s => s !== key)
       : [...form.sports, key]);
 
-  const canNext1 = form.name.trim().length > 1 && form.bio.trim().length > 20;
+  const emailError = validateEmail(form.email);
+  const phoneError = validatePhone(form.phone, { required: false });
+  const canNext1 =
+    form.name.trim().length > 1 &&
+    form.bio.trim().length > 20 &&
+    !emailError &&
+    !phoneError;
   const canNext2 = form.sports.length > 0;
-  const canSubmit = form.pricePerHour.trim().length > 0;
+  const canSubmit = form.pricePerHour.trim().length > 0 && !emailError && !phoneError;
 
   async function submit() {
+    if (emailError) {
+      toast({ title: "Klaida", description: emailError, variant: "destructive" });
+      return;
+    }
+    if (phoneError) {
+      toast({ title: "Klaida", description: phoneError, variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     try {
       const r = await fetch(`${API}/me/request-role`, {

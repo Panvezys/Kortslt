@@ -19,6 +19,7 @@ import { SportScoreInput } from "@/components/sport-score-input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { openChat } from "@/components/chat-bubble";
+import { validateEmail } from "@/lib/validators";
 import {
   Calendar, Clock, MapPin, Users, ArrowLeft, Share2, Copy, UserCheck, UserMinus, UserPlus,
   MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield, Search,
@@ -326,10 +327,14 @@ function InviteSection({ gameId }: { gameId: number }) {
   const [open, setOpen] = useState(false);
 
   const invite = useMutation({
-    mutationFn: () => customFetch(`${API}/games/${gameId}/invite`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name: name || undefined }),
-    }),
+    mutationFn: () => {
+      const emailErr = validateEmail(email);
+      if (emailErr) throw new Error(emailErr);
+      return customFetch(`${API}/games/${gameId}/invite`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), name: name || undefined }),
+      });
+    },
     onSuccess: () => {
       toast({ title: "Kvietimas išsiųstas!", description: `El. laiškas išsiųstas ${email}` });
       setEmail(""); setName(""); setOpen(false);

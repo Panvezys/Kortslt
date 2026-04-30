@@ -13,6 +13,7 @@ import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Buildin
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
+import { validateEmail, validatePhone } from "@/lib/validators";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -208,6 +209,10 @@ export default function CoachPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: typeof form) => {
+      const emailErr = validateEmail(data.email);
+      if (emailErr) throw new Error(emailErr);
+      const phoneErr = validatePhone(data.phone, { required: false });
+      if (phoneErr) throw new Error(phoneErr);
       const url = isOwnProfileRoute ? `${API}/coaches/me` : `${API}/coaches/${coach!.id}`;
       const r = await fetch(url, {
         method: "PUT",

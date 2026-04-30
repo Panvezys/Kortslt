@@ -10,6 +10,15 @@ import {
 } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner, requireOwner, requireCreator } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
+import { z } from "zod";
+import { EmailString, OptionalPhoneString } from "@workspace/api-zod";
+
+const TournamentRegisterBody = z.object({
+  playerName: z.string().trim().min(2, "Vardas privalomas"),
+  playerEmail: EmailString,
+  playerPhone: OptionalPhoneString,
+  userId: z.string().optional(),
+});
 import {
   type SportScore,
   type SportConfig,
@@ -1165,10 +1174,12 @@ router.post("/tournaments/:id/register", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Tournament is full" }); return;
   }
 
-  const { playerName, playerEmail, playerPhone, userId } = req.body;
-  if (!playerName || !playerEmail) {
-    res.status(400).json({ error: "playerName and playerEmail are required" }); return;
+  const parsed = TournamentRegisterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
   }
+  const { playerName, playerEmail, playerPhone, userId } = parsed.data;
 
   const [reg] = await db.insert(tournamentRegistrationsTable).values({
     tournamentId: id,

@@ -4,6 +4,34 @@ import { db, coachesTable, courtCoachesTable, courtCoachInvitationsTable, courts
 import { requireAuth, getCurrentUserId, isOwner, getUserRole, requireCoach, requireOwner } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { sendCoachInviteEmail } from "../lib/email";
+import { z } from "zod";
+import { EmailString, OptionalEmailString, OptionalPhoneString } from "@workspace/api-zod";
+
+const CoachUpsertBody = z.object({
+  name: z.string().trim().min(2, "Vardas privalomas"),
+  email: EmailString,
+  bio: z.string().optional().nullable(),
+  photoUrl: z.string().optional().nullable(),
+  videoUrl: z.string().optional().nullable(),
+  pricePerHour: z.union([z.number(), z.string()]).optional().nullable(),
+  sports: z.array(z.string()).optional(),
+  availabilityDescription: z.string().optional().nullable(),
+  phone: OptionalPhoneString,
+});
+
+const CoachInviteBody = z.object({
+  targetUserId: z.string().optional(),
+  targetEmail: OptionalEmailString,
+  targetName: z.string().optional(),
+}).refine(d => d.targetUserId || d.targetEmail, {
+  message: "Reikia targetUserId arba targetEmail",
+});
+
+const CoachApplyBody = z.object({
+  message: z.string().optional(),
+  name: z.string().trim().min(2, "Vardas privalomas").optional(),
+  email: OptionalEmailString,
+});
 
 const router: IRouter = Router();
 
@@ -165,12 +193,12 @@ router.post("/coaches", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = req.body;
-
-  if (!name || !email) {
-    res.status(400).json({ error: "name and email are required" });
+  const parsed = CoachUpsertBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
     return;
   }
+  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = parsed.data;
 
   const [existing] = await db.select().from(coachesTable).where(eq(coachesTable.userId, userId));
   if (existing) {
@@ -209,7 +237,12 @@ router.put("/coaches/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = req.body;
+  const parsed = CoachUpsertBody.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = parsed.data;
 
   const [updated] = await db.update(coachesTable).set({
     ...(name !== undefined && { name }),
@@ -236,12 +269,12 @@ router.put("/coaches/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = req.body;
-
-  if (!name || !email) {
-    res.status(400).json({ error: "name and email are required" });
+  const parsed = CoachUpsertBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
     return;
   }
+  const { name, email, bio, photoUrl, videoUrl, pricePerHour, sports, availabilityDescription, phone } = parsed.data;
 
   const [existing] = await db.select().from(coachesTable).where(eq(coachesTable.userId, userId));
 
@@ -358,10 +391,12 @@ router.post("/courts/:id/coach-invite", requireAuth, async (req, res): Promise<v
   const canEdit = await isOwner(req, court.ownerUserId);
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const { targetUserId, targetEmail, targetName } = req.body ?? {};
-  if (!targetUserId && !targetEmail) {
-    res.status(400).json({ error: "targetUserId or targetEmail required" }); return;
+  const parsed = CoachInviteBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
   }
+  const { targetUserId, targetEmail, targetName } = parsed.data;
 
   if (targetUserId) {
     const [existingPending] = await db.select().from(courtCoachInvitationsTable)
@@ -419,7 +454,12 @@ router.post("/courts/:id/coach-apply", requireAuth, async (req, res): Promise<vo
     ));
   if (existingPending) { res.status(409).json({ error: "Application already submitted" }); return; }
 
-  const { message, name, email } = req.body ?? {};
+  const parsed = CoachApplyBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+  const { message, name, email } = parsed.data;
 
   const [application] = await db.insert(courtCoachInvitationsTable).values({
     courtId,

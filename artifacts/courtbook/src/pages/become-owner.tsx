@@ -11,6 +11,7 @@ import { Link } from "wouter";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Building2, Loader2,
 } from "lucide-react";
+import { validateEmail, validatePhone } from "@/lib/validators";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -37,9 +38,23 @@ export default function BecomeOwnerPage() {
   const set = (field: keyof typeof form, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  const canSubmit = form.name.trim().length > 1 && form.city.trim().length > 1;
+  const emailError = validateEmail(form.email);
+  const phoneError = validatePhone(form.phone, { required: false });
+  const canSubmit =
+    form.name.trim().length > 1 &&
+    form.city.trim().length > 1 &&
+    !emailError &&
+    !phoneError;
 
   async function submit() {
+    if (emailError) {
+      toast({ title: "Klaida", description: emailError, variant: "destructive" });
+      return;
+    }
+    if (phoneError) {
+      toast({ title: "Klaida", description: phoneError, variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     try {
       const r = await fetch(`${API}/me/request-role`, {

@@ -33,6 +33,8 @@ import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 import { computeRefund, hoursBeforeStart } from "./bookings";
 import crypto from "node:crypto";
+import { z } from "zod";
+import { EmailString } from "@workspace/api-zod";
 
 // ─── Local helpers shared with bookings flow (kept inline to avoid cross-route imports) ──
 function toMin(t: string): number {
@@ -1066,8 +1068,17 @@ router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> =>
   if (!g) { res.status(404).json({ error: "Game not found" }); return; }
   if (g.creatorUserId !== userId) { res.status(403).json({ error: "Only the creator can invite players" }); return; }
 
-  const { email, name, team } = req.body ?? {};
-  if (!email) { res.status(400).json({ error: "email required" }); return; }
+  const InviteBody = z.object({
+    email: EmailString,
+    name: z.string().trim().min(1).optional(),
+    team: z.string().optional(),
+  });
+  const parsed = InviteBody.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+  const { email, name, team } = parsed.data;
 
   // Check if invite already sent
   const [existing] = await db.select().from(matchInvitesTable)

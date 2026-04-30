@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtIcon } from "@/components/sport-icon";
+import { validateEmail, validatePhone } from "@/lib/validators";
 import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
@@ -161,6 +162,14 @@ export default function OwnerFacilities() {
     }
     if (anyErr?.message) return anyErr.message;
     return fallback;
+  };
+
+  const validateContactFields = (data: typeof formData): string | null => {
+    const e = validateEmail(data.email, { required: false });
+    if (e) return e;
+    const p = validatePhone(data.phone, { required: false });
+    if (p) return p;
+    return null;
   };
 
   const buildPayload = (data: typeof formData) => ({
@@ -315,6 +324,11 @@ export default function OwnerFacilities() {
     }
     if (city.length < 2) {
       toast({ title: "Klaida", description: "Miestas turi būti bent 2 simbolių", variant: "destructive" });
+      return;
+    }
+    const contactErr = validateContactFields(formData);
+    if (contactErr) {
+      toast({ title: "Klaida", description: contactErr, variant: "destructive" });
       return;
     }
     const cleaned = { ...formData, name, address, city };

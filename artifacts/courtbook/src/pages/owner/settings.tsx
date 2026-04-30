@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
+import { validateEmail, validatePhone } from "@/lib/validators";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -111,6 +112,16 @@ export default function OwnerSettings() {
   });
 
   function saveProfile() {
+    const emailErr = validateEmail(profileEmail, { required: false });
+    if (emailErr) {
+      toast({ title: "Klaida", description: emailErr, variant: "destructive" });
+      return;
+    }
+    const phoneErr = validatePhone(profilePhone, { required: false });
+    if (phoneErr) {
+      toast({ title: "Klaida", description: phoneErr, variant: "destructive" });
+      return;
+    }
     mutation.mutate({
       name: profileName,
       description: profileDescription || undefined,

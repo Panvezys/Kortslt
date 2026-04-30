@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, facilitiesTable, courtsTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, getUserRole } from "../lib/auth";
 import { z } from "zod";
+import { OptionalEmailString, OptionalPhoneString } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -11,8 +12,8 @@ const OnboardStep1Body = z.object({
   registrationCode: z.string().min(2),
   address: z.string().min(2),
   city: z.string().min(2),
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
+  phone: OptionalPhoneString,
+  email: OptionalEmailString,
 });
 
 const OnboardStep2Body = z.object({
