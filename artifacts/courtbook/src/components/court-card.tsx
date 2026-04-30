@@ -12,19 +12,6 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
 import { SportIcon, sportColor, SportPill } from "@/components/sport-icon";
 
-const sportConfig: Record<string, { color: string }> = {
-  tennis:       { color: sportColor.tennis },
-  basketball:   { color: sportColor.basketball },
-  padel:        { color: sportColor.padel },
-  football:     { color: sportColor.football },
-  badminton:    { color: sportColor.badminton },
-  squash:       { color: sportColor.squash },
-  table_tennis: { color: sportColor.table_tennis },
-  golf:         { color: sportColor.golf },
-  snooker:      { color: sportColor.snooker },
-  bowling:      { color: sportColor.bowling },
-};
-
 function StarRating({ rating }: { rating?: number }) {
   const t = useT();
   if (!rating) {
@@ -60,7 +47,7 @@ export function CourtCard({ court }: { court: Court }) {
   const [hovered, setHovered] = useState(false);
   const [btnHovered, setBtnHovered] = useState(false);
   const [photoIdx, setPhotoIdx] = useState(0);
-  const sport = sportConfig[court.type] ?? { color: "#84cc16" };
+  const sport = { color: sportColor[court.type] ?? "#84cc16" };
   const sportLabel = t(`sports.${court.type}` as never) || court.type;
   const surfaceLabel = court.surface ? (t(`surfaces.${court.surface}` as never) || court.surface) : null;
   const favorited = isFavorite(court.id);
