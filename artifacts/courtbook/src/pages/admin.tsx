@@ -326,6 +326,7 @@ function CourtsPanel() {
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
+  { value: "coach", label: "Treneris" },
   { value: "owner", label: "Savininkas" },
   { value: "player", label: "Žaidėjas" },
 ];
