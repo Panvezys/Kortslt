@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { CourtIcon } from "@/components/sport-icon";
 import { validateEmail, validatePhone } from "@/lib/validators";
 import {
   Plus, Building2, MapPin, ChevronRight,
@@ -363,7 +363,6 @@ export default function OwnerFacilities() {
   };
 
   const totalCourts = facilities?.reduce((sum, f) => sum + f.courtCount, 0) ?? 0;
-  const totalSports = [...new Set(facilities?.flatMap(f => f.sportTypes) ?? [])].length;
   const ownerStripeStatus: StripeStatus = stripeStatusData?.status ?? "not_connected";
   const stripeActive = ownerStripeStatus === "active";
 
@@ -421,10 +420,6 @@ export default function OwnerFacilities() {
             <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
               <span className="text-sm font-bold text-primary">{totalCourts}</span>
               <span className="text-xs text-muted-foreground">Aikštelės</span>
-            </div>
-            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
-              <span className="text-sm font-bold text-primary">{totalSports}</span>
-              <span className="text-xs text-muted-foreground">Sporto šakos</span>
             </div>
           </div>
         )}
@@ -515,18 +510,6 @@ export default function OwnerFacilities() {
                       </button>
                     </div>
 
-                    {facility.sportTypes.length > 0 && (
-                      <div className="absolute bottom-3 left-3 flex gap-1">
-                        {facility.sportTypes.slice(0, 5).map(sport => (
-                          <SportPill key={sport} sport={sport} variant="solid" />
-                        ))}
-                        {facility.sportTypes.length > 5 && (
-                          <span className="px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs font-medium">
-                            +{facility.sportTypes.length - 5}
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   <div className="p-5">
