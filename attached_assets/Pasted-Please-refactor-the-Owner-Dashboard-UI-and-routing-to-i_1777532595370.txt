@@ -1,0 +1,21 @@
+Please refactor the Owner Dashboard UI and routing to implement a strict "Business Mode" vs "Player Mode" architecture. The goal is to make the `/owner` routes feel like a dedicated management application, removing all consumer/player distractions.
+
+Here are the specific requirements:
+
+1. Implement Conditional Navigation (The "Mode Switcher"):
+- When a user is on any `/owner` route (or its sub-routes), hide the standard consumer links from the top TopNav/Header (e.g., "Rasti aikštelę", "Treneriai", "Turnyrai", "Žaidimai", "Aikštelių savininkai").
+- Replace these consumer links in the Header with a prominent "Switch to Player Mode" (Grįžti į žaidėjo vaizdą) button that redirects them to the homepage `/`.
+- Conversely, if a user has the `OWNER` role but is browsing the public/consumer pages, ensure there is a clear "Owner Dashboard" (Savininko skydelis) button in the TopNav to let them switch into Business Mode.
+
+2. Hide the Public Footer:
+- The large public footer (containing contact info, platform links, legal) should NOT render on `/owner` routes. The dashboard should take up the full viewport height to maximize screen real estate.
+
+3. Improve Facility List Cards (`/owner` index):
+- On the main "Mano objektai" page, make the entire facility card clickable. Clicking anywhere on the card should navigate the user directly to that facility's main dashboard (`/owner/facility/:id` or similar "Suvestinė" view).
+- Ensure the "Manage Payouts" button is cleanly aligned, perhaps moving it to the top right of the header or near the page title to ensure it doesn't float awkwardly above the 'New Facility' button.
+
+4. Clean up the Facility Dashboard Sidebar (`/owner/facility/:id`):
+- Since we are adding a "Switch to Player Mode" button to the top global Header, remove the "Grįžti į svetainę" (Return to website) link from the bottom of the left-hand sidebar to prevent duplicate actions.
+- Ensure that the "Blokuoti kortą" (Block court) and "Rankinė rezervacija" (Manual reservation) buttons in the calendar view are highly visible, as owners must use these to book their own courts rather than going through the public Stripe checkout flow.
+
+Please update the layout files, header component, and owner page components to reflect these changes. Ensure responsive design is maintained on mobile.

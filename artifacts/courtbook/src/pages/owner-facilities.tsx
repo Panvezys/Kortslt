@@ -381,7 +381,7 @@ export default function OwnerFacilities() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        {!stripeActive ? (
+        {!stripeActive && (
           <div className="mb-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="font-semibold text-yellow-100">Action Required: Connect your bank account to accept payments</p>
@@ -396,19 +396,6 @@ export default function OwnerFacilities() {
               <CreditCard className="w-4 h-4" /> Connect Stripe
             </Button>
           </div>
-        ) : (
-          <div className="mb-6 flex justify-end">
-            <Button
-              variant="outline"
-              onClick={async () => {
-                const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
-                window.open(r.url, "_blank", "noopener,noreferrer");
-              }}
-              className="gap-2"
-            >
-              <CreditCard className="w-4 h-4" /> Manage Payouts
-            </Button>
-          </div>
         )}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
@@ -417,9 +404,23 @@ export default function OwnerFacilities() {
               Tvarkykite savo sporto objektus ir jų aikšteles
             </p>
           </div>
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> Naujas objektas
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {stripeActive && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+                  window.open(r.url, "_blank", "noopener,noreferrer");
+                }}
+                className="gap-2"
+              >
+                <CreditCard className="w-4 h-4" /> Manage Payouts
+              </Button>
+            )}
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="w-4 h-4" /> Naujas objektas
+            </Button>
+          </div>
         </div>
 
         {!isLoading && facilities && facilities.length > 0 && (
@@ -477,8 +478,18 @@ export default function OwnerFacilities() {
               return (
                 <div
                   key={facility.id}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Atidaryti objektą ${facility.name}`}
                   onClick={() => navigate(`/owner/facility/${facility.id}`)}
-                  className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5"
+                  onKeyDown={(e) => {
+                    if (e.currentTarget !== e.target) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/owner/facility/${facility.id}`);
+                    }
+                  }}
+                  className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="relative h-32 bg-muted overflow-hidden">
                     {image ? (

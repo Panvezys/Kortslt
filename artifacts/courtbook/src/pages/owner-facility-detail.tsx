@@ -1746,17 +1746,29 @@ export default function OwnerFacilityDetail() {
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => handleEdit(court)} title="Redaguoti">
                       <Edit2 className="w-3 h-3" /> Redaguoti
                     </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setBlockedSlotsCourtId(court.id)}>
-                      <CalendarClock className="w-3 h-3" /> Blokai
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs h-8 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-800 dark:hover:text-amber-200 font-medium"
+                      onClick={() => setBlockedSlotsCourtId(court.id)}
+                      title="Blokuoti laiko tarpus, kad jie neatsidurtų viešam rezervavimui"
+                    >
+                      <CalendarClock className="w-3.5 h-3.5" /> Blokuoti kortą
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs h-8 border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-500/20 hover:text-green-800 dark:hover:text-green-200 font-medium"
+                      onClick={() => setFreeBookingCourtId(court.id)}
+                      title="Sukurti rankinę rezervaciją (nemokamą / be Stripe)"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Rankinė rezervacija
                     </Button>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setCoachesCourtId(court.id)}>
                       <Users className="w-3 h-3" /> Treneriai
                     </Button>
                     <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-cyan-600" onClick={() => setMembershipCourtId(court.id)}>
                       <Star className="w-3 h-3" /> Narystės
-                    </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-green-600" onClick={() => setFreeBookingCourtId(court.id)}>
-                      <CheckCircle2 className="w-3 h-3" /> Nemokama
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="QR" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
                       <QrCode className="w-3.5 h-3.5 text-muted-foreground" />

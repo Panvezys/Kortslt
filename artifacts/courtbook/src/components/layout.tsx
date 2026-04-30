@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Gamepad2, Settings } from "lucide-react";
+import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Gamepad2, Settings, ArrowLeft } from "lucide-react";
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -318,9 +318,41 @@ function NavIconButton({ href, icon, label }: { href: string; icon: React.ReactN
 
 function OwnerDashboardButton() {
   const { isOwner } = useRole();
+  const [, setLocation] = useLocation();
   if (!isOwner) return null;
   return (
-    <NavIconButton href="/owner" icon={<LayoutDashboard className="h-4 w-4" />} label="Savininko skydelis" />
+    <>
+      {/* Desktop: prominent text + icon */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="hidden md:inline-flex h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+        onClick={() => setLocation("/owner")}
+      >
+        <LayoutDashboard className="h-4 w-4" />
+        Savininko skydelis
+      </Button>
+      {/* Mobile: icon-only to save space */}
+      <div className="md:hidden">
+        <NavIconButton href="/owner" icon={<LayoutDashboard className="h-4 w-4" />} label="Savininko skydelis" />
+      </div>
+    </>
+  );
+}
+
+function PlayerModeButton() {
+  const [, setLocation] = useLocation();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-8 gap-1.5"
+      onClick={() => setLocation("/")}
+    >
+      <ArrowLeft className="h-4 w-4" />
+      <span className="hidden sm:inline">Grįžti į žaidėjo vaizdą</span>
+      <span className="sm:hidden">Žaidėjo vaizdas</span>
+    </Button>
   );
 }
 
@@ -336,6 +368,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const mobileNavCls = (href: string) =>
     `flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${isActive(href) ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-primary text-foreground/80 dark:text-foreground/90"}`;
 
+  // Business Mode: any /owner route hides consumer nav, mobile nav row, and footer.
+  const inBusinessMode = location === "/owner" || location.startsWith("/owner/");
+
   return (
     <ThemeProvider>
       <div className="min-h-[100dvh] flex flex-col bg-background text-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground">
@@ -343,13 +378,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
             <LogoBrand />
 
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-foreground">
-              <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
-              <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
-              <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
-              <NavLink href="/games" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Žaidimai</NavLink>
-              <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
-            </nav>
+            {inBusinessMode ? (
+              <nav className="hidden md:flex items-center gap-2 text-sm font-medium text-foreground">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  Verslo režimas
+                </span>
+              </nav>
+            ) : (
+              <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-foreground">
+                <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
+                <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
+                <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
+                <NavLink href="/games" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Žaidimai</NavLink>
+                <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
+              </nav>
+            )}
 
             <div className="flex items-center gap-2">
               <LanguageSelector />
@@ -369,9 +413,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </Show>
               <Show when="signed-in">
-                <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
-                <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
-                <OwnerDashboardButton />
+                {inBusinessMode ? (
+                  <PlayerModeButton />
+                ) : (
+                  <>
+                    <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
+                    <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
+                    <OwnerDashboardButton />
+                  </>
+                )}
                 <NotificationBell />
                 <div className="hidden md:block">
                   <UserMenu />
@@ -381,31 +431,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Mobile always-visible nav row */}
-          <nav className="md:hidden border-t bg-background/98 backdrop-blur flex items-center justify-around px-2 py-1.5 text-xs font-medium text-foreground">
-            <Link href="/courts" className={mobileNavCls("/courts")}>
-              <TennisCourtIcon className="w-4 h-4" />
-              <span>{t("nav.findCourts")}</span>
-            </Link>
-            <Link href="/coaches" className={mobileNavCls("/coaches")}>
-              <Dumbbell className="w-4 h-4" />
-              <span>Treneriai</span>
-            </Link>
-            <Link href="/tournaments" className={mobileNavCls("/tournaments")}>
-              <Trophy className="w-4 h-4" />
-              <span>Turnyrai</span>
-            </Link>
-            <Link href="/games" className={mobileNavCls("/games")}>
-              <Gamepad2 className="w-4 h-4" />
-              <span>Žaidimai</span>
-            </Link>
-          </nav>
+          {/* Mobile always-visible nav row — only on consumer pages */}
+          {!inBusinessMode && (
+            <nav className="md:hidden border-t bg-background/98 backdrop-blur flex items-center justify-around px-2 py-1.5 text-xs font-medium text-foreground">
+              <Link href="/courts" className={mobileNavCls("/courts")}>
+                <TennisCourtIcon className="w-4 h-4" />
+                <span>{t("nav.findCourts")}</span>
+              </Link>
+              <Link href="/coaches" className={mobileNavCls("/coaches")}>
+                <Dumbbell className="w-4 h-4" />
+                <span>Treneriai</span>
+              </Link>
+              <Link href="/tournaments" className={mobileNavCls("/tournaments")}>
+                <Trophy className="w-4 h-4" />
+                <span>Turnyrai</span>
+              </Link>
+              <Link href="/games" className={mobileNavCls("/games")}>
+                <Gamepad2 className="w-4 h-4" />
+                <span>Žaidimai</span>
+              </Link>
+            </nav>
+          )}
         </header>
 
         <main className="flex-1 w-full">{children}</main>
 
-        <ChatBubble />
+        {!inBusinessMode && <ChatBubble />}
 
+        {!inBusinessMode && (
         <footer className="border-t bg-muted/20 mt-auto">
           {/* Main footer grid */}
           <div className="container mx-auto px-4 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -533,6 +586,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </footer>
+        )}
       </div>
     </ThemeProvider>
   );

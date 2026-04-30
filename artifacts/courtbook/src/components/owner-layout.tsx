@@ -7,7 +7,6 @@ import {
   Trophy,
   CreditCard,
   Settings,
-  LogOut,
   Menu,
   X,
 } from "lucide-react";
@@ -146,18 +145,6 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             );
           })}
         </nav>
-        <div className="border-t border-border px-3 py-3 shrink-0">
-          <button
-            onClick={() => {
-              onClose();
-              navigate("/");
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Grįžti į svetainę
-          </button>
-        </div>
       </aside>
     </>
   );
