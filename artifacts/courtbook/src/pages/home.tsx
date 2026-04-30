@@ -431,10 +431,10 @@ export default function Home() {
     <Layout>
       {/* Hero Section — split layout */}
       <section className="bg-background text-foreground">
-        <div className="flex">
+        <div className="flex lg:pl-[max(0px,calc((100vw-64rem)/2))] xl:pl-[max(0px,calc((100vw-80rem)/2))] 2xl:pl-[max(0px,calc((100vw-96rem)/2))]">
 
           {/* ── LEFT PANEL: search form ── */}
-          <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:px-10 pt-6 pb-6 lg:pt-12 lg:pb-14">
+          <div className="relative z-10 w-full md:w-[400px] lg:w-[440px] xl:w-[480px] flex-shrink-0 flex flex-col justify-start px-5 sm:px-6 lg:pl-4 lg:pr-10 pt-6 pb-6 lg:pt-12 lg:pb-14">
             {/* subtle top-left glow */}
             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-primary/50 via-transparent to-transparent" />
             
