@@ -90,7 +90,10 @@ router.get("/messages/owner-inbox", requireAuth, async (req, res): Promise<void>
   res.json(threads);
 });
 
-// GET /courts/:id/messages  — all messages in a thread the caller is part of
+// GET /courts/:id/messages  — all messages in a thread the caller is part of.
+// Optional ?userId=… narrows to a single owner↔customer thread; only the court
+// owner is allowed to filter this way (otherwise it would expose other users'
+// messages on the same court).
 router.get("/courts/:id/messages", requireAuth, async (req, res): Promise<void> => {
   const courtId = Number(req.params.id);
   const { userId } = getAuth(req);
@@ -99,6 +102,30 @@ router.get("/courts/:id/messages", requireAuth, async (req, res): Promise<void> 
     return;
   }
 
+  const threadUserIdRaw = req.query.userId;
+  const threadUserId = typeof threadUserIdRaw === "string" ? threadUserIdRaw : undefined;
+
+  const [court] = await db.select({ ownerUserId: courtsTable.ownerUserId }).from(courtsTable).where(eq(courtsTable.id, courtId));
+  const isOwner = !!court && court.ownerUserId === userId;
+
+  // Owner asking for a specific thread → only messages between owner and that customer.
+  if (isOwner && threadUserId) {
+    const rows = await db
+      .select()
+      .from(messagesTable)
+      .where(and(
+        eq(messagesTable.courtId, courtId),
+        or(
+          and(eq(messagesTable.senderUserId, userId!), eq(messagesTable.recipientUserId, threadUserId)),
+          and(eq(messagesTable.senderUserId, threadUserId), eq(messagesTable.recipientUserId, userId!)),
+        ),
+      ))
+      .orderBy(messagesTable.createdAt);
+    res.json(rows.map(formatMsg));
+    return;
+  }
+
+  // Default: only messages where caller is sender or recipient.
   const rows = await db
     .select()
     .from(messagesTable)

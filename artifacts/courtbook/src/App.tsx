@@ -60,6 +60,7 @@ const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
 const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
 const OwnerTournamentCreate = lazy(() => import("@/pages/owner/tournament-create"));
+const OwnerFacilityMessages = lazy(() => import("@/pages/owner-facility-messages"));
 
 const queryClient = new QueryClient();
 
@@ -216,6 +217,7 @@ function Router() {
       <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
       <Route path="/owner/tournaments/new" component={() => <CreatorRoute><Suspense fallback={null}><OwnerTournamentCreate /></Suspense></CreatorRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:id/messages" component={() => <OwnerRoute><Suspense fallback={null}><OwnerFacilityMessages /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />

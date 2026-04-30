@@ -8,6 +8,7 @@ import {
   CreditCard,
   Settings,
   Menu,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -43,7 +44,9 @@ function buildNavItems(facilityId?: number): NavItem[] {
       icon: Building2,
       label: "Mano aikštelės",
       href: facilityId ? `/owner/facility/${facilityId}` : `/owner`,
-      match: (l) => l === "/owner" || l.startsWith("/owner/facility"),
+      match: (l) =>
+        l === "/owner" ||
+        (l.startsWith("/owner/facility") && !l.endsWith("/messages")),
     },
     {
       icon: Users,
@@ -51,6 +54,17 @@ function buildNavItems(facilityId?: number): NavItem[] {
       href: `/owner/coaches${fq}`,
       match: (l) => l.startsWith("/owner/coaches"),
     },
+    ...(facilityId
+      ? [
+          {
+            icon: MessageSquare,
+            label: "Žinutės",
+            href: `/owner/facility/${facilityId}/messages`,
+            match: (l: string) =>
+              l.startsWith(`/owner/facility/${facilityId}/messages`),
+          },
+        ]
+      : []),
     {
       icon: Trophy,
       label: "Turnyrai",
