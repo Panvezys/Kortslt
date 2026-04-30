@@ -180,6 +180,12 @@ uri = "file://artifacts/courtbook/public/coaches/coach_banner_2_small.png"
 type = "image"
 title = "Smaller coach banner"
 
+[[generated]]
+id = "h8uN9jPMWwqVmbxPDlUVB"
+uri = "file://attached_assets/generated_images/pickleball_court.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "JDsh2ehVV4F624Q5PqerW"
 uri = "file://attached_assets/stock_images/padel_court_indoor_1.jpg"
@@ -239,3 +245,93 @@ id = "xVROmBEjobYsj8xe---e3"
 uri = "file://attached_assets/stock_images/squash_court_2.jpg"
 type = "image"
 title = "professional squash court glass walls interior sports center"
+
+[[outputs]]
+id = "Ci0HmGqKbEwTCud8B_Kad"
+uri = "file://attached_assets/stock_images/snooker_court.jpg"
+type = "image"
+title = "snooker billiards table with green felt and balls in a club"
+
+[[outputs]]
+id = "JBaQij6hBUlSVcEEoHCfn"
+uri = "file://attached_assets/stock_images/table_tennis_court.jpg"
+type = "image"
+title = "indoor table tennis court with green table and net, professional setup"
+
+[[outputs]]
+id = "7xz3TqRjj3CKq1RLQW-Dx"
+uri = "file://attached_assets/stock_images/bowling_court.jpg"
+type = "image"
+title = "indoor bowling alley lanes with pins"
+
+[[outputs]]
+id = "RR6ZfRn0C42EI6QPePTDs"
+uri = "file://attached_assets/stock_images/volleyball_court.jpg"
+type = "image"
+title = "indoor volleyball court with net"
+
+[[outputs]]
+id = "j4okvyt8nkQ2zNq6X7892"
+uri = "file://attached_assets/stock_images/hockey_court.jpg"
+type = "image"
+title = "ice hockey rink interior with markings"
+
+[[outputs]]
+id = "518whND4IUlPmN9AkVDiT"
+uri = "file://attached_assets/stock_images/floorball_court.jpg"
+type = "image"
+title = "indoor floorball rink with rink boards and goals"
+
+[[outputs]]
+id = "hw4QcnY0qbJcF09mdMEvs"
+uri = "file://attached_assets/stock_images/futsal_court.jpg"
+type = "image"
+title = "indoor futsal soccer court with goals"
+
+[[outputs]]
+id = "NtJ83bp-Lufscc5MjlJ52"
+uri = "file://attached_assets/stock_images/beach_volleyball_court.jpg"
+type = "image"
+title = "beach volleyball sand court with net by the sea"
+
+[[outputs]]
+id = "wYw6YW1jCpAUN97hOhcA7"
+uri = "file://attached_assets/stock_images/pickleball_court.jpg"
+type = "image"
+title = "outdoor pickleball court with net and lines"
+
+[[outputs]]
+id = "Ll5XlOcIMSl82YdggQotz"
+uri = "file://attached_assets/stock_images/table_tennis_court_v2_1.jpg"
+type = "image"
+title = "ping pong table tennis blue table with white net in sports hall"
+
+[[outputs]]
+id = "LGkGiFAzypXi4LL-t31fB"
+uri = "file://attached_assets/stock_images/pickleball_court_v2_2.jpg"
+type = "image"
+title = "pickleball court outdoor green and blue with paddle and yellow ball on net"
+
+[[outputs]]
+id = "y_ovjTk81XAqOzyWwaLID"
+uri = "file://attached_assets/stock_images/hockey_court_v2_1.jpg"
+type = "image"
+title = "ice hockey rink interior empty arena with blue red lines on ice"
+
+[[outputs]]
+id = "XU2wMLL6ulu2E-NvKo8Pd"
+uri = "file://attached_assets/stock_images/hockey_court_v2_2.jpg"
+type = "image"
+title = "ice hockey rink interior empty arena with blue red lines on ice"
+
+[[outputs]]
+id = "ksJT-wXxsb0RccGRB5Zdk"
+uri = "file://attached_assets/stock_images/futsal_court_v2_1.jpg"
+type = "image"
+title = "indoor futsal court empty hall with goals and floor markings"
+
+[[outputs]]
+id = "PmpoFE1grn0ngyr7uy8D4"
+uri = "file://attached_assets/stock_images/futsal_court_v2_2.jpg"
+type = "image"
+title = "indoor futsal court empty hall with goals and floor markings"

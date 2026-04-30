@@ -394,14 +394,29 @@ export default function Home() {
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+  // Hero/court photo per sport, keyed to match every entry in SPORT_LABELS so the
+  // stats-bar hover overlay (and any future surface that reuses this lookup) shows
+  // a sport-appropriate background instead of falling back to whatever the lookup
+  // happens to return. Aliases like "table-tennis" share the canonical key's image.
   const SPORT_IMAGES: Record<string, string> = {
-    tennis:     `${base}/courts/court_2_bernardinu.png`,
-    basketball: `${base}/courts/court_17_zalgiris.png`,
-    padel:      `${base}/courts/padel/padel_court_indoor_1.jpg`,
-    football:   `${base}/courts/football/football_futsal_court_2.jpg`,
-    badminton:  `${base}/courts/badminton/badminton_court_indoor_1.jpg`,
-    squash:     `${base}/courts/squash/squash_court_1.jpg`,
-    total:      `${base}/courts/court_1_seb_arena.png`,
+    tennis:               `${base}/courts/court_2_bernardinu.webp`,
+    basketball:           `${base}/courts/court_17_zalgiris.webp`,
+    padel:                `${base}/courts/padel/padel_court_indoor_1.webp`,
+    football:             `${base}/courts/football/football_futsal_court_2.webp`,
+    badminton:            `${base}/courts/badminton/badminton_court_indoor_1.webp`,
+    squash:               `${base}/courts/squash/squash_court_1.webp`,
+    table_tennis:         `${base}/courts/table_tennis/table_tennis_court_1.jpg`,
+    "table-tennis":       `${base}/courts/table_tennis/table_tennis_court_1.jpg`,
+    golf:                 `${base}/courts/golf/golf_course_1.jpg`,
+    snooker:              `${base}/courts/snooker/snooker_table_1.jpg`,
+    bowling:              `${base}/courts/bowling/bowling_alley_1.jpg`,
+    volleyball:           `${base}/courts/volleyball/volleyball_court_1.jpg`,
+    hockey:               `${base}/courts/hockey/hockey_rink_1.jpg`,
+    futsal:               `${base}/courts/futsal/futsal_court_1.jpg`,
+    floorball:            `${base}/courts/floorball/floorball_court_1.jpg`,
+    "beach-volleyball":   `${base}/courts/beach_volleyball/beach_volleyball_court_1.jpg`,
+    pickleball:           `${base}/courts/pickleball/pickleball_court_1.png`,
+    total:                `${base}/courts/court_1_seb_arena.webp`,
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
