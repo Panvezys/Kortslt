@@ -55,15 +55,6 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-const SPORT_COLOR: Record<string, string> = {
-  tennis: "#84cc16",
-  basketball: "#f97316",
-  padel: "#3b82f6",
-  football: "#22c55e",
-  badminton: "#a855f7",
-  squash: "#06b6d4",
-};
-
 interface DMThread {
   otherUserId: string;
   otherUserName: string;
