@@ -376,8 +376,14 @@ export const sportAbbr: Record<string, string> = {
  * SINGLE SOURCE OF TRUTH — sport display labels (Lithuanian).
  * All UI surfaces must import from here. Aliases like "table-tennis" map to
  * the same label as "table_tennis" so legacy slugs keep working.
+ *
+ * The const-typed inner object preserves literal keys so other helpers (e.g.
+ * `sport-images.ts`) can enforce exhaustive coverage at compile time via
+ * {@link SportKey}. The exported `SPORT_LABELS` keeps its loose
+ * `Record<string, string>` type so the many callers that index it with an
+ * arbitrary `string` continue to compile unchanged.
  */
-export const SPORT_LABELS: Record<string, string> = {
+const SPORT_LABELS_BY_KEY = {
   tennis:               "Tenisas",
   basketball:           "Krepšinis",
   padel:                "Padelis",
@@ -395,7 +401,12 @@ export const SPORT_LABELS: Record<string, string> = {
   floorball:            "Florbolas",
   "beach-volleyball":   "Paplūdimio tinklinis",
   pickleball:           "Pickleball",
-};
+} as const;
+
+/** Literal union of every recognised sport slug, including legacy aliases. */
+export type SportKey = keyof typeof SPORT_LABELS_BY_KEY;
+
+export const SPORT_LABELS: Record<string, string> = SPORT_LABELS_BY_KEY;
 
 export function getSportLabel(sport?: string | null): string {
   if (!sport) return "";

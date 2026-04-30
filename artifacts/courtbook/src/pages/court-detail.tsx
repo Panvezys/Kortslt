@@ -447,6 +447,14 @@ export default function CourtDetail() {
     for (const p of extraPhotos) urls.push(p.url);
     return urls;
   }, [court?.imageUrl, extraPhotos]);
+  // Sport-appropriate hero photo to use when the owner hasn't uploaded any
+  // images, so the gallery shows a relevant background instead of a generic
+  // initial-letter placeholder. Routed through resolveCourtImage so it stays
+  // consistent with how court list cards resolve their fallback.
+  const sportFallbackPhoto = useMemo(
+    () => resolveCourtImage(null, court?.type),
+    [court?.type],
+  );
 
   interface CourtActivity { lastBookedAt: string | null; todayGameCount: number; }
   const { data: activity } = useQuery<CourtActivity>({
@@ -874,10 +882,21 @@ export default function CourtDetail() {
             {/* 3-photo gallery inside the container */}
             <div className="rounded-2xl overflow-hidden bg-zinc-900 relative h-[48vh] min-h-[320px]">
               {allPhotos.length === 0 ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
-                  <Images className="h-16 w-16" />
-                  <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
-                </div>
+                sportFallbackPhoto ? (
+                  <div className="w-full h-full relative">
+                    <img
+                      src={sportFallbackPhoto}
+                      alt={court.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-3">
+                    <Images className="h-16 w-16" />
+                    <span className="text-5xl font-bold">{court.name.charAt(0)}</span>
+                  </div>
+                )
               ) : (
                 <>
                   {/* Desktop: 3-photo grid — 1 large left + 2 stacked right */}
