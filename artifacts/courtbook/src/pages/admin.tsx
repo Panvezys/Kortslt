@@ -72,6 +72,12 @@ function RoleBadge({ role }: { role: UserRole }) {
         <Building2 className="w-3 h-3" /> Savininkas
       </Badge>
     );
+  if (role === "coach")
+    return (
+      <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 gap-1">
+        <GraduationCap className="w-3 h-3" /> Treneris
+      </Badge>
+    );
   return (
     <Badge className="bg-muted text-muted-foreground border-border gap-1">
       <User className="w-3 h-3" /> Žaidėjas
