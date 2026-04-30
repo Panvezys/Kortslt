@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useUser, useClerk } from "@clerk/react";
-import { useListBookings, useListCourts, customFetch } from "@workspace/api-client-react";
+import { useListBookings, useListCourts, customFetch, getListBookingsQueryKey, getListCourtsQueryKey } from "@workspace/api-client-react";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -922,12 +922,12 @@ export default function Profile() {
 
   const { data: bookings, isLoading: bookingsLoading } = useListBookings(
     { customerEmail: email },
-    { query: { enabled: !!email } }
+    { query: { queryKey: getListBookingsQueryKey({ customerEmail: email }), enabled: !!email } }
   );
 
   const { data: ownerCourts, isLoading: courtsLoading } = useListCourts(
     { ownerEmail: email },
-    { query: { enabled: !!email } }
+    { query: { queryKey: getListCourtsQueryKey({ ownerEmail: email }), enabled: !!email } }
   );
 
   const { favorites, loading: favoritesLoading, coachFavorites, loadingCoachFav } = useFavoritesContext();

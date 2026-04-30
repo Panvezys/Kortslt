@@ -10,7 +10,10 @@ export interface CreateBookingBody {
   courtId: number;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   date: Date;
   startTime: string;
   endTime: string;
+  /** JSON-encoded array of rented items selected at booking time. */
+  rentedItems?: string;
 }

@@ -23,7 +23,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtImageUpload } from "@/components/court-image-upload";
 import { resolveCourtImage } from "@/lib/imageUrl";
@@ -420,3 +419,28 @@ function OwnerChatPane({
       <div className="border-t bg-card px-3 py-2.5 flex gap-2 items-end shrink-0">
         <Textarea
           placeholder="Rašykite atsakymą..."
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          disabled={sending}
+          className="min-h-[40px] max-h-32 resize-none flex-1"
+          rows={1}
+        />
+        <Button
+          type="button"
+          size="icon"
+          onClick={send}
+          disabled={sending || !text.trim()}
+          aria-label="Siųsti"
+        >
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </Button>
+      </div>
+    </div>
+  );
+}

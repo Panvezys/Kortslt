@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGetStatsSummary, useGetPopularCourts, useListCourts, customFetch } from "@workspace/api-client-react";
+import { useGetStatsSummary, useGetPopularCourts, useListCourts, customFetch, getGetStatsSummaryQueryKey, getGetPopularCourtsQueryKey, getListCourtsQueryKey } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { CourtMap } from "@/components/court-map";
@@ -71,7 +71,7 @@ function FeaturedTournamentsSection() {
             <div className="group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/60 hover:shadow-xl transition-all cursor-pointer h-full">
               <div className="h-32 bg-gradient-to-br from-primary/30 via-primary/15 to-background relative overflow-hidden">
                 {t.coverPhotoUrl ? (
-                  <img src={resolveCourtImage(t.coverPhotoUrl)} alt={t.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={resolveCourtImage(t.coverPhotoUrl) ?? undefined} alt={t.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <Trophy className="w-16 h-16 text-primary/30" />
@@ -405,13 +405,13 @@ export default function Home() {
   };
 
   const { data: stats, isLoading: statsLoading } = useGetStatsSummary({
-    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+    query: { queryKey: getGetStatsSummaryQueryKey(), refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: popularCourts, isLoading: popularLoading } = useGetPopularCourts({
-    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+    query: { queryKey: getGetPopularCourtsQueryKey(), refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
   const { data: courts, isLoading: courtsLoading } = useListCourts(undefined, {
-    query: { refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
+    query: { queryKey: getListCourtsQueryKey(), refetchOnMount: "always", refetchOnWindowFocus: true, staleTime: 0 },
   });
 
   const filteredCourts = searchName.trim().length >= 2

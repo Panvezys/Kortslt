@@ -27,6 +27,8 @@ export const ListCourtsQueryParams = zod.object({
   isIndoor: zod.coerce.boolean().optional(),
   minPrice: zod.coerce.number().optional(),
   maxPrice: zod.coerce.number().optional(),
+  ownerUserId: zod.coerce.string().optional(),
+  ownerEmail: zod.coerce.string().optional(),
 });
 
 export const ListCourtsResponseItem = zod.object({
@@ -46,10 +48,14 @@ export const ListCourtsResponseItem = zod.object({
   latitude: zod.number(),
   longitude: zod.number(),
   pricePerHour: zod.number(),
+  peakPricePerHour: zod.number().nullish(),
+  rentableItems: zod.string().nullish(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().nullish(),
   amenities: zod.array(zod.string()).optional(),
+  amenityPhotos: zod.string().nullish(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
@@ -58,6 +64,12 @@ export const ListCourtsResponseItem = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["draft", "pending", "approved", "rejected"]),
+  rejectionReason: zod.string().nullish(),
+  socialFacebook: zod.string().nullish(),
+  socialInstagram: zod.string().nullish(),
+  socialWhatsapp: zod.string().nullish(),
+  socialWebsite: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -115,10 +127,14 @@ export const GetCourtResponse = zod.object({
   latitude: zod.number(),
   longitude: zod.number(),
   pricePerHour: zod.number(),
+  peakPricePerHour: zod.number().nullish(),
+  rentableItems: zod.string().nullish(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().nullish(),
   amenities: zod.array(zod.string()).optional(),
+  amenityPhotos: zod.string().nullish(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
@@ -127,6 +143,12 @@ export const GetCourtResponse = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["draft", "pending", "approved", "rejected"]),
+  rejectionReason: zod.string().nullish(),
+  socialFacebook: zod.string().nullish(),
+  socialInstagram: zod.string().nullish(),
+  socialWhatsapp: zod.string().nullish(),
+  socialWebsite: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -180,10 +202,14 @@ export const UpdateCourtResponse = zod.object({
   latitude: zod.number(),
   longitude: zod.number(),
   pricePerHour: zod.number(),
+  peakPricePerHour: zod.number().nullish(),
+  rentableItems: zod.string().nullish(),
   imageUrl: zod.string().optional(),
   ownerName: zod.string(),
   ownerEmail: zod.string(),
+  ownerUserId: zod.string().nullish(),
   amenities: zod.array(zod.string()).optional(),
+  amenityPhotos: zod.string().nullish(),
   isIndoor: zod.boolean(),
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
@@ -192,6 +218,12 @@ export const UpdateCourtResponse = zod.object({
   totalBookings: zod.number().optional(),
   phone: zod.string().optional(),
   openingHours: zod.array(zod.string()).optional(),
+  status: zod.enum(["draft", "pending", "approved", "rejected"]),
+  rejectionReason: zod.string().nullish(),
+  socialFacebook: zod.string().nullish(),
+  socialInstagram: zod.string().nullish(),
+  socialWhatsapp: zod.string().nullish(),
+  socialWebsite: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -302,6 +334,7 @@ export const ListCitiesResponse = zod.array(ListCitiesResponseItem);
 export const ListBookingsQueryParams = zod.object({
   courtId: zod.coerce.number().optional(),
   status: zod.enum(["pending", "confirmed", "cancelled"]).optional(),
+  customerEmail: zod.coerce.string().optional(),
 });
 
 export const ListBookingsResponseItem = zod.object({
@@ -335,9 +368,14 @@ export const CreateBookingBody = zod.object({
   courtId: zod.number(),
   customerName: zod.string(),
   customerEmail: zod.string(),
+  customerPhone: zod.string().optional(),
   date: zod.coerce.date(),
   startTime: zod.string(),
   endTime: zod.string(),
+  rentedItems: zod
+    .string()
+    .optional()
+    .describe("JSON-encoded array of rented items selected at booking time."),
 });
 
 /**
@@ -452,6 +490,7 @@ export const CreateReviewBody = zod.object({
   rating: zod.number().min(1).max(createReviewBodyRatingMax),
   reviewText: zod.string().optional(),
   reviewerName: zod.string(),
+  photos: zod.array(zod.string()).optional(),
 });
 
 /**
@@ -508,6 +547,7 @@ export const GetStatsSummaryResponse = zod.object({
   totalRevenue: zod.number(),
   tennisCourts: zod.number(),
   basketballCourts: zod.number(),
+  padelCourts: zod.number().optional(),
 });
 
 /**

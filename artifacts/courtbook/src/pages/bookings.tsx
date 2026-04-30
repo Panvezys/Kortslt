@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { EmptyState } from "@/components/empty-state";
-import { useListBookings, useCancelBooking, useCreateReview, getListBookingsQueryKey, customFetch, useGetRefundPreview } from "@workspace/api-client-react";
+import { useListBookings, useCancelBooking, useCreateReview, getListBookingsQueryKey, customFetch, useGetRefundPreview, getGetRefundPreviewQueryKey } from "@workspace/api-client-react";
 import { format, parseISO, isFuture, isToday } from "date-fns";
 import { lt } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -217,7 +217,7 @@ function CancelBookingDialog({
   const t = useT();
   const open = bookingId !== null;
   const { data: preview, isLoading } = useGetRefundPreview(bookingId ?? 0, {
-    query: { enabled: open },
+    query: { queryKey: getGetRefundPreviewQueryKey(bookingId ?? 0), enabled: open },
   });
   const [submitting, setSubmitting] = useState(false);
 

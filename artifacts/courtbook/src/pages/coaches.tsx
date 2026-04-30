@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearch, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { useListCourts } from "@workspace/api-client-react";
+import { useListCourts, getListCourtsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,7 @@ export default function CoachesPage() {
   }, []);
 
   // Cities from courts API
-  const { data: courts } = useListCourts(undefined, { query: { staleTime: 60_000 } });
+  const { data: courts } = useListCourts(undefined, { query: { queryKey: getListCourtsQueryKey(), staleTime: 60_000 } });
   const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter(Boolean))].sort();
   const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
     if (c.city) acc[c.city] = (acc[c.city] ?? 0) + 1;

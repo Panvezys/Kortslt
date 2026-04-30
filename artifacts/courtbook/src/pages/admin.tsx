@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch, type Court } from "@workspace/api-client-react";
+import { extractApiError } from "@/lib/api-errors";
 import { Link, useLocation } from "wouter";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,

@@ -1024,7 +1024,12 @@ export default function OwnerFacilityDetail() {
 
   const { data: courts, isLoading: courtsLoading } = useListCourts(
     facilityOwnerId ? { ownerUserId: facilityOwnerId } : undefined,
-    { query: { enabled: !!facilityOwnerId } }
+    {
+      query: {
+        queryKey: getListCourtsQueryKey(facilityOwnerId ? { ownerUserId: facilityOwnerId } : undefined),
+        enabled: !!facilityOwnerId,
+      },
+    }
   );
 
   const facilityCourts = courts?.filter(c => (c as any).facilityId === Number(id)) ?? [];

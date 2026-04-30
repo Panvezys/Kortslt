@@ -26,6 +26,7 @@ import {
   X, ShieldCheck, ShieldX, Loader2,
 } from "lucide-react";
 import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
+import { type SportScore, getSportConfig, deriveWinner } from "@workspace/db/sports-config";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -981,7 +982,7 @@ export default function GameDetailPage() {
           </div>
           <div className="space-y-2">
             {data.participants.map((p) => {
-              const pImageUrl = avatarMap?.[p.userId] ?? null;
+              const pImageUrl = p.userId ? (avatarMap?.[p.userId] ?? null) : null;
               const pElo = p.elo ?? 1200;
               const teamColors: Record<string, string> = {
                 A: "bg-blue-500/15 text-blue-500",
@@ -1071,7 +1072,7 @@ export default function GameDetailPage() {
                             <AlertDialogCancel>Atšaukti</AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-red-600 hover:bg-red-700"
-                              onClick={() => removePlayer.mutate(p.userId)}
+                              onClick={() => p.userId && removePlayer.mutate(p.userId)}
                             >
                               Pašalinti
                             </AlertDialogAction>

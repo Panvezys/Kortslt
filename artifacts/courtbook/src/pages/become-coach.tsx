@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { validateEmail, validatePhone } from "@/lib/validators";
 import { Link } from "wouter";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, Trophy, Loader2,

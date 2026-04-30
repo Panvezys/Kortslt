@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { useT, useI18n } from "@/lib/i18n";
-import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews } from "@workspace/api-client-react";
+import { useGetCourt, useGetCourtAvailability, useCreateBooking, useListBookings, useListCourtReviews, getListBookingsQueryKey, getListCourtReviewsQueryKey } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
 import { DateCalendar } from "@/components/ui/date-calendar";
 import { Button } from "@/components/ui/button";
@@ -322,11 +322,11 @@ export default function CourtDetail() {
   const { isFavorite, toggleFavorite } = useFavoritesContext();
   const { theme } = useTheme();
   const { data: reviews } = useListCourtReviews(courtId, {
-    query: { enabled: !!courtId && !isNaN(courtId) }
+    query: { queryKey: getListCourtReviewsQueryKey(courtId), enabled: !!courtId && !isNaN(courtId) }
   });
   const { data: bookings } = useListBookings(
     { courtId },
-    { query: { enabled: !!courtId && !isNaN(courtId) && !!user } }
+    { query: { queryKey: getListBookingsQueryKey({ courtId }), enabled: !!courtId && !isNaN(courtId) && !!user } }
   );
 
   const createBooking = useCreateBooking();

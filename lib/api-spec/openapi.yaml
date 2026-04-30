@@ -70,6 +70,14 @@ paths:
           in: query
           schema:
             type: number
+        - name: ownerUserId
+          in: query
+          schema:
+            type: string
+        - name: ownerEmail
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: List of courts
@@ -250,6 +258,10 @@ paths:
           schema:
             type: string
             enum: [pending, confirmed, cancelled]
+        - name: customerEmail
+          in: query
+          schema:
+            type: string
       responses:
         "200":
           description: List of bookings
@@ -496,16 +508,28 @@ components:
           type: number
         pricePerHour:
           type: number
+        peakPricePerHour:
+          type: number
+          nullable: true
+        rentableItems:
+          type: string
+          nullable: true
         imageUrl:
           type: string
         ownerName:
           type: string
         ownerEmail:
           type: string
+        ownerUserId:
+          type: string
+          nullable: true
         amenities:
           type: array
           items:
             type: string
+        amenityPhotos:
+          type: string
+          nullable: true
         isIndoor:
           type: boolean
         maxPlayers:
@@ -525,6 +549,24 @@ components:
           type: array
           items:
             type: string
+        status:
+          type: string
+          enum: [draft, pending, approved, rejected]
+        rejectionReason:
+          type: string
+          nullable: true
+        socialFacebook:
+          type: string
+          nullable: true
+        socialInstagram:
+          type: string
+          nullable: true
+        socialWhatsapp:
+          type: string
+          nullable: true
+        socialWebsite:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -542,6 +584,7 @@ components:
         - isIndoor
         - maxPlayers
         - condition
+        - status
         - createdAt
 
     CreateCourtBody:
@@ -755,6 +798,8 @@ components:
           type: string
         customerEmail:
           type: string
+        customerPhone:
+          type: string
         date:
           type: string
           format: date
@@ -762,6 +807,9 @@ components:
           type: string
         endTime:
           type: string
+        rentedItems:
+          type: string
+          description: JSON-encoded array of rented items selected at booking time.
       required:
         - courtId
         - customerName
@@ -817,6 +865,8 @@ components:
         tennisCourts:
           type: integer
         basketballCourts:
+          type: integer
+        padelCourts:
           type: integer
       required:
         - totalCourts
@@ -900,6 +950,10 @@ components:
           type: string
         reviewerName:
           type: string
+        photos:
+          type: array
+          items:
+            type: string
       required:
         - bookingId
         - rating

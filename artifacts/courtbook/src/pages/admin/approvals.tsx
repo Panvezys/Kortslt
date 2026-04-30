@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
+import { SPORT_LABELS } from "@/components/sport-icon";
 import {
   CheckCircle2, XCircle, MapPin, Euro, User, Building2,
   CreditCard, ChevronLeft, RefreshCw, Image as ImageIcon,

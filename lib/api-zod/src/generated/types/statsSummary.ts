@@ -13,4 +13,5 @@ export interface StatsSummary {
   totalRevenue: number;
   tennisCourts: number;
   basketballCourts: number;
+  padelCourts?: number;
 }

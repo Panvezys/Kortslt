@@ -105,8 +105,7 @@ function renderScoreSides(m: BracketMatch, sport: string): { a: string; b: strin
     };
   }
   // Final fallback – use formatScore (returns "a-b" style)
-  const cfg = getSportConfig(sport);
-  const txt = formatScore(s, cfg);
+  const txt = formatScore(s);
   const [a = "", b = ""] = txt.split("-");
   return { a, b };
 }

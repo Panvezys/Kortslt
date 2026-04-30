@@ -10,4 +10,5 @@ import type { ListBookingsStatus } from "./listBookingsStatus";
 export type ListBookingsParams = {
   courtId?: number;
   status?: ListBookingsStatus;
+  customerEmail?: string;
 };

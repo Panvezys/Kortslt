@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CourtCondition } from "./courtCondition";
+import type { CourtStatus } from "./courtStatus";
 import type { CourtType } from "./courtType";
 
 export interface Court {
@@ -18,10 +19,14 @@ export interface Court {
   latitude: number;
   longitude: number;
   pricePerHour: number;
+  peakPricePerHour?: number | null;
+  rentableItems?: string | null;
   imageUrl?: string;
   ownerName: string;
   ownerEmail: string;
+  ownerUserId?: string | null;
   amenities?: string[];
+  amenityPhotos?: string | null;
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
@@ -30,5 +35,11 @@ export interface Court {
   totalBookings?: number;
   phone?: string;
   openingHours?: string[];
+  status: CourtStatus;
+  rejectionReason?: string | null;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialWhatsapp?: string | null;
+  socialWebsite?: string | null;
   createdAt: Date;
 }

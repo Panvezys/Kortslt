@@ -29,6 +29,15 @@ export const CourtCondition = {
   fair: "fair",
 } as const;
 
+export type CourtStatus = (typeof CourtStatus)[keyof typeof CourtStatus];
+
+export const CourtStatus = {
+  draft: "draft",
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
 export interface Court {
   id: number;
   name: string;
@@ -39,10 +48,14 @@ export interface Court {
   latitude: number;
   longitude: number;
   pricePerHour: number;
+  peakPricePerHour?: number | null;
+  rentableItems?: string | null;
   imageUrl?: string;
   ownerName: string;
   ownerEmail: string;
+  ownerUserId?: string | null;
   amenities?: string[];
+  amenityPhotos?: string | null;
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
@@ -51,6 +64,12 @@ export interface Court {
   totalBookings?: number;
   phone?: string;
   openingHours?: string[];
+  status: CourtStatus;
+  rejectionReason?: string | null;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialWhatsapp?: string | null;
+  socialWebsite?: string | null;
   createdAt: string;
 }
 
@@ -168,9 +187,12 @@ export interface CreateBookingBody {
   courtId: number;
   customerName: string;
   customerEmail: string;
+  customerPhone?: string;
   date: string;
   startTime: string;
   endTime: string;
+  /** JSON-encoded array of rented items selected at booking time. */
+  rentedItems?: string;
 }
 
 export interface CreateCheckoutBody {
@@ -195,6 +217,7 @@ export interface StatsSummary {
   totalRevenue: number;
   tennisCourts: number;
   basketballCourts: number;
+  padelCourts?: number;
 }
 
 export interface PopularCourt {
@@ -234,6 +257,7 @@ export interface CreateReviewBody {
   rating: number;
   reviewText?: string;
   reviewerName: string;
+  photos?: string[];
 }
 
 export type ListCourtsParams = {
@@ -244,6 +268,8 @@ export type ListCourtsParams = {
   isIndoor?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  ownerUserId?: string;
+  ownerEmail?: string;
 };
 
 export type ListCourtsType =
@@ -274,6 +300,7 @@ export type GetCourtAvailabilityParams = {
 export type ListBookingsParams = {
   courtId?: number;
   status?: ListBookingsStatus;
+  customerEmail?: string;
 };
 
 export type ListBookingsStatus =

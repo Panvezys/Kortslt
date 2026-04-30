@@ -112,7 +112,7 @@ export default function BookingDetail() {
         <div className="container flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <XCircle className="w-12 h-12 text-destructive" />
           <p className="text-lg font-medium">{error ?? "Rezervacija nerasta"}</p>
-          <BackButton href="/bookings" label="Grįžti" />
+          <BackButton to="/bookings" label="Grįžti" />
         </div>
       </Layout>
     );

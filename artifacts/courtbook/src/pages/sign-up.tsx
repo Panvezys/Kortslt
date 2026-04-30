@@ -92,7 +92,6 @@ export default function SignUpPage() {
               routing="path"
               path={`${basePath}/sign-up`}
               signInUrl={`${basePath}/sign-in`}
-              localization={localization}
               appearance={{
                 layout: {
                   showOptionalFields: false,

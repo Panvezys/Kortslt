@@ -16,4 +16,6 @@ export type ListCourtsParams = {
   isIndoor?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  ownerUserId?: string;
+  ownerEmail?: string;
 };

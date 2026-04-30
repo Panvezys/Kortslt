@@ -13,6 +13,7 @@ export * from "./checkoutSessionResponse";
 export * from "./confirmPaymentBody";
 export * from "./court";
 export * from "./courtCondition";
+export * from "./courtStatus";
 export * from "./courtType";
 export * from "./createBookingBody";
 export * from "./createCheckoutBody";

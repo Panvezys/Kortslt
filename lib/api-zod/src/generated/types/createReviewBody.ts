@@ -15,4 +15,5 @@ export interface CreateReviewBody {
   rating: number;
   reviewText?: string;
   reviewerName: string;
+  photos?: string[];
 }
