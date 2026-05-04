@@ -35,7 +35,7 @@ function safeDocUrl(url: string | undefined | null): string | undefined {
   }
 }
 
-type UserRole = "admin" | "owner" | "player";
+type UserRole = "admin" | "owner" | "coach" | "player";
 
 interface UserRoleRow {
   userId: string;
