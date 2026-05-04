@@ -79,7 +79,7 @@ router.post("/me/request-role", requireAuth, async (req, res): Promise<void> => 
   await sendAdminNotification(
     `Nauja ${roleLabel} rolės užklausa`,
     `Vartotojas pateikė prašymą gauti ${roleLabel} teises.`,
-    "/admin/roles",
+    "/admin?tab=users",
   );
 
   res.json(row);

@@ -1998,7 +1998,12 @@ type AdminTab = "courts" | "users" | "facilities" | "coaches" | "owners" | "edit
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
-  const [activeTab, setActiveTab] = useState<AdminTab>("facilities");
+  const initialTab = (): AdminTab => {
+    const p = new URLSearchParams(window.location.search).get("tab");
+    const valid: AdminTab[] = ["courts", "users", "facilities", "coaches", "owners", "editRequests"];
+    return valid.includes(p as AdminTab) ? (p as AdminTab) : "facilities";
+  };
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
 
   if (roleLoading) {
     return (
