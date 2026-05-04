@@ -270,9 +270,9 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       ownerUserId: userId,
       status: "draft",
       instantBookingEnabled: true,
-      ownershipDocUrl: (parsed.data as any).ownershipDocUrl ?? null,
+      ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
       facilityId: parsed.data.facilityId ?? null,
-      workingHours: (parsed.data as any).workingHours ?? null,
+      workingHours: parsed.data.workingHours ?? null,
     })
     .returning();
 
@@ -358,8 +358,8 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
       facilityId: body.data.facilityId ?? null,
-      workingHours: (body.data as any).workingHours ?? null,
-      amenityPhotos: (body.data as any).amenityPhotos ?? null,
+      workingHours: body.data.workingHours ?? null,
+      amenityPhotos: body.data.amenityPhotos ?? null,
     })
     .where(eq(courtsTable.id, params.data.id))
     .returning();
