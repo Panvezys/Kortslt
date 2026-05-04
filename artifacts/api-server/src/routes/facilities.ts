@@ -316,7 +316,7 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
     facility.stripeOnboardingComplete = liveResult.ready;
   }
 
-  const nextStatus = computeNextStatusOnSubmit(facility);
+  const nextStatus = computeNextStatusOnSubmit(liveResult.ready);
 
   // Compare-and-set: only mutate if the row is STILL in the status we read. Prevents
   // a concurrent admin action or stripe webhook from getting clobbered by a stale submit.

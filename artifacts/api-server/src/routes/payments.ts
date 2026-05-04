@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, facilitiesTable, userProfilesTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, userProfilesTable } from "@workspace/db";
 import {
   CreateCheckoutSessionBody,
   CreateCheckoutSessionResponse,
@@ -98,21 +98,9 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
 
   const amountCents = Math.round(Number(booking.totalPrice) * 100);
 
-  // Resolve payout destination:
-  // 1) court-level Connect account (legacy per-court flow)
-  // 2) facility-level Connect account
-  // 3) owner's user-level Connect account (current onboarding flow)
-  let connectAccountId: string | null = court?.stripeConnectAccountId ?? null;
-
-  if (!connectAccountId && court?.facilityId) {
-    const [facility] = await db
-      .select({ id: facilitiesTable.id, stripeConnectAccountId: facilitiesTable.stripeConnectAccountId })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, court.facilityId));
-    connectAccountId = facility?.stripeConnectAccountId ?? null;
-  }
-
-  if (!connectAccountId && court?.ownerUserId) {
+  // Resolve payout destination: use the court owner's Connect account.
+  let connectAccountId: string | null = null;
+  if (court?.ownerUserId) {
     const [profile] = await db
       .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
       .from(userProfilesTable)
@@ -469,198 +457,6 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
     rentedItems: booking.rentedItems ?? undefined,
     courtName: rows[0].courtName,
-  });
-});
-
-// ─── Stripe Connect: create/get onboarding link for owner ────────────────────
-router.post("/payments/connect/onboard", requireAuth, async (req, res): Promise<void> => {
-  const userId = getCurrentUserId(req)!;
-  const { courtId, returnUrl, refreshUrl } = req.body;
-  if (!courtId) {
-    res.status(400).json({ error: "courtId required" });
-    return;
-  }
-
-  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, Number(courtId)));
-  if (!court) {
-    res.status(404).json({ error: "Court not found" });
-    return;
-  }
-
-  // Only the court owner or an admin may access payout onboarding
-  if (court.ownerUserId !== userId) {
-    const role = await getUserRole(userId);
-    if (role !== "admin") {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-  }
-
-  let stripe: any;
-  try {
-    stripe = await getUncachableStripeClient();
-  } catch (err) {
-    res.status(503).json({ error: "Stripe not configured" });
-    return;
-  }
-
-  let accountId = court.stripeConnectAccountId;
-
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      country: "LT",
-      email: court.ownerEmail,
-      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-      business_profile: { name: court.name, url: `${process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`}/courts/${court.id}` },
-      metadata: { courtId: String(court.id), ownerUserId: court.ownerUserId ?? "" },
-    });
-    accountId = account.id;
-    await db.update(courtsTable)
-      .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
-      .where(eq(courtsTable.id, Number(courtId)));
-  }
-
-  const base = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: refreshUrl ?? `${base}/owner?connect_refresh=1&courtId=${courtId}`,
-    return_url: returnUrl ?? `${base}/owner?connect_success=1&courtId=${courtId}`,
-    type: "account_onboarding",
-  });
-
-  res.json({ url: accountLink.url });
-});
-
-// ─── Stripe Connect: check account status ────────────────────────────────────
-router.get("/payments/connect/status/:courtId", async (req, res): Promise<void> => {
-  const courtId = Number(req.params.courtId);
-  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
-  if (!court) {
-    res.status(404).json({ error: "Court not found" });
-    return;
-  }
-
-  if (!court.stripeConnectAccountId) {
-    res.json({ status: "not_connected", accountId: null });
-    return;
-  }
-
-  let stripe: any;
-  try {
-    stripe = await getUncachableStripeClient();
-  } catch {
-    res.json({ status: court.stripeConnectStatus ?? "not_connected", accountId: court.stripeConnectAccountId });
-    return;
-  }
-
-  const account = await stripe.accounts.retrieve(court.stripeConnectAccountId);
-  const newStatus = account.details_submitted ? "active" : "pending";
-
-  if (newStatus !== court.stripeConnectStatus) {
-    await db.update(courtsTable)
-      .set({ stripeConnectStatus: newStatus })
-      .where(eq(courtsTable.id, courtId));
-  }
-
-  res.json({ status: newStatus, accountId: court.stripeConnectAccountId, chargesEnabled: account.charges_enabled, payoutsEnabled: account.payouts_enabled });
-});
-
-// ─── Facility Stripe Connect: create/get onboarding link ─────────────────────
-router.post("/facilities/:id/connect/onboard", requireAuth, async (req, res): Promise<void> => {
-  const facilityId = Number(req.params.id);
-  const userId = getCurrentUserId(req);
-  const { returnUrl, refreshUrl } = req.body;
-
-  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
-  if (!facility || facility.ownerUserId !== userId) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
-  let stripe: any;
-  try {
-    stripe = await getUncachableStripeClient();
-  } catch {
-    res.status(503).json({ error: "Stripe not configured" });
-    return;
-  }
-
-  try {
-    let accountId = facility.stripeConnectAccountId;
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: "express",
-        country: "LT",
-        email: facility.email ?? undefined,
-        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        business_profile: { name: facility.name },
-        metadata: { facilityId: String(facility.id), ownerUserId: facility.ownerUserId },
-      });
-      accountId = account.id;
-      await db.update(facilitiesTable)
-        .set({ stripeConnectAccountId: accountId, stripeConnectStatus: "pending" })
-        .where(eq(facilitiesTable.id, facilityId));
-    }
-
-    const base = process.env.SITE_URL || `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`;
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: refreshUrl ?? `${base}/owner/facility/${facilityId}?connect_refresh=1`,
-      return_url: returnUrl ?? `${base}/owner/facility/${facilityId}?connect_success=1`,
-      type: "account_onboarding",
-    });
-
-    res.json({ url: accountLink.url });
-  } catch (err: any) {
-    const stripeMessage: string = err?.message ?? "Stripe klaida";
-    const isConnectNotEnabled = stripeMessage.includes("signed up for Connect");
-    res.status(400).json({
-      error: isConnectNotEnabled
-        ? "Stripe Connect neprijungtas prie platformos sąskaitos. Administratorius turi aktyvuoti Connect šioje nuorodoje: https://dashboard.stripe.com/connect"
-        : stripeMessage,
-    });
-  }
-});
-
-// ─── Facility Stripe Connect: check status ────────────────────────────────────
-router.get("/facilities/:id/connect/status", requireAuth, async (req, res): Promise<void> => {
-  const facilityId = Number(req.params.id);
-  const userId = getCurrentUserId(req);
-
-  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
-  if (!facility || facility.ownerUserId !== userId) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
-  if (!facility.stripeConnectAccountId) {
-    res.json({ status: "not_connected", accountId: null });
-    return;
-  }
-
-  let stripe: any;
-  try {
-    stripe = await getUncachableStripeClient();
-  } catch {
-    res.json({ status: facility.stripeConnectStatus ?? "not_connected", accountId: facility.stripeConnectAccountId });
-    return;
-  }
-
-  const account = await stripe.accounts.retrieve(facility.stripeConnectAccountId);
-  const newStatus = account.details_submitted ? "active" : "pending";
-
-  if (newStatus !== facility.stripeConnectStatus) {
-    await db.update(facilitiesTable)
-      .set({ stripeConnectStatus: newStatus })
-      .where(eq(facilitiesTable.id, facilityId));
-  }
-
-  res.json({
-    status: newStatus,
-    accountId: facility.stripeConnectAccountId,
-    chargesEnabled: account.charges_enabled,
-    payoutsEnabled: account.payouts_enabled,
   });
 });
 

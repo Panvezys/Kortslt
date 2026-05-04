@@ -1,0 +1,25 @@
+Let's refactor the Stripe Connect architecture. Currently, we have an over-engineered 3-tier fallback system (Court -> Facility -> Owner). We need to simplify this to the industry standard: One Owner = One Stripe Connect Account. 
+
+Please execute the following refactoring plan:
+
+### 1. Database Schema Cleanup
+- Remove the `stripe_connect_account_id` and `stripe_connect_status` columns from the `facilities` and `courts` tables. 
+- Ensure that Stripe Connect data (`stripe_account_id` and `stripe_account_status`) lives strictly on the owner's user profile (e.g., `user_profiles` or wherever owner details are stored).
+
+### 2. Backend Routing & Webhooks
+- Update the Stripe onboarding route (previously `POST /facilities/:id/connect/onboard`) to be a global owner route (e.g., `POST /api/owner/stripe/connect`). It should generate an account link tied strictly to the `userId`.
+- Update the Stripe webhook handler (`account.updated`): It should find the user by their Stripe Account ID and update their user-level `stripe_account_status` (e.g., "active", "pending", "restricted").
+- Update the Checkout payment routing: Remove the 3-tier fallback. When a player books a court, query the `court` -> `facility` -> `ownerId`, and route the funds directly to that owner's `stripe_account_id`.
+
+### 3. Owner UI (The Dashboard)
+- Remove the "Stripe registracija" tab and any Stripe Connect onboarding buttons from the individual Facility detail pages (`owner-facility-detail.tsx`).
+- Create or update a global Owner settings page (e.g., `/owner/payouts` labeled "Atsiskaitymai"). Place the Stripe Connect onboarding button here.
+- Add a pre-publish validation rule: When an owner clicks "Publish" or "Submit for Approval" on a new Facility, check if their global Stripe status is "active". 
+  - If YES: Submit the facility for Admin approval.
+  - If NO: Block the submission and show a modal/toast: "Prieš paskelbiant objektą, privalote prijungti banko sąskaitą per Stripe." (Before publishing, you must connect a bank account via Stripe).
+
+### 4. Admin UI (`/admin/users` and `/admin/facilities`)
+- Separate financial verification from platform quality approval.
+- In the Admin Users list: Add a visual badge next to Owner accounts showing their Stripe status (e.g., 🟢 Stripe: Patvirtinta or 🔴 Stripe: Neprijungta). This is read-only; the admin does not manually approve this.
+- In the Admin Facilities list: Remove the "Stripe" status column completely. Add a clear "Patvirtinti objektą" (Approve Facility) button. 
+- Ensure the Admin Facilities "Pending Approval" queue only displays facilities belonging to owners who already have an active Stripe account.

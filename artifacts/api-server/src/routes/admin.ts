@@ -97,13 +97,26 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
 
 // ─── Facility management ─────────────────────────────────────────────────────
 
-/** GET /admin/facilities — all facilities with any verification status */
+/** GET /admin/facilities — all facilities with any verification status, enriched with owner stripe status */
 router.get("/admin/facilities", requireAdmin, async (_req, res): Promise<void> => {
   const facilities = await db
     .select()
     .from(facilitiesTable)
     .orderBy(desc(facilitiesTable.createdAt));
-  res.json(facilities);
+
+  if (facilities.length === 0) { res.json([]); return; }
+
+  const ownerIds = [...new Set(facilities.map(f => f.ownerUserId))];
+  const profiles = await db
+    .select({ userId: userProfilesTable.userId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(inArray(userProfilesTable.userId, ownerIds));
+  const stripeMap = new Map(profiles.map(p => [p.userId, p.stripeAccountStatus]));
+
+  res.json(facilities.map(f => ({
+    ...f,
+    ownerStripeStatus: stripeMap.get(f.ownerUserId) ?? "not_connected",
+  })));
 });
 
 /** GET /admin/facilities/pending — only the verification queue */
@@ -318,7 +331,7 @@ router.get("/admin/reset-stripe", requireAdmin, async (req, res): Promise<void> 
 
   await db
     .update(facilitiesTable)
-    .set({ stripeConnectAccountId: null, stripeConnectStatus: "not_connected" })
+    .set({ stripeOnboardingComplete: false })
     .where(eq(facilitiesTable.ownerUserId, target.id));
 
   res.json({ status: "success", message: "Stripe reset for panvezys@gmail.com" });

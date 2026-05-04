@@ -79,9 +79,9 @@ export function validateForVerification(
  * Pure: does not touch the database.
  */
 export function computeNextStatusOnSubmit(
-  facility: Pick<Facility, "stripeOnboardingComplete">,
+  ownerStripeReady: boolean,
 ): "onboarding" | "pending_verification" {
-  return facility.stripeOnboardingComplete ? "pending_verification" : "onboarding";
+  return ownerStripeReady ? "pending_verification" : "onboarding";
 }
 
 /**

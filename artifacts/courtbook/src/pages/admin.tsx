@@ -47,6 +47,7 @@ interface UserRoleRow {
   name: string | null;
   email: string | null;
   avatarUrl: string | null;
+  stripeAccountStatus?: string | null;
 }
 
 // ─── Status badge ────────────────────────────────────────────────────────────
@@ -468,6 +469,14 @@ function UsersPanel() {
                     </td>
                     <td className="px-4 py-3">
                       <RoleBadge role={displayRole as UserRole} />
+                      {u.role === "owner" && (
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${OWNER_STRIPE_COLOR[u.stripeAccountStatus ?? "not_connected"]}`}>
+                            <CreditCard className="w-2.5 h-2.5" />
+                            {OWNER_STRIPE_LABEL[u.stripeAccountStatus ?? "not_connected"]}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
                       {new Date(u.createdAt).toLocaleDateString("lt-LT")}
@@ -677,7 +686,7 @@ function CourtReviewDialog({
 
 const VERIFICATION_LABEL: Record<string, string> = {
   draft: "Juodraštis",
-  onboarding: "Stripe registracija",
+  onboarding: "Stripe nebaigtas",
   pending_verification: "Laukia patvirtinimo",
   active: "Aktyvus",
   suspended: "Sustabdytas",
@@ -691,15 +700,15 @@ const VERIFICATION_COLOR: Record<string, string> = {
   suspended: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-const CONNECT_LABEL: Record<string, string> = {
+const OWNER_STRIPE_LABEL: Record<string, string> = {
   not_connected: "Neprijungta",
   pending: "Laukiama",
   active: "Aktyvus",
 };
 
-const CONNECT_COLOR: Record<string, string> = {
-  not_connected: "bg-muted/50 text-muted-foreground",
-  pending:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+const OWNER_STRIPE_COLOR: Record<string, string> = {
+  not_connected: "bg-muted/50 text-muted-foreground border-border",
+  pending: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
   active: "bg-green-500/10 text-green-400 border-green-500/30",
 };
 
@@ -915,14 +924,14 @@ function FacilityReviewDialog({
             )}
           </div>
 
-          {/* Stripe Connect status */}
+          {/* Owner Stripe status */}
           <div className="flex items-center justify-between rounded-lg bg-muted/30 px-4 py-3">
             <div className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Stripe Connect</span>
+              <span className="text-sm font-medium">Savininko Stripe</span>
             </div>
-            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${CONNECT_COLOR[facility.stripeConnectStatus ?? "not_connected"]}`}>
-              {CONNECT_LABEL[facility.stripeConnectStatus ?? "not_connected"]}
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${OWNER_STRIPE_COLOR[facility.ownerStripeStatus ?? "not_connected"]}`}>
+              {OWNER_STRIPE_LABEL[facility.ownerStripeStatus ?? "not_connected"]}
             </span>
           </div>
 
@@ -959,7 +968,7 @@ function FacilityReviewDialog({
               {(isDraft || isOnboarding || isSuspended) && (
                 <p className="text-sm text-muted-foreground text-center w-full py-2">
                   {isDraft && "Savininkas dar nepateikė objekto patvirtinimui."}
-                  {isOnboarding && "Savininkas užbaiginėja Stripe Connect registraciją."}
+                  {isOnboarding && "Savininkas dar neužbaigė Stripe Connect."}
                   {isSuspended && "Šis objektas yra sustabdytas."}
                 </p>
               )}
@@ -1119,14 +1128,13 @@ function FacilitiesPanel() {
             <thead>
               <tr className="bg-muted/50 border-b">
                 <th className="text-left px-4 py-3 font-medium">Objektas</th>
-                <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Stripe</th>
                 <th className="text-left px-4 py-3 font-medium">Statusas</th>
                 <th className="text-right px-4 py-3 font-medium">Veiksmai</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Objektų nerasta</td></tr>
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">Objektų nerasta</td></tr>
               )}
               {filtered.map((f: any) => (
                 <tr
@@ -1142,12 +1150,6 @@ function FacilitiesPanel() {
                     {(f.verificationNotes ?? f.rejectionReason) && (
                       <div className="text-xs text-red-400 mt-0.5">❌ {f.verificationNotes ?? f.rejectionReason}</div>
                     )}
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${CONNECT_COLOR[f.stripeConnectStatus ?? "not_connected"]}`}>
-                      <CreditCard className="w-3 h-3" />
-                      {CONNECT_LABEL[f.stripeConnectStatus ?? "not_connected"]}
-                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full border ${VERIFICATION_COLOR[f.verificationStatus ?? "pending"]}`}>

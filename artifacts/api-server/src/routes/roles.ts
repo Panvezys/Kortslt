@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { userRolesTable, coachesTable } from "@workspace/db/schema";
+import { userRolesTable, coachesTable, userProfilesTable } from "@workspace/db/schema";
 import { requireAuth, requireAdmin, ensureUserRole, getCurrentUserId } from "../lib/auth";
 import { getAuth, clerkClient } from "@clerk/express";
 import { z } from "zod";
@@ -241,11 +241,20 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
     }
   }
 
+  const profiles = userIds.length > 0
+    ? await db
+        .select({ userId: userProfilesTable.userId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+        .from(userProfilesTable)
+        .where(inArray(userProfilesTable.userId, userIds))
+    : [];
+  const stripeMap = new Map(profiles.map(p => [p.userId, p.stripeAccountStatus ?? "not_connected"]));
+
   const enriched = rows.map(r => ({
     ...r,
     name: clerkUsers[r.userId]?.name ?? null,
     email: clerkUsers[r.userId]?.email ?? null,
     avatarUrl: clerkUsers[r.userId]?.avatarUrl ?? null,
+    stripeAccountStatus: stripeMap.get(r.userId) ?? "not_connected",
   }));
 
   res.json(enriched);

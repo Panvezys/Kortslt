@@ -20,7 +20,7 @@ import {
   Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock,
   AlertTriangle, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen,
   Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send,
-  ArrowLeft, ChevronRight, Images, Upload, Users, CreditCard,
+  ArrowLeft, ChevronRight, Images, Upload, Users,
   CheckCircle2, ExternalLink, Car, Bath, Wifi, Coffee, HeartPulse,
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
   Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
@@ -1196,54 +1196,6 @@ export default function OwnerFacilityDetail() {
     finally { setUploadingAmenity(null); }
   };
 
-  const handleConnectStripe = async (courtId: number) => {
-    try {
-      const origin = window.location.origin;
-      const r = await fetch(`${BASE_URL}/api/payments/connect/onboard`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courtId,
-          returnUrl: `${origin}${BASE_URL}/owner/facility/${id}?connect_success=1&courtId=${courtId}`,
-          refreshUrl: `${origin}${BASE_URL}/owner/facility/${id}?connect_refresh=1&courtId=${courtId}`,
-        }),
-      });
-      if (!r.ok) throw new Error("Klaida");
-      const { url } = await r.json();
-      window.location.href = url;
-    } catch { toast({ title: "Nepavyko inicijuoti Stripe Connect", variant: "destructive" }); }
-  };
-
-  const handleFacilityConnectStripe = async () => {
-    try {
-      const origin = window.location.origin;
-      const r = await fetch(`${API_URL}/facilities/${id}/connect/onboard`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          returnUrl: `${origin}${BASE_URL}/owner/facility/${id}?facility_connect_success=1`,
-          refreshUrl: `${origin}${BASE_URL}/owner/facility/${id}?facility_connect_refresh=1`,
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error ?? "Klaida");
-      window.open(data.url, "_blank", "noopener,noreferrer");
-    } catch (err: any) {
-      toast({ title: "Stripe Connect klaida", description: err?.message, variant: "destructive" });
-    }
-  };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("connect_success") === "1" || params.get("facility_connect_success") === "1") {
-      toast({ title: "Stripe Connect prijungtas!", description: "Dabar galite priimti mokėjimus." });
-      window.history.replaceState({}, "", window.location.pathname);
-      queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
-    } else if (params.get("connect_refresh") === "1" || params.get("facility_connect_refresh") === "1") {
-      toast({ title: "Stripe Connect neužbaigtas", description: "Bandykite dar kartą." });
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
 
   // Auto-open editors based on URL params (?editCourt=ID, ?editFacility=1)
   useEffect(() => {

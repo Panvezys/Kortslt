@@ -1,0 +1,47 @@
+Here is the straightforward breakdown of how this logic should be structured, where the buttons belong, and what the admin should actually be doing.
+
+1. The Core Logic: Attach Stripe to the Owner
+A Stripe Connect account represents a Legal Business Entity (a person or a UAB).
+If "Kaunas Tennis UAB" owns three different tennis centers (Facilities), they do not want to fill out their tax information, upload their passport, and verify their bank account three separate times. They want one bank account to catch all their money.
+
+The Rule: One Owner = One Stripe Connect Account.
+
+Remove the stripeConnectAccountId from the Court and Facility database tables.
+
+Keep it exclusively on the user_profiles (Owner) table.
+
+When a player pays for any court at any facility owned by this user, the money flows into that single Owner-level Stripe account.
+
+2. Where should the Stripe Onboarding Button be?
+Since Stripe is tied to the Owner's account, the onboarding button should not be buried inside a specific facility's settings.
+
+Location: Put it in a global Owner setting, like an "Atsiskaitymai" (Payouts) or "Nustatymai" (Settings) tab on the main /owner dashboard.
+
+The UX Blocker: When an owner creates a new facility, they can fill out the name, address, and photos. However, when they click "Publish" or "Submit for Verification," the system should check: Does this owner have an active Stripe account?
+
+If Yes: The facility goes to pending_admin_approval.
+
+If No: A modal pops up saying: "Prieš paskelbiant objektą, privalote prijungti banko sąskaitą per Stripe." (Before publishing, you must connect a bank account via Stripe) with the onboarding button.
+
+3. The Admin View & Approval Flow
+Right now, you are confusing Financial Verification with Platform Quality Approval. You need to separate these two concepts in your Admin panel.
+
+A. Financial Verification (Stripe's Job)
+You, as the Admin, should never manually approve a Stripe account. That is a massive legal liability.
+
+Stripe handles the KYC (Know Your Customer) and checks their passport and bank.
+
+When Stripe finishes, their webhook fires and automatically flips the Owner's stripeAccountStatus to "active".
+
+In your Admin panel (under an "Owners" tab), you should just see a read-only badge next to the owner's name: 🟢 Stripe: Patvirtinta (Verified) or 🔴 Stripe: Neprijungta (Not Connected).
+
+B. Platform Quality Approval (Your Job)
+Your job as the Admin is to verify the Facility, not the bank. You are checking: Is this a real tennis court? Are the photos high quality? Is the description accurate?
+
+In your Admin panel (under a "Facilities" tab), you should see facilities waiting for approval.
+
+You review the photos and details.
+
+You click a big green "Patvirtinti objektą" (Approve Facility) button.
+
+Note: The system shouldn't even let a facility show up in your "Needs Approval" queue unless the owner's Stripe account is already active.

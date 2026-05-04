@@ -37,8 +37,6 @@ export const courtsTable = pgTable("courts", {
   socialWhatsapp: text("social_whatsapp"),
   socialWebsite: text("social_website"),
   instantBookingEnabled: boolean("instant_booking_enabled").notNull().default(true),
-  stripeConnectAccountId: text("stripe_connect_account_id"),
-  stripeConnectStatus: text("stripe_connect_status").default("not_connected"),
   facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "set null" }),
   workingHours: text("working_hours"),
   amenityPhotos: text("amenity_photos"),

@@ -236,22 +236,6 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
     .set({ stripeAccountStatus: newStatus })
     .where(eq(userProfilesTable.stripeAccountId, account.id));
 
-  // 2) Facility-level Connect (per-facility payout account)
-  // Also persist the onboarding-complete boolean so the admin can decide when to approve.
-  await db
-    .update(facilitiesTable)
-    .set({
-      stripeConnectStatus: newStatus,
-      stripeOnboardingComplete: stripeComplete,
-    })
-    .where(eq(facilitiesTable.stripeConnectAccountId, account.id));
-
-  // 3) Court-level Connect (per-court payout account)
-  await db
-    .update(courtsTable)
-    .set({ stripeConnectStatus: newStatus })
-    .where(eq(courtsTable.stripeConnectAccountId, account.id));
-
   // ─── Owner-level cascade ───
   // The most common shape on this platform is a single Stripe account at the owner-profile
   // level that all of the owner's facilities share. Find every facility owned by this user

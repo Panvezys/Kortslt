@@ -54,8 +54,6 @@ interface FacilityWithCourts {
   verificationStatus: string;
   verificationDocUrl?: string;
   ownershipDocUrl?: string;
-  stripeConnectStatus?: string;
-  stripeConnectAccountId?: string;
   stripeOnboardingComplete?: boolean;
   adminVerified?: boolean;
   verificationNotes?: string | null;

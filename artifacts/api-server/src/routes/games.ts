@@ -12,7 +12,6 @@ import {
   gameResultConfirmationsTable,
   bookingsTable,
   courtsTable,
-  facilitiesTable,
   userProfilesTable,
   courtPricingTable,
   courtBlockedSlotsTable,
@@ -1485,14 +1484,9 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Resolve Connect destination (court → facility → owner)
-  let connectAccountId: string | null = court.stripeConnectAccountId ?? null;
-  if (!connectAccountId && court.facilityId) {
-    const [facility] = await db.select({ id: facilitiesTable.id, stripeConnectAccountId: facilitiesTable.stripeConnectAccountId })
-      .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
-    connectAccountId = facility?.stripeConnectAccountId ?? null;
-  }
-  if (!connectAccountId && court.ownerUserId) {
+  // Resolve Connect destination: use the court owner's account.
+  let connectAccountId: string | null = null;
+  if (court.ownerUserId) {
     const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
       .from(userProfilesTable).where(eq(userProfilesTable.userId, court.ownerUserId));
     if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;

@@ -11,7 +11,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { SPORT_LABELS } from "@/components/sport-icon";
 import {
   CheckCircle2, XCircle, MapPin, Euro, User, Building2,
-  CreditCard, ChevronLeft, RefreshCw, Image as ImageIcon,
+  ChevronLeft, RefreshCw, Image as ImageIcon,
   Clock, Zap, Trophy, Phone, Mail, Euro as EuroIcon,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -32,7 +32,6 @@ interface PendingCourt {
   imageUrl?: string;
   photos?: string[];
   status: string;
-  stripeConnectStatus?: string;
   createdAt: string;
   instantBookingEnabled?: boolean;
 }
@@ -54,7 +53,6 @@ function CourtCard({
   const [rejectReason, setRejectReason] = useState("");
 
   const mainPhoto = court.photos?.[0] ?? court.imageUrl;
-  const stripeOk = court.stripeConnectStatus === "active";
 
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -101,12 +99,8 @@ function CourtCard({
           </div>
         </div>
 
-        {/* Stripe & instant booking indicators */}
+        {/* Instant booking indicator */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${stripeOk ? "text-green-500 bg-green-500/10" : "text-yellow-500 bg-yellow-500/10"}`}>
-            <CreditCard className="h-3 w-3" />
-            {stripeOk ? "Stripe aktyvus" : "Stripe neprijungtas"}
-          </span>
           <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${court.instantBookingEnabled !== false ? "text-blue-500 bg-blue-500/10" : "text-muted-foreground bg-muted/40"}`}>
             <Zap className="h-3 w-3" />
             {court.instantBookingEnabled !== false ? "Momentinė rez." : "Rankinis patvirtinimas"}
@@ -432,7 +426,7 @@ export default function AdminApprovalsPage() {
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
             { label: "Laukia patvirtinimo", value: courts.length, color: "text-amber-500" },
-            { label: "Su Stripe", value: courts.filter(c => c.stripeConnectStatus === "active").length, color: "text-green-500" },
+            { label: "Su aprašymu", value: courts.filter(c => !!c.description).length, color: "text-green-500" },
             { label: "Be nuotraukų", value: courts.filter(c => !c.imageUrl && (!c.photos || c.photos.length === 0)).length, color: "text-orange-500" },
           ].map(s => (
             <div key={s.label} className="bg-card border border-border rounded-xl p-3 text-center">

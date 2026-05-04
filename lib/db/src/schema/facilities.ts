@@ -5,9 +5,9 @@ import { z } from "zod/v4";
 /**
  * Multi-stage verification workflow:
  *   draft                → Owner is still editing; not visible to public; no admin queue.
- *   onboarding           → Owner submitted; Stripe Connect not yet completed.
- *   pending_verification → Info complete + Stripe done; awaiting admin approval.
- *   active               → Admin approved AND Stripe ready; visible in search.
+ *   onboarding           → Owner submitted; owner-level Stripe Connect not yet completed.
+ *   pending_verification → Info complete + owner Stripe ready; awaiting admin approval.
+ *   active               → Admin approved AND owner Stripe ready; visible in search.
  *   suspended            → Admin manually disabled.
  */
 export const FACILITY_STATUSES = [
@@ -42,9 +42,7 @@ export const facilitiesTable = pgTable("facilities", {
   verificationNotes: text("verification_notes"),
   /** True once an admin has approved the facility. Combined with stripeOnboardingComplete to gate 'active'. */
   adminVerified: boolean("admin_verified").notNull().default(false),
-  stripeConnectAccountId: text("stripe_connect_account_id"),
-  stripeConnectStatus: text("stripe_connect_status").notNull().default("not_connected"),
-  /** True once Stripe says details_submitted on the connected account. */
+  /** True once the owner's Stripe Connect account is fully ready (synced from owner profile via webhook cascade). */
   stripeOnboardingComplete: boolean("stripe_onboarding_complete").notNull().default(false),
   photos: text("photos").array().notNull().default([]),
   equipment: text("equipment").array().notNull().default([]),
