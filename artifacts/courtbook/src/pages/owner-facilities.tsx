@@ -15,6 +15,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { CourtIcon } from "@/components/sport-icon";
 import { validateEmail, validatePhone } from "@/lib/validators";
+import { useI18n } from "@/lib/i18n";
 import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
@@ -343,6 +344,7 @@ function BusinessInfoPanel() {
 export default function OwnerFacilities() {
   const { user } = useUser();
   const [, navigate] = useLocation();
+  const { t } = useI18n();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -614,10 +616,10 @@ export default function OwnerFacilities() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         {!stripeActive && (
-          <div className="mb-6 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/20 via-amber-500/15 to-yellow-500/20 p-4 shadow-sm ring-1 ring-amber-300/20 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="mb-6 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 shadow-sm ring-1 ring-amber-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="max-w-2xl">
-              <p className="font-semibold text-amber-50">
-                Action Required: Connect your bank account to accept payments
+              <p className="font-semibold text-amber-950">
+                {t("owner.stripeBanner.title")}
               </p>
             </div>
             <Button
@@ -625,9 +627,9 @@ export default function OwnerFacilities() {
                 const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
                 window.open(r.url, "_blank", "noopener,noreferrer");
               }}
-              className="gap-2 bg-white text-amber-950 hover:bg-amber-50 shadow-sm"
+              className="gap-2 bg-amber-700 text-white hover:bg-amber-800 shadow-sm"
             >
-              <CreditCard className="w-4 h-4" /> Connect Stripe
+              <CreditCard className="w-4 h-4" /> {t("owner.stripeBanner.cta")}
             </Button>
           </div>
         )}
