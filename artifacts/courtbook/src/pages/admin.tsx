@@ -741,7 +741,7 @@ function FacilityReviewDialog({
   const isOnboarding = facility.verificationStatus === "onboarding";
   const isDraft = facility.verificationStatus === "draft";
   const isSuspended = facility.verificationStatus === "suspended";
-  const stripeReady = !!facility.stripeOnboardingComplete;
+  const stripeReady = facility.ownerStripeStatus === "active";
   const adminNote: string | null = facility.verificationNotes ?? facility.rejectionReason ?? null;
   const facilityDocUrl = safeDocUrl(facility.ownershipDocUrl);
 
