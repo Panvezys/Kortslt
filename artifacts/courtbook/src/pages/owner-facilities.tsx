@@ -386,12 +386,14 @@ export default function OwnerFacilities() {
   }, [queryClient]);
 
   const extractApiError = (err: unknown, fallback: string): string => {
-    const anyErr = err as any;
-    const data = anyErr?.data;
-    if (data && typeof data === "object" && typeof data.error === "string") {
-      return data.error;
+    if (err && typeof err === "object") {
+      const e = err as Record<string, unknown>;
+      const data = e["data"];
+      if (data && typeof data === "object" && typeof (data as Record<string, unknown>)["error"] === "string") {
+        return (data as Record<string, unknown>)["error"] as string;
+      }
+      if (typeof e["message"] === "string") return e["message"];
     }
-    if (anyErr?.message) return anyErr.message;
     return fallback;
   };
 

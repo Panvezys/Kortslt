@@ -37,6 +37,32 @@ function safeDocUrl(url: string | undefined | null): string | undefined {
 
 type UserRole = "admin" | "owner" | "coach" | "player";
 
+/** Admin-extended Court row — the /admin/courts endpoint returns the full DB row */
+type AdminCourt = Court & { facilityId?: number | null; photos?: string[]; ownershipDocUrl?: string | null };
+
+interface RoleRequest {
+  userId: string;
+  pendingRole: string;
+  requestData?: string | null;
+}
+
+interface CoachRow {
+  id: number | string;
+  userId?: string;
+  status: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  bio?: string | null;
+  photoUrl?: string | null;
+  pricePerHour?: number | null;
+  sports?: string[];
+  availabilityDescription?: string | null;
+  rejectionReason?: string | null;
+  _source?: string;
+  _userId?: string;
+}
+
 interface UserRoleRow {
   userId: string;
   role: UserRole;
@@ -89,9 +115,9 @@ function RoleBadge({ role }: { role: UserRole }) {
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
 function useAdminCourts() {
-  return useQuery<Court[]>({
+  return useQuery<AdminCourt[]>({
     queryKey: ["admin-courts"],
-    queryFn: () => customFetch<Court[]>("/api/admin/courts", { method: "GET" }),
+    queryFn: () => customFetch<AdminCourt[]>("/api/admin/courts", { method: "GET" }),
     retry: false,
   });
 }
@@ -158,8 +184,8 @@ function CourtsPanel() {
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [search, setSearch] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [reviewCourt, setReviewCourt] = useState<any | null>(null);
-  const [editCourt, setEditCourt] = useState<any | null>(null);
+  const [reviewCourt, setReviewCourt] = useState<AdminCourt | null>(null);
+  const [editCourt, setEditCourt] = useState<AdminCourt | null>(null);
   const [, navigate] = useLocation();
 
   const { data: courts, isLoading, isError } = useAdminCourts();
@@ -176,7 +202,7 @@ function CourtsPanel() {
   ).filter(c => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [c.name, c.city, c.address, c.ownerName, c.ownerEmail, String((c as any).facilityId ?? "")]
+    return [c.name, c.city, c.address, c.ownerName, c.ownerEmail, String(c.facilityId ?? "")]
       .some(v => v?.toLowerCase().includes(q));
   }).sort((a, b) => {
     const aValue = `${a.name ?? ""} ${a.city ?? ""}`.toLowerCase();
@@ -272,7 +298,7 @@ function CourtsPanel() {
                       <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
                         onClick={e => {
                           e.stopPropagation();
-                          const fId = (court as any).facilityId;
+                          const fId = court.facilityId;
                           if (fId) {
                             navigate(`/owner/facility/${fId}?editCourt=${court.id}`);
                           } else {
@@ -1351,43 +1377,43 @@ function CoachesPanel() {
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [search, setSearch] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [reviewCoach, setReviewCoach] = useState<any | null>(null);
+  const [reviewCoach, setReviewCoach] = useState<CoachRow | null>(null);
 
-  const { data: coaches = [], isLoading, isError } = useQuery<any[]>({
+  const { data: coaches = [], isLoading, isError } = useQuery<CoachRow[]>({
     queryKey: ["admin-coaches"],
-    queryFn: () => customFetch<any[]>("/api/admin/coaches"),
+    queryFn: () => customFetch<CoachRow[]>("/api/admin/coaches"),
   });
 
-  const { data: roleRequests = [] } = useQuery<any[]>({
+  const { data: roleRequests = [] } = useQuery<RoleRequest[]>({
     queryKey: ["admin-role-requests"],
-    queryFn: () => customFetch<any[]>("/api/admin/role-requests"),
+    queryFn: () => customFetch<RoleRequest[]>("/api/admin/role-requests"),
   });
 
   // Synthetic pending coaches from role-request system (not yet in coachesTable)
-  const pendingRoleReqCoaches: any[] = (roleRequests as any[])
-    .filter((r: any) => r.pendingRole === "coach")
-    .map((r: any) => {
-      let rd: any = {};
+  const pendingRoleReqCoaches: CoachRow[] = roleRequests
+    .filter(r => r.pendingRole === "coach")
+    .map(r => {
+      let rd: Record<string, unknown> = {};
       try { rd = r.requestData ? JSON.parse(r.requestData) : {}; } catch {}
       return {
         _source: "roleRequest",
         _userId: r.userId,
         id: `rr-${r.userId}`,
         status: "pending",
-        name: rd.name ?? "—",
-        email: rd.email ?? "—",
-        phone: rd.phone ?? null,
-        bio: rd.bio ?? null,
-        photoUrl: rd.photoUrl ?? null,
-        pricePerHour: rd.pricePerHour ?? null,
-        sports: Array.isArray(rd.sports) ? rd.sports : [],
-        availabilityDescription: rd.availabilityDescription ?? null,
+        name: typeof rd["name"] === "string" ? rd["name"] : "—",
+        email: typeof rd["email"] === "string" ? rd["email"] : "—",
+        phone: typeof rd["phone"] === "string" ? rd["phone"] : null,
+        bio: typeof rd["bio"] === "string" ? rd["bio"] : null,
+        photoUrl: typeof rd["photoUrl"] === "string" ? rd["photoUrl"] : null,
+        pricePerHour: typeof rd["pricePerHour"] === "number" ? rd["pricePerHour"] : null,
+        sports: Array.isArray(rd["sports"]) ? rd["sports"] as string[] : [],
+        availabilityDescription: typeof rd["availabilityDescription"] === "string" ? rd["availabilityDescription"] : null,
         rejectionReason: null,
       };
     });
 
   // Deduplicate: if userId already has a coachesTable row, prefer that
-  const coachUserIds = new Set((coaches as any[]).map((c: any) => c.userId).filter(Boolean));
+  const coachUserIds = new Set(coaches.map(c => c.userId).filter(Boolean));
   const dedupedRoleReqs = pendingRoleReqCoaches.filter(r => !coachUserIds.has(r._userId));
 
   // Unified list for display
