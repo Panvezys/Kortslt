@@ -10,8 +10,8 @@ const formatBizInfo = (f: typeof facilitiesTable.$inferSelect) => ({
   id: f.id,
   companyName: f.companyName ?? null,
   registrationCode: f.registrationCode ?? null,
-  vatNumber: (f as any).vatNumber ?? null,
-  websiteUrl: (f as any).websiteUrl ?? null,
+  vatNumber: f.vatNumber ?? null,
+  websiteUrl: f.websiteUrl ?? null,
   address: f.address ?? null,
   city: f.city ?? null,
   postcode: f.postcode ?? null,
@@ -96,7 +96,7 @@ router.patch("/owner/business-info", requireAuth, async (req, res): Promise<void
     const currentData: Record<string, unknown> = {};
     for (const key of reviewKeys) {
       requestedData[key] = reviewFields[key as keyof typeof reviewFields];
-      currentData[key] = (facility as any)[key] ?? null;
+      currentData[key] = (facility as Record<string, unknown>)[key] ?? null;
     }
 
     await db.insert(ownerEditRequestsTable).values({
