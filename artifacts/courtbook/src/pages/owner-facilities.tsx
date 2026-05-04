@@ -118,7 +118,7 @@ function VerificationBadge({ status }: { status: string }) {
   );
   // 'draft' or anything unknown
   return (
-    <Badge className="bg-slate-500/15 text-slate-300 border-slate-500/30 gap-1">
+    <Badge className="bg-slate-100 text-slate-900 border-slate-300 gap-1">
       <FileEdit className="w-3 h-3" /> Juodraštis
     </Badge>
   );
