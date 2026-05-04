@@ -637,6 +637,15 @@ components:
         rentableItems:
           type: string
           nullable: true
+        ownershipDocUrl:
+          type: string
+          nullable: true
+        workingHours:
+          type: string
+          nullable: true
+        amenityPhotos:
+          type: string
+          nullable: true
       required:
         - name
         - type

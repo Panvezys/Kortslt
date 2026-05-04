@@ -105,6 +105,9 @@ export const CreateCourtBody = zod.object({
   postcode: zod.string().optional(),
   peakPricePerHour: zod.number().nullish(),
   rentableItems: zod.string().nullish(),
+  ownershipDocUrl: zod.string().nullish(),
+  workingHours: zod.string().nullish(),
+  amenityPhotos: zod.string().nullish(),
 });
 
 /**
@@ -191,6 +194,9 @@ export const UpdateCourtBody = zod.object({
   postcode: zod.string().optional(),
   peakPricePerHour: zod.number().nullish(),
   rentableItems: zod.string().nullish(),
+  ownershipDocUrl: zod.string().nullish(),
+  workingHours: zod.string().nullish(),
+  amenityPhotos: zod.string().nullish(),
 });
 
 export const UpdateCourtResponse = zod.object({

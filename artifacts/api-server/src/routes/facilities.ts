@@ -241,16 +241,16 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
   const allowed = ["name", "description", "address", "city", "phone", "email",
     "cancellationWindow", "advanceBookingLimit", "businessHours"] as const;
   type AllowedKey = typeof allowed[number];
-  const updates: Partial<Record<AllowedKey, unknown>> = {};
+  const updates: Partial<typeof facilitiesTable.$inferInsert> = {};
   for (const key of allowed) {
     if (key in req.body && req.body[key] !== undefined) {
-      (updates as Record<string, unknown>)[key] = req.body[key];
+      (updates as Record<AllowedKey, unknown>)[key] = req.body[key];
     }
   }
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updatable fields" }); return; }
 
-  const [updated] = await db.update(facilitiesTable).set(updates as any).where(eq(facilitiesTable.id, id)).returning();
+  const [updated] = await db.update(facilitiesTable).set(updates).where(eq(facilitiesTable.id, id)).returning();
   res.json(updated);
 });
 

@@ -29,4 +29,7 @@ export interface CreateCourtBody {
   postcode?: string;
   peakPricePerHour?: number | null;
   rentableItems?: string | null;
+  ownershipDocUrl?: string | null;
+  workingHours?: string | null;
+  amenityPhotos?: string | null;
 }
