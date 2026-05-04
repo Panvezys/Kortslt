@@ -614,16 +614,18 @@ export default function OwnerFacilities() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         {!stripeActive && (
-          <div className="mb-6 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-semibold text-yellow-100">Action Required: Connect your bank account to accept payments</p>
+          <div className="mb-6 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-500/20 via-amber-500/15 to-yellow-500/20 p-4 shadow-sm ring-1 ring-amber-300/20 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <p className="font-semibold text-amber-50">
+                Action Required: Connect your bank account to accept payments
+              </p>
             </div>
             <Button
               onClick={async () => {
                 const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
                 window.open(r.url, "_blank", "noopener,noreferrer");
               }}
-              className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+              className="gap-2 bg-white text-amber-950 hover:bg-amber-50 shadow-sm"
             >
               <CreditCard className="w-4 h-4" /> Connect Stripe
             </Button>
