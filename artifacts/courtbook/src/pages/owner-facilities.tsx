@@ -20,7 +20,7 @@ import {
   Plus, Building2, MapPin, ChevronRight,
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
   Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
-  Phone, Mail, Globe, FileText, Clock, CheckCircle2, XCircle, Info,
+  Phone, Mail, Globe, FileText, Clock, CheckCircle2, XCircle, Info, ExternalLink,
 } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -373,11 +373,24 @@ export default function OwnerFacilities() {
     enabled: !!user?.id,
   });
 
-  const { data: stripeStatusData } = useQuery<{ status: StripeStatus; accountId: string | null }>({
+  const { data: stripeStatusData } = useQuery<{ status: StripeStatus; accountId: string | null; chargesEnabled?: boolean; payoutsEnabled?: boolean }>({
     queryKey: ["stripe-connect-status"],
     queryFn: () => customFetch(`${API_URL}/stripe/connect/status`),
     enabled: !!user?.id,
   });
+  const [stripeLoading, setStripeLoading] = useState(false);
+
+  const openStripeDashboard = async () => {
+    setStripeLoading(true);
+    try {
+      const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    } catch {
+      toast({ title: "Klaida atidarant Stripe", variant: "destructive" });
+    } finally {
+      setStripeLoading(false);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -627,24 +640,55 @@ export default function OwnerFacilities() {
           <BusinessInfoPanel />
         </div>
 
-        {!stripeActive && (
-          <div className="mb-6 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 shadow-sm ring-1 ring-amber-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="max-w-2xl">
-              <p className="font-semibold text-amber-950">
-                {t("owner.stripeBanner.title")}
-              </p>
+        {/* Stripe status card */}
+        <div className="mb-6 bg-card border border-border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+              <CreditCard className="h-4 w-4 text-violet-500" />
             </div>
-            <Button
-              onClick={async () => {
-                const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
-                window.open(r.url, "_blank", "noopener,noreferrer");
-              }}
-              className="gap-2 bg-amber-700 text-white hover:bg-amber-800 shadow-sm"
-            >
-              <CreditCard className="w-4 h-4" /> {t("owner.stripeBanner.cta")}
-            </Button>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Stripe Būsena</p>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                {stripeStatusData ? (
+                  <>
+                    {ownerStripeStatus === "active" ? (
+                      <Badge className="bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 text-xs">
+                        🟢 Aktyvus
+                      </Badge>
+                    ) : ownerStripeStatus === "pending" ? (
+                      <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 text-xs">
+                        🟡 Laukiama patvirtinimo
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-muted text-muted-foreground border-border text-xs">
+                        ⚪ Neprijungta
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {ownerStripeStatus === "active" && "Mokėjimai ir išmokos įjungtos"}
+                      {ownerStripeStatus === "pending" && "Baigkite Stripe registraciją"}
+                      {ownerStripeStatus === "not_connected" && "Prijunkite Stripe priimti mokėjimams"}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Kraunama…</span>
+                )}
+              </div>
+            </div>
           </div>
-        )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 shrink-0"
+            disabled={stripeLoading}
+            onClick={openStripeDashboard}
+          >
+            <CreditCard className="h-3.5 w-3.5" />
+            Stripe suvestinė
+            <ExternalLink className="h-3 w-3" />
+          </Button>
+        </div>
+
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Mano objektai</h1>
@@ -652,23 +696,9 @@ export default function OwnerFacilities() {
               Tvarkykite savo sporto objektus ir jų aikšteles
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {stripeActive && (
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
-                  window.open(r.url, "_blank", "noopener,noreferrer");
-                }}
-                className="gap-2"
-              >
-                <CreditCard className="w-4 h-4" /> Manage Payouts
-              </Button>
-            )}
-            <Button onClick={openCreate} className="gap-2">
-              <Plus className="w-4 h-4" /> Naujas objektas
-            </Button>
-          </div>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="w-4 h-4" /> Naujas objektas
+          </Button>
         </div>
 
         {!isLoading && facilities && facilities.length > 0 && (
