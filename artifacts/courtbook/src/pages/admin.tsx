@@ -74,6 +74,8 @@ interface UserRoleRow {
   email: string | null;
   avatarUrl: string | null;
   stripeAccountStatus?: string | null;
+  lastSignInAt: number | null;
+  clerkCreatedAt: number | null;
 }
 
 // ─── Status badge ────────────────────────────────────────────────────────────
@@ -442,14 +444,15 @@ function UsersPanel() {
               <tr className="bg-muted/50 border-b">
                 <th className="text-left px-4 py-3 font-medium">Vartotojas</th>
                 <th className="text-left px-4 py-3 font-medium">Rolė</th>
-                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Prisijungė</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Pask. prisijungimas</th>
+                <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Sukurta</th>
                 <th className="text-right px-4 py-3 font-medium">Keisti rolę</th>
               </tr>
             </thead>
             <tbody>
               {(!users || users.length === 0) && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     Vartotojų nerasta. Vartotojai atsiranda kai pirmą kartą prisijungia prie programos.
                   </td>
                 </tr>
@@ -457,9 +460,20 @@ function UsersPanel() {
               {filteredUsers.map(u => {
                 const isSelf = u.userId === currentUser?.id;
                 const displayRole = u.status === "pending_approval" && u.pendingRole ? u.role : u.role;
+                const displayName = u.name || u.email || null;
                 const initials = u.name
-                  ? u.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
-                  : u.userId.slice(0, 2).toUpperCase();
+                  ? u.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()
+                  : (u.email ? u.email.slice(0, 2).toUpperCase() : u.userId.slice(0, 2).toUpperCase());
+                const fmtDateTime = (ts: number | string | null) => {
+                  if (!ts) return <span className="text-muted-foreground/50">—</span>;
+                  const d = new Date(typeof ts === "number" ? ts : ts);
+                  return (
+                    <span>
+                      <span className="block">{d.toLocaleDateString("lt-LT")}</span>
+                      <span className="text-muted-foreground/60">{d.toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </span>
+                  );
+                };
                 return (
                   <tr key={u.userId} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3">
@@ -467,14 +481,14 @@ function UsersPanel() {
                         {/* Avatar */}
                         <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
                           {u.avatarUrl
-                            ? <img src={u.avatarUrl} alt={u.name ?? ""} className="w-full h-full object-cover" />
+                            ? <img src={u.avatarUrl} alt={displayName ?? ""} className="w-full h-full object-cover" />
                             : initials}
                         </div>
                         {/* Name + email */}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="font-medium text-sm truncate">
-                              {u.name ?? <span className="text-muted-foreground italic">Nežinomas</span>}
+                              {displayName ?? <span className="font-mono text-xs text-muted-foreground">{u.userId.slice(0, 20)}…</span>}
                             </span>
                             {isSelf && (
                               <Badge className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30 shrink-0">
@@ -482,12 +496,13 @@ function UsersPanel() {
                               </Badge>
                             )}
                           </div>
-                          {u.email && (
+                          {/* Show email as secondary line only if name was the primary */}
+                          {u.name && u.email && (
                             <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
                               <Mail className="w-3 h-3 shrink-0" />{u.email}
                             </div>
                           )}
-                          <code className="text-[10px] text-muted-foreground/50 font-mono mt-0.5 block">
+                          <code className="text-[10px] text-muted-foreground/40 font-mono mt-0.5 block">
                             {u.userId.slice(0, 24)}…
                           </code>
                         </div>
@@ -505,7 +520,10 @@ function UsersPanel() {
                       )}
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
-                      {new Date(u.createdAt).toLocaleDateString("lt-LT")}
+                      {fmtDateTime(u.lastSignInAt)}
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell text-xs text-muted-foreground">
+                      {fmtDateTime(u.clerkCreatedAt)}
                     </td>
                     <td className="px-4 py-3">
                       {isSelf ? (

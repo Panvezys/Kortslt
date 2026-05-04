@@ -225,7 +225,7 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
   // Enrich with Clerk user data (name, email, avatar). Chunk in batches of 100
   // because the Clerk SDK caps `limit` at 100 per request.
   const userIds = rows.map(r => r.userId);
-  const clerkUsers: Record<string, { name: string | null; email: string | null; avatarUrl: string | null }> = {};
+  const clerkUsers: Record<string, { name: string | null; email: string | null; avatarUrl: string | null; lastSignInAt: number | null; clerkCreatedAt: number | null }> = {};
   const CHUNK = 100;
   for (let i = 0; i < userIds.length; i += CHUNK) {
     const chunk = userIds.slice(i, i + CHUNK);
@@ -234,7 +234,13 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
       for (const cu of clerkResp.data) {
         const name = [cu.firstName, cu.lastName].filter(Boolean).join(" ") || null;
         const email = cu.emailAddresses?.[0]?.emailAddress ?? null;
-        clerkUsers[cu.id] = { name, email, avatarUrl: cu.imageUrl ?? null };
+        clerkUsers[cu.id] = {
+          name,
+          email,
+          avatarUrl: cu.imageUrl ?? null,
+          lastSignInAt: cu.lastSignInAt ?? null,
+          clerkCreatedAt: cu.createdAt ?? null,
+        };
       }
     } catch {
       // If a Clerk call fails, proceed without enrichment for that chunk
@@ -254,6 +260,8 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
     name: clerkUsers[r.userId]?.name ?? null,
     email: clerkUsers[r.userId]?.email ?? null,
     avatarUrl: clerkUsers[r.userId]?.avatarUrl ?? null,
+    lastSignInAt: clerkUsers[r.userId]?.lastSignInAt ?? null,
+    clerkCreatedAt: clerkUsers[r.userId]?.clerkCreatedAt ?? null,
     stripeAccountStatus: stripeMap.get(r.userId) ?? "not_connected",
   }));
 
