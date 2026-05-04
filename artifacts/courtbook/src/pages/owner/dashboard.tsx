@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -10,7 +10,7 @@ import {
   Building2,
   Euro, Percent, CalendarDays, BanknoteIcon, ChevronRight,
   Plus, Phone, X, CheckCircle2, Clock, BarChart3,
-  ArrowUpRight,
+  ArrowUpRight, CreditCard, ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
@@ -35,6 +35,13 @@ function hhmm(hour: number): string {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface StripeConnectStatus {
+  status: "not_connected" | "pending" | "active";
+  accountId: string | null;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+}
 
 interface OwnerCourt { id: number; name: string; type: string; facilityId?: number }
 
@@ -438,6 +445,7 @@ export default function OwnerDashboard() {
   const [manualPreCourtId, setManualPreCourtId] = useState<number | undefined>();
   const [manualPreHour, setManualPreHour] = useState<number | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -446,11 +454,44 @@ export default function OwnerDashboard() {
     ? `${API_URL}/owner/dashboard?facilityId=${facilityId}`
     : `${API_URL}/owner/dashboard`;
 
+  const { toast } = useToast();
+
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ["owner-dashboard", facilityId ?? "all"],
     queryFn: () => customFetch<DashboardData>(apiUrl),
     refetchInterval: 60_000,
   });
+
+  const { data: stripeStatus } = useQuery<StripeConnectStatus>({
+    queryKey: ["stripe-connect-status"],
+    queryFn: () => customFetch<StripeConnectStatus>(`${API_URL}/stripe/connect/status`),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_connect") === "success") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("stripe_connect");
+      window.history.replaceState({}, "", url.toString());
+      toast({
+        title: "Paskyra sėkmingai prijungta!",
+        description: "Dabar galite priimti mokėjimus.",
+      });
+    }
+  }, []);
+
+  const openStripeDashboard = async () => {
+    setStripeLoading(true);
+    try {
+      const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    } catch {
+      toast({ title: "Klaida atidarant Stripe", variant: "destructive" });
+    } finally {
+      setStripeLoading(false);
+    }
+  };
 
   const courts = data?.courts ?? [];
   const todayBookings = data?.todayBookings ?? [];
@@ -741,6 +782,51 @@ export default function OwnerDashboard() {
                         Visos pajamos <ChevronRight className="h-3 w-3" />
                       </a>
                     </>
+                  )}
+                </div>
+
+                {/* Stripe status card */}
+                <div className="bg-card border border-border rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CreditCard className="h-4 w-4 text-violet-500" />
+                    <h3 className="text-sm font-semibold">Stripe Būsena</h3>
+                  </div>
+                  {stripeStatus ? (
+                    <div className="space-y-3">
+                      <div>
+                        {stripeStatus.status === "active" ? (
+                          <Badge className="bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 gap-1.5 text-xs">
+                            🟢 Aktyvus
+                          </Badge>
+                        ) : stripeStatus.status === "pending" ? (
+                          <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1.5 text-xs">
+                            🟡 Laukiama patvirtinimo
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-muted text-muted-foreground border-border gap-1.5 text-xs">
+                            ⚪ Neprijungta
+                          </Badge>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1.5">
+                          {stripeStatus.status === "active" && "Mokėjimai ir išmokos įjungtos"}
+                          {stripeStatus.status === "pending" && "Baigkite Stripe registraciją"}
+                          {stripeStatus.status === "not_connected" && "Prijunkite Stripe priimti mokėjimams"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2 text-xs"
+                        disabled={stripeLoading}
+                        onClick={openStripeDashboard}
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Stripe suvestinė
+                        <ExternalLink className="h-3 w-3 ml-auto" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Skeleton className="h-16 rounded-lg" />
                   )}
                 </div>
 

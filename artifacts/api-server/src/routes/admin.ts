@@ -408,6 +408,30 @@ router.put("/admin/coaches/:id/reject", requireAdmin, async (req, res): Promise<
   res.json({ id: coach.id, status: coach.status, rejectionReason: coach.rejectionReason });
 });
 
+/** DELETE /admin/users/:id — hard-delete user from Clerk; webhook handles local DB cleanup */
+router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const { userId: adminUserId } = getAuth(req);
+  const targetUserId = String(req.params.id);
+
+  if (!targetUserId) {
+    res.status(400).json({ error: "Nenurodytas vartotojo ID" });
+    return;
+  }
+  if (adminUserId && adminUserId === targetUserId) {
+    res.status(400).json({ error: "Negalima ištrinti savo paskyros" });
+    return;
+  }
+
+  try {
+    await clerkClient.users.deleteUser(targetUserId);
+    res.json({ deleted: true, userId: targetUserId });
+  } catch (err: unknown) {
+    const anyErr = err as { errors?: { longMessage?: string }[]; message?: string };
+    const msg = anyErr?.errors?.[0]?.longMessage ?? anyErr?.message ?? "Klaida trinant vartotoją";
+    res.status(400).json({ error: msg });
+  }
+});
+
 /** POST /admin/seed-courts — seed courts from JSON file if DB is empty */
 router.post("/admin/seed-courts", requireAdmin, async (_req, res): Promise<void> => {
   try {

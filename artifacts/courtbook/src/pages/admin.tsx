@@ -15,7 +15,7 @@ import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
   CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
-  GraduationCap, Star, Clock, Trophy, Pencil,
+  GraduationCap, Star, Clock, Trophy, Pencil, Trash2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -163,6 +163,15 @@ function useSetUserRole() {
         body: JSON.stringify({ role }),
         headers: { "Content-Type": "application/json" },
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-users"] }),
+  });
+}
+
+function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      customFetch<{ deleted: boolean }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-users"] }),
   });
 }
@@ -372,6 +381,7 @@ function UsersPanel() {
   const { user: currentUser } = useUser();
   const { data: users, isLoading, isError } = useAdminUsers();
   const setRoleMutation = useSetUserRole();
+  const deleteMutation = useDeleteUser();
   const [search, setSearch] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -379,6 +389,7 @@ function UsersPanel() {
     newRole: UserRole;
     currentRole: UserRole;
   } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserRoleRow | null>(null);
 
   const handleRoleChange = (userId: string, currentRole: UserRole, newRole: UserRole) => {
     if (newRole === currentRole) return;
@@ -447,12 +458,13 @@ function UsersPanel() {
                 <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Pask. prisijungimas</th>
                 <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Sukurta</th>
                 <th className="text-right px-4 py-3 font-medium">Keisti rolę</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {(!users || users.length === 0) && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                     Vartotojų nerasta. Vartotojai atsiranda kai pirmą kartą prisijungia prie programos.
                   </td>
                 </tr>
@@ -553,6 +565,18 @@ function UsersPanel() {
                         </div>
                       )}
                     </td>
+                    <td className="px-3 py-3">
+                      {!isSelf && (
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          disabled={deleteMutation.isPending}
+                          title="Ištrinti vartotoją"
+                          className="p-1.5 rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -560,6 +584,51 @@ function UsersPanel() {
           </table>
         </div>
       )}
+
+      {/* Confirm delete dialog */}
+      <Dialog open={deleteTarget !== null} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" /> Ištrinti vartotoją?
+            </DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-1 text-sm">
+                <p className="font-medium">{deleteTarget.name || deleteTarget.email || deleteTarget.userId}</p>
+                {deleteTarget.email && deleteTarget.name && (
+                  <p className="text-xs text-muted-foreground">{deleteTarget.email}</p>
+                )}
+                <code className="text-[10px] text-muted-foreground/50 font-mono block">{deleteTarget.userId}</code>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Vartotojas bus <span className="text-destructive font-medium">negrįžtamai ištrintas</span> iš sistemos. Visi jo duomenys (rezervacijos, profiliai) bus pašalinti automatiškai.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+                  Atšaukti
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={deleteMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      await deleteMutation.mutateAsync(deleteTarget.userId);
+                      toast({ title: "Vartotojas ištrintas" });
+                      setDeleteTarget(null);
+                    } catch {
+                      toast({ title: "Klaida trinant vartotoją", variant: "destructive" });
+                    }
+                  }}
+                >
+                  {deleteMutation.isPending ? "Trinama…" : "Ištrinti"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm role change dialog */}
       <Dialog open={confirmDialog !== null} onOpenChange={open => { if (!open) setConfirmDialog(null); }}>
