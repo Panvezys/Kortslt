@@ -623,6 +623,10 @@ export default function OwnerFacilities() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <BusinessInfoPanel />
+        </div>
+
         {!stripeActive && (
           <div className="mb-6 rounded-2xl border border-amber-300/50 bg-amber-50 p-4 shadow-sm ring-1 ring-amber-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="max-w-2xl">
@@ -672,10 +676,6 @@ export default function OwnerFacilities() {
             {ltPlural(facilities.length, "objektas", "objektai", "objektų")} · {ltPlural(totalCourts, "aikštelė", "aikštelės", "aikštelių")}
           </p>
         )}
-
-        <div className="mb-6">
-          <BusinessInfoPanel />
-        </div>
 
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
