@@ -1,0 +1,24 @@
+1. The Stripe Banner (Color & Copy)
+The Button Color: The brown button (Prijungti Stripe) on the yellow background feels a bit visually dull/muddy. Consider changing the button to your app's primary action color (like a deep blue or black) or a standard high-contrast warning color (like a deeper amber/orange) to make it pop.
+
+The Copy: You can make the why clearer. Instead of just "Dėmesio: prijunkite banko sąskaitą mokėjimams", consider: "Dėmesio: Norėdami paskelbti savo aikšteles ir priimti mokėjimus, privalote prijungti banko sąskaitą." (Attention: To publish your courts and accept payments, you must connect a bank account).
+
+2. The "Submit for Approval" Button (Pateikti patvirtinimui)
+Right now, the "Pateikti patvirtinimui" button is bright green, which screams "Click me, I'm ready!"
+
+The UX Upgrade: Since we know the system will block them from submitting because their Stripe is not connected, it is a best practice to disable this button (make it gray) until the Stripe banner disappears.
+
+If they hover over the grayed-out button, you could show a little tooltip that says "Prijunkite Stripe sąskaitą norėdami pateikti" (Connect Stripe account to submit). This prevents them from clicking and getting an error popup entirely!
+
+3. Redundant "Add Facility" Actions
+You currently have two primary ways to do the exact same thing: The green "+ Naujas objektas" button in the top right, AND the big dashed "+" card in the grid.
+
+The Fix: This isn't strictly wrong, but it can cause visual clutter. Most modern dashboards (like Vercel or Stripe) use the big dashed card when the grid is empty. Once the user has at least one facility (like in your screenshot), the dashed card disappears, and they just use the top-right button to add more.
+
+4. The Stat Pills ("1 Objektai", "0 Aikštelės")
+These look a bit like clickable filter buttons, but I suspect they are just informational counters.
+
+If they aren't clickable, you might want to style them slightly differently so users don't try to click them to filter the view. You could move these numbers into a cleaner "Summary" row, or simply integrate them next to the "Mano objektai" title (e.g., Mano objektai (1)).
+
+5. The Image Placeholder
+The large pale-green box with the building icon is a good placeholder, but it dominates the card visually. If an owner hasn't uploaded a photo yet, a subtle light gray background with a darker gray icon often looks a bit more premium and less distracting than a bright pastel color.

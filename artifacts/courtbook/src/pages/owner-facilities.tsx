@@ -664,16 +664,9 @@ export default function OwnerFacilities() {
         </div>
 
         {!isLoading && facilities && facilities.length > 0 && (
-          <div className="flex flex-wrap gap-3 mb-6">
-            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
-              <span className="text-sm font-bold text-primary">{facilities.length}</span>
-              <span className="text-xs text-muted-foreground">Objektai</span>
-            </div>
-            <div className="flex items-center gap-2 bg-muted/60 border rounded-lg px-3 py-1.5">
-              <span className="text-sm font-bold text-primary">{totalCourts}</span>
-              <span className="text-xs text-muted-foreground">Aikštelės</span>
-            </div>
-          </div>
+          <p className="mb-6 text-sm text-muted-foreground">
+            {facilities.length} objektai · {totalCourts} aikštelės
+          </p>
         )}
 
         {isLoading ? (
@@ -691,8 +684,8 @@ export default function OwnerFacilities() {
           </div>
         ) : !facilities || facilities.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-              <Building2 className="w-10 h-10 text-primary" />
+            <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6 border border-border">
+              <Building2 className="w-10 h-10 text-muted-foreground" />
             </div>
             <h2 className="text-xl font-semibold mb-2">Dar neturite objektų</h2>
             <p className="text-muted-foreground max-w-md mb-6">
@@ -735,8 +728,8 @@ export default function OwnerFacilities() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/20">
-                        <Building2 className="w-16 h-16 text-primary/30" />
+                      <div className="w-full h-full flex items-center justify-center bg-muted">
+                        <Building2 className="w-16 h-16 text-muted-foreground/60" />
                       </div>
                     )}
 
@@ -821,20 +814,28 @@ export default function OwnerFacilities() {
                     )}
 
                     {(facility.verificationStatus === "draft" || facility.verificationStatus === "onboarding") && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="w-full mt-3 gap-2"
-                        onClick={(e) => handleSubmitForVerification(facility.id, e)}
-                        disabled={submitForVerificationMutation.isPending}
-                      >
-                        {submitForVerificationMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Send className="w-4 h-4" />
+                      <div className="mt-3">
+                        <Button
+                          variant={stripeActive ? "default" : "secondary"}
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={(e) => handleSubmitForVerification(facility.id, e)}
+                          disabled={submitForVerificationMutation.isPending || !stripeActive}
+                          title={!stripeActive ? "Prijunkite Stripe sąskaitą norėdami pateikti" : undefined}
+                        >
+                          {submitForVerificationMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                          Pateikti patvirtinimui
+                        </Button>
+                        {!stripeActive && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Prijunkite Stripe sąskaitą norėdami pateikti patvirtinimui.
+                          </p>
                         )}
-                        Pateikti patvirtinimui
-                      </Button>
+                      </div>
                     )}
 
                   </div>
