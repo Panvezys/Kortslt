@@ -221,6 +221,9 @@ function Router() {
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
       <Route path="/admin/approvals" component={AdminApprovalsRoute} />
+      <Route path="/admin/roles">
+        <Redirect to="/admin?tab=users" />
+      </Route>
       <Route path="/admin" component={AdminRoute} />
       <Route path="/payment-success" component={PaymentSuccess} />
       <Route path="/booking-confirmed" component={BookingConfirmed} />
