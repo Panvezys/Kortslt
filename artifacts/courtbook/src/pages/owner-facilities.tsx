@@ -231,7 +231,7 @@ function BusinessInfoPanel() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {info.hasPendingEdit && (
-            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs gap-1">
+            <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/40 text-xs gap-1">
               <Clock className="w-3 h-3" /> Laukia peržiūros
             </Badge>
           )}
