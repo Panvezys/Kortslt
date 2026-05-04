@@ -5,7 +5,6 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Building2, FileUp, CheckCircle2,
@@ -14,14 +13,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 const API_URL = import.meta.env.BASE_URL.replace(/\/$/, "") + "/api";
-
-const CITIES = [
-  "Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys",
-  "Alytus", "Marijampolė", "Mažeikiai", "Jonava", "Utena",
-  "Kėdainiai", "Telšiai", "Tauragė", "Ukmergė", "Visaginas",
-  "Plungė", "Palanga", "Druskininkai", "Elektrėnai", "Rokiškis",
-  "Biržai", "Garliava", "Kuršėnai", "Jurbarkas",
-];
 
 const STEPS = [
   { num: 1, label: "Įmonės profilis", icon: Building2 },
@@ -288,14 +279,13 @@ export default function OwnerOnboard() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
                         <RequiredLabel htmlFor="city">Miestas</RequiredLabel>
-                        <Select value={city} onValueChange={v => { setCity(v); clearError("city"); }}>
-                          <SelectTrigger className={`mt-1.5 ${fieldErrors.city ? "border-destructive" : ""}`}>
-                            <SelectValue placeholder="Pasirinkite miestą" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          id="city"
+                          value={city}
+                          onChange={e => { setCity(e.target.value); clearError("city"); }}
+                          placeholder="Panevėžys"
+                          className={`mt-1.5 ${fieldErrors.city ? "border-destructive focus-visible:ring-destructive/30" : ""}`}
+                        />
                         <FieldError name="city" />
                       </div>
                       <div>
