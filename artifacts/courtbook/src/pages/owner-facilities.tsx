@@ -667,15 +667,15 @@ export default function OwnerFacilities() {
           </div>
         </div>
 
-        <div className="mb-6">
-          <BusinessInfoPanel />
-        </div>
-
         {!isLoading && facilities && facilities.length > 0 && (
           <p className="mb-6 text-sm text-muted-foreground">
             {ltPlural(facilities.length, "objektas", "objektai", "objektų")} · {ltPlural(totalCourts, "aikštelė", "aikštelės", "aikštelių")}
           </p>
         )}
+
+        <div className="mb-6">
+          <BusinessInfoPanel />
+        </div>
 
         {isLoading ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
