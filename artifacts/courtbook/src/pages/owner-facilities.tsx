@@ -26,6 +26,14 @@ import {
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
 
+function ltPlural(n: number, singular: string, plural: string, genitive: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} ${singular}`;
+  if (mod10 >= 2 && mod10 <= 9 && (mod100 < 10 || mod100 >= 20)) return `${n} ${plural}`;
+  return `${n} ${genitive}`;
+}
+
 interface FacilityCourt {
   id: number;
   name: string;
@@ -665,7 +673,7 @@ export default function OwnerFacilities() {
 
         {!isLoading && facilities && facilities.length > 0 && (
           <p className="mb-6 text-sm text-muted-foreground">
-            {facilities.length} objektai · {totalCourts} aikštelės
+            {ltPlural(facilities.length, "objektas", "objektai", "objektų")} · {ltPlural(totalCourts, "aikštelė", "aikštelės", "aikštelių")}
           </p>
         )}
 
@@ -786,9 +794,8 @@ export default function OwnerFacilities() {
                     <div className="flex items-center gap-3 pt-3 border-t border-border/50">
                       <div className="flex items-center gap-1.5 text-sm">
                         <CourtIcon size={16} className="text-primary" />
-                        <span className="font-semibold">{facility.courtCount}</span>
-                        <span className="text-muted-foreground">
-                          {facility.courtCount === 1 ? "aikštelė" : "aikštelės"}
+                        <span className="font-semibold text-sm text-foreground">
+                          {ltPlural(facility.courtCount, "aikštelė", "aikštelės", "aikštelių")}
                         </span>
                       </div>
                       {approvedCourts > 0 && (
@@ -842,21 +849,6 @@ export default function OwnerFacilities() {
                 </div>
               );
             })}
-
-            <div
-              onClick={openCreate}
-              className="group border-2 border-dashed border-border rounded-2xl min-h-[180px] flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
-            >
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                <Plus className="w-7 h-7 text-primary" />
-              </div>
-              <p className="font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-                Pridėti objektą
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Naujas sporto centras ar klubas
-              </p>
-            </div>
           </div>
         )}
 
