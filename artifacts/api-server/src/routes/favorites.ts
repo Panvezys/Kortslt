@@ -35,7 +35,7 @@ router.get("/favorites", requireAuth, async (req, res): Promise<void> => {
 });
 
 router.post("/favorites/:courtId", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.courtId, 10);
+  const courtId = parseInt(String(req.params.courtId), 10);
   const { userId } = getAuth(req);
 
   if (isNaN(courtId)) {
@@ -52,7 +52,7 @@ router.post("/favorites/:courtId", requireAuth, async (req, res): Promise<void> 
 });
 
 router.delete("/favorites/:courtId", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.courtId, 10);
+  const courtId = parseInt(String(req.params.courtId), 10);
   const { userId } = getAuth(req);
 
   if (isNaN(courtId)) {
@@ -98,7 +98,7 @@ router.get("/favorites/coaches", requireAuth, async (req, res): Promise<void> =>
 });
 
 router.post("/favorites/coaches/:coachId", requireAuth, async (req, res): Promise<void> => {
-  const coachId = parseInt(req.params.coachId, 10);
+  const coachId = parseInt(String(req.params.coachId), 10);
   const { userId } = getAuth(req);
 
   if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }
@@ -112,7 +112,7 @@ router.post("/favorites/coaches/:coachId", requireAuth, async (req, res): Promis
 });
 
 router.delete("/favorites/coaches/:coachId", requireAuth, async (req, res): Promise<void> => {
-  const coachId = parseInt(req.params.coachId, 10);
+  const coachId = parseInt(String(req.params.coachId), 10);
   const { userId } = getAuth(req);
 
   if (isNaN(coachId)) { res.status(400).json({ error: "Invalid coachId" }); return; }

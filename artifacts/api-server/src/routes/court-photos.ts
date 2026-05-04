@@ -49,7 +49,7 @@ async function requireCourtOwnership(req: Request, res: Response, next: NextFunc
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const courtId = parseInt(req.params.id);
+  const courtId = parseInt(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const court = await getCourt(courtId);
@@ -61,7 +61,7 @@ async function requireCourtOwnership(req: Request, res: Response, next: NextFunc
 }
 
 router.get("/courts/:id/photos", async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id);
+  const courtId = parseInt(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
   try {
     const court = await getCourt(courtId);
@@ -93,7 +93,7 @@ router.post(
     const { userId } = getAuth(req);
     if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-    const courtId = parseInt(req.params.id);
+    const courtId = parseInt(String(req.params.id));
 
     if (!req.file) { res.status(400).json({ error: "No image provided" }); return; }
 

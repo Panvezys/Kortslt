@@ -6,7 +6,7 @@ import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 const router = Router();
 
 router.get("/courts/:id/memberships", async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id);
+  const courtId = parseInt(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const plans = await db.select().from(courtMembershipsTable)
     .where(and(eq(courtMembershipsTable.courtId, courtId), eq(courtMembershipsTable.isActive, true)));
@@ -14,7 +14,7 @@ router.get("/courts/:id/memberships", async (req, res): Promise<void> => {
 });
 
 router.post("/courts/:id/memberships", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id);
+  const courtId = parseInt(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Not found" }); return; }
@@ -26,8 +26,8 @@ router.post("/courts/:id/memberships", requireAuth, async (req, res): Promise<vo
 });
 
 router.patch("/courts/:id/memberships/:planId", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id);
-  const planId = parseInt(req.params.planId);
+  const courtId = parseInt(String(req.params.id));
+  const planId = parseInt(String(req.params.planId));
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Not found" }); return; }
   if (!court.ownerUserId || !(await isOwner(req, court.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
@@ -45,8 +45,8 @@ router.patch("/courts/:id/memberships/:planId", requireAuth, async (req, res): P
 });
 
 router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id);
-  const planId = parseInt(req.params.planId);
+  const courtId = parseInt(String(req.params.id));
+  const planId = parseInt(String(req.params.planId));
   const userId = await getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(eq(courtMembershipsTable.id, planId));

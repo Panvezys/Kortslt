@@ -618,7 +618,7 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
 
 // ─── Refund preview (modal calls this before confirming cancellation) ────────
 router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const userId = getCurrentUserId(req)!;

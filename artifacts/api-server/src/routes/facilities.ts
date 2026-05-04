@@ -133,7 +133,7 @@ router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid facility ID" });
     return;
@@ -231,7 +231,7 @@ router.put("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
 router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [existing] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));
@@ -250,7 +250,7 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updatable fields" }); return; }
 
-  const [updated] = await db.update(facilitiesTable).set(updates).where(eq(facilitiesTable.id, id)).returning();
+  const [updated] = await db.update(facilitiesTable).set(updates as any).where(eq(facilitiesTable.id, id)).returning();
   res.json(updated);
 });
 
@@ -266,7 +266,7 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid facility ID" }); return; }
 
   const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, id));

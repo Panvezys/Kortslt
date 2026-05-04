@@ -76,7 +76,7 @@ router.get("/dm/threads", requireAuth, async (req, res): Promise<void> => {
 // GET /dm/thread/:otherUserId — all messages between me and otherUserId
 router.get("/dm/thread/:otherUserId", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
-  const otherUserId = req.params.otherUserId;
+  const otherUserId = String(req.params.otherUserId);
 
   const rows = await db.select().from(directMessagesTable)
     .where(or(

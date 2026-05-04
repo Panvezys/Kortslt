@@ -626,6 +626,17 @@ components:
         condition:
           type: string
           enum: [excellent, good, fair]
+        facilityId:
+          type: integer
+          nullable: true
+        postcode:
+          type: string
+        peakPricePerHour:
+          type: number
+          nullable: true
+        rentableItems:
+          type: string
+          nullable: true
       required:
         - name
         - type

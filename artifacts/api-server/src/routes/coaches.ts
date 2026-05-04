@@ -124,7 +124,7 @@ router.get("/coaches/me", requireAuth, async (req, res): Promise<void> => {
 
 // GET /coaches/:id — get approved coach by id
 router.get("/coaches/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [coach] = await db
     .select()
@@ -137,7 +137,7 @@ router.get("/coaches/:id", async (req, res): Promise<void> => {
 // GET /coaches/:id/facilities — public list of facilities/courts a coach is approved at.
 // Only publicly-visible courts (status approved/active) and verified facilities are returned.
 router.get("/coaches/:id/facilities", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [coach] = await db.select().from(coachesTable)
     .where(and(eq(coachesTable.id, id), eq(coachesTable.status, "approved")));
@@ -224,7 +224,7 @@ router.post("/coaches", requireAuth, async (req, res): Promise<void> => {
 
 // PUT /coaches/:id — update coach profile (own profile or admin)
 router.put("/coaches/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const userId = getCurrentUserId(req)!;
@@ -307,7 +307,7 @@ router.put("/coaches/me", requireAuth, async (req, res): Promise<void> => {
 
 // GET /courts/:id/coaches — approved coaches assigned to court
 router.get("/courts/:id/coaches", async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const rows = await db
@@ -321,7 +321,7 @@ router.get("/courts/:id/coaches", async (req, res): Promise<void> => {
 
 // POST /courts/:id/coaches — assign a coach to court (court owner only)
 router.post("/courts/:id/coaches", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -346,8 +346,8 @@ router.post("/courts/:id/coaches", requireAuth, async (req, res): Promise<void> 
 
 // DELETE /courts/:id/coaches/:coachId — remove coach from court (court owner only)
 router.delete("/courts/:id/coaches/:coachId", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
-  const coachId = parseInt(req.params.coachId, 10);
+  const courtId = parseInt(String(req.params.id), 10);
+  const coachId = parseInt(String(req.params.coachId), 10);
   if (isNaN(courtId) || isNaN(coachId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -364,7 +364,7 @@ router.delete("/courts/:id/coaches/:coachId", requireAuth, async (req, res): Pro
 
 // GET /courts/:id/coach-invitations — list all invitations + applications (owner only)
 router.get("/courts/:id/coach-invitations", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -382,7 +382,7 @@ router.get("/courts/:id/coach-invitations", requireAuth, async (req, res): Promi
 
 // POST /courts/:id/coach-invite — owner invites a user (by userId) or by email
 router.post("/courts/:id/coach-invite", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -438,7 +438,7 @@ router.post("/courts/:id/coach-invite", requireAuth, async (req, res): Promise<v
 
 // POST /courts/:id/coach-apply — a user applies to be a coach at this court
 router.post("/courts/:id/coach-apply", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid court id" }); return; }
 
   const userId = getCurrentUserId(req)!;
@@ -471,19 +471,21 @@ router.post("/courts/:id/coach-apply", requireAuth, async (req, res): Promise<vo
     message: message ?? null,
   }).returning();
 
-  await sendNotification(court.ownerUserId, "coach_application",
-    "Trenerio paraiška",
-    `${name ?? "Vartotojas"} prašo prisijungti prie „${court.name}" kaip treneris`,
-    `/owner/facilities`
-  ).catch(() => {});
+  if (court.ownerUserId) {
+    await sendNotification(court.ownerUserId, "coach_application",
+      "Trenerio paraiška",
+      `${name ?? "Vartotojas"} prašo prisijungti prie „${court.name}" kaip treneris`,
+      `/owner/facilities`
+    ).catch(() => {});
+  }
 
   res.status(201).json({ ...application, createdAt: application.createdAt.toISOString() });
 });
 
 // PUT /courts/:id/coach-invitations/:inviteId — approve or reject
 router.put("/courts/:id/coach-invitations/:inviteId", requireAuth, async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
-  const inviteId = parseInt(req.params.inviteId, 10);
+  const courtId = parseInt(String(req.params.id), 10);
+  const inviteId = parseInt(String(req.params.inviteId), 10);
   if (isNaN(courtId) || isNaN(inviteId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -594,11 +596,13 @@ router.post("/coaches/apply-to-facility", requireCoach, async (req, res): Promis
 
   const created = await db.insert(courtCoachInvitationsTable).values(toInsert).returning();
 
-  await sendNotification(facility.ownerUserId, "coach_application",
-    "Naujas trenerio prašymas",
-    `${coach.name} prašo dirbti „${facility.name}"`,
-    `/owner/coaches`,
-  ).catch(() => {});
+  if (facility.ownerUserId) {
+    await sendNotification(facility.ownerUserId, "coach_application",
+      "Naujas trenerio prašymas",
+      `${coach.name} prašo dirbti „${facility.name}"`,
+      `/owner/coaches`,
+    ).catch(() => {});
+  }
 
   res.status(201).json({
     created: created.length,

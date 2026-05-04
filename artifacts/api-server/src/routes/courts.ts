@@ -270,9 +270,9 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       ownerUserId: userId,
       status: "draft",
       instantBookingEnabled: true,
-      ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
+      ownershipDocUrl: (parsed.data as any).ownershipDocUrl ?? null,
       facilityId: parsed.data.facilityId ?? null,
-      workingHours: parsed.data.workingHours ?? null,
+      workingHours: (parsed.data as any).workingHours ?? null,
     })
     .returning();
 
@@ -358,8 +358,8 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
       facilityId: body.data.facilityId ?? null,
-      workingHours: body.data.workingHours ?? null,
-      amenityPhotos: body.data.amenityPhotos ?? null,
+      workingHours: (body.data as any).workingHours ?? null,
+      amenityPhotos: (body.data as any).amenityPhotos ?? null,
     })
     .where(eq(courtsTable.id, params.data.id))
     .returning();
@@ -596,7 +596,7 @@ router.put("/courts/:id/pricing", requireAuth, async (req, res): Promise<void> =
 
 // GET /courts/:id/equipment-availability?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM
 router.get("/courts/:id/equipment-availability", async (req, res): Promise<void> => {
-  const courtId = parseInt(req.params.id, 10);
+  const courtId = parseInt(String(req.params.id), 10);
   const { date, startTime, endTime } = req.query as Record<string, string>;
   if (!courtId || !date || !startTime || !endTime) {
     res.status(400).json({ error: "courtId, date, startTime, endTime required" });
@@ -651,7 +651,7 @@ router.get("/courts/:id/equipment-availability", async (req, res): Promise<void>
 
 // ─── Owner: submit court for review ──────────────────────────────────────────
 router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<void> => {
-  const courtId = Number(req.params.id);
+  const courtId = Number(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
@@ -689,7 +689,7 @@ router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<
 
 // ─── Admin/Owner: update court status ─────────────────────────────────────────
 router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> => {
-  const courtId = Number(req.params.id);
+  const courtId = Number(String(req.params.id));
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
 
   const { status, rejectionReason } = req.body as { status?: string; rejectionReason?: string };
@@ -757,7 +757,7 @@ router.get("/admin/courts/pending", requireAdmin, async (_req, res): Promise<voi
 });
 
 router.get("/courts/:id/activity", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const todayStart = new Date();
@@ -780,8 +780,8 @@ router.get("/courts/:id/activity", async (req, res): Promise<void> => {
     .from(gamesTable)
     .where(and(
       eq(gamesTable.courtId, id),
-      gte(gamesTable.datetime, todayStart),
-      lte(gamesTable.datetime, todayEnd),
+      gte(gamesTable.datetime, todayStart.toISOString()),
+      lte(gamesTable.datetime, todayEnd.toISOString()),
     ));
 
   res.json({

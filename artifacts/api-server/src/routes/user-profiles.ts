@@ -221,7 +221,7 @@ router.put("/user-profiles/me/sports", requireAuth, async (req, res): Promise<vo
 // DELETE /user-profiles/me/sports/:sport — remove a sport
 router.delete("/user-profiles/me/sports/:sport", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
-  const { sport } = req.params;
+  const sport = String(req.params.sport);
 
   await db
     .delete(userSportProfilesTable)

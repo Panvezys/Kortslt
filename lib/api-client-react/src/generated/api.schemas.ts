@@ -111,6 +111,10 @@ export interface CreateCourtBody {
   maxPlayers: number;
   surface?: string;
   condition?: CreateCourtBodyCondition;
+  facilityId?: number | null;
+  postcode?: string;
+  peakPricePerHour?: number | null;
+  rentableItems?: string | null;
 }
 
 export interface TimeSlot {

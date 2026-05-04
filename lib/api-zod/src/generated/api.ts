@@ -101,6 +101,10 @@ export const CreateCourtBody = zod.object({
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "good", "fair"]).optional(),
+  facilityId: zod.number().nullish(),
+  postcode: zod.string().optional(),
+  peakPricePerHour: zod.number().nullish(),
+  rentableItems: zod.string().nullish(),
 });
 
 /**
@@ -183,6 +187,10 @@ export const UpdateCourtBody = zod.object({
   maxPlayers: zod.number(),
   surface: zod.string().optional(),
   condition: zod.enum(["excellent", "good", "fair"]).optional(),
+  facilityId: zod.number().nullish(),
+  postcode: zod.string().optional(),
+  peakPricePerHour: zod.number().nullish(),
+  rentableItems: zod.string().nullish(),
 });
 
 export const UpdateCourtResponse = zod.object({

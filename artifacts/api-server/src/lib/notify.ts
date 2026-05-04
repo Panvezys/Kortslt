@@ -17,11 +17,18 @@ type NotifType =
   | "court_coach_approved"
   | "court_coach_rejected"
   | "coach_invite"
+  | "coach_application"
   | "tournament_pending_review"
   | "tournament_approved"
   | "tournament_rejected"
   | "tournament_match_ready"
   | "admin_pending_review"
+  | "game_join_rejected"
+  | "game_join_approved"
+  | "game_removed"
+  | "result_confirmation"
+  | "result_disputed"
+  | "elo_update"
   | "message";
 
 const TYPE_TO_SETTING: Partial<Record<NotifType, keyof typeof notificationSettingsTable.$inferSelect>> = {

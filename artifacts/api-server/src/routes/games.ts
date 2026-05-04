@@ -70,7 +70,7 @@ function formatGame(g: typeof gamesTable.$inferSelect, joinedCount = 0, isJoined
     courtId: g.courtId,
     playersNeeded: g.playersNeeded,
     skillLevel: g.skillLevel,
-    datetime: g.datetime instanceof Date ? g.datetime.toISOString() : new Date(g.datetime).toISOString(),
+    datetime: new Date(g.datetime).toISOString(),
     durationMinutes: g.durationMinutes,
     description: g.description,
     isPrivate: g.isPrivate,
@@ -170,7 +170,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
     ? await db.select().from(userRatingsTable).where(inArray(userRatingsTable.userId, allUserIds))
     : [];
   const ratingKey = (uid: string, sport: string) => `${uid}::${sport}`;
-  const ratingMap = new Map(ratings.map(r => [ratingKey(r.userId, r.sport), r.elo]));
+  const ratingMap = new Map(ratings.map(r => [ratingKey(r.userId, r.sportSlug), r.elo]));
 
   const out = games.map(g => {
     const participants = participantsByGame.get(g.id) ?? [];
@@ -255,7 +255,7 @@ router.get("/games", async (req, res): Promise<void> => {
 
 // GET /games/:id — detail (public, but shares private games via token)
 router.get("/games/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Game not found" }); return; }
@@ -372,7 +372,7 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
 
 // PUT /games/:id — creator only
 router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Not found" }); return; }
@@ -403,7 +403,7 @@ router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
 // Returns canCancel:false with reason when the game has no linked paid booking — the host can
 // still delete the game in that case (no money is at stake), the dialog just shows a plain warning.
 router.get("/games/:id/refund-preview", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const userId = getCurrentUserId(req)!;
 
@@ -465,7 +465,7 @@ router.get("/games/:id/refund-preview", requireAuth, async (req, res): Promise<v
 });
 
 router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Not found" }); return; }
@@ -591,7 +591,7 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
 
 // POST /games/:id/join
 router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const { userName, userEmail, token } = req.body ?? {};
   const queryToken = typeof req.query.token === "string" ? req.query.token : undefined;
@@ -685,7 +685,7 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
 
 // POST /games/:id/approve-join — creator approves or rejects a join request
 router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const { participantId, action } = req.body ?? {}; // action: "approve" | "reject"
 
@@ -755,7 +755,7 @@ router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<vo
 
 // DELETE /games/:id/remove-player — creator removes a joined player
 router.delete("/games/:id/remove-player", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const { targetUserId } = req.body ?? {};
 
@@ -794,7 +794,7 @@ router.delete("/games/:id/remove-player", requireAuth, async (req, res): Promise
 
 // DELETE /games/:id/leave
 router.delete("/games/:id/leave", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
   if (!g) { res.status(404).json({ error: "Not found" }); return; }
@@ -877,7 +877,7 @@ async function getOrCreateRating(userId: string, sportSlug: string): Promise<{ e
 
 // POST /games/:id/result — creator reports final score
 router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -989,7 +989,7 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
 
 // POST /games/:id/verify — participant confirms or disputes result
 router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -1060,7 +1060,7 @@ router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> =>
 
 // POST /games/:id/invite — invite player by email
 router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -1106,7 +1106,7 @@ router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> =>
 
 // GET /games/:id/result — get reported result (public-safe: no internal user IDs)
 router.get("/games/:id/result", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const [result] = await db.select().from(gameResultsTable).where(eq(gameResultsTable.gameId, id));
   if (!result) { res.status(404).json({ error: "No result found" }); return; }
   res.json({
@@ -1171,7 +1171,7 @@ router.get("/users/:userId/elo-history", async (req, res): Promise<void> => {
 
 // POST /games/:id/add-player — creator sends an invitation to a user by userId (requires target's acceptance)
 router.post("/games/:id/add-player", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -1224,7 +1224,7 @@ router.post("/games/:id/add-player", requireAuth, async (req, res): Promise<void
 
 // POST /games/:id/accept-invite — invited user accepts a creator-sent invitation
 router.post("/games/:id/accept-invite", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -1271,7 +1271,7 @@ router.post("/games/:id/accept-invite", requireAuth, async (req, res): Promise<v
 
 // GET /games/:id/chat — get all chat messages (participants only)
 router.get("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
@@ -1293,7 +1293,7 @@ router.get("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
 
 // POST /games/:id/chat — send a message (participants only)
 router.post("/games/:id/chat", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   const userId = getCurrentUserId(req)!;
 
   const [g] = await db.select().from(gamesTable).where(eq(gamesTable.id, id));
