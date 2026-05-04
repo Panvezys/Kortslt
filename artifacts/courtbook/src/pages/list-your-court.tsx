@@ -158,7 +158,7 @@ export default function ListYourCourt() {
     } else if (isOwner) {
       setLocation("/owner");
     } else {
-      setLocation("/owner/onboard");
+      setLocation("/become-owner");
     }
   };
 

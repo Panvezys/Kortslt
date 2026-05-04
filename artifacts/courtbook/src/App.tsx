@@ -33,7 +33,6 @@ import CoachesPage from "@/pages/coaches";
 import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
 import ListYourCourt from "@/pages/list-your-court";
-import OwnerOnboard from "@/pages/owner-onboard";
 import GamesPage from "@/pages/games";
 import GameDetailPage from "@/pages/game-detail";
 import GamesGuidePage from "@/pages/games-guide";
@@ -95,7 +94,7 @@ function OwnerRoute({ children }: { children: React.ReactNode }) {
 
   if (!authLoaded || roleLoading) return null;
   if (!isSignedIn) return <Redirect to="/sign-in" />;
-  if (!isOwner) return <Redirect to="/owner/onboard" />;
+  if (!isOwner) return <Redirect to="/become-owner" />;
   return <>{children}</>;
 }
 
@@ -234,7 +233,6 @@ function Router() {
       <Route path="/games/:id" component={GameDetailPage} />
       <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />
-      <Route path="/owner/onboard" component={OwnerOnboard} />
       <Route path="/faq" component={FAQPage} />
       <Route path="/owners" component={OwnersInfoPage} />
       <Route path="/privacy" component={PrivacyPage} />
