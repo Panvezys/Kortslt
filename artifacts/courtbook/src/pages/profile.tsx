@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useSearch, useLocation } from "wouter";
 import { useT } from "@/lib/i18n";
-import { SportIcon, SportPill, SPORT_LABELS, getSportColor } from "@/components/sport-icon";
+import { SportIcon, SportPill, SPORT_LABELS } from "@/components/sport-icon";
 import { SkillCard } from "@/components/skill-card";
 import { useRole } from "@/lib/useRole";
 import {
@@ -433,14 +433,9 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
             <button
               key={s}
               onClick={() => setSelectedSport(s)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                selectedSport === s
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-              }`}
+              className={`rounded-full transition-all ${selectedSport === s ? "ring-2 ring-primary ring-offset-1" : "opacity-70 hover:opacity-100"}`}
             >
-              <SportIcon sport={s} size={14} strokeWidth={2} />
-              {SPORT_LABELS[s] ?? s}
+              <SportPill sport={s} variant={selectedSport === s ? "solid" : "subtle"} size="sm" />
             </button>
           ))}
         </div>
@@ -450,12 +445,9 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
       {selectedSport ? (
         <div className="bg-card border rounded-xl shadow-sm p-5 space-y-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <SportIcon sport={selectedSport} size={26} strokeWidth={1.75} style={{ color: getSportColor(selectedSport) }} />
-            </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold">{SPORT_LABELS[selectedSport] ?? selectedSport}</span>
+                <SportPill sport={selectedSport} variant="subtle" size="md" />
                 {currentSportProfile && (
                   <Badge className={`text-xs border ${LEVEL_COLOR[currentSportProfile.level] ?? ""}`}>
                     {LEVEL_LABELS[currentSportProfile.level] ?? currentSportProfile.level}

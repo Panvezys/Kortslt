@@ -10,7 +10,7 @@ import { useUser } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search } from "lucide-react";
-import { SportIcon, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -600,20 +600,14 @@ export default function CoachPage() {
               <div className="flex flex-wrap gap-2">
                 {SPORT_OPTIONS.map(sport => {
                   const active = (form.sports ?? []).includes(sport);
-                  const color = getSportColor(sport);
                   return (
                     <button
                       key={sport}
                       type="button"
                       onClick={() => toggleSport(sport)}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium border transition-all"
-                      style={active
-                        ? { background: color, borderColor: color, color: "#000" }
-                        : { borderColor: "var(--border)", color: "var(--muted-foreground)" }
-                      }
+                      className="rounded-full transition-all"
                     >
-                      <SportIcon sport={sport} size={11} strokeWidth={2} />
-                      {SPORT_LABELS[sport]}
+                      <SportPill sport={sport} variant={active ? "solid" : "subtle"} size="sm" />
                     </button>
                   );
                 })}
