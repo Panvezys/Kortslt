@@ -751,7 +751,11 @@ export default function OwnerFacilities() {
 
                     <div className="absolute top-3 right-3 flex gap-1">
                       <button
-                        onClick={(e) => openEdit(facility, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          navigate(`/owner/settings?facility=${facility.id}`);
+                        }}
                         className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
                         title="Redaguoti"
                       >

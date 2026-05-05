@@ -237,6 +237,7 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
   if (!(await isOwner(req, existing.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const allowed = ["name", "description", "address", "city", "phone", "email",
+    "postcode", "latitude", "longitude",
     "cancellationWindow", "advanceBookingLimit", "businessHours"] as const;
   type AllowedKey = typeof allowed[number];
   const updates: Partial<typeof facilitiesTable.$inferInsert> = {};

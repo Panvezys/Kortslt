@@ -2,11 +2,15 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
+import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
 import { validateEmail, validatePhone } from "@/lib/validators";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -20,6 +24,9 @@ interface Facility {
   city?: string;
   phone?: string;
   email?: string;
+  postcode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   cancellationWindow?: number | null;
   advanceBookingLimit?: number | null;
   businessHours?: string | null;
@@ -53,6 +60,8 @@ export default function OwnerSettings() {
   const queryClient = useQueryClient();
   const facilityId = useFacilityId();
   const [tab, setTab] = useState<"profile" | "rules" | "hours">("profile");
+  const [profileTab, setProfileTab] = useState<"pagrindai" | "vieta" | "kontaktai">("pagrindai");
+  const [mapKey, setMapKey] = useState(0);
 
   const [profileName, setProfileName] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
@@ -60,6 +69,9 @@ export default function OwnerSettings() {
   const [profileCity, setProfileCity] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
+  const [profilePostcode, setProfilePostcode] = useState("");
+  const [profileLatitude, setProfileLatitude] = useState(0);
+  const [profileLongitude, setProfileLongitude] = useState(0);
 
   const [cancellationWindow, setCancellationWindow] = useState("24");
   const [advanceBookingLimit, setAdvanceBookingLimit] = useState("30");
@@ -85,6 +97,10 @@ export default function OwnerSettings() {
     setProfileCity(facility.city ?? "");
     setProfilePhone(facility.phone ?? "");
     setProfileEmail(facility.email ?? "");
+    setProfilePostcode(facility.postcode ?? "");
+    setProfileLatitude(facility.latitude ?? 0);
+    setProfileLongitude(facility.longitude ?? 0);
+    setMapKey(k => k + 1);
     setCancellationWindow(String(facility.cancellationWindow ?? 24));
     setAdvanceBookingLimit(String(facility.advanceBookingLimit ?? 30));
     if (facility.businessHours) {
@@ -129,6 +145,9 @@ export default function OwnerSettings() {
       city: profileCity || undefined,
       phone: profilePhone || undefined,
       email: profileEmail || undefined,
+      postcode: profilePostcode || undefined,
+      latitude: profileLatitude || undefined,
+      longitude: profileLongitude || undefined,
     });
   }
 
@@ -195,36 +214,124 @@ export default function OwnerSettings() {
                   <p className="text-sm text-muted-foreground">Pagrindinė informacija apie jūsų sporto objektą.</p>
                 </div>
                 <Separator />
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pavadinimas *</label>
-                    <input value={profileName} onChange={e => setProfileName(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Aprašymas</label>
-                    <textarea value={profileDescription} onChange={e => setProfileDescription(e.target.value)} rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors resize-none" placeholder="Trumpas aprašymas apie objektą…" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Adresas</label>
-                      <input value={profileAddress} onChange={e => setProfileAddress(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Miestas</label>
-                      <input value={profileCity} onChange={e => setProfileCity(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Telefonas</label>
-                      <input value={profilePhone} onChange={e => setProfilePhone(e.target.value)} placeholder="+370…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">El. paštas</label>
-                      <input value={profileEmail} onChange={e => setProfileEmail(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
-                    </div>
-                  </div>
+
+                <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
+                  {([
+                    { id: "pagrindai", label: "Pagrindai" },
+                    { id: "vieta",     label: "Vieta" },
+                    { id: "kontaktai", label: "Kontaktai" },
+                  ] as const).map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setProfileTab(t.id)}
+                      className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
+                        profileTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >{t.label}</button>
+                  ))}
                 </div>
+
+                <div className="space-y-4 pt-2">
+                  {profileTab === "pagrindai" && (
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Objekto pavadinimas *</Label>
+                        <Input
+                          value={profileName}
+                          onChange={e => setProfileName(e.target.value)}
+                          placeholder="pvz. Vilniaus Teniso Klubas"
+                        />
+                        {!profileName.trim() && <p className="text-xs text-destructive">Privalomas laukas</p>}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Aprašymas</Label>
+                        <Textarea
+                          value={profileDescription}
+                          onChange={e => setProfileDescription(e.target.value)}
+                          placeholder="Trumpas objekto aprašymas..."
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {profileTab === "vieta" && (
+                    <div className="space-y-4">
+                      <LocationPicker
+                        key={mapKey}
+                        latitude={profileLatitude || 0}
+                        longitude={profileLongitude || 0}
+                        onChange={(result: LocationPickerResult) => {
+                          setProfileLatitude(result.lat);
+                          setProfileLongitude(result.lng);
+                          if (result.city) setProfileCity(result.city);
+                          if (result.address) setProfileAddress(result.address);
+                          if (result.postcode != null) setProfilePostcode(result.postcode);
+                        }}
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Adresas *</Label>
+                          <Input
+                            value={profileAddress}
+                            onChange={e => setProfileAddress(e.target.value)}
+                            placeholder="Auto-užpildoma iš žemėlapio"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Miestas *</Label>
+                          <Input
+                            value={profileCity}
+                            onChange={e => setProfileCity(e.target.value)}
+                            placeholder="Auto-užpildoma iš žemėlapio"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Pašto kodas</Label>
+                          <Input
+                            value={profilePostcode}
+                            onChange={e => setProfilePostcode(e.target.value)}
+                            placeholder="LT-XXXXX"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Platuma (auto)</Label>
+                          <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={profileLatitude || ""} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Ilguma (auto)</Label>
+                          <Input type="number" step="any" readOnly className="bg-muted/50 text-muted-foreground text-xs" value={profileLongitude || ""} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {profileTab === "kontaktai" && (
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">Telefonas</Label>
+                        <Input
+                          value={profilePhone}
+                          onChange={e => setProfilePhone(e.target.value)}
+                          placeholder="+370..."
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">El. paštas</Label>
+                        <Input
+                          type="email"
+                          value={profileEmail}
+                          onChange={e => setProfileEmail(e.target.value)}
+                          placeholder="info@klubas.lt"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end pt-2">
                   <Button onClick={saveProfile} disabled={mutation.isPending} className="gap-2">
                     <Save className="h-4 w-4" />
