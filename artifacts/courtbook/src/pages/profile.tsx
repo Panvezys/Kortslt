@@ -442,7 +442,7 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
       )}
 
       {/* ELO + chart panel */}
-      {selectedSport ? (
+      {selectedSport && (
         <div className="bg-card border rounded-xl shadow-sm p-5 space-y-4">
           <div className="flex items-start gap-4">
             <div className="flex-1 min-w-0">
@@ -484,16 +484,7 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
           </div>
           <SportEloSection userId={userId} sport={selectedSport} currentElo={elo} />
         </div>
-      ) : existingSports.length === 0 ? (
-        <div className="bg-card border rounded-xl shadow-sm p-10 flex flex-col items-center gap-3 text-muted-foreground">
-          <Dumbbell className="w-10 h-10 opacity-20" />
-          <p className="text-sm">Dar nepridėjote sporto šakų</p>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowAddDialog(true)}>
-            <Plus className="w-4 h-4" />
-            Pridėti pirmą sportą
-          </Button>
-        </div>
-      ) : null}
+      )}
 
       {/* Win / Loss pie chart */}
       {selectedSport && pieData.length > 0 && (
