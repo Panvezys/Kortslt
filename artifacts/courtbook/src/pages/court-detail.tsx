@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -356,6 +356,10 @@ export default function CourtDetail() {
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splitCount, setSplitCount] = useState(4);
   const [splitPending, setSplitPending] = useState(false);
+  const [isPublicMatch, setIsPublicMatch] = useState(false);
+  const [splitMatchType, setSplitMatchType] = useState<"casual" | "competitive">("casual");
+  const [splitMinSkill, setSplitMinSkill] = useState(1.0);
+  const [splitMaxSkill, setSplitMaxSkill] = useState(7.0);
 
   useEffect(() => {
     // Check URL params (direct Stripe redirect)
@@ -779,6 +783,9 @@ export default function CourtDetail() {
           sport: (court as any)?.sport ?? "tennis",
           customerName,
           customerEmail,
+          isPublic: isPublicMatch,
+          matchType: splitMatchType,
+          ...(isPublicMatch && { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill }),
         }),
       });
       if (!resp.ok) {
@@ -1726,6 +1733,68 @@ export default function CourtDetail() {
                       <div className="flex justify-between text-sm pt-1 border-t">
                         <span className="text-muted-foreground">Jūsų dalis (1/{splitCount})</span>
                         <span className="font-bold text-primary">{(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €</span>
+                      </div>
+
+                      {/* Public match sub-toggle */}
+                      <div className="border-t pt-2 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsPublicMatch(o => !o)}
+                          className="w-full flex items-center justify-between text-sm hover:opacity-80 transition-opacity"
+                        >
+                          <span className="font-medium flex items-center gap-2">
+                            <Globe className="w-3.5 h-3.5 text-primary" />
+                            Ieškau žaidėjų (Viešas mačas)
+                          </span>
+                          <span className={`w-8 h-4 rounded-full transition-colors relative shrink-0 ${isPublicMatch ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isPublicMatch ? "translate-x-4" : "translate-x-0.5"}`} />
+                          </span>
+                        </button>
+                        {isPublicMatch && (
+                          <div className="space-y-2 pl-5">
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">
+                                Lygio reikalavimas: {splitMinSkill.toFixed(1)} – {splitMaxSkill.toFixed(1)}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground w-7 shrink-0">min</span>
+                                <input
+                                  type="range" min="1" max="7" step="0.5"
+                                  value={splitMinSkill}
+                                  onChange={e => setSplitMinSkill(Math.min(parseFloat(e.target.value), splitMaxSkill - 0.5))}
+                                  className="flex-1 accent-primary h-1.5"
+                                />
+                                <span className="text-xs font-semibold w-7 text-right shrink-0">{splitMinSkill.toFixed(1)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground w-7 shrink-0">max</span>
+                                <input
+                                  type="range" min="1" max="7" step="0.5"
+                                  value={splitMaxSkill}
+                                  onChange={e => setSplitMaxSkill(Math.max(parseFloat(e.target.value), splitMinSkill + 0.5))}
+                                  className="flex-1 accent-primary h-1.5"
+                                />
+                                <span className="text-xs font-semibold w-7 text-right shrink-0">{splitMaxSkill.toFixed(1)}</span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSplitMatchType("casual")}
+                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${splitMatchType === "casual" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/40"}`}
+                              >
+                                Draugiškas
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSplitMatchType("competitive")}
+                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-colors ${splitMatchType === "competitive" ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/40"}`}
+                              >
+                                ⚔️ Reitinginis
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

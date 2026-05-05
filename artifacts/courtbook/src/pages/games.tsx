@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock, Search, X, Swords, Shield, Info } from "lucide-react";
+import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock, Search, X, Swords, Shield, Info, Globe } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -540,6 +540,11 @@ export default function GamesPage() {
                   <Link href="/sign-in">Prisijungti, kad sukurtum</Link>
                 </Button>
               </Show>
+              <Button size="sm" asChild className="backdrop-blur-sm bg-white/15 hover:bg-white/25 text-white border border-white/30 font-semibold">
+                <Link href="/matches">
+                  <Globe className="w-3.5 h-3.5 mr-1.5" />Atviri mačai
+                </Link>
+              </Button>
               <Button size="sm" asChild variant="outline" className="backdrop-blur-sm bg-white/10 hover:bg-white/20 text-white border border-white/30">
                 <Link href="/games/guide">
                   <Info className="w-3.5 h-3.5 mr-1.5" />Kaip tai veikia?

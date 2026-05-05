@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, serial, integer, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, serial, integer, unique, real } from "drizzle-orm/pg-core";
 
 export const userProfilesTable = pgTable("user_profiles", {
   userId: text("user_id").primaryKey(),
@@ -16,6 +16,8 @@ export const userSportProfilesTable = pgTable("user_sport_profiles", {
   userId: text("user_id").notNull(),
   sport: text("sport").notNull(),
   level: text("level").notNull().default("beginner"),
+  // Numeric skill score (e.g. NTRP 1.0–7.0 for tennis, generic 1–10)
+  skillScore: real("skill_score"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniq: unique("user_sport_unique").on(t.userId, t.sport),

@@ -34,6 +34,7 @@ import diagnosticRouter from "./diagnostic";
 import guestBookingsRouter from "./guest-bookings";
 import ownerBusinessInfoRouter from "./owner-business-info";
 import splitPaymentsRouter from "./split-payments";
+import openMatchesRouter from "./open-matches";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(diagnosticRouter);
 router.use(guestBookingsRouter);
 router.use(ownerBusinessInfoRouter);
 router.use(splitPaymentsRouter);
+router.use(openMatchesRouter);
 
 export default router;

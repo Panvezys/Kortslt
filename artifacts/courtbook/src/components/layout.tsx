@@ -527,6 +527,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { href: "/courts", label: "Rasti aikštelę" },
                   { href: "/coaches", label: "Treneriai" },
                   { href: "/tournaments", label: "Turnyrai" },
+                  { href: "/games", label: "Žaidimai" },
+                  { href: "/matches", label: "Atviri mačai" },
                   { href: "/list-your-court", label: "Pridėti aikštelę" },
                   { href: "/bookings", label: "Mano rezervacijos" },
                   { href: "/profile", label: "Profilis" },

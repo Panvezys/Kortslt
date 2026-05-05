@@ -1,0 +1,50 @@
+Objective: 
+Extend the existing "Split Payment" booking system to support "Open Matches" (Atviri mačai). Currently, split bookings are private and joined via a shareable token link. We need to allow users to toggle a booking as "Public," set skill level requirements, and display these matches on a public community feed where eligible players can join and pay for their slot.
+
+Please implement this feature by following these steps, modifying the existing React frontend, Node/Express/Hono backend, and Drizzle ORM schema.
+
+Step 1: Database Schema Extensions
+1. Update `gamesTable` in `schema.ts`:
+   - Add `visibility`: varchar/enum defaulting to 'private'. Allowed values: 'private', 'public'.
+   - Add `minSkillLevel`: integer or decimal (nullable).
+   - Add `maxSkillLevel`: integer or decimal (nullable).
+   - Add `matchType`: varchar/enum (nullable). Allowed values: 'casual', 'competitive'.
+2. Update `usersTable` (if not already present):
+   - Ensure users have a `skillLevel` field (e.g., a number from 1.0 to 7.0 for tennis NTRP, or a generic 1-100 rating) to compare against match requirements.
+
+Step 2: Backend API Updates
+1. Modify `POST /api/games/checkout-split`:
+   - Accept new body parameters: `isPublic` (boolean), `minSkillLevel`, `maxSkillLevel`, and `matchType`.
+   - If `isPublic` is true, set the `gamesTable.visibility` to 'public' and save the skill parameters. 
+   - The rest of the split-pay Stripe logic remains exactly the same.
+2. Create New Endpoint `GET /api/matches/open`:
+   - Fetch all games where `visibility = 'public'` AND `status = 'awaiting_players'`.
+   - Join with `bookingsTable` to get court details, time, and `pricePerSlot`.
+   - Join with `gameParticipantsTable` to calculate `slots_paid` vs `total_slots`.
+   - Include query filters for: `sport`, `date`, `city`, and `skillLevel` (so users only see matches they qualify for).
+3. Update Join Logic (`POST /api/bookings/share/:token/checkout` or equivalent public join endpoint):
+   - If the game is 'public', check the requesting user's `skillLevel` against the game's `minSkillLevel` and `maxSkillLevel`. If they don't qualify, return a 403 error ("Your skill level does not match the requirements for this game").
+
+Step 3: Frontend - Booking Widget (`CourtDetail.tsx`)
+1. Extend the existing Split Payment UI. When the "Skaidyti mokėjimą" (Split Payment) toggle is ON, reveal a sub-toggle: "Ieškau žaidėjų (Viešas mačas)" [Looking for players (Public match)].
+2. If the Public Match toggle is ON, reveal:
+   - A dual-range slider or two dropdowns for "Lygis" (Skill Level range, e.g., 3.0 - 4.5).
+   - A radio group or select for Match Type: "Draugiškas" (Casual) vs "Reitinginis" (Competitive).
+3. Pass these new variables in the payload to `/api/games/checkout-split`.
+
+Step 4: Frontend - Open Matches Feed (New Page: `/matches`)
+1. Create a new page component `OpenMatches.tsx`.
+2. UI Layout:
+   - A header with filters: Sport, City, Date, and a toggle for "My Skill Level Only".
+   - A grid or list of Match Cards.
+3. Match Card details:
+   - Court Name, Date, Time.
+   - Host Name and Avatar.
+   - Slot Progress (e.g., "2/4 Žaidėjai").
+   - Skill Level Badge (e.g., "Lygis: 3.5 - 4.5").
+   - Price per slot.
+   - "Prisijungti" (Join) button that redirects to the existing `/join/:token` page or handles the checkout directly if the user qualifies.
+
+Step 5: Safety & Edge Cases
+1. Ensure the existing cron job (`sweepStalePendingGames`) safely ignores or properly handles public matches that expire before filling up. 
+2. If a public match is partially filled when the start time arrives, ensure the logic either refunds the participants or locks the match from the public feed so no one joins an already-started game.

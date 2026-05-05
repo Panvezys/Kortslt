@@ -16,6 +16,7 @@ import {
   gamesTable,
   gameParticipantsTable,
   userProfilesTable,
+  userSportProfilesTable,
   courtPricingTable,
   courtBlockedSlotsTable,
 } from "@workspace/db";
@@ -68,6 +69,11 @@ const SplitCheckoutBody = z.object({
   customerName: z.string().min(1),
   customerEmail: z.string().email(),
   customerPhone: z.string().optional(),
+  // Open match fields
+  isPublic: z.boolean().optional().default(false),
+  minSkillLevel: z.number().min(0).max(10).optional(),
+  maxSkillLevel: z.number().min(0).max(10).optional(),
+  matchType: z.enum(["casual", "competitive"]).optional().default("casual"),
 });
 
 router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void> => {
@@ -81,6 +87,7 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   const {
     courtId, date, startTime, endTime, totalSlots, sport, skillLevel, description,
     customerName, customerEmail, customerPhone,
+    isPublic, minSkillLevel, maxSkillLevel, matchType,
   } = parsed.data;
 
   const reqStartMin = toMin(startTime);
@@ -221,8 +228,11 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
     durationMinutes,
     description: description ?? null,
     status: "pending_payment",
-    matchType: "casual",
-    isPrivate: false,
+    matchType: matchType ?? "casual",
+    isPrivate: !isPublic,
+    visibility: isPublic ? "public" : "private",
+    minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
+    maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
     requiresApproval: false,
     teamCount: 2,
   }).returning();
@@ -441,6 +451,29 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
       eq(gameParticipantsTable.gameId, game.id),
       eq(gameParticipantsTable.status, "joined"),
     ));
+
+  // Skill level gate for public matches
+  if (game.visibility === "public" && (game.minSkillLevel != null || game.maxSkillLevel != null)) {
+    const [sportProfile] = await db
+      .select({ skillScore: userSportProfilesTable.skillScore })
+      .from(userSportProfilesTable)
+      .where(and(
+        eq(userSportProfilesTable.userId, userId),
+        eq(userSportProfilesTable.sport, game.sport),
+      ));
+
+    const userSkill = sportProfile?.skillScore ?? null;
+    if (userSkill != null) {
+      if (game.minSkillLevel != null && userSkill < game.minSkillLevel) {
+        res.status(403).json({ error: "Jūsų lygis per žemas šiam žaidimui", code: "SKILL_TOO_LOW" });
+        return;
+      }
+      if (game.maxSkillLevel != null && userSkill > game.maxSkillLevel) {
+        res.status(403).json({ error: "Jūsų lygis per aukštas šiam žaidimui", code: "SKILL_TOO_HIGH" });
+        return;
+      }
+    }
+  }
 
   // Check if user already has a slot (paid or pending)
   const alreadyJoined = existingParticipants.find(p => p.userId === userId);

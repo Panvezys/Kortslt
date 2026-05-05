@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, jsonb, real } from "drizzle-orm/pg-core";
 import { bookingsTable } from "./bookings";
 
 export const gamesTable = pgTable("games", {
@@ -21,6 +21,10 @@ export const gamesTable = pgTable("games", {
   status: text("status").notNull().default("open"),
   matchType: text("match_type").notNull().default("casual"),
   isPrivate: boolean("is_private").notNull().default(false),
+  // visibility: 'private' (invite-only via token) | 'public' (shown on open matches feed)
+  visibility: text("visibility").notNull().default("private"),
+  minSkillLevel: real("min_skill_level"),
+  maxSkillLevel: real("max_skill_level"),
   requiresApproval: boolean("requires_approval").notNull().default(false),
   teamCount: integer("team_count").notNull().default(2),
   inviteToken: text("invite_token"),
