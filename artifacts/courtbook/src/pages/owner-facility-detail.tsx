@@ -1867,7 +1867,7 @@ export default function OwnerFacilityDetail() {
   );
 }
 
-// ============ Facility edit dialog (5 tabs) ============
+// ============ Facility edit dialog (4 tabs) ============
 
 const facilityEditSchema = z.object({
   name: z.string().min(2, "Pavadinimas privalomas"),
@@ -1877,8 +1877,6 @@ const facilityEditSchema = z.object({
   postcode: z.string().optional(),
   latitude: z.coerce.number().optional(),
   longitude: z.coerce.number().optional(),
-  companyName: z.string().optional(),
-  registrationCode: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().optional(),
 });
@@ -1893,7 +1891,7 @@ function FacilityEditDialog({
   onSaved: () => void;
 }) {
   const { toast } = useToast();
-  const [tab, setTab] = useState<"info" | "location" | "company" | "contact" | "media">("info");
+  const [tab, setTab] = useState<"info" | "location" | "contact" | "media">("info");
   const [photos, setPhotos] = useState<string[]>([]);
   const [newPhotoUrl, setNewPhotoUrl] = useState("");
 
@@ -1902,7 +1900,7 @@ function FacilityEditDialog({
     defaultValues: {
       name: "", description: "", address: "", city: "", postcode: "",
       latitude: undefined, longitude: undefined,
-      companyName: "", registrationCode: "", phone: "", email: "",
+      phone: "", email: "",
     },
   });
 
@@ -1916,8 +1914,6 @@ function FacilityEditDialog({
         postcode: facility.postcode ?? "",
         latitude: facility.latitude,
         longitude: facility.longitude,
-        companyName: facility.companyName ?? "",
-        registrationCode: facility.registrationCode ?? "",
         phone: facility.phone ?? "",
         email: facility.email ?? "",
       });
@@ -1943,8 +1939,6 @@ function FacilityEditDialog({
         postcode: cleanStr(data.postcode),
         latitude: typeof data.latitude === "number" && !isNaN(data.latitude) ? data.latitude : undefined,
         longitude: typeof data.longitude === "number" && !isNaN(data.longitude) ? data.longitude : undefined,
-        companyName: cleanStr(data.companyName),
-        registrationCode: cleanStr(data.registrationCode),
         phone: cleanStr(data.phone),
         email: cleanStr(data.email),
         photos,
@@ -1996,7 +1990,6 @@ function FacilityEditDialog({
           {([
             { id: "info", label: "Pagrindai" },
             { id: "location", label: "Vieta" },
-            { id: "company", label: "Įmonė" },
             { id: "contact", label: "Kontaktai" },
             { id: "media", label: "Medija" },
           ] as const).map(t => (
@@ -2046,29 +2039,6 @@ function FacilityEditDialog({
                     </FormControl><FormMessage /></FormItem>
                   )} />
                 </div>
-              </div>
-            )}
-
-            {tab === "company" && (
-              <div className="space-y-4">
-                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-200">Įmonės pavadinimas ir kodas reikalingi administratoriaus patvirtinimo. Pakeitimai bus peržiūrėti prieš aktyvuojant.</p>
-                </div>
-                <FormField control={form.control} name="companyName" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">Įmonės pavadinimas <Lock className="w-3 h-3 text-muted-foreground" /></FormLabel>
-                    <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="registrationCode" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">Įmonės kodas <Lock className="w-3 h-3 text-muted-foreground" /></FormLabel>
-                    <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
               </div>
             )}
 

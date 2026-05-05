@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { useUser } from "@clerk/react";
@@ -18,8 +18,8 @@ import { validateEmail, validatePhone } from "@/lib/validators";
 import { useI18n } from "@/lib/i18n";
 import {
   Plus, Building2, MapPin, ChevronRight,
-  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, FileUp, CreditCard, Loader2,
-  Lock, AlertTriangle, Send, FileEdit, Hourglass, Ban,
+  Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, CreditCard, Loader2,
+  AlertTriangle, Send, FileEdit, Hourglass, Ban,
   Phone, Mail, Globe, FileText, Clock, CheckCircle2, XCircle, Info, ExternalLink,
 } from "lucide-react";
 
@@ -357,14 +357,11 @@ export default function OwnerFacilities() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<FacilityWithCourts | null>(null);
-  const [formTab, setFormTab] = useState<"pagrindai" | "vieta" | "imone" | "kontaktai" | "dokumentas">("pagrindai");
+  const [formTab, setFormTab] = useState<"pagrindai" | "vieta" | "kontaktai">("pagrindai");
   const [mapKey, setMapKey] = useState(0);
-  const [ownershipDocUploading, setOwnershipDocUploading] = useState(false);
-  const docInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "", description: "", address: "", city: "", phone: "", email: "",
-    companyName: "", registrationCode: "", latitude: 0, longitude: 0,
-    postcode: "", ownershipDocUrl: "",
+    latitude: 0, longitude: 0, postcode: "",
   });
 
   const { data: facilities, isLoading } = useQuery<FacilityWithCourts[]>({
@@ -433,10 +430,7 @@ export default function OwnerFacilities() {
     email: data.email.trim() || undefined,
     phone: data.phone.trim() || undefined,
     description: data.description.trim() || undefined,
-    companyName: data.companyName.trim() || undefined,
-    registrationCode: data.registrationCode.trim() || undefined,
     postcode: data.postcode.trim() || undefined,
-    ownershipDocUrl: data.ownershipDocUrl.trim() || undefined,
     latitude: data.latitude || undefined,
     longitude: data.longitude || undefined,
   });
@@ -533,7 +527,7 @@ export default function OwnerFacilities() {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", companyName: "", registrationCode: "", latitude: 0, longitude: 0, postcode: "", ownershipDocUrl: "" });
+    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", latitude: 0, longitude: 0, postcode: "" });
     setMapKey(k => k + 1);
   };
 
@@ -555,12 +549,9 @@ export default function OwnerFacilities() {
       city: f.city || "",
       phone: f.phone || "",
       email: f.email || "",
-      companyName: f.companyName || "",
-      registrationCode: f.registrationCode || "",
       latitude: f.latitude || 0,
       longitude: f.longitude || 0,
       postcode: f.postcode || "",
-      ownershipDocUrl: f.ownershipDocUrl || "",
     });
     setMapKey(k => k + 1);
     setDialogOpen(true);
@@ -592,23 +583,6 @@ export default function OwnerFacilities() {
       updateMutation.mutate({ id: editingFacility.id, data: cleaned });
     } else {
       createMutation.mutate(cleaned);
-    }
-  };
-
-  const handleDocUpload = async (file: File) => {
-    setOwnershipDocUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("doc", file);
-      const resp = await fetch(`${BASE_URL}/api/upload/ownership-doc`, { method: "POST", body: fd });
-      if (!resp.ok) throw new Error("Upload failed");
-      const { url } = await resp.json();
-      setFormData(d => ({ ...d, ownershipDocUrl: url }));
-      toast({ title: "Dokumentas įkeltas" });
-    } catch {
-      toast({ title: "Klaida įkeliant dokumentą", variant: "destructive" });
-    } finally {
-      setOwnershipDocUploading(false);
     }
   };
 
@@ -895,9 +869,7 @@ export default function OwnerFacilities() {
               {([
                 { id: "pagrindai", label: "Pagrindai" },
                 { id: "vieta",     label: "Vieta" },
-                { id: "imone",     label: "Įmonė" },
                 { id: "kontaktai", label: "Kontaktai" },
-                { id: "dokumentas", label: "Dokumentas" },
               ] as const).map(t => (
                 <button
                   key={t.id}
@@ -990,35 +962,6 @@ export default function OwnerFacilities() {
                 </div>
               )}
 
-              {formTab === "imone" && (
-                <div className="space-y-4">
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-200">Įmonės pavadinimas ir kodas reikalingi administratoriaus patvirtinimo. Pakeitimai bus peržiūrėti prieš aktyvuojant.</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm flex items-center gap-1.5">
-                      Įmonės pavadinimas <Lock className="w-3 h-3 text-muted-foreground" />
-                    </Label>
-                    <Input
-                      value={formData.companyName}
-                      onChange={e => setFormData(d => ({ ...d, companyName: e.target.value }))}
-                      placeholder="UAB Sportas"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm flex items-center gap-1.5">
-                      Įmonės kodas <Lock className="w-3 h-3 text-muted-foreground" />
-                    </Label>
-                    <Input
-                      value={formData.registrationCode}
-                      onChange={e => setFormData(d => ({ ...d, registrationCode: e.target.value }))}
-                      placeholder="123456789"
-                    />
-                  </div>
-                </div>
-              )}
-
               {formTab === "kontaktai" && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
@@ -1037,44 +980,6 @@ export default function OwnerFacilities() {
                       onChange={e => setFormData(d => ({ ...d, email: e.target.value }))}
                       placeholder="info@klubas.lt"
                     />
-                  </div>
-                </div>
-              )}
-
-              {formTab === "dokumentas" && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border p-4 space-y-3">
-                    <Label className="text-sm font-semibold">Nuosavybės dokumentas</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Įkelkite dokumentą, patvirtinantį, kad esate objekto savininkas (nuotrauka arba PDF). Administratorius peržiūrės ir patvirtins objektą.
-                    </p>
-                    <input
-                      ref={docInputRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="hidden"
-                      onChange={e => { if (e.target.files?.[0]) handleDocUpload(e.target.files[0]); }}
-                    />
-                    <div className="flex items-center gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => docInputRef.current?.click()}
-                        disabled={ownershipDocUploading}
-                        className="gap-2"
-                      >
-                        {ownershipDocUploading
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : <FileUp className="w-4 h-4" />}
-                        {ownershipDocUploading ? "Įkeliama..." : "Įkelti dokumentą"}
-                      </Button>
-                      {formData.ownershipDocUrl && (
-                        <span className="text-xs text-green-400 flex items-center gap-1">
-                          ✓ Dokumentas įkeltas
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
               )}
