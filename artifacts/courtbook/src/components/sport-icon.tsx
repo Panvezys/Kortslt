@@ -460,21 +460,7 @@ export function getSportEmoji(sport?: string | null): string {
   return SPORT_EMOJIS[sport] ?? "🏅";
 }
 
-/**
- * SINGLE SOURCE OF TRUTH — sport "pill" badge used across the app.
- *
- * Renders the canonical small chip: colored {@link SportIcon} SVG + Lithuanian
- * label from {@link SPORT_LABELS}, on a colored or muted rounded background.
- * Replaces ad-hoc `{SPORT_EMOJIS[x]} {SPORT_LABELS[x]}` combos and one-off
- * inline `<span><SportIcon/>{label}</span>` markup. Updating this component
- * updates every sport tag in the app.
- *
- * Variants:
- *   - `solid`  — colored background, white icon + text (e.g. court card).
- *   - `subtle` — muted background, sport-colored icon, muted text (default,
- *                e.g. find-a-court hover-off state, list rows).
- *   - `outline` — transparent background, colored border + icon + text.
- */
+/** Canonical sport chip: colored SVG icon + Lithuanian label. Use instead of ad-hoc SportIcon+label combos. */
 export type SportPillVariant = "solid" | "subtle" | "outline";
 export type SportPillSize = "sm" | "md";
 

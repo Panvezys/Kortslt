@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarDays, Euro, Users, Trophy, ArrowLeft, Clock, MapPin, CheckCircle2, AlertCircle, Info, Crown, Zap, ShieldCheck, Layers } from "lucide-react";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { type SportScore, getSportConfig, formatScore, deriveWinner } from "@workspace/db/sports-config";
 import { validateEmail, validatePhone } from "@/lib/validators";
@@ -583,10 +583,7 @@ export default function TournamentDetail() {
             {/* Header */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <SportIcon sport={tournament.sport} className="w-5 h-5" />
-                </div>
-                <span className="text-sm text-muted-foreground font-medium">{SPORT_LABELS[tournament.sport] ?? tournament.sport}</span>
+                <SportPill sport={tournament.sport} variant="subtle" size="md" />
                 <span className={`ml-auto text-xs px-2.5 py-1 rounded-full border font-medium ${STATUS_COLORS[tournament.status]}`}>
                   {STATUS_LABELS[tournament.status] ?? tournament.status}
                 </span>

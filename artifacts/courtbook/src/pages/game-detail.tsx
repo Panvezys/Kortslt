@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportIcon, SportPill, SPORT_LABELS, getSportEmoji } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
@@ -25,7 +25,7 @@ import {
   MessageCircle, Crown, Trash2, Trophy, CheckCircle2, Lock, Swords, XCircle, Mail, Send, Shield, Search,
   X, ShieldCheck, ShieldX, Loader2,
 } from "lucide-react";
-import { getTier, SPORT_EMOJIS } from "@/lib/rank-tier";
+import { getTier } from "@/lib/rank-tier";
 import { type SportScore, getSportConfig, deriveWinner } from "@workspace/db/sports-config";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -70,7 +70,7 @@ function formatDateTime(iso: string) {
 
 function EloBadge({ elo, sport }: { elo: number; sport?: string }) {
   const t = getTier(elo);
-  const sportEmoji = sport ? (SPORT_EMOJIS[sport] ?? "🏅") : null;
+  const sportEmoji = sport ? getSportEmoji(sport) : null;
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${t.bgCls} ${t.cls}`}>
       {sportEmoji ?? t.emoji} {elo}
@@ -733,7 +733,8 @@ export default function GameDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <Badge className="bg-[#C5E041]/20 text-[#C5E041] border-[#C5E041]/40">
+                  <Badge className="bg-[#C5E041]/20 text-[#C5E041] border-[#C5E041]/40 gap-1">
+                    <SportIcon sport={data.sport} size={11} strokeWidth={2} />
                     {SPORT_LABELS[data.sport] ?? data.sport}
                   </Badge>
                   <Badge variant="outline" className="border-white/30 text-white/80">{SKILL_LABELS[data.skillLevel]}</Badge>

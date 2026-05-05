@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
-import { SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 import {
   CheckCircle2, XCircle, MapPin, Euro, User, Building2,
   ChevronLeft, RefreshCw, Image as ImageIcon,
@@ -69,7 +69,7 @@ function CourtCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <div className="absolute bottom-3 left-3 right-3">
           <h3 className="text-white font-bold text-base leading-tight">{court.name}</h3>
-          <p className="text-white/70 text-xs mt-0.5">{SPORT_LABELS[court.type] ?? court.type}</p>
+          <div className="mt-0.5"><SportPill sport={court.type} variant="subtle" size="sm" className="bg-white/10 text-white/80" /></div>
         </div>
         {court.photos && court.photos.length > 1 && (
           <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-full">

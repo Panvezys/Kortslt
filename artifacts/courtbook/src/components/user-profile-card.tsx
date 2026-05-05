@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 import { MessageCircle, Gamepad2, Timer, EyeOff, TrendingUp } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -103,12 +103,9 @@ export function UserProfileCard({ open, onClose, userId, userName, userImageUrl,
                   const elo = rating?.elo ?? 1200;
                   return (
                     <div key={sp.sport} className="flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center shrink-0">
-                        <SportIcon sport={sp.sport} className="w-4 h-4" />
-                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-medium">{SPORT_LABELS[sp.sport] ?? sp.sport}</span>
+                          <SportPill sport={sp.sport} variant="subtle" size="md" />
                           <Badge className={`text-[10px] px-1.5 py-0 h-4 border ${LEVEL_COLOR[sp.level] ?? ""}`}>
                             {LEVEL_LABELS[sp.level] ?? sp.level}
                           </Badge>

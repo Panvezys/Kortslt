@@ -1,0 +1,43 @@
+VERDICT: REJECTED
+
+The diff does not satisfy the “Centralize sport pill component” task as specified, and it includes large unrelated changes that materially increase regression risk.
+
+Critical findings:
+- The new `SportPill` component was addedVERDICT: REJECTED
+ in `sport-icon.tsx`, and a few surfaces were migrated (e.g., `court-card.tsx`, parts of `home.t
+sx`, some owner/coach pages).
+- However, multiple required target surfaces The diff does not satisfy the “Centralize sport pill component” task as specified, and it includes large unrelated changes that materially increase regression risk.
+still render ad-hoc sport UI instead of the centralized pill/icon+la
+bel pattern:
+  - `components/skill-card.tsx` still useCritical findings:
+s `SPORT_EMOJIS` and raw emoji rendering.
+  - `pages/game-det- The new `SportPill` component was added in `sport-icon.tsx`, and a few surfaces were migrated (e.g., `court-card.tsx`, parts of `home.tsx`, some owner/coach pages).
+ail.tsx` still uses badge text + separate icon, and ELO badge st- However, multiple required target surfaces still render ad-hoc sport UI instead of the centralized pill/icon+label pattern:
+ill uses `SPORT_EMOJIS` from rank-tier.
+  - `components/user-profile-card.  - `components/skill-card.tsx` still uses `SPORT_EMOJIS` and raw emoji rendering.
+tsx` still has custom icon+text row markup rather than `Spor  - `pages/game-detail.tsx` still uses badge text + separate icon, and ELO badge still uses `SPORT_EMOJIS` from rank-tier.
+tPill`.
+  - `pages/profile.tsx`, `pages/tournament-detail.tsx`, `pages  - `components/user-profile-card.tsx` still has custom icon+text row markup rather than `SportPill`.
+/tournaments.tsx`, `pages/ranks.tsx` still use bespoke icon/label blocks instead of unified pill usage where task expected consistency.
+- This fails the stated done criteria: “every visible sport tag/chip renders the same way” and specific page-level replacements are incomplete.
+- Scope drift is severe: this commit includes extensive backend/admin/Stripe/role-routing changes unrelated to sport-pill centralization. That is a blocking review concern for this task because it introduces unrelated behavior changes and makes regression attribution impossible.
+- AI-slop signal: newly added oversized explanatory comments (especially in `sport-icon.tsx` / `sport-images.ts`) are unusually verbose vs typical file style and not necessary for this refactor.
+
+Security:
+- None observed that are critical to this task’s objective.
+
+Next actions:
+1) Split/revert unrelated backend/admin/payment/asset changes; submit a focused UI-only PR for sport-pill centralization.
+2) Finish replacing remaining sport tag/chip render paths with `SportPill` (especially `skill-card`, `user-profile-card`, `game-detail`, `profile`, `tournament-detail`, `ranks`, and other task-listed surfaces).
+3) Re-run typecheck (`pnpm --filter @workspace/courtbook exec tsc --noEmit`) and confirm no remaining `SPORT_EMOJIS` UI chip usages except where explicitly intended.  - `pages/profile.tsx`, `pages/tournament-detail.tsx`, `pages/tournaments.tsx`, `pages/ranks.tsx` still use bespoke icon/label blocks instead of unified pill usage where task expected consistency.
+- This fails the stated done criteria: “every visible sport tag/chip renders the same way” and specific page-level replacements are incomplete.
+- Scope drift is severe: this commit includes extensive backend/admin/Stripe/role-routing changes unrelated to sport-pill centralization. That is a blocking review concern for this task because it introduces unrelated behavior changes and makes regression attribution impossible.
+- AI-slop signal: newly added oversized explanatory comments (especially in `sport-icon.tsx` / `sport-images.ts`) are unusually verbose vs typical file style and not necessary for this refactor.
+
+Security:
+- None observed that are critical to this task’s objective.
+
+Next actions:
+1) Split/revert unrelated backend/admin/payment/asset changes; submit a focused UI-only PR for sport-pill centralization.
+2) Finish replacing remaining sport tag/chip render paths with `SportPill` (especially `skill-card`, `user-profile-card`, `game-detail`, `profile`, `tournament-detail`, `ranks`, and other task-listed surfaces).
+3) Re-run typecheck (`pnpm --filter @workspace/courtbook exec tsc --noEmit`) and confirm no remaining `SPORT_EMOJIS` UI chip usages except where explicitly intended.

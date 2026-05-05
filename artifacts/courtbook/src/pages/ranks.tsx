@@ -2,7 +2,7 @@ import { Layout } from "@/components/layout";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Flame, ArrowLeft, Info } from "lucide-react";
-import { SportIcon, getSportColor } from "@/components/sport-icon";
+import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
 
 const TIERS = [
   {
@@ -48,14 +48,9 @@ const TIERS = [
 ];
 
 const SPORTS = [
-  { key: "tennis", label: "Tenisas" }, { key: "basketball", label: "Krepšinis" },
-  { key: "padel", label: "Padelis" }, { key: "football", label: "Futbolas" },
-  { key: "badminton", label: "Badmintonas" }, { key: "table_tennis", label: "Stalo tenisas" },
-  { key: "squash", label: "Skvošas" }, { key: "golf", label: "Golfas" },
-  { key: "bowling", label: "Boulingas" }, { key: "snooker", label: "Snukeris" },
-  { key: "volleyball", label: "Tinklinis" }, { key: "hockey", label: "Ledo ritulys" },
-  { key: "futsal", label: "Futsalas" }, { key: "floorball", label: "Florbolas" },
-  { key: "beach-volleyball", label: "Paplūdimio tinklinis" }, { key: "pickleball", label: "Pickleball" },
+  "tennis", "basketball", "padel", "football", "badminton", "table_tennis",
+  "squash", "golf", "bowling", "snooker", "volleyball", "hockey",
+  "futsal", "floorball", "beach-volleyball", "pickleball",
 ];
 
 const ELO_EXAMPLES = [
@@ -149,9 +144,8 @@ export default function RanksPage() {
           <div className="rounded-2xl border bg-card p-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SPORTS.map(s => (
-                <div key={s.key} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <SportIcon sport={s.key} size={20} strokeWidth={1.75} style={{ color: getSportColor(s.key) }} />
-                  <span className="text-sm font-medium">{s.label}</span>
+                <div key={s} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <SportPill sport={s} variant="subtle" size="md" />
                 </div>
               ))}
             </div>

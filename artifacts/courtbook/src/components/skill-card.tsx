@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield, Trophy, TrendingUp } from "lucide-react";
-import { SPORT_LABELS, SPORT_EMOJIS as SPORT_ICON } from "@/components/sport-icon";
+import { SPORT_LABELS, SportIcon } from "@/components/sport-icon";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -63,7 +63,6 @@ function EloBar({ elo }: { elo: number }) {
 
 function SportRatingItem({ r }: { r: UserRating }) {
   const tier = TIER_CONFIG[r.tier.name] ?? TIER_CONFIG.Bronze;
-  const icon = SPORT_ICON[r.sportSlug] ?? "🏅";
   const total = r.wins + r.losses + r.draws;
   const winRate = total > 0 ? Math.round((r.wins / total) * 100) : 0;
 
@@ -74,7 +73,7 @@ function SportRatingItem({ r }: { r: UserRating }) {
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg">{icon}</span>
+          <SportIcon sport={r.sportSlug} size={18} style={{ color: tier.textColor }} />
           <div>
             <div className="text-sm font-semibold leading-tight">{SPORT_LABELS[r.sportSlug] ?? r.sportSlug}</div>
             <div className="text-xs" style={{ color: tier.textColor }}>{tier.label}</div>
@@ -127,10 +126,10 @@ export function SkillCard({ userId, className }: SkillCardProps) {
         {sorted.length > 0 ? (
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-xl border-2"
+              className="w-12 h-12 rounded-full flex items-center justify-center border-2"
               style={{ borderColor: topConfig.borderColor, background: topConfig.bgColor }}
             >
-              {SPORT_ICON[sorted[0].sportSlug] ?? "🏅"}
+              <SportIcon sport={sorted[0].sportSlug} size={28} style={{ color: topConfig.textColor }} />
             </div>
             <div>
               <div className="text-white font-bold text-lg">{sorted[0].elo} ELO</div>

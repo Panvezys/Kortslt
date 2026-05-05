@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useSearch, useLocation } from "wouter";
 import { useT } from "@/lib/i18n";
-import { SportIcon, SPORT_LABELS, getSportColor } from "@/components/sport-icon";
+import { SportIcon, SportPill, SPORT_LABELS, getSportColor } from "@/components/sport-icon";
 import { SkillCard } from "@/components/skill-card";
 import { useRole } from "@/lib/useRole";
 import {
@@ -549,8 +549,7 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
                 <div key={s.sport} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-medium">
-                      <SportIcon sport={s.sport} size={12} strokeWidth={2} style={{ color: getSportColor(s.sport) }} />
-                      <span>{SPORT_LABELS[s.sport] ?? s.sport}</span>
+                      <SportPill sport={s.sport} size="sm" />
                       {s.gamesPlayed > 0 && (
                         <span className="text-muted-foreground font-normal">{s.gamesPlayed} žaid.</span>
                       )}
@@ -625,11 +624,8 @@ function SportsActivity({ userId, email }: { userId: string; email?: string }) {
           <div className="divide-y">
             {data!.sportProfiles.map(sp => (
               <div key={sp.sport} className="px-5 py-3 flex items-center gap-3">
-                <span className="w-7 flex items-center justify-center">
-                  <SportIcon sport={sp.sport} size={20} strokeWidth={1.75} style={{ color: getSportColor(sp.sport) }} />
-                </span>
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-sm">{SPORT_LABELS[sp.sport] ?? sp.sport}</span>
+                  <SportPill sport={sp.sport} size="sm" />
                 </div>
                 <Select value={sp.level} onValueChange={(v) => upsertSport.mutate({ sport: sp.sport, level: v })}>
                   <SelectTrigger className="h-8 text-xs w-36">

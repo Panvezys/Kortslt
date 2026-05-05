@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarDays, Euro, Users, Trophy, Search, Clock, X, ShieldCheck, Zap, Plus, ListOrdered } from "lucide-react";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
 import { useRole } from "@/lib/useRole";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -64,10 +64,7 @@ function TournamentCard({ t }: { t: Tournament }) {
           {/* Top row */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <SportIcon sport={t.sport} className="w-4 h-4" />
-              </div>
-              <span className="text-xs text-muted-foreground font-medium">{SPORT_LABELS[t.sport] ?? t.sport}</span>
+              <SportPill sport={t.sport} variant="subtle" size="sm" />
             </div>
             <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_COLORS[t.status]}`}>
               {STATUS_LABELS[t.status] ?? t.status}
