@@ -748,12 +748,12 @@ export default function OwnerFacilities() {
                   role="link"
                   tabIndex={0}
                   aria-label={`Atidaryti objektą ${facility.name}`}
-                  onClick={() => navigate(`/owner/facility/${facility.id}`)}
+                  onClick={() => navigate(`/owner/dashboard?facility=${facility.id}`)}
                   onKeyDown={(e) => {
                     if (e.currentTarget !== e.target) return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      navigate(`/owner/facility/${facility.id}`);
+                      navigate(`/owner/dashboard?facility=${facility.id}`);
                     }
                   }}
                   className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
