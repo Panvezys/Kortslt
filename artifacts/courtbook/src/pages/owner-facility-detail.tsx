@@ -1353,12 +1353,7 @@ export default function OwnerFacilityDetail() {
                             <FormControl><SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger></FormControl>
                             <SelectContent>
                               {Object.keys(SPORT_LABELS).filter(k => k !== "table-tennis").map((val) => (
-                                <SelectItem key={val} value={val}>
-                                  <span className="inline-flex items-center gap-2">
-                                    <SportIcon sport={val} size={14} strokeWidth={2} style={{ color: getSportColor(val) }} />
-                                    {SPORT_LABELS[val]}
-                                  </span>
-                                </SelectItem>
+                                <SelectItem key={val} value={val}>{SPORT_LABELS[val]}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select><FormMessage />
@@ -2270,17 +2265,15 @@ function FacilityTournaments({ facilityId, facilityCourts }: { facilityId: numbe
             const isActiveFeatured = t.isFeatured && t.featuredUntil && new Date(t.featuredUntil) > new Date();
             return (
               <div key={t.id} className="flex flex-wrap items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/40 transition-colors">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <SportIcon sport={t.sport} size={26} strokeWidth={1.75} style={{ color: getSportColor(t.sport) }} />
-                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <SportPill sport={t.sport} variant="subtle" size="sm" />
                     <h3 className="font-semibold">{t.name}</h3>
                     {isActiveFeatured && <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">Reklamuojamas</Badge>}
                     <Badge variant="outline" className="text-[10px]">{t.status}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {SPORT_LABELS[t.sport]} · {new Date(t.startDate).toLocaleDateString("lt-LT")} – {new Date(t.endDate).toLocaleDateString("lt-LT")} · {t.registrationCount}/{t.maxParticipants} dalyvių
+                    {new Date(t.startDate).toLocaleDateString("lt-LT")} – {new Date(t.endDate).toLocaleDateString("lt-LT")} · {t.registrationCount}/{t.maxParticipants} dalyvių
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
