@@ -397,7 +397,6 @@ export default function CoachesPage() {
           {/* ── Sport pills (identical to home.tsx) ── */}
           <div className="flex gap-2 flex-wrap mb-4">
             {ALL_SPORTS.map(sport => {
-              const color = getSportColor(sport);
               const active = searchSport === sport;
               return (
                 <button
