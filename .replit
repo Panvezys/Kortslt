@@ -24,6 +24,14 @@ timeoutMs = 20000
 localPort = 8080
 externalPort = 80
 
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 24213
+externalPort = 3000
+
 [nix]
 channel = "stable-25_05"
 packages = ["stripe-cli"]

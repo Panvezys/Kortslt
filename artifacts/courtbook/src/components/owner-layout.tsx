@@ -132,6 +132,21 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             <p className="text-sm font-medium truncate">{facilityName}</p>
           </div>
         )}
+        <div className="shrink-0 border-b border-border/60 p-3">
+          <a
+            href={`${BASE_URL}/owner`}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onClose();
+              navigate("/owner");
+            }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white transition-colors w-full"
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            Grįžti į objektus
+          </a>
+        </div>
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
             Valdymas
@@ -160,21 +175,6 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             );
           })}
         </nav>
-        <div className="shrink-0 border-t border-border/60 p-3">
-          <a
-            href={`${BASE_URL}/owner`}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              onClose();
-              navigate("/owner");
-            }}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors w-full"
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0" />
-            Grįžti į objektus
-          </a>
-        </div>
       </aside>
     </>
   );
