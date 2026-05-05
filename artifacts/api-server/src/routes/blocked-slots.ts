@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, courtsTable, courtBlockedSlotsTable } from "@workspace/db";
+import { db, courtsTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, isOwner } from "../lib/auth";
 import { z } from "zod";
 
@@ -48,7 +48,9 @@ router.post("/courts/:id/blocked-slots", requireAuth, async (req, res): Promise<
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (!(await isOwner(req, court.ownerUserId))) {
+  const [courtFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, courtFacility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -70,7 +72,9 @@ router.delete("/courts/:id/blocked-slots/:slotId", requireAuth, async (req, res)
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (!(await isOwner(req, court.ownerUserId))) {
+  const [courtFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, courtFacility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }

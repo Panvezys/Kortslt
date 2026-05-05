@@ -217,13 +217,6 @@ router.post("/owner/onboard/step4", requireAuth, async (req, res): Promise<void>
         isIndoor: court.isIndoor ?? false,
         maxPlayers: court.maxPlayers ?? 4,
         amenities: court.amenities ?? [],
-        address: court.address ?? facility.address ?? "",
-        city: court.city ?? facility.city ?? "",
-        latitude: court.latitude ?? 54.6872,
-        longitude: court.longitude ?? 25.2797,
-        ownerName: facility.companyName ?? facility.name,
-        ownerEmail: facility.email ?? "",
-        ownerUserId: userId,
         facilityId: facility.id,
         status: "pending",
       })

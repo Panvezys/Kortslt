@@ -123,19 +123,11 @@ const courtSchema = z.object({
   name: z.string().min(2, "Name required"),
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
-  address: z.string().min(5, "Address required"),
-  city: z.string().min(2, "City required"),
-  latitude: z.coerce.number(),
-  longitude: z.coerce.number(),
   pricePerHour: z.coerce.number().min(1),
   peakPricePerHour: z.coerce.number().optional(),
-  ownershipDocUrl: z.string().optional(),
   imageUrl: z.string().optional(),
-  ownerName: z.string().min(2, "Owner name required"),
-  ownerEmail: z.string().email("Invalid email"),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
-  postcode: z.string().optional(),
   amenities: z.array(z.string()).default([]),
   socialFacebook: z.string().optional(),
   socialInstagram: z.string().optional(),
@@ -1057,12 +1049,10 @@ export default function OwnerFacilityDetail() {
   const form = useForm<CourtFormValues>({
     resolver: zodResolver(courtSchema),
     defaultValues: {
-      name: "", type: "tennis", description: "", address: facility?.address ?? "", city: facility?.city ?? "",
-      latitude: facility?.latitude ?? 0, longitude: facility?.longitude ?? 0,
+      name: "", type: "tennis", description: "",
       pricePerHour: 20, peakPricePerHour: undefined,
-      imageUrl: "", ownershipDocUrl: "", ownerName: user?.fullName ?? "Owner",
-      ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "owner@example.com",
-      isIndoor: false, maxPlayers: 4, postcode: facility?.postcode ?? "", amenities: [],
+      imageUrl: "",
+      isIndoor: false, maxPlayers: 4, amenities: [],
       socialFacebook: "", socialInstagram: "", socialWhatsapp: "", socialWebsite: "",
       facilityId: Number(id), workingHours: undefined,
     },
@@ -1101,9 +1091,7 @@ export default function OwnerFacilityDetail() {
         workingHours: whJson,
         amenityPhotos: amenityPhotosJson,
         description: cleanStr(data.description),
-        postcode: cleanStr(data.postcode),
         imageUrl: cleanStr(data.imageUrl),
-        ownershipDocUrl: cleanStr(data.ownershipDocUrl),
         surface: cleanStr((data as any).surface),
         socialFacebook: cleanStr(data.socialFacebook),
         socialInstagram: cleanStr(data.socialInstagram),
@@ -1143,13 +1131,10 @@ export default function OwnerFacilityDetail() {
     setFormTab("info");
     form.reset({
       name: court.name, type: court.type, description: court.description || "",
-      address: court.address, city: court.city, latitude: court.latitude, longitude: court.longitude,
       pricePerHour: court.pricePerHour, peakPricePerHour: court.peakPricePerHour ?? undefined,
       imageUrl: court.imageUrl || "",
-      ownershipDocUrl: court.ownershipDocUrl || "", ownerName: court.ownerName, ownerEmail: court.ownerEmail,
       isIndoor: court.isIndoor, maxPlayers: court.maxPlayers,
       amenities: Array.isArray(court.amenities) ? court.amenities : [],
-      postcode: court.postcode ?? "",
       socialFacebook: court.socialFacebook ?? "", socialInstagram: court.socialInstagram ?? "",
       socialWhatsapp: court.socialWhatsapp ?? "", socialWebsite: court.socialWebsite ?? "",
       facilityId: Number(id), workingHours: court.workingHours ?? undefined,
@@ -1305,13 +1290,9 @@ export default function OwnerFacilityDetail() {
                 setEditingId(null);
                 form.reset({
                   name: "", type: "tennis", description: "",
-                  address: facility.address ?? "", city: facility.city ?? "",
-                  latitude: facility.latitude ?? 0, longitude: facility.longitude ?? 0,
                   pricePerHour: 20,
-                  imageUrl: "", ownershipDocUrl: "",
-                  ownerName: user?.fullName ?? "Owner",
-                  ownerEmail: user?.primaryEmailAddress?.emailAddress ?? "",
-                  isIndoor: false, maxPlayers: 4, postcode: facility.postcode ?? "", amenities: [],
+                  imageUrl: "",
+                  isIndoor: false, maxPlayers: 4, amenities: [],
                   facilityId: Number(id), workingHours: undefined,
                 });
                 setMapKey(k => k + 1);
@@ -1582,14 +1563,6 @@ export default function OwnerFacilityDetail() {
                   </div>)}
 
                   {formTab === "contact" && (<div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="ownerName" render={({ field }) => (
-                        <FormItem><FormLabel>Savininko vardas</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name="ownerEmail" render={({ field }) => (
-                        <FormItem><FormLabel>Savininko el. paštas</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                    </div>
                     <div>
                       <p className="text-sm font-semibold mb-3">Socialiniai tinklai</p>
                       <div className="grid grid-cols-2 gap-4">

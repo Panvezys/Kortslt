@@ -44,14 +44,15 @@ router.post("/owner/bookings/:id/force-cancel", requireAuth, async (req, res): P
   const rows = await db
     .select({
       booking: bookingsTable,
-      courtOwnerUserId: courtsTable.ownerUserId,
+      courtOwnerUserId: facilitiesTable.ownerUserId,
       courtFacilityId: courtsTable.facilityId,
       courtName: courtsTable.name,
-      ownerName: courtsTable.ownerName,
-      ownerEmail: courtsTable.ownerEmail,
+      ownerName: facilitiesTable.name,
+      ownerEmail: facilitiesTable.email,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, id));
 
   if (!rows[0]) {
@@ -61,16 +62,8 @@ router.post("/owner/bookings/:id/force-cancel", requireAuth, async (req, res): P
 
   const { booking, courtOwnerUserId, courtFacilityId, courtName, ownerName, ownerEmail } = rows[0];
 
-  // Ownership check: caller must own the court directly OR own the facility.
-  let isOwner = courtOwnerUserId === userId;
-  if (!isOwner && courtFacilityId) {
-    const [facility] = await db
-      .select({ ownerUserId: facilitiesTable.ownerUserId })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, courtFacilityId))
-      .limit(1);
-    isOwner = !!facility && facility.ownerUserId === userId;
-  }
+  // Ownership check: caller must own the facility.
+  const isOwner = courtOwnerUserId === userId;
   if (!isOwner) {
     res.status(403).json({ error: "Forbidden" });
     return;

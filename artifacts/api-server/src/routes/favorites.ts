@@ -30,7 +30,6 @@ router.get("/favorites", requireAuth, async (req, res): Promise<void> => {
     ...c,
     pricePerHour: Number(c.pricePerHour),
     amenities: c.amenities ?? [],
-    openingHours: c.openingHours ?? [],
   })));
 });
 

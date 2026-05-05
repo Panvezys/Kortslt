@@ -14,7 +14,6 @@ import {
   GetCourtAvailabilityParams,
   GetCourtAvailabilityQueryParams,
   GetCourtAvailabilityResponse,
-  ListCourtsResponse,
   GetCourtPricingParams,
   GetCourtPricingResponse,
   SetCourtPricingParams,
@@ -26,9 +25,19 @@ import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
 
-function formatCourt(c: typeof courtsTable.$inferSelect) {
+type FacilityRow = typeof facilitiesTable.$inferSelect;
+type CourtRow = typeof courtsTable.$inferSelect;
+
+function formatCourt(c: CourtRow, facility: FacilityRow | null) {
   return {
     ...c,
+    address: facility?.address ?? undefined,
+    city: facility?.city ?? undefined,
+    postcode: facility?.postcode ?? undefined,
+    latitude: facility?.latitude ?? undefined,
+    longitude: facility?.longitude ?? undefined,
+    ownerUserId: facility?.ownerUserId ?? undefined,
+    ownershipDocUrl: facility?.ownershipDocUrl ?? undefined,
     pricePerHour: Number(c.pricePerHour),
     peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
     rentableItems: c.rentableItems ?? undefined,
@@ -38,16 +47,11 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
     surface: c.surface ?? undefined,
     condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
     phone: c.phone ?? undefined,
-    openingHours: c.openingHours ?? undefined,
-    ownerUserId: c.ownerUserId ?? undefined,
-    ownershipDocUrl: c.ownershipDocUrl ?? undefined,
     rejectionReason: c.rejectionReason ?? undefined,
-    postcode: c.postcode ?? undefined,
     socialFacebook: c.socialFacebook ?? undefined,
     socialInstagram: c.socialInstagram ?? undefined,
     socialWhatsapp: c.socialWhatsapp ?? undefined,
     socialWebsite: c.socialWebsite ?? undefined,
-    facilityId: c.facilityId ?? undefined,
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
     instantBookingEnabled: c.instantBookingEnabled ?? true,
@@ -55,23 +59,23 @@ function formatCourt(c: typeof courtsTable.$inferSelect) {
 }
 
 /** Restricted view for unauthenticated / public callers.
- *  Sensitive internal and owner-identifying fields are intentionally omitted. */
-function formatPublicCourt(c: typeof courtsTable.$inferSelect) {
+ *  Sensitive internal fields are intentionally omitted. */
+function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
   return {
     id: c.id,
     name: c.name,
     type: c.type,
     description: c.description ?? undefined,
-    address: c.address,
-    city: c.city,
-    postcode: c.postcode ?? undefined,
-    latitude: c.latitude,
-    longitude: c.longitude,
+    address: facility?.address ?? undefined,
+    city: facility?.city ?? undefined,
+    postcode: facility?.postcode ?? undefined,
+    latitude: facility?.latitude ?? undefined,
+    longitude: facility?.longitude ?? undefined,
     pricePerHour: Number(c.pricePerHour),
     peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
     rentableItems: c.rentableItems ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
-    ownerName: c.ownerName,
+    ownerUserId: facility?.ownerUserId ?? undefined,
     amenities: c.amenities,
     isIndoor: c.isIndoor,
     maxPlayers: c.maxPlayers,
@@ -80,17 +84,28 @@ function formatPublicCourt(c: typeof courtsTable.$inferSelect) {
     rating: c.rating ?? undefined,
     totalBookings: c.totalBookings,
     phone: c.phone ?? undefined,
-    openingHours: c.openingHours ?? undefined,
     socialFacebook: c.socialFacebook ?? undefined,
     socialInstagram: c.socialInstagram ?? undefined,
     socialWhatsapp: c.socialWhatsapp ?? undefined,
     socialWebsite: c.socialWebsite ?? undefined,
     instantBookingEnabled: c.instantBookingEnabled ?? true,
-    facilityId: c.facilityId ?? undefined,
+    facilityId: c.facilityId,
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
     createdAt: c.createdAt,
   };
+}
+
+async function getFacility(facilityId: number): Promise<FacilityRow | null> {
+  const [f] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  return f ?? null;
+}
+
+async function getFacilitiesMap(facilityIds: number[]): Promise<Map<number, FacilityRow>> {
+  if (facilityIds.length === 0) return new Map();
+  const unique = [...new Set(facilityIds)];
+  const rows = await db.select().from(facilitiesTable).where(inArray(facilitiesTable.id, unique));
+  return new Map(rows.map(f => [f.id, f]));
 }
 
 /** Returns true if the given time slot (HH:MM) falls in peak hours: Mon–Fri 17:00–22:00 */
@@ -131,11 +146,12 @@ const PUBLIC_STATUSES = ["approved", "active"] as const;
 
 router.get("/courts/cities", async (_req, res): Promise<void> => {
   const rows = await db
-    .selectDistinct({ city: courtsTable.city })
+    .selectDistinct({ city: facilitiesTable.city })
     .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active")))
-    .orderBy(courtsTable.city);
-  res.json(rows.map(r => r.city));
+    .orderBy(facilitiesTable.city);
+  res.json(rows.map(r => r.city).filter(Boolean));
 });
 
 router.get("/courts", async (req, res): Promise<void> => {
@@ -160,36 +176,30 @@ router.get("/courts", async (req, res): Promise<void> => {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
-    conditions.push(eq(courtsTable.ownerUserId, params.data.ownerUserId));
   } else {
     // Public callers only see active/approved courts.
     conditions.push(inArray(courtsTable.status, ["approved", "active"]));
   }
 
   if (params.data.type) conditions.push(eq(courtsTable.type, params.data.type));
-  if (params.data.city) conditions.push(eq(courtsTable.city, params.data.city));
   if (params.data.surface) conditions.push(eq(courtsTable.surface, params.data.surface));
   if (params.data.condition) conditions.push(eq(courtsTable.condition, params.data.condition));
   if (params.data.isIndoor != null) conditions.push(eq(courtsTable.isIndoor, params.data.isIndoor));
   if (params.data.minPrice != null) conditions.push(gte(courtsTable.pricePerHour, String(params.data.minPrice)));
   if (params.data.maxPrice != null) conditions.push(lte(courtsTable.pricePerHour, String(params.data.maxPrice)));
-  if (params.data.ownerEmail) conditions.push(eq(courtsTable.ownerEmail, params.data.ownerEmail));
 
-  // Public view: courts must belong to a verified facility (or have no facility).
-  // Owner view (ownerUserId set) skips this filter so owners see their unverified courts.
-  if (!params.data.ownerUserId) {
-    // Join with facilities and only include courts from verified facilities (or legacy courts with no facilityId)
+  if (params.data.ownerUserId) {
+    // Authenticated owner/admin view — join facilities to filter by owner and return full data.
+    const facilityConditions = [eq(facilitiesTable.ownerUserId, params.data.ownerUserId)];
+    if (params.data.city) facilityConditions.push(eq(facilitiesTable.city, params.data.city));
+
     const rows = await db
-      .select({ court: courtsTable, facilityStatus: facilitiesTable.verificationStatus })
+      .select({ court: courtsTable, facility: facilitiesTable })
       .from(courtsTable)
-      .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-      .where(and(...conditions));
+      .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(and(...conditions, ...facilityConditions));
 
-    const filtered = rows.filter(r =>
-      r.court.facilityId == null || r.facilityStatus === "active"
-    );
-
-    const courtIds = filtered.map(r => r.court.id);
+    const courtIds = rows.map(r => r.court.id);
     const photoMap = new Map<number, string[]>();
     if (courtIds.length > 0) {
       const photos = await db
@@ -204,20 +214,23 @@ router.get("/courts", async (req, res): Promise<void> => {
       }
     }
 
-    res.json(filtered.map(r => ({
-      ...formatPublicCourt(r.court),
-      facilityVerified: r.facilityStatus === "verified",
-      photos: photoMap.get(r.court.id) ?? [],
-    })));
+    res.json(rows.map(r => ({ ...formatCourt(r.court, r.facility), photos: photoMap.get(r.court.id) ?? [] })));
     return;
   }
 
-  // Authenticated owner/admin view — return full court data including internal fields.
-  let query = db.select().from(courtsTable).$dynamic();
-  if (conditions.length > 0) query = query.where(and(...conditions));
+  // Public view: courts must belong to a verified facility.
+  const facilityConditions: ReturnType<typeof eq>[] = [];
+  if (params.data.city) facilityConditions.push(eq(facilitiesTable.city, params.data.city));
 
-  const courts = await query;
-  const courtIds = courts.map(c => c.id);
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(and(...conditions, ...facilityConditions));
+
+  const filtered = rows.filter(r => r.facility.verificationStatus === "active");
+
+  const courtIds = filtered.map(r => r.court.id);
   const photoMap = new Map<number, string[]>();
   if (courtIds.length > 0) {
     const photos = await db
@@ -231,7 +244,12 @@ router.get("/courts", async (req, res): Promise<void> => {
       photoMap.set(p.courtId, arr);
     }
   }
-  res.json(courts.map(c => ({ ...formatCourt(c), photos: photoMap.get(c.id) ?? [] })));
+
+  res.json(filtered.map(r => ({
+    ...formatPublicCourt(r.court, r.facility),
+    facilityVerified: r.facility.verificationStatus === "active",
+    photos: photoMap.get(r.court.id) ?? [],
+  })));
 });
 
 router.post("/courts", requireAuth, async (req, res): Promise<void> => {
@@ -241,42 +259,40 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const userId = getCurrentUserId(req);
+  const facility = await getFacility(parsed.data.facilityId);
+  if (!facility) {
+    res.status(404).json({ error: "Facility not found" });
+    return;
+  }
 
-  let inheritedLocation: { address?: string; city?: string; latitude?: number; longitude?: number; postcode?: string } = {};
-  if (parsed.data.facilityId) {
-    const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, parsed.data.facilityId));
-    if (facility) {
-      inheritedLocation = {
-        address: facility.address ?? parsed.data.address,
-        city: facility.city ?? parsed.data.city,
-        latitude: facility.latitude ?? parsed.data.latitude,
-        longitude: facility.longitude ?? parsed.data.longitude,
-        postcode: facility.postcode ?? parsed.data.postcode,
-      };
-    }
+  if (!(await isOwner(req, facility.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden – you do not own this facility" });
+    return;
   }
 
   const [court] = await db
     .insert(courtsTable)
     .values({
-      ...parsed.data,
-      ...inheritedLocation,
+      name: parsed.data.name,
+      type: parsed.data.type,
+      description: parsed.data.description ?? null,
       pricePerHour: String(parsed.data.pricePerHour),
       peakPricePerHour: parsed.data.peakPricePerHour != null ? String(parsed.data.peakPricePerHour) : null,
       rentableItems: parsed.data.rentableItems ?? null,
+      imageUrl: parsed.data.imageUrl ?? null,
       amenities: parsed.data.amenities ?? [],
+      isIndoor: parsed.data.isIndoor,
+      maxPlayers: parsed.data.maxPlayers,
+      surface: parsed.data.surface ?? null,
       condition: (parsed.data.condition ?? "good") as string,
-      ownerUserId: userId,
       status: "draft",
       instantBookingEnabled: true,
-      ownershipDocUrl: parsed.data.ownershipDocUrl ?? null,
-      facilityId: parsed.data.facilityId ?? null,
+      facilityId: parsed.data.facilityId,
       workingHours: parsed.data.workingHours ?? null,
     })
     .returning();
 
-  res.status(201).json(formatCourt(court));
+  res.status(201).json(formatCourt(court, facility));
 });
 
 router.get("/courts/:id", async (req, res): Promise<void> => {
@@ -293,22 +309,22 @@ router.get("/courts/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const facility = await getFacility(court.facilityId);
+  const facilityOwnerUserId = facility?.ownerUserId ?? null;
+
   const isPublic = court.status === "approved" || court.status === "active";
 
   if (!isPublic) {
     // Non-public courts are only visible to the owner or an admin.
-    if (!(await isOwner(req, court.ownerUserId))) {
+    if (!(await isOwner(req, facilityOwnerUserId))) {
       res.status(404).json({ error: "Court not found" });
       return;
     }
-    // Authenticated owner/admin gets full internal data validated against the schema.
-    res.json(GetCourtResponse.parse(formatCourt(court)));
+    res.json(GetCourtResponse.parse(formatCourt(court, facility)));
     return;
   }
 
-  // Public court — return the restricted public view (no Zod parse to avoid
-  // requiring internal fields like ownerEmail that are intentionally excluded).
-  res.json(formatPublicCourt(court));
+  res.json(formatPublicCourt(court, facility));
 });
 
 router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
@@ -324,13 +340,15 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Ownership check
+  // Ownership check via facility
   const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (!(await isOwner(req, existing.ownerUserId))) {
+
+  const facility = await getFacility(existing.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -341,11 +359,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
   }
 
-  // Explicitly destructure body.data to guarantee ownerUserId is never
-  // written — even if the schema or client ever adds it in the future.
-  // The original court owner must always remain the owner.
   const { ...safeFields } = body.data as any;
-  delete safeFields.ownerUserId;
 
   const [court] = await db
     .update(courtsTable)
@@ -357,7 +371,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       rentableItems: body.data.rentableItems ?? null,
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
-      facilityId: body.data.facilityId ?? null,
+      facilityId: existing.facilityId,
       workingHours: body.data.workingHours ?? null,
       amenityPhotos: body.data.amenityPhotos ?? null,
     })
@@ -369,7 +383,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(UpdateCourtResponse.parse(formatCourt(court)));
+  res.json(UpdateCourtResponse.parse(formatCourt(court, facility)));
 });
 
 
@@ -380,13 +394,14 @@ router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Ownership check
   const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
   if (!existing) {
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (!(await isOwner(req, existing.ownerUserId))) {
+
+  const facility = await getFacility(existing.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -561,7 +576,9 @@ router.put("/courts/:id/pricing", requireAuth, async (req, res): Promise<void> =
     res.status(404).json({ error: "Court not found" });
     return;
   }
-  if (!(await isOwner(req, existingCourt.ownerUserId))) {
+
+  const facility = await getFacility(existingCourt.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden – you do not own this court" });
     return;
   }
@@ -656,14 +673,16 @@ router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
-  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+
+  const facility = await getFacility(court.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
   // Validate required fields
   const missingFields: string[] = [];
   if (!court.pricePerHour || Number(court.pricePerHour) <= 0) missingFields.push("kaina");
-  if (!court.address || !court.city) missingFields.push("vieta");
+  if (!facility?.address || !facility?.city) missingFields.push("vieta");
   if (missingFields.length > 0) {
     res.status(422).json({ error: `Trūksta privalomų laukų: ${missingFields.join(", ")}` }); return;
   }
@@ -684,7 +703,7 @@ router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<
     "/admin/courts",
   );
 
-  res.json(formatCourt(updated));
+  res.json(formatCourt(updated, facility));
 });
 
 // ─── Admin/Owner: update court status ─────────────────────────────────────────
@@ -701,10 +720,12 @@ router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
+  const facility = await getFacility(court.facilityId);
+
   const userId = getCurrentUserId(req);
   const role = userId ? await getUserRole(userId) : null;
   const userIsAdmin = role === "admin";
-  const userIsOwner = await isOwner(req, court.ownerUserId ?? "");
+  const userIsOwner = await isOwner(req, facility?.ownerUserId ?? null);
 
   if (userIsAdmin) {
     if (!ALLOWED_ADMIN.includes(status)) {
@@ -727,18 +748,19 @@ router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> 
     .where(eq(courtsTable.id, courtId))
     .returning();
 
-  res.json(formatCourt(updated));
+  res.json(formatCourt(updated, facility));
 });
 
 // ─── Admin: list courts pending review ───────────────────────────────────────
 router.get("/admin/courts/pending", requireAdmin, async (_req, res): Promise<void> => {
-  const courts = await db
-    .select()
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
     .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(inArray(courtsTable.status, ["pending", "pending_review"]))
     .orderBy(courtsTable.createdAt);
 
-  const courtIds = courts.map(c => c.id);
+  const courtIds = rows.map(r => r.court.id);
   const photoMap = new Map<number, string[]>();
   if (courtIds.length > 0) {
     const photos = await db
@@ -753,7 +775,7 @@ router.get("/admin/courts/pending", requireAdmin, async (_req, res): Promise<voi
     }
   }
 
-  res.json(courts.map(c => ({ ...formatCourt(c), photos: photoMap.get(c.id) ?? [] })));
+  res.json(rows.map(r => ({ ...formatCourt(r.court, r.facility), photos: photoMap.get(r.court.id) ?? [] })));
 });
 
 router.get("/courts/:id/activity", async (req, res): Promise<void> => {

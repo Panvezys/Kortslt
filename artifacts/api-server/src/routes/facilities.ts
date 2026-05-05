@@ -103,8 +103,6 @@ router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
           type: courtsTable.type,
           status: courtsTable.status,
           pricePerHour: courtsTable.pricePerHour,
-          city: courtsTable.city,
-          address: courtsTable.address,
           imageUrl: courtsTable.imageUrl,
           isIndoor: courtsTable.isIndoor,
           rating: courtsTable.rating,

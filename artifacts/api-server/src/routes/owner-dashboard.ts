@@ -46,10 +46,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
 
   const courtsWhere = scopedFacilityId !== undefined
     ? eq(courtsTable.facilityId, scopedFacilityId)
-    : or(
-        eq(courtsTable.ownerUserId, userId),
-        facilityIds.length > 0 ? inArray(courtsTable.facilityId, facilityIds) : sql`false`
-      );
+    : (facilityIds.length > 0 ? inArray(courtsTable.facilityId, facilityIds) : sql`false`);
 
   const courts = await db
     .select()
@@ -162,7 +159,6 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       name: c.name,
       type: c.type,
       facilityId: c.facilityId,
-      openingHours: c.openingHours,
       workingHours: c.workingHours,
     })),
     todayBookings: todayBookings.map(b => ({

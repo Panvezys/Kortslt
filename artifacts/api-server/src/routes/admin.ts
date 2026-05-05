@@ -30,9 +30,6 @@ router.get("/admin/courts", requireAdmin, async (_req, res): Promise<void> => {
       rating: c.rating ?? undefined,
       surface: c.surface ?? undefined,
       phone: c.phone ?? undefined,
-      openingHours: c.openingHours ?? undefined,
-      ownerUserId: c.ownerUserId ?? undefined,
-      ownershipDocUrl: c.ownershipDocUrl ?? undefined,
       rejectionReason: c.rejectionReason ?? undefined,
     }))
   );
@@ -51,14 +48,20 @@ router.put("/admin/courts/:id/approve", requireAdmin, async (req, res): Promise<
 
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (court.ownerUserId) {
-    await db.insert(notificationsTable).values({
-      userId: court.ownerUserId,
-      type: "court_approved",
-      title: `Kortas patvirtintas: ${court.name}`,
-      body: "Jūsų kortas patvirtintas ir dabar matomas klientams.",
-      link: `/owner/facility/${court.facilityId ?? ""}`,
-    }).catch(() => {});
+  if (court.facilityId) {
+    const [facility] = await db
+      .select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, court.facilityId));
+    if (facility?.ownerUserId) {
+      await db.insert(notificationsTable).values({
+        userId: facility.ownerUserId,
+        type: "court_approved",
+        title: `Kortas patvirtintas: ${court.name}`,
+        body: "Jūsų kortas patvirtintas ir dabar matomas klientams.",
+        link: `/owner/facility/${court.facilityId}`,
+      }).catch(() => {});
+    }
   }
 
   res.json({ id: court.id, status: court.status });
@@ -82,14 +85,20 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
 
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (court.ownerUserId) {
-    await db.insert(notificationsTable).values({
-      userId: court.ownerUserId,
-      type: "court_rejected",
-      title: `Kortas atmestas: ${court.name}`,
-      body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
-      link: `/owner/facility/${court.facilityId ?? ""}`,
-    }).catch(() => {});
+  if (court.facilityId) {
+    const [facility] = await db
+      .select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, court.facilityId));
+    if (facility?.ownerUserId) {
+      await db.insert(notificationsTable).values({
+        userId: facility.ownerUserId,
+        type: "court_rejected",
+        title: `Kortas atmestas: ${court.name}`,
+        body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
+        link: `/owner/facility/${court.facilityId}`,
+      }).catch(() => {});
+    }
   }
 
   res.json({ id: court.id, status: court.status, rejectionReason: court.rejectionReason });
@@ -444,6 +453,22 @@ router.post("/admin/seed-courts", requireAdmin, async (_req, res): Promise<void>
     const seedPath = join(__dirname, "data/courts-seed.json");
     const seedData: Array<Record<string, unknown>> = JSON.parse(readFileSync(seedPath, "utf-8"));
 
+    // Ensure a seed facility exists to satisfy the notNull facilityId FK
+    let seedFacilityId: number;
+    const [existingFacility] = await db.select({ id: facilitiesTable.id }).from(facilitiesTable).limit(1);
+    if (existingFacility) {
+      seedFacilityId = existingFacility.id;
+    } else {
+      const [newFacility] = await db.insert(facilitiesTable).values({
+        name: "Seed Facility",
+        ownerUserId: "seed",
+        address: "",
+        city: "",
+        verificationStatus: "pending",
+      }).returning({ id: facilitiesTable.id });
+      seedFacilityId = newFacility.id;
+    }
+
     const BATCH = 50;
     let inserted = 0;
     for (let i = 0; i < seedData.length; i += BATCH) {
@@ -451,15 +476,8 @@ router.post("/admin/seed-courts", requireAdmin, async (_req, res): Promise<void>
         name: c.name as string,
         type: c.type as string,
         description: c.description as string | null,
-        address: c.address as string,
-        city: c.city as string,
-        latitude: c.latitude as number,
-        longitude: c.longitude as number,
         pricePerHour: String(c.price_per_hour),
         imageUrl: c.image_url as string | null,
-        ownerName: (c.owner_name ?? "") as string,
-        ownerEmail: (c.owner_email ?? "") as string,
-        ownerUserId: c.owner_user_id as string | null,
         amenities: (Array.isArray(c.amenities) ? c.amenities : []) as string[],
         isIndoor: (c.is_indoor ?? false) as boolean,
         maxPlayers: (c.max_players ?? 4) as number,
@@ -468,10 +486,9 @@ router.post("/admin/seed-courts", requireAdmin, async (_req, res): Promise<void>
         rating: c.rating as number | null,
         totalBookings: (c.total_bookings ?? 0) as number,
         phone: c.phone as string | null,
-        openingHours: (Array.isArray(c.opening_hours) ? c.opening_hours : null) as string[] | null,
         status: (c.status ?? "approved") as string,
-        ownershipDocUrl: c.ownership_doc_url as string | null,
         rejectionReason: c.rejection_reason as string | null,
+        facilityId: seedFacilityId,
       }));
       await db.insert(courtsTable).values(batch).onConflictDoNothing();
       inserted += batch.length;

@@ -154,14 +154,11 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
     // Owner can see bookings for courts they own directly OR for courts that
     // belong to a facility they own (facility-inherited ownership).
     conditions.push(
-      or(
-        eq(courtsTable.ownerUserId, userId),
-        inArray(
-          courtsTable.facilityId,
-          db.select({ id: facilitiesTable.id })
-            .from(facilitiesTable)
-            .where(eq(facilitiesTable.ownerUserId, userId))
-        ),
+      inArray(
+        courtsTable.facilityId,
+        db.select({ id: facilitiesTable.id })
+          .from(facilitiesTable)
+          .where(eq(facilitiesTable.ownerUserId, userId))
       ),
     );
     query = query.where(and(...conditions));
@@ -390,14 +387,18 @@ router.post("/bookings", async (req, res): Promise<void> => {
     throw err;
   }
 
-  if (court.ownerUserId) {
-    await sendNotification(
-      court.ownerUserId,
-      "booking_created",
-      `Nauja rezervacija — ${court.name}`,
-      `${parsed.data.customerName} užrezervavo ${dateStr0} ${parsed.data.startTime}–${parsed.data.endTime}.`,
-      "/owner",
-    );
+  {
+    const [bookingFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+    if (bookingFacility?.ownerUserId) {
+      await sendNotification(
+        bookingFacility.ownerUserId,
+        "booking_created",
+        `Nauja rezervacija — ${court.name}`,
+        `${parsed.data.customerName} užrezervavo ${dateStr0} ${parsed.data.startTime}–${parsed.data.endTime}.`,
+        "/owner",
+      );
+    }
   }
 
   res.status(201).json(GetBookingResponse.parse(formatBooking(booking, court.name)));
@@ -413,9 +414,10 @@ router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
 
   const rows = await db
-    .select({ booking: bookingsTable, courtName: courtsTable.name, courtOwnerUserId: courtsTable.ownerUserId })
+    .select({ booking: bookingsTable, courtName: courtsTable.name, facilityOwnerUserId: facilitiesTable.ownerUserId })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, params.data.id));
 
   if (!rows[0]) {
@@ -423,10 +425,10 @@ router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, courtName, courtOwnerUserId } = rows[0];
+  const { booking, courtName, facilityOwnerUserId } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
-  const isCourOwner = courtOwnerUserId === userId;
+  const isCourOwner = facilityOwnerUserId === userId;
 
   if (role !== "admin" && !isBooker && !isCourOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -448,13 +450,14 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
     .select({
       booking: bookingsTable,
-      courtOwnerUserId: courtsTable.ownerUserId,
       courtName: courtsTable.name,
-      ownerName: courtsTable.ownerName,
-      ownerEmail: courtsTable.ownerEmail,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+      facilityOwnerName: facilitiesTable.name,
+      facilityOwnerEmail: facilitiesTable.email,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, params.data.id));
 
   if (!rows[0]) {
@@ -462,10 +465,10 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, courtOwnerUserId, courtName, ownerName, ownerEmail } = rows[0];
+  const { booking, facilityOwnerUserId, courtName, facilityOwnerName: ownerName, facilityOwnerEmail: ownerEmail } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
-  const isCourtOwner = courtOwnerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
 
   if (role !== "admin" && !isBooker && !isCourtOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -570,9 +573,9 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     ).catch((err) => logger.error({ err, bookingId: booking.id }, "booker cancel notification failed"));
   }
 
-  if (courtOwnerUserId && courtOwnerUserId !== userId && !notifiedUserIds.has(courtOwnerUserId)) {
+  if (facilityOwnerUserId && facilityOwnerUserId !== userId && !notifiedUserIds.has(facilityOwnerUserId)) {
     sendNotification(
-      courtOwnerUserId,
+      facilityOwnerUserId,
       "booking_cancelled",
       `Atšaukta rezervacija — ${displayCourtName}`,
       `${booking.customerName} atšaukė ${dateStr} ${booking.startTime}–${booking.endTime}.${
@@ -624,17 +627,18 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
   const userId = getCurrentUserId(req)!;
 
   const rows = await db
-    .select({ booking: bookingsTable, courtOwnerUserId: courtsTable.ownerUserId })
+    .select({ booking: bookingsTable, facilityOwnerUserId: facilitiesTable.ownerUserId })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, id));
 
   if (!rows[0]) { res.status(404).json({ error: "Booking not found" }); return; }
 
-  const { booking, courtOwnerUserId } = rows[0];
+  const { booking, facilityOwnerUserId } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
-  const isCourtOwner = courtOwnerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
 
   if (role !== "admin" && !isBooker && !isCourtOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -677,12 +681,13 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtId: courtsTable.id,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
-      courtOwnerUserId: courtsTable.ownerUserId,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, id));
 
   if (!rows[0]) {
@@ -690,10 +695,10 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const { booking, courtName, courtId, courtAddress, courtCity, courtOwnerUserId } = rows[0];
+  const { booking, courtName, courtId, courtAddress, courtCity, facilityOwnerUserId } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
-  const isCourtOwner = courtOwnerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
 
   if (role !== "admin" && !isBooker && !isCourtOwner) {
     res.status(403).send("Forbidden");
@@ -751,7 +756,9 @@ router.post("/owner/bookings/block", requireAuth, async (req, res): Promise<void
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
-  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+  const [blockFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, blockFacility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
@@ -824,8 +831,9 @@ router.post("/owner/bookings/manual", requireAuth, async (req, res): Promise<voi
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
-
-  if (!(await isOwner(req, court.ownerUserId ?? ""))) {
+  const [manualFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, manualFacility?.ownerUserId ?? null))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

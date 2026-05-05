@@ -906,8 +906,8 @@ export default function Profile() {
   );
 
   const { data: ownerCourts, isLoading: courtsLoading } = useListCourts(
-    { ownerEmail: email },
-    { query: { queryKey: getListCourtsQueryKey({ ownerEmail: email }), enabled: !!email } }
+    { ownerUserId: userId },
+    { query: { queryKey: getListCourtsQueryKey({ ownerUserId: userId }), enabled: !!userId } }
   );
 
   const { favorites, loading: favoritesLoading, coachFavorites, loadingCoachFav } = useFavoritesContext();

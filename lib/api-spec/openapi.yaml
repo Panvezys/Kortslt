@@ -74,10 +74,6 @@ paths:
           in: query
           schema:
             type: string
-        - name: ownerEmail
-          in: query
-          schema:
-            type: string
       responses:
         "200":
           description: List of courts
@@ -500,12 +496,19 @@ components:
           type: string
         address:
           type: string
+          nullable: true
         city:
           type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
         latitude:
           type: number
+          nullable: true
         longitude:
           type: number
+          nullable: true
         pricePerHour:
           type: number
         peakPricePerHour:
@@ -516,11 +519,10 @@ components:
           nullable: true
         imageUrl:
           type: string
-        ownerName:
-          type: string
-        ownerEmail:
-          type: string
         ownerUserId:
+          type: string
+          nullable: true
+        ownershipDocUrl:
           type: string
           nullable: true
         amenities:
@@ -545,10 +547,6 @@ components:
           type: integer
         phone:
           type: string
-        openingHours:
-          type: array
-          items:
-            type: string
         status:
           type: string
           enum: [draft, pending, approved, rejected]
@@ -574,13 +572,7 @@ components:
         - id
         - name
         - type
-        - address
-        - city
-        - latitude
-        - longitude
         - pricePerHour
-        - ownerName
-        - ownerEmail
         - isIndoor
         - maxPlayers
         - condition
@@ -597,21 +589,9 @@ components:
           enum: [tennis, basketball, padel, football, badminton, squash]
         description:
           type: string
-        address:
-          type: string
-        city:
-          type: string
-        latitude:
-          type: number
-        longitude:
-          type: number
         pricePerHour:
           type: number
         imageUrl:
-          type: string
-        ownerName:
-          type: string
-        ownerEmail:
           type: string
         amenities:
           type: array
@@ -628,16 +608,10 @@ components:
           enum: [excellent, good, fair]
         facilityId:
           type: integer
-          nullable: true
-        postcode:
-          type: string
         peakPricePerHour:
           type: number
           nullable: true
         rentableItems:
-          type: string
-          nullable: true
-        ownershipDocUrl:
           type: string
           nullable: true
         workingHours:
@@ -649,15 +623,10 @@ components:
       required:
         - name
         - type
-        - address
-        - city
-        - latitude
-        - longitude
         - pricePerHour
-        - ownerName
-        - ownerEmail
         - isIndoor
         - maxPlayers
+        - facilityId
 
     AvailabilityResponse:
       type: object

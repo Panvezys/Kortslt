@@ -43,17 +43,17 @@ export interface Court {
   name: string;
   type: CourtType;
   description?: string;
-  address: string;
-  city: string;
-  latitude: number;
-  longitude: number;
+  address?: string | null;
+  city?: string | null;
+  postcode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   pricePerHour: number;
   peakPricePerHour?: number | null;
   rentableItems?: string | null;
   imageUrl?: string;
-  ownerName: string;
-  ownerEmail: string;
   ownerUserId?: string | null;
+  ownershipDocUrl?: string | null;
   amenities?: string[];
   amenityPhotos?: string | null;
   isIndoor: boolean;
@@ -63,7 +63,6 @@ export interface Court {
   rating?: number;
   totalBookings?: number;
   phone?: string;
-  openingHours?: string[];
   status: CourtStatus;
   rejectionReason?: string | null;
   socialFacebook?: string | null;
@@ -98,24 +97,16 @@ export interface CreateCourtBody {
   name: string;
   type: CreateCourtBodyType;
   description?: string;
-  address: string;
-  city: string;
-  latitude: number;
-  longitude: number;
   pricePerHour: number;
   imageUrl?: string;
-  ownerName: string;
-  ownerEmail: string;
   amenities?: string[];
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
   condition?: CreateCourtBodyCondition;
-  facilityId?: number | null;
-  postcode?: string;
+  facilityId: number;
   peakPricePerHour?: number | null;
   rentableItems?: string | null;
-  ownershipDocUrl?: string | null;
   workingHours?: string | null;
   amenityPhotos?: string | null;
 }
@@ -276,7 +267,6 @@ export type ListCourtsParams = {
   minPrice?: number;
   maxPrice?: number;
   ownerUserId?: string;
-  ownerEmail?: string;
 };
 
 export type ListCourtsType =

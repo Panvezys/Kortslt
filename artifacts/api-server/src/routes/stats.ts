@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, courtsTable, bookingsTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, facilitiesTable } from "@workspace/db";
 import { sql, eq, desc } from "drizzle-orm";
 import {
   GetStatsSummaryResponse,
@@ -34,8 +34,8 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       id: courtsTable.id,
       name: courtsTable.name,
       type: courtsTable.type,
-      city: courtsTable.city,
-      address: courtsTable.address,
+      city: facilitiesTable.city,
+      address: facilitiesTable.address,
       imageUrl: courtsTable.imageUrl,
       pricePerHour: courtsTable.pricePerHour,
       isIndoor: courtsTable.isIndoor,
@@ -45,13 +45,14 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       revenue: sql<number>`coalesce(sum(${bookingsTable.totalPrice}::numeric), 0)`,
     })
     .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .leftJoin(bookingsTable, eq(courtsTable.id, bookingsTable.courtId))
     .groupBy(
       courtsTable.id,
       courtsTable.name,
       courtsTable.type,
-      courtsTable.city,
-      courtsTable.address,
+      facilitiesTable.city,
+      facilitiesTable.address,
       courtsTable.imageUrl,
       courtsTable.pricePerHour,
       courtsTable.isIndoor,

@@ -1034,7 +1034,10 @@ router.post("/courts/:id/tournaments", requireAuth, async (req, res): Promise<vo
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const [facility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, court.facilityId));
+  const canEdit = await isOwner(req, facility?.ownerUserId ?? null);
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const userId = getCurrentUserId(req)!;

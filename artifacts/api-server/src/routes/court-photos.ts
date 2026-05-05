@@ -3,7 +3,7 @@ import { getAuth } from "@clerk/express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { db, courtPhotosTable, courtsTable } from "@workspace/db";
+import { db, courtPhotosTable, courtsTable, facilitiesTable } from "@workspace/db";
 import { eq, asc, and } from "drizzle-orm";
 import { isOwner } from "../lib/auth";
 
@@ -43,6 +43,12 @@ async function getCourt(courtId: number): Promise<typeof courtsTable.$inferSelec
   return court ?? null;
 }
 
+async function getCourtOwnerUserId(court: typeof courtsTable.$inferSelect): Promise<string | null> {
+  const [f] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  return f?.ownerUserId ?? null;
+}
+
 /** Middleware that verifies the caller is authenticated and owns the court (or is admin).
  *  Must run BEFORE multer so that rejected requests never write files to disk. */
 async function requireCourtOwnership(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -55,7 +61,10 @@ async function requireCourtOwnership(req: Request, res: Response, next: NextFunc
   const court = await getCourt(courtId);
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  if (!(await isOwner(req, court.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [facility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   next();
 }
@@ -70,7 +79,7 @@ router.get("/courts/:id/photos", async (req, res): Promise<void> => {
     const isPublic = court.status === "approved" || court.status === "active";
     if (!isPublic) {
       // Non-public courts: only the owner or an admin may view photos.
-      if (!(await isOwner(req, court.ownerUserId))) {
+      if (!(await isOwner(req, await getCourtOwnerUserId(court)))) {
         res.status(404).json({ error: "Court not found" });
         return;
       }
@@ -132,7 +141,7 @@ router.patch("/courts/:id/photos/:photoId", async (req, res): Promise<void> => {
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const court = await getCourt(courtId);
-  if (!(await isOwner(req, court?.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!court || !(await isOwner(req, await getCourtOwnerUserId(court)))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const updates: { caption?: string | null; displayOrder?: number } = {};
   if (typeof req.body.caption !== "undefined") updates.caption = req.body.caption || null;
@@ -155,7 +164,7 @@ router.delete("/courts/:id/photos/:photoId", async (req, res): Promise<void> => 
   if (isNaN(courtId) || isNaN(photoId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const court = await getCourt(courtId);
-  if (!(await isOwner(req, court?.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  if (!court || !(await isOwner(req, await getCourtOwnerUserId(court)))) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const [photo] = await db.select().from(courtPhotosTable)
     .where(and(eq(courtPhotosTable.id, photoId), eq(courtPhotosTable.courtId, courtId)));

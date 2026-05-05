@@ -8,7 +8,7 @@
 
 import { Router, type IRouter } from "express";
 import { eq, and, ne } from "drizzle-orm";
-import { db, bookingsTable, courtsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, facilitiesTable } from "@workspace/db";
 import { computeRefund, hoursBeforeStart } from "./bookings";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
@@ -57,13 +57,14 @@ router.get("/guest/bookings/:token", async (req, res): Promise<void> => {
     .select({
       booking: bookingsTable,
       courtName: courtsTable.name,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
       courtPhone: courtsTable.phone,
       courtImageUrl: courtsTable.imageUrl,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.managementToken, token));
 
   if (!rows[0]) {
@@ -135,12 +136,13 @@ router.post("/guest/bookings/:token/cancel", async (req, res): Promise<void> => 
     .select({
       booking: bookingsTable,
       courtName: courtsTable.name,
-      courtOwnerUserId: courtsTable.ownerUserId,
-      ownerName: courtsTable.ownerName,
-      ownerEmail: courtsTable.ownerEmail,
+      courtOwnerUserId: facilitiesTable.ownerUserId,
+      ownerName: facilitiesTable.name,
+      ownerEmail: facilitiesTable.email,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.managementToken, token));
 
   if (!rows[0]) {
@@ -297,11 +299,12 @@ router.get("/guest/bookings/:token/ics", async (req, res): Promise<void> => {
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtId: courtsTable.id,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.managementToken, token));
 
   if (!rows[0]) {

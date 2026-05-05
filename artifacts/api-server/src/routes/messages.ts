@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, or, and, inArray } from "drizzle-orm";
-import { db, messagesTable, courtsTable, notificationsTable } from "@workspace/db";
+import { db, messagesTable, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { getAuth } from "@clerk/express";
 
@@ -50,7 +50,8 @@ router.get("/messages/owner-inbox", requireAuth, async (req, res): Promise<void>
   const ownedCourts = await db
     .select({ id: courtsTable.id, name: courtsTable.name })
     .from(courtsTable)
-    .where(eq(courtsTable.ownerUserId, ownerUserId!));
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(facilitiesTable.ownerUserId, ownerUserId!));
 
   if (ownedCourts.length === 0) { res.json([]); return; }
 
@@ -105,7 +106,10 @@ router.get("/courts/:id/messages", requireAuth, async (req, res): Promise<void> 
   const threadUserIdRaw = req.query.userId;
   const threadUserId = typeof threadUserIdRaw === "string" ? threadUserIdRaw : undefined;
 
-  const [court] = await db.select({ ownerUserId: courtsTable.ownerUserId }).from(courtsTable).where(eq(courtsTable.id, courtId));
+  const [court] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(courtsTable)
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.id, courtId));
   const isOwner = !!court && court.ownerUserId === userId;
 
   // Owner asking for a specific thread → only messages between owner and that customer.
@@ -148,7 +152,11 @@ router.post("/courts/:id/messages", requireAuth, async (req, res): Promise<void>
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const isOwner = court.ownerUserId === senderUserId;
+  const [msgFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId, email: facilitiesTable.email })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, court.facilityId));
+
+  const isOwner = msgFacility?.ownerUserId === senderUserId;
 
   // When owner replies, threadUserId tells us who they're replying to
   let recipientUserId: string | null = null;
@@ -163,8 +171,8 @@ router.post("/courts/:id/messages", requireAuth, async (req, res): Promise<void>
     recipientUserId = threadUserId;
     recipientEmail = prior?.senderEmail ?? null;
   } else {
-    recipientUserId = court.ownerUserId ?? null;
-    recipientEmail = court.ownerEmail ?? null;
+    recipientUserId = msgFacility?.ownerUserId ?? null;
+    recipientEmail = msgFacility?.email ?? null;
   }
 
   const [message] = await db.insert(messagesTable).values({

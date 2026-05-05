@@ -190,7 +190,7 @@ export default function CoachesPage() {
 
   // Cities from courts API
   const { data: courts } = useListCourts(undefined, { query: { queryKey: getListCourtsQueryKey(), staleTime: 60_000 } });
-  const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter(Boolean))].sort();
+  const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter((c): c is string => !!c))].sort();
   const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
     if (c.city) acc[c.city] = (acc[c.city] ?? 0) + 1;
     return acc;
@@ -458,12 +458,12 @@ export default function CoachesPage() {
                         <button
                           key={city}
                           onMouseDown={e => e.preventDefault()}
-                          onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
+                          onClick={() => { setSearchCity(city ?? ""); setCityInput(""); setCityDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
                           style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
                         >
                           <span>{city}</span>
-                          <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                          <span className="text-xs text-white/30 tabular-nums">{city ? (cityCounts[city] ?? 0) : 0}</span>
                         </button>
                       ))}
                     </>
@@ -478,12 +478,12 @@ export default function CoachesPage() {
                             <button
                               key={city}
                               onMouseDown={e => e.preventDefault()}
-                              onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
+                              onClick={() => { setSearchCity(city ?? ""); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
                               className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/10 flex items-center justify-between"
                               style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : { color: "rgba(255,255,255,0.8)" }}
                             >
                               <span>{city}</span>
-                              <span className="text-xs text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                              <span className="text-xs text-white/30 tabular-nums">{city ? (cityCounts[city] ?? 0) : 0}</span>
                             </button>
                           ))}
                           <button

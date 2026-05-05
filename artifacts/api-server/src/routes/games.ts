@@ -15,6 +15,7 @@ import {
   userProfilesTable,
   courtPricingTable,
   courtBlockedSlotsTable,
+  facilitiesTable,
 } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
@@ -1344,6 +1345,8 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, Number(courtId)));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+  const [gameFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
 
   const dayOfWeek = new Date(bookingDate + "T00:00:00").getDay();
 
@@ -1486,9 +1489,9 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
 
   // Resolve Connect destination: use the court owner's account.
   let connectAccountId: string | null = null;
-  if (court.ownerUserId) {
+  if (gameFacility?.ownerUserId) {
     const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
-      .from(userProfilesTable).where(eq(userProfilesTable.userId, court.ownerUserId));
+      .from(userProfilesTable).where(eq(userProfilesTable.userId, gameFacility.ownerUserId));
     if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
   }
 

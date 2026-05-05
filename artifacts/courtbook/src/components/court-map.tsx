@@ -222,7 +222,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
 
   return (
     <InfoWindowF
-      position={{ lat: court.latitude, lng: court.longitude }}
+      position={{ lat: court.latitude ?? 0, lng: court.longitude ?? 0 }}
       onCloseClick={onClose}
       options={{
         pixelOffset: new google.maps.Size(0, -22),
@@ -565,7 +565,7 @@ export function CourtMap({
   const visibleCourts = useMemo(() => {
     let list = (Array.isArray(courts) ? courts : []).filter(c => activeSports.has(c.type));
     if (nearbyMode && userLocation) {
-      list = list.filter(c => haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM);
+      list = list.filter(c => c.latitude != null && c.longitude != null && haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM);
     }
     return list;
   }, [courts, activeSports, nearbyMode, userLocation]);
@@ -580,11 +580,11 @@ export function CourtMap({
       map.setCenter(LITHUANIA_CENTER);
       map.setZoom(7);
     } else if (list.length === 1) {
-      map.setCenter({ lat: list[0].latitude, lng: list[0].longitude });
+      map.setCenter({ lat: list[0].latitude ?? 0, lng: list[0].longitude ?? 0 });
       map.setZoom(13);
     } else {
       const bounds = new google.maps.LatLngBounds();
-      list.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
+      list.forEach(c => bounds.extend({ lat: c.latitude ?? 0, lng: c.longitude ?? 0 }));
       map.fitBounds(bounds, 60);
     }
   }, []);
@@ -704,7 +704,7 @@ export function CourtMap({
       if (currentIds.has(court.id)) continue;
       const sportIcons = icons[court.type] ?? icons["tennis"];
       const marker = new google.maps.Marker({
-        position: { lat: court.latitude, lng: court.longitude },
+        position: { lat: court.latitude ?? 0, lng: court.longitude ?? 0 },
         icon: sportIcons.normal,
         title: court.name,
         zIndex: 1,

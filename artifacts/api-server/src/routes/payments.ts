@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq, ne, sql } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, userProfilesTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, userProfilesTable, facilitiesTable } from "@workspace/db";
 import {
   CreateCheckoutSessionBody,
   CreateCheckoutSessionResponse,
@@ -46,9 +46,10 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
       : null;
 
   const rows = await db
-    .select({ booking: bookingsTable, court: courtsTable })
+    .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, bookingId));
 
   if (!rows[0]) {
@@ -56,7 +57,7 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, court } = rows[0];
+  const { booking, court, facility } = rows[0];
 
   // Authorization:
   // 1) Authenticated booker / court owner / admin (existing behavior), OR
@@ -65,7 +66,7 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
   let authorized = false;
   if (callerId) {
     const isBooker = booking.bookerUserId === callerId;
-    const isCourtOwner = court?.ownerUserId === callerId;
+    const isCourtOwner = facility?.ownerUserId === callerId;
     const callerRole = await getUserRole(callerId);
     authorized = isBooker || isCourtOwner || callerRole === "admin";
   }
@@ -100,11 +101,11 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
 
   // Resolve payout destination: use the court owner's Connect account.
   let connectAccountId: string | null = null;
-  if (court?.ownerUserId) {
+  if (facility?.ownerUserId) {
     const [profile] = await db
       .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
       .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, court.ownerUserId));
+      .where(eq(userProfilesTable.userId, facility.ownerUserId));
     if (profile?.stripeAccountId && profile.status === "active") {
       connectAccountId = profile.stripeAccountId;
     }
@@ -164,16 +165,17 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtId: courtsTable.id,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
       courtPhone: courtsTable.phone,
       courtImageUrl: courtsTable.imageUrl,
-      ownerName: courtsTable.ownerName,
-      ownerEmail: courtsTable.ownerEmail,
+      ownerName: facilitiesTable.name,
+      ownerEmail: facilitiesTable.email,
       instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.stripeSessionId, sessionId));
 
   if (!rows[0]) {
@@ -355,15 +357,16 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtId: courtsTable.id,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
       courtPhone: courtsTable.phone,
       courtImageUrl: courtsTable.imageUrl,
-      courtOwnerUserId: courtsTable.ownerUserId,
+      courtOwnerUserId: facilitiesTable.ownerUserId,
       instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.id, bookingId));
 
   if (!rows[0]) {
@@ -432,8 +435,11 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
     }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
   }
 
-  const freeCourtOwnerEmail = (await db.select({ ownerEmail: courtsTable.ownerEmail, ownerName: courtsTable.ownerName })
-    .from(courtsTable).where(eq(courtsTable.id, rows[0].booking.courtId)))[0];
+  const freeCourtOwnerEmail = (await db
+    .select({ ownerEmail: facilitiesTable.email, ownerName: facilitiesTable.name })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.id, rows[0].booking.courtId)))[0];
   if (freeCourtOwnerEmail?.ownerEmail) {
     sendOwnerBookingNotificationEmail({
       ownerName: freeCourtOwnerEmail.ownerName ?? "Savininkas",

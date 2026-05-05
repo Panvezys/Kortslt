@@ -106,16 +106,17 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtId: courtsTable.id,
-      courtAddress: courtsTable.address,
-      courtCity: courtsTable.city,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
       courtPhone: courtsTable.phone,
       courtImageUrl: courtsTable.imageUrl,
-      ownerName: courtsTable.ownerName,
-      ownerEmail: courtsTable.ownerEmail,
+      ownerName: facilitiesTable.companyName,
+      ownerEmail: facilitiesTable.email,
       instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.stripeSessionId, session.id));
 
   if (!rows[0]) {

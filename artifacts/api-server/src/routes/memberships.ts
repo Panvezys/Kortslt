@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, courtMembershipsTable, userMembershipsTable, courtsTable } from "@workspace/db";
+import { db, courtMembershipsTable, userMembershipsTable, courtsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 
 const router = Router();
@@ -18,7 +18,8 @@ router.post("/courts/:id/memberships", requireAuth, async (req, res): Promise<vo
   if (isNaN(courtId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Not found" }); return; }
-  if (!court.ownerUserId || !(await isOwner(req, court.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [mbFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId }).from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, mbFacility?.ownerUserId ?? null))) { res.status(403).json({ error: "Forbidden" }); return; }
   const { name, description, pricePerYear, weeklySlots } = req.body as any;
   if (!name || !pricePerYear) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
   const [plan] = await db.insert(courtMembershipsTable).values({ courtId, name, description, pricePerYear: Number(pricePerYear), weeklySlots: Number(weeklySlots ?? 1) }).returning();
@@ -30,7 +31,8 @@ router.patch("/courts/:id/memberships/:planId", requireAuth, async (req, res): P
   const planId = parseInt(String(req.params.planId));
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Not found" }); return; }
-  if (!court.ownerUserId || !(await isOwner(req, court.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [mbFacility2] = await db.select({ ownerUserId: facilitiesTable.ownerUserId }).from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, mbFacility2?.ownerUserId ?? null))) { res.status(403).json({ error: "Forbidden" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(and(eq(courtMembershipsTable.id, planId), eq(courtMembershipsTable.courtId, courtId)));
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
   const { name, description, pricePerYear, weeklySlots, isActive } = req.body as any;

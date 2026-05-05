@@ -44,17 +44,12 @@ function useUpdateCourt(courtId: number | undefined) {
   });
 }
 
-export function CourtEditDialog({ court, open, onClose, showOwnerContext = true }: { court: any; open: boolean; onClose: () => void; showOwnerContext?: boolean; }) {
+export function CourtEditDialog({ court, open, onClose }: { court: any; open: boolean; onClose: () => void; showOwnerContext?: boolean; }) {
   const { toast } = useToast();
   const updateMutation = useUpdateCourt(court?.id);
   const [name, setName] = useState("");
   const [type, setType] = useState("tennis");
   const [description, setDescription] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [postcode, setPostcode] = useState("");
-  const [latitude, setLatitude] = useState(0);
-  const [longitude, setLongitude] = useState(0);
   const [pricePerHour, setPricePerHour] = useState(0);
   const [peakPricePerHour, setPeakPricePerHour] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -68,11 +63,6 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
     setName(court.name ?? "");
     setType(court.type ?? "tennis");
     setDescription(court.description ?? "");
-    setAddress(court.address ?? "");
-    setCity(court.city ?? "");
-    setPostcode(court.postcode ?? "");
-    setLatitude(court.latitude ?? 0);
-    setLongitude(court.longitude ?? 0);
     setPricePerHour(court.pricePerHour ?? 0);
     setPeakPricePerHour(court.peakPricePerHour != null ? String(court.peakPricePerHour) : "");
     setImageUrl(court.imageUrl ?? "");
@@ -92,11 +82,6 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
           name,
           type,
           description,
-          address,
-          city,
-          postcode,
-          latitude,
-          longitude,
           pricePerHour: Number(pricePerHour),
           peakPricePerHour: peakPricePerHour !== "" ? Number(peakPricePerHour) : undefined,
           imageUrl: imageUrl || undefined,
@@ -105,8 +90,6 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
           surface: surface || undefined,
           condition,
           amenities: court.amenities ?? [],
-          ownerName: court.ownerName,
-          ownerEmail: court.ownerEmail,
           facilityId: court.facilityId,
           workingHours: court.workingHours,
           rentableItems: court.rentableItems,
@@ -138,21 +121,16 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
           </DialogTitle>
         </DialogHeader>
 
-        {showOwnerContext && (
-          <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground flex flex-wrap gap-x-6 gap-y-1">
-            <span><span className="font-medium text-foreground">Savininkas:</span> {court.ownerName}</span>
-            <span><span className="font-medium text-foreground">El. paštas:</span> {court.ownerEmail}</span>
-            <span><span className="font-medium text-foreground">ID:</span> {court.id}</span>
-          </div>
-        )}
+        <div className="rounded-lg border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground flex flex-wrap gap-x-6 gap-y-1">
+          <span><span className="font-medium text-foreground">ID:</span> {court.id}</span>
+          {court.facilityId && <span><span className="font-medium text-foreground">Objektas:</span> #{court.facilityId}</span>}
+          {court.city && <span><span className="font-medium text-foreground">Miestas:</span> {court.city}</span>}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
           <div className={field}><label className={label}>Pavadinimas *</label><input className={inp} value={name} onChange={e => setName(e.target.value)} /></div>
           <div className={field}><label className={label}>Sporto šaka *</label><select className={inp} value={type} onChange={e => setType(e.target.value)}>{SPORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
           <div className={`${field} sm:col-span-2`}><label className={label}>Aprašymas</label><textarea className={`${inp} min-h-[80px] resize-y`} value={description} onChange={e => setDescription(e.target.value)} /></div>
-          <div className={field}><label className={label}>Miestas *</label><input className={inp} value={city} onChange={e => setCity(e.target.value)} /></div>
-          <div className={field}><label className={label}>Adresas *</label><input className={inp} value={address} onChange={e => setAddress(e.target.value)} /></div>
-          <div className={field}><label className={label}>Pašto kodas</label><input className={inp} value={postcode} onChange={e => setPostcode(e.target.value)} /></div>
           <div className={field}><label className={label}>Nuotraukos URL</label><input className={inp} value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..." /></div>
           <div className={field}><label className={label}>Kaina / val. (€) *</label><input className={inp} type="number" min={0} step={0.5} value={pricePerHour} onChange={e => setPricePerHour(Number(e.target.value))} /></div>
           <div className={field}><label className={label}>Piko valandų kaina / val. (€)</label><input className={inp} type="number" min={0} step={0.5} value={peakPricePerHour} placeholder="Palikite tuščią jei nėra" onChange={e => setPeakPricePerHour(e.target.value)} /></div>
@@ -160,8 +138,6 @@ export function CourtEditDialog({ court, open, onClose, showOwnerContext = true 
           <div className={field}><label className={label}>Būklė</label><select className={inp} value={condition} onChange={e => setCondition(e.target.value)}>{CONDITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
           <div className={field}><label className={label}>Dangos tipas</label><input className={inp} value={surface} onChange={e => setSurface(e.target.value)} placeholder="pvz. Kietoji, Žolė..." /></div>
           <div className={`${field} flex items-center gap-3 pt-5`}><input type="checkbox" id="isIndoor" checked={isIndoor} onChange={e => setIsIndoor(e.target.checked)} className="w-4 h-4 accent-primary" /><label htmlFor="isIndoor" className="text-sm font-medium cursor-pointer">Vidaus aikštelė</label></div>
-          <div className={field}><label className={label}>Platuma (latitude)</label><input className={inp} type="number" step="any" value={latitude} onChange={e => setLatitude(Number(e.target.value))} /></div>
-          <div className={field}><label className={label}>Ilguma (longitude)</label><input className={inp} type="number" step="any" value={longitude} onChange={e => setLongitude(Number(e.target.value))} /></div>
         </div>
 
         <div className="flex gap-3 justify-end pt-2 border-t">

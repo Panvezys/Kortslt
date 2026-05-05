@@ -35,16 +35,12 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
   const facilityId = court.facilityId;
-  if (facilityId) {
-    const [facility] = await db
-      .select({ ownerUserId: facilitiesTable.ownerUserId })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, facilityId))
-      .limit(1);
-    if (!facility || facility.ownerUserId !== userId) {
-      res.status(403).json({ error: "Forbidden" }); return;
-    }
-  } else if (court.ownerUserId !== userId) {
+  const [facility] = await db
+    .select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, court.facilityId))
+    .limit(1);
+  if (!facility || facility.ownerUserId !== userId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

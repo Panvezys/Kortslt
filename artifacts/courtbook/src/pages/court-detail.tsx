@@ -1348,26 +1348,6 @@ export default function CourtDetail() {
                   </div>
                 )}
 
-                {/* Opening hours card */}
-                {court.openingHours && court.openingHours.length > 0 && (
-                  <div className={`flex gap-3 p-4 bg-muted/30 rounded-xl border ${!court.phone ? "sm:col-span-2" : ""}`}>
-                    <Clock className="w-5 h-5 text-primary mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-xs text-muted-foreground font-medium mb-2">Darbo laikas</p>
-                      <div className="space-y-1">
-                        {court.openingHours.map((line, i) => {
-                          const [days, hours] = line.split(": ");
-                          return (
-                            <div key={i} className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">{days}</span>
-                              <span className="font-semibold tabular-nums">{hours}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
               </div>
 

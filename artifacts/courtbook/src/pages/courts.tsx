@@ -156,7 +156,7 @@ export default function Courts() {
 
   // Sort cities by court count descending
   const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
-    acc[c.city] = (acc[c.city] ?? 0) + 1;
+    if (c.city) acc[c.city] = (acc[c.city] ?? 0) + 1;
     return acc;
   }, {});
   const sortedCities = (cities ?? []).slice().sort((a, b) => (cityCounts[b] ?? 0) - (cityCounts[a] ?? 0));
@@ -164,10 +164,10 @@ export default function Courts() {
   const filteredCourts = courts?.filter(c => {
     const matchesSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.city.toLowerCase().includes(search.toLowerCase()) ||
-      c.address.toLowerCase().includes(search.toLowerCase());
-    const matchesCity = selectedCities.size === 0 || selectedCities.has(c.city);
-    const matchesNearby = !nearbyMode || !userLocation || haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM;
+      (c.city ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.address ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchesCity = selectedCities.size === 0 || (!!c.city && selectedCities.has(c.city));
+    const matchesNearby = !nearbyMode || !userLocation || (c.latitude != null && c.longitude != null && haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM);
     return matchesSearch && matchesCity && matchesNearby;
   });
 

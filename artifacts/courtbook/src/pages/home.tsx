@@ -411,7 +411,7 @@ export default function Home() {
         .slice(0, 7)
     : [];
 
-  const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter(Boolean))].sort();
+  const uniqueCities = [...new Set((courts ?? []).map(c => c.city).filter((c): c is string => !!c))].sort();
 
   // City combobox helpers
   const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
@@ -580,12 +580,12 @@ export default function Home() {
                             <button
                               key={city}
                               onMouseDown={e => e.preventDefault()}
-                              onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); }}
+                              onClick={() => { setSearchCity(city ?? ""); setCityInput(""); setCityDropdownOpen(false); }}
                               className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-muted dark:hover:bg-white/10 flex items-center justify-between text-foreground dark:text-white/80"
                               style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : undefined}
                             >
                               <span>{city}</span>
-                              <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                              <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{city ? (cityCounts[city] ?? 0) : 0}</span>
                             </button>
                           ))}
                         </>
@@ -603,12 +603,12 @@ export default function Home() {
                                 <button
                                   key={city}
                                   onMouseDown={e => e.preventDefault()}
-                                  onClick={() => { setSearchCity(city); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
+                                  onClick={() => { setSearchCity(city ?? ""); setCityInput(""); setCityDropdownOpen(false); setShowMoreCities(false); }}
                                   className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-muted dark:hover:bg-white/10 flex items-center justify-between text-foreground dark:text-white/80"
                                   style={searchCity === city ? { color: accentColor, fontWeight: "600", background: accentColor + "18" } : undefined}
                                 >
                                   <span>{city}</span>
-                                  <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{cityCounts[city] ?? 0}</span>
+                                  <span className="text-xs text-muted-foreground/50 dark:text-white/30 tabular-nums">{city ? (cityCounts[city] ?? 0) : 0}</span>
                                 </button>
                               ))}
                               <button

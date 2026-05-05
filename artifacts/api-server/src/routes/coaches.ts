@@ -27,6 +27,13 @@ const CoachInviteBody = z.object({
   message: "Reikia targetUserId arba targetEmail",
 });
 
+async function getCourtOwnerUserId(facilityId: number): Promise<string | null> {
+  const [f] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, facilityId));
+  return f?.ownerUserId ?? null;
+}
+
 const CoachApplyBody = z.object({
   message: z.string().optional(),
   name: z.string().trim().min(2, "Vardas privalomas").optional(),
@@ -90,7 +97,6 @@ router.get("/coaches", async (req, res): Promise<void> => {
     .select({
       coachId: courtCoachesTable.coachId,
       facilityCity: facilitiesTable.city,
-      courtCity: courtsTable.city,
     })
     .from(courtCoachesTable)
     .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
@@ -99,7 +105,7 @@ router.get("/coaches", async (req, res): Promise<void> => {
 
   const citiesByCoach = new Map<number, Set<string>>();
   for (const row of cityRows) {
-    const c = row.facilityCity ?? row.courtCity;
+    const c = row.facilityCity;
     if (!c) continue;
     if (!citiesByCoach.has(row.coachId)) citiesByCoach.set(row.coachId, new Set());
     citiesByCoach.get(row.coachId)!.add(c);
@@ -173,8 +179,8 @@ router.get("/coaches/:id/facilities", async (req, res): Promise<void> => {
       groups.set(key, {
         facilityId: r.facility?.id ?? null,
         facilityName: r.facility?.name ?? r.court.name,
-        city: r.facility?.city ?? r.court.city ?? null,
-        address: r.facility?.address ?? r.court.address ?? null,
+        city: r.facility?.city ?? null,
+        address: r.facility?.address ?? null,
         courts: [],
       });
     }
@@ -327,7 +333,7 @@ router.post("/courts/:id/coaches", requireAuth, async (req, res): Promise<void> 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const { coachId } = req.body;
@@ -353,7 +359,7 @@ router.delete("/courts/:id/coaches/:coachId", requireAuth, async (req, res): Pro
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   await db.delete(courtCoachesTable)
@@ -370,7 +376,7 @@ router.get("/courts/:id/coach-invitations", requireAuth, async (req, res): Promi
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const invitations = await db.select().from(courtCoachInvitationsTable)
@@ -388,7 +394,7 @@ router.post("/courts/:id/coach-invite", requireAuth, async (req, res): Promise<v
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = CoachInviteBody.safeParse(req.body);
@@ -471,8 +477,9 @@ router.post("/courts/:id/coach-apply", requireAuth, async (req, res): Promise<vo
     message: message ?? null,
   }).returning();
 
-  if (court.ownerUserId) {
-    await sendNotification(court.ownerUserId, "coach_application",
+  const courtOwner = await getCourtOwnerUserId(court.facilityId);
+  if (courtOwner) {
+    await sendNotification(courtOwner, "coach_application",
       "Trenerio paraiška",
       `${name ?? "Vartotojas"} prašo prisijungti prie „${court.name}" kaip treneris`,
       `/owner/facilities`
@@ -491,7 +498,7 @@ router.put("/courts/:id/coach-invitations/:inviteId", requireAuth, async (req, r
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const { action } = req.body ?? {};
@@ -632,7 +639,7 @@ router.get("/coaches/me/applications", requireCoach, async (req, res): Promise<v
     courtName: r.court.name,
     facilityId: r.facility?.id ?? null,
     facilityName: r.facility?.name ?? null,
-    city: r.facility?.city ?? r.court.city ?? null,
+    city: r.facility?.city ?? null,
     initiatedBy: r.invitation.initiatedBy,
     status: r.invitation.status,
     message: r.invitation.message,
@@ -667,7 +674,7 @@ router.get("/coaches/me/facilities", requireCoach, async (req, res): Promise<voi
       groups.set(key, {
         facilityId: r.facility?.id ?? null,
         facilityName: r.facility?.name ?? null,
-        city: r.facility?.city ?? r.court.city ?? null,
+        city: r.facility?.city ?? null,
         courts: [],
       });
     }
@@ -691,7 +698,7 @@ router.get("/owner/coach-requests", requireOwner, async (req, res): Promise<void
     .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .leftJoin(coachesTable, eq(courtCoachInvitationsTable.targetUserId, coachesTable.userId))
     .where(and(
-      eq(courtsTable.ownerUserId, userId),
+      inArray(courtsTable.facilityId, db.select({ id: facilitiesTable.id }).from(facilitiesTable).where(eq(facilitiesTable.ownerUserId, userId))),
       eq(courtCoachInvitationsTable.initiatedBy, "coach"),
       eq(courtCoachInvitationsTable.status, "pending"),
     ))
@@ -730,7 +737,7 @@ router.post("/owner/respond-to-coach", requireOwner, async (req, res): Promise<v
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, invite.courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
 
-  const canEdit = await isOwner(req, court.ownerUserId);
+  const canEdit = await isOwner(req, await getCourtOwnerUserId(court.facilityId));
   if (!canEdit) { res.status(403).json({ error: "Forbidden – not the court owner" }); return; }
 
   if (invite.status !== "pending") {
@@ -790,7 +797,7 @@ router.get("/owner/coach-roster", requireOwner, async (req, res): Promise<void> 
     .innerJoin(courtsTable, eq(courtCoachesTable.courtId, courtsTable.id))
     .innerJoin(coachesTable, eq(courtCoachesTable.coachId, coachesTable.id))
     .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-    .where(eq(courtsTable.ownerUserId, userId))
+    .where(inArray(courtsTable.facilityId, db.select({ id: facilitiesTable.id }).from(facilitiesTable).where(eq(facilitiesTable.ownerUserId, userId))))
     .orderBy(courtsTable.name);
 
   res.json(rows.map(r => ({

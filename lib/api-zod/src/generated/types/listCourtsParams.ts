@@ -17,5 +17,4 @@ export type ListCourtsParams = {
   minPrice?: number;
   maxPrice?: number;
   ownerUserId?: string;
-  ownerEmail?: string;
 };

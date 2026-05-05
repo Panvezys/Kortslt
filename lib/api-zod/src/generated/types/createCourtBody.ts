@@ -12,24 +12,16 @@ export interface CreateCourtBody {
   name: string;
   type: CreateCourtBodyType;
   description?: string;
-  address: string;
-  city: string;
-  latitude: number;
-  longitude: number;
   pricePerHour: number;
   imageUrl?: string;
-  ownerName: string;
-  ownerEmail: string;
   amenities?: string[];
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
   condition?: CreateCourtBodyCondition;
-  facilityId?: number | null;
-  postcode?: string;
+  facilityId: number;
   peakPricePerHour?: number | null;
   rentableItems?: string | null;
-  ownershipDocUrl?: string | null;
   workingHours?: string | null;
   amenityPhotos?: string | null;
 }

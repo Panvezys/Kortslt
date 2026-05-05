@@ -213,7 +213,7 @@ function CourtsPanel() {
   ).filter(c => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [c.name, c.city, c.address, c.ownerName, c.ownerEmail, String(c.facilityId ?? "")]
+    return [c.name, c.city, c.address, String(c.facilityId ?? "")]
       .some(v => v?.toLowerCase().includes(q));
   }).sort((a, b) => {
     const aValue = `${a.name ?? ""} ${a.city ?? ""}`.toLowerCase();
@@ -298,8 +298,11 @@ function CourtsPanel() {
                     )}
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell">
-                    <div className="text-sm">{court.ownerName}</div>
-                    <div className="text-xs text-muted-foreground">{court.ownerEmail}</div>
+                    {court.facilityId ? (
+                      <div className="text-xs text-muted-foreground">Objektas #{court.facilityId}</div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">—</div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={court.status} />
@@ -739,8 +742,7 @@ function CourtReviewDialog({
             </div>
             {[
               { label: "Kaina", value: `${court.pricePerHour}€/val` },
-              { label: "Savininkas", value: court.ownerName },
-              { label: "El. paštas", value: court.ownerEmail },
+              ...(court.facilityId ? [{ label: "Objektas", value: `#${court.facilityId}` }] : []),
             ].map(({ label, value }) => (
               <div key={label} className="rounded-lg bg-muted/30 px-3 py-2.5">
                 <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{label}</div>
