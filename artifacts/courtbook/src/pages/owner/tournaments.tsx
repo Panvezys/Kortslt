@@ -48,6 +48,8 @@ interface PendingTournament {
 interface FacilitySummary {
   id: number;
   name: string;
+  courtCount?: number;
+  courts?: Array<{ id: number; name: string }>;
 }
 
 export default function OwnerTournamentsPage() {
@@ -82,9 +84,17 @@ export default function OwnerTournamentsPage() {
     enabled: !!facilityId,
   });
 
-  const facilityName = facilityId
-    ? facilitiesQ.data?.find(f => f.id === facilityId)?.name
+  const selectedFacility = facilityId
+    ? facilitiesQ.data?.find(f => f.id === facilityId)
     : undefined;
+  const facilityName = selectedFacility?.name;
+  // Mirror the guard used on /owner/facility/:id — only disable once we have the
+  // facility loaded and can confirm it has zero courts. While loading, allow the
+  // click so the user is not blocked by a stale state.
+  const facilityHasNoCourts =
+    !!facilityId &&
+    !!selectedFacility &&
+    ((selectedFacility.courts?.length ?? selectedFacility.courtCount ?? 0) === 0);
 
   const pending = pendingAll.filter(t =>
     !facilityId || t.facilityId === facilityId
@@ -129,13 +139,31 @@ export default function OwnerTournamentsPage() {
                 : "Kurkite naujus turnyrus arba patvirtinkite kitų organizatorių prašymus rengti turnyrus jūsų aikštynuose. Patvirtinus, aikštelės tomis dienomis automatiškai užblokuojamos kasdieniniam rezervavimui."}
             </p>
           </div>
-          <Button asChild size="sm" className="gap-2 self-start shrink-0">
-            <Link href={facilityId ? `/owner/tournaments/new?facility=${facilityId}` : "/owner/tournaments/new"}>
+          {facilityHasNoCourts ? (
+            <Button
+              size="sm"
+              className="gap-2 self-start shrink-0"
+              disabled
+              title="Pirmiausia sukurkite bent vieną aikštelę šiame objekte."
+            >
               <Plus className="w-4 h-4" />
               Naujas turnyras
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild size="sm" className="gap-2 self-start shrink-0">
+              <Link href={facilityId ? `/owner/tournaments/new?facility=${facilityId}` : "/owner/tournaments/new"}>
+                <Plus className="w-4 h-4" />
+                Naujas turnyras
+              </Link>
+            </Button>
+          )}
         </div>
+
+        {facilityHasNoCourts && (
+          <div className="mb-4 text-sm text-muted-foreground bg-muted/40 p-4 rounded-lg">
+            Pirmiausia sukurkite bent vieną aikštelę šiame objekte.
+          </div>
+        )}
 
         {isLoading ? (
           <div className="space-y-3">
