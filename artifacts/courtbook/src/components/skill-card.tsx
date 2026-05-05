@@ -120,7 +120,7 @@ export function SkillCard({ userId, className }: SkillCardProps) {
           <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
             <Shield className="w-4 h-4 text-white" />
           </div>
-          <h3 className="font-bold text-white">Įgūdžių kortelė</h3>
+          <h3 className="font-bold" style={{ color: "#fff" }}>Įgūdžių kortelė</h3>
         </div>
 
         {sorted.length > 0 ? (
