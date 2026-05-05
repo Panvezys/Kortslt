@@ -733,10 +733,7 @@ export default function GameDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <Badge className="bg-[#C5E041]/20 text-[#C5E041] border-[#C5E041]/40 gap-1">
-                    <SportIcon sport={data.sport} size={11} strokeWidth={2} />
-                    {SPORT_LABELS[data.sport] ?? data.sport}
-                  </Badge>
+                  <SportPill sport={data.sport} variant="outline" size="sm" />
                   <Badge variant="outline" className="border-white/30 text-white/80">{SKILL_LABELS[data.skillLevel]}</Badge>
                   {isRated ? (
                     <Badge className="bg-purple-500/20 text-purple-300 border-purple-400/30">

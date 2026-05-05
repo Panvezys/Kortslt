@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useRole } from "@/lib/useRole";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
-import { SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
 
 function safeDocUrl(url: string | undefined | null): string | undefined {
   if (!url) return undefined;
@@ -733,8 +733,11 @@ function CourtReviewDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted/30 px-3 py-2.5">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Sportas</div>
+              <SportPill sport={court.type} variant="subtle" size="sm" />
+            </div>
             {[
-              { label: "Sportas", value: SPORT_LABELS[court.type] ?? court.type },
               { label: "Kaina", value: `${court.pricePerHour}€/val` },
               { label: "Savininkas", value: court.ownerName },
               { label: "El. paštas", value: court.ownerEmail },
