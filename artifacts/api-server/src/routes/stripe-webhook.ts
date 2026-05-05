@@ -20,6 +20,7 @@ import {
   facilitiesTable,
   userProfilesTable,
   gamesTable,
+  gameParticipantsTable,
 } from "@workspace/db";
 import { getStripe, getStripeWebhookSecret } from "../stripeClient";
 import { logger } from "../lib/logger";
@@ -101,6 +102,7 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
   if (session.payment_status !== "paid") return;
 
+  // ── 1. Try to find a booking by stripeSessionId (covers regular and split-host payments) ──
   const rows = await db
     .select({
       booking: bookingsTable,
@@ -119,77 +121,271 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.stripeSessionId, session.id));
 
-  if (!rows[0]) {
-    logger.warn({ sessionId: session.id }, "Webhook: no booking matched session");
-    return;
-  }
+  if (rows[0]) {
+    const booking = rows[0].booking;
 
-  // If the confirm endpoint already promoted the booking, do nothing else.
-  if (rows[0].booking.status === "confirmed") return;
+    if (booking.isSplit) {
+      // ── Split booking: this is the HOST's first payment ──────────────────
+      // CAS: pending → awaiting_players (reserves the court slot)
+      const updatedRows = await db
+        .update(bookingsTable)
+        .set({ status: "awaiting_players" })
+        .where(and(
+          eq(bookingsTable.stripeSessionId, session.id),
+          eq(bookingsTable.status, "pending"),
+        ))
+        .returning();
 
-  // ─── CAS guard: only promote if booking is still pending. If the sweeper
-  // (or anything else) already cancelled the hold, ignore this stale completion
-  // so we never end up with a confirmed booking whose game was deleted. ──
-  const updatedRows = await db
-    .update(bookingsTable)
-    .set({ status: "confirmed" })
-    .where(and(
-      eq(bookingsTable.stripeSessionId, session.id),
-      eq(bookingsTable.status, "pending"),
-    ))
-    .returning();
+      if (updatedRows.length === 0) {
+        // Already processed (awaiting_players or confirmed). Still mark participant paid.
+      }
 
-  if (updatedRows.length === 0) {
-    logger.warn(
-      { sessionId: session.id, bookingId: rows[0].booking.id, currentStatus: rows[0].booking.status },
-      "Webhook: stale checkout.session.completed — booking no longer pending, ignoring",
-    );
-    return;
-  }
-  const booking = updatedRows[0]!;
+      // Mark host participant as paid
+      await db
+        .update(gameParticipantsTable)
+        .set({ paymentStatus: "paid" })
+        .where(eq(gameParticipantsTable.stripeSessionId, session.id));
 
-  await db
-    .update(courtsTable)
-    .set({ totalBookings: sql`total_bookings + 1` })
-    .where(eq(courtsTable.id, rows[0].booking.courtId));
+      // Update game to awaiting_players
+      await db
+        .update(gamesTable)
+        .set({ status: "awaiting_players" })
+        .where(and(
+          eq(gamesTable.bookingId, booking.id),
+          eq(gamesTable.status, "pending_payment"),
+        ));
 
-  {
+      // Check if somehow all slots are already paid (edge case: totalSlots=1)
+      await maybeConfirmSplitBooking(booking.id, rows[0]);
+      return;
+    }
+
+    // ── Regular (non-split) booking ──────────────────────────────────────────
+    // If the confirm endpoint already promoted the booking, do nothing else.
+    if (booking.status === "confirmed") return;
+
+    // CAS guard: only promote if booking is still pending.
+    const updatedRows = await db
+      .update(bookingsTable)
+      .set({ status: "confirmed" })
+      .where(and(
+        eq(bookingsTable.stripeSessionId, session.id),
+        eq(bookingsTable.status, "pending"),
+      ))
+      .returning();
+
+    if (updatedRows.length === 0) {
+      logger.warn(
+        { sessionId: session.id, bookingId: booking.id, currentStatus: booking.status },
+        "Webhook: stale checkout.session.completed — booking no longer pending, ignoring",
+      );
+      return;
+    }
+    const confirmedBooking = updatedRows[0]!;
+
+    await db
+      .update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + 1` })
+      .where(eq(courtsTable.id, rows[0].booking.courtId));
+
     sendBookingConfirmationEmail({
-      customerName: booking.customerName,
-      customerEmail: booking.customerEmail,
+      customerName: confirmedBooking.customerName,
+      customerEmail: confirmedBooking.customerEmail,
       courtName: rows[0].courtName ?? "Kortas",
       courtId: rows[0].courtId ?? 0,
       courtAddress: rows[0].courtAddress ?? "",
       courtCity: rows[0].courtCity ?? "",
       courtPhone: rows[0].courtPhone ?? undefined,
       courtImageUrl: rows[0].courtImageUrl ?? undefined,
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      totalPrice: Number(booking.totalPrice),
-      bookingId: booking.id,
+      date: confirmedBooking.date,
+      startTime: confirmedBooking.startTime,
+      endTime: confirmedBooking.endTime,
+      totalPrice: Number(confirmedBooking.totalPrice),
+      bookingId: confirmedBooking.id,
     }).catch((err) => logger.error({ err }, "sendBookingConfirmationEmail (webhook) failed"));
+
+    if (rows[0].ownerEmail) {
+      sendOwnerBookingNotificationEmail({
+        ownerName: rows[0].ownerName ?? "Savininkas",
+        ownerEmail: rows[0].ownerEmail,
+        customerName: confirmedBooking.customerName,
+        courtName: rows[0].courtName ?? "Kortas",
+        date: confirmedBooking.date,
+        startTime: confirmedBooking.startTime,
+        endTime: confirmedBooking.endTime,
+        totalPrice: Number(confirmedBooking.totalPrice),
+        bookingId: confirmedBooking.id,
+      }).catch((err) => logger.error({ err }, "sendOwnerBookingNotificationEmail (webhook) failed"));
+    }
+
+    // Host-Pays-All: if a game is linked to this booking, flip it from pending_payment → open.
+    await db
+      .update(gamesTable)
+      .set({ status: "open" })
+      .where(and(eq(gamesTable.bookingId, confirmedBooking.id), eq(gamesTable.status, "pending_payment")));
+
+    return;
   }
 
-  if (rows[0].ownerEmail) {
-    sendOwnerBookingNotificationEmail({
-      ownerName: rows[0].ownerName ?? "Savininkas",
-      ownerEmail: rows[0].ownerEmail,
-      customerName: booking.customerName,
-      courtName: rows[0].courtName ?? "Kortas",
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      totalPrice: Number(booking.totalPrice),
-      bookingId: booking.id,
-    }).catch((err) => logger.error({ err }, "sendOwnerBookingNotificationEmail (webhook) failed"));
+  // ── 2. No booking matched by stripeSessionId — try split participant lookup ──
+  const [participant] = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(eq(gameParticipantsTable.stripeSessionId, session.id));
+
+  if (!participant) {
+    logger.warn({ sessionId: session.id }, "Webhook: no booking or participant matched session");
+    return;
   }
 
-  // Host-Pays-All: if a game is linked to this booking, flip it from pending_payment → open.
+  // Mark this participant as paid (CAS: only if still pending)
+  const updatedParticipants = await db
+    .update(gameParticipantsTable)
+    .set({ paymentStatus: "paid" })
+    .where(and(
+      eq(gameParticipantsTable.stripeSessionId, session.id),
+      eq(gameParticipantsTable.paymentStatus, "pending"),
+    ))
+    .returning();
+
+  if (updatedParticipants.length === 0) {
+    logger.debug({ sessionId: session.id }, "Webhook: split participant already paid, idempotent skip");
+    return;
+  }
+
+  // Get game → booking context
+  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, participant.gameId));
+  if (!game?.bookingId) {
+    logger.warn({ participantId: participant.id }, "Webhook: split participant has no linked game/booking");
+    return;
+  }
+
+  const bookingRows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+      courtPhone: courtsTable.phone,
+      courtImageUrl: courtsTable.imageUrl,
+      ownerName: facilitiesTable.companyName,
+      ownerEmail: facilitiesTable.email,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, game.bookingId));
+
+  if (!bookingRows[0]) {
+    logger.warn({ bookingId: game.bookingId }, "Webhook: split booking not found");
+    return;
+  }
+
+  await maybeConfirmSplitBooking(game.bookingId, bookingRows[0]);
+}
+
+// ─── maybeConfirmSplitBooking ─────────────────────────────────────────────────
+// Called after any split participant pays. If all slots are now paid, confirms
+// the booking and opens the game.
+async function maybeConfirmSplitBooking(
+  bookingId: number,
+  context: {
+    booking: typeof bookingsTable.$inferSelect;
+    courtName: string | null;
+    courtId: number | null;
+    courtAddress: string | null;
+    courtCity: string | null;
+    courtPhone: string | null;
+    courtImageUrl: string | null;
+    ownerName: string | null;
+    ownerEmail: string | null;
+  },
+): Promise<void> {
+  const { booking } = context;
+  if (!booking.totalSlots) return;
+
+  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.bookingId, bookingId));
+  if (!game) return;
+
+  const paidRows = await db
+    .select({ count: sql<string>`count(*)` })
+    .from(gameParticipantsTable)
+    .where(and(
+      eq(gameParticipantsTable.gameId, game.id),
+      eq(gameParticipantsTable.status, "joined"),
+      eq(gameParticipantsTable.paymentStatus, "paid"),
+    ));
+
+  const paidCount = parseInt(paidRows[0]?.count ?? "0", 10);
+
+  if (paidCount < booking.totalSlots) {
+    logger.info(
+      { bookingId, paidCount, totalSlots: booking.totalSlots },
+      "Split payment: waiting for more players",
+    );
+    return;
+  }
+
+  // All slots paid — confirm the booking
+  const confirmed = await db
+    .update(bookingsTable)
+    .set({ status: "confirmed" })
+    .where(and(
+      eq(bookingsTable.id, bookingId),
+      ne(bookingsTable.status, "confirmed"),
+    ))
+    .returning();
+
+  if (confirmed.length === 0) {
+    logger.debug({ bookingId }, "Split booking already confirmed (idempotent)");
+    return;
+  }
+
+  // Open the game
   await db
     .update(gamesTable)
     .set({ status: "open" })
-    .where(and(eq(gamesTable.bookingId, booking.id), eq(gamesTable.status, "pending_payment")));
+    .where(eq(gamesTable.id, game.id));
+
+  // Increment court booking count
+  await db
+    .update(courtsTable)
+    .set({ totalBookings: sql`total_bookings + 1` })
+    .where(eq(courtsTable.id, booking.courtId));
+
+  logger.info({ bookingId, paidCount }, "Split booking fully paid — confirmed");
+
+  // Send confirmation email to the host (booker)
+  sendBookingConfirmationEmail({
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    courtName: context.courtName ?? "Kortas",
+    courtId: context.courtId ?? 0,
+    courtAddress: context.courtAddress ?? "",
+    courtCity: context.courtCity ?? "",
+    courtPhone: context.courtPhone ?? undefined,
+    courtImageUrl: context.courtImageUrl ?? undefined,
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    bookingId: booking.id,
+  }).catch((err) => logger.error({ err }, "sendBookingConfirmationEmail (split confirm) failed"));
+
+  if (context.ownerEmail) {
+    sendOwnerBookingNotificationEmail({
+      ownerName: context.ownerName ?? "Savininkas",
+      ownerEmail: context.ownerEmail,
+      customerName: booking.customerName,
+      courtName: context.courtName ?? "Kortas",
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch((err) => logger.error({ err }, "sendOwnerBookingNotificationEmail (split) failed"));
+  }
 }
 
 async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
@@ -198,25 +394,40 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
     .select()
     .from(bookingsTable)
     .where(eq(bookingsTable.stripeSessionId, session.id));
-  if (!booking) return;
 
-  // Only cancel if still pending — never disturb confirmed bookings.
-  await db
-    .update(bookingsTable)
-    .set({ status: "cancelled" })
-    .where(and(eq(bookingsTable.id, booking.id), ne(bookingsTable.status, "confirmed")));
+  if (booking) {
+    // Only cancel if still pending — never disturb confirmed/awaiting_players bookings.
+    await db
+      .update(bookingsTable)
+      .set({ status: "cancelled" })
+      .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.status, "pending")));
 
-  await db
-    .delete(gamesTable)
-    .where(and(eq(gamesTable.bookingId, booking.id), eq(gamesTable.status, "pending_payment")));
+    await db
+      .delete(gamesTable)
+      .where(and(eq(gamesTable.bookingId, booking.id), eq(gamesTable.status, "pending_payment")));
 
-  logger.info({ bookingId: booking.id, sessionId: session.id }, "stripe webhook: expired session — released hold");
+    logger.info({ bookingId: booking.id, sessionId: session.id }, "stripe webhook: expired session — released hold");
+    return;
+  }
+
+  // Also handle expired split-participant sessions: remove the pending participant
+  const [participant] = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(eq(gameParticipantsTable.stripeSessionId, session.id));
+
+  if (participant && participant.paymentStatus === "pending") {
+    await db
+      .delete(gameParticipantsTable)
+      .where(and(
+        eq(gameParticipantsTable.id, participant.id),
+        eq(gameParticipantsTable.paymentStatus, "pending"),
+      ));
+    logger.info({ participantId: participant.id }, "stripe webhook: expired split participant session — removed slot hold");
+  }
 }
 
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-  // Strict readiness: details_submitted alone is insufficient — an account can have
-  // details_submitted=true but charges_enabled=false or a disabled_reason set, in
-  // which case the owner cannot actually accept money. See isStripeAccountReady.
   const stripeComplete = isStripeAccountReady(account);
   logger.info(
     {
@@ -231,24 +442,17 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
   );
   const newStatus = stripeComplete ? "active" : "pending";
 
-  // 1) User-level Connect (owner profile)
   await db
     .update(userProfilesTable)
     .set({ stripeAccountStatus: newStatus })
     .where(eq(userProfilesTable.stripeAccountId, account.id));
 
-  // ─── Owner-level cascade ───
-  // The most common shape on this platform is a single Stripe account at the owner-profile
-  // level that all of the owner's facilities share. Find every facility owned by this user
-  // (by joining via the profile) and re-evaluate the facility verification status.
   const [profile] = await db
     .select()
     .from(userProfilesTable)
     .where(eq(userProfilesTable.stripeAccountId, account.id));
 
   if (profile) {
-    // For each facility this owner has, sync stripeOnboardingComplete and let the helper
-    // decide whether the facility should advance / regress in the verification pipeline.
     const ownedFacilities = await db
       .select()
       .from(facilitiesTable)
@@ -263,9 +467,6 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
 
       const transitions = nextStatus && nextStatus !== f.verificationStatus;
 
-      // ONE atomic compare-and-set per facility. The WHERE clause requires the row to
-      // still be in the status we read, so a concurrent admin approve/reject (active /
-      // draft transition) won't be silently overwritten by a stale stripe webhook.
       const updated = await db
         .update(facilitiesTable)
         .set(
@@ -279,12 +480,9 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
         ))
         .returning({ id: facilitiesTable.id });
 
-      // If the row's status changed under us, skip notifications for this iteration —
-      // whoever transitioned it (admin action, another webhook) is the source of truth.
       if (updated.length === 0) continue;
 
       if (transitions) {
-        // Notify owner about the transition so they're never surprised by a status change.
         if (nextStatus === "pending_verification") {
           sendNotification(
             profile.userId,
@@ -293,7 +491,6 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
             "Stripe Connect duomenys užbaigti. Objektas perduotas administratoriaus peržiūrai.",
             `/owner/facility/${f.id}`,
           ).catch(() => {});
-          // Also notify the admin so the verification queue is actively worked.
           sendAdminNotification(
             "Objektas laukia patvirtinimo (Stripe paruoštas)",
             `„${f.name}" (${f.city ?? "—"}) automatiškai perėjo į patvirtinimo eilę po Stripe Connect užbaigimo.`,

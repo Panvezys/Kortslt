@@ -275,6 +275,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
             or(
               eq(bookingsTable.status, "confirmed"),
               eq(bookingsTable.status, "blocked"),
+              eq(bookingsTable.status, "awaiting_players"),
               and(
                 eq(bookingsTable.status, "pending"),
                 sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`

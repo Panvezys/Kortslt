@@ -33,6 +33,7 @@ import deleteUserDataRouter from "./delete-user-data";
 import diagnosticRouter from "./diagnostic";
 import guestBookingsRouter from "./guest-bookings";
 import ownerBusinessInfoRouter from "./owner-business-info";
+import splitPaymentsRouter from "./split-payments";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(deleteUserDataRouter);
 router.use(diagnosticRouter);
 router.use(guestBookingsRouter);
 router.use(ownerBusinessInfoRouter);
+router.use(splitPaymentsRouter);
 
 export default router;

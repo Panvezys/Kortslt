@@ -17,7 +17,7 @@ export const gamesTable = pgTable("games", {
   datetime: text("datetime").notNull(),
   durationMinutes: integer("duration_minutes").notNull().default(60),
   description: text("description"),
-  // status values: pending_payment | open | full | pending_verification | completed | disputed
+  // status values: pending_payment | awaiting_players | open | full | pending_verification | completed | disputed | cancelling
   status: text("status").notNull().default("open"),
   matchType: text("match_type").notNull().default("casual"),
   isPrivate: boolean("is_private").notNull().default(false),
@@ -39,6 +39,10 @@ export const gameParticipantsTable = pgTable("game_participants", {
   status: text("status").notNull().default("joined"),
   // "join_request" = user asked to join; "invite" = creator invited user (requires user acceptance)
   source: text("source").notNull().default("join_request"),
+  // Split-payment tracking
+  paymentStatus: text("payment_status").notNull().default("paid"), // paid | pending
+  stripeSessionId: text("stripe_session_id"),
+  inviteEmail: text("invite_email"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,7 +13,7 @@ export const bookingsTable = pgTable("bookings", {
   startTime: text("start_time").notNull(), // HH:MM
   endTime: text("end_time").notNull(), // HH:MM
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").notNull().default("pending"), // pending | confirmed | cancelled | blocked
+  status: text("status").notNull().default("pending"), // pending | awaiting_players | confirmed | cancelled | blocked
   rentedItems: text("rented_items"),
   notes: text("notes"),
   stripeSessionId: text("stripe_session_id"),
@@ -23,6 +23,11 @@ export const bookingsTable = pgTable("bookings", {
   // Opaque token allowing a guest (no Clerk session) to view & cancel their booking.
   // Generated server-side with crypto.randomBytes for guest bookings; null for authed users.
   managementToken: text("management_token").unique(),
+  // Split payment fields
+  isSplit: boolean("is_split").notNull().default(false),
+  totalSlots: integer("total_slots"),
+  pricePerSlot: numeric("price_per_slot", { precision: 10, scale: 2 }),
+  splitInviteToken: text("split_invite_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

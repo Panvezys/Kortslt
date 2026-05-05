@@ -353,6 +353,9 @@ export default function CourtDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [guestCheckoutOpen, setGuestCheckoutOpen] = useState(false);
   const [guestCheckoutSubmitting, setGuestCheckoutSubmitting] = useState(false);
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitCount, setSplitCount] = useState(4);
+  const [splitPending, setSplitPending] = useState(false);
 
   useEffect(() => {
     // Check URL params (direct Stripe redirect)
@@ -745,6 +748,51 @@ export default function CourtDetail() {
         description: detail ? `${detail}` : "Bandykite dar kartą.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSplitReserve = async () => {
+    if (!selectedSlotRange) {
+      toast({ title: "Pasirinkite laiką", variant: "destructive" });
+      return;
+    }
+    if (!isSignedIn || !user) { openSignIn(); return; }
+    const anyEmail = (user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "").trim();
+    const anyName = (user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || anyEmail.split("@")[0] || "").trim();
+    const customerName = anyName || "Vartotojas";
+    const customerEmail = anyEmail;
+    if (!customerEmail) {
+      toast({ title: "El. pašto adresas nerastas", description: "Pridėkite el. paštą prie paskyros.", variant: "destructive" });
+      return;
+    }
+    setSplitPending(true);
+    try {
+      const resp = await fetch(`${API}/games/checkout-split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtId,
+          date: dateStr,
+          startTime: selectedSlotRange.startTime,
+          endTime: selectedSlotRange.endTime,
+          totalSlots: splitCount,
+          sport: (court as any)?.sport ?? "tennis",
+          customerName,
+          customerEmail,
+        }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error((data as any).error ?? "Nepavyko sukurti mokėjimo");
+      }
+      const { url, shareToken } = await resp.json();
+      sessionStorage.setItem("splitShareToken", shareToken ?? "");
+      window.location.href = url;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bandykite dar kartą.";
+      toast({ title: "Klaida", description: msg, variant: "destructive" });
+    } finally {
+      setSplitPending(false);
     }
   };
 
@@ -1633,6 +1681,57 @@ export default function CourtDetail() {
                 </div>
               )}
 
+              {/* Split Payment toggle — only for paid bookings when signed in */}
+              {selectedSlotRange && isSignedIn && selectedSlotRange.totalPrice > 0 && (
+                <div className="rounded-xl border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSplitEnabled(o => !o)}
+                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors text-left"
+                  >
+                    <span className="text-sm font-semibold flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" />
+                      Skaidyti mokėjimą
+                      {splitEnabled && (
+                        <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">
+                          {splitCount} žaid.
+                        </span>
+                      )}
+                    </span>
+                    <span className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${splitEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${splitEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </span>
+                  </button>
+                  {splitEnabled && (
+                    <div className="px-3 pb-3 border-t pt-2.5 space-y-2 bg-muted/10">
+                      <p className="text-xs text-muted-foreground">Kiekvienas žaidėjas moka savo dalį. Dalinkitės nuoroda po apmokėjimo.</p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium flex-1">Žaidėjų skaičius</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSplitCount(c => Math.max(2, c - 1))}
+                            className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors font-bold text-lg leading-none"
+                            disabled={splitCount <= 2}
+                          >−</button>
+                          <span className="text-base font-bold w-5 text-center">{splitCount}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSplitCount(c => Math.min(8, c + 1))}
+                            className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-muted transition-colors font-bold text-lg leading-none"
+                            disabled={splitCount >= 8}
+                          >+</button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-sm pt-1 border-t">
+                        <span className="text-muted-foreground">Jūsų dalis (1/{splitCount})</span>
+                        <span className="font-bold text-primary">{(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Booking summary — shown inline below slot grid once something is selected */}
               {selectedSlotRange ? (
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
@@ -1666,10 +1765,23 @@ export default function CourtDetail() {
                     </div>
                   )}
                   <Separator className="my-1" />
-                  <div className="flex justify-between font-bold text-base">
-                    <span>Iš viso</span>
-                    <span className="text-primary">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
-                  </div>
+                  {splitEnabled ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Bendra kaina</span>
+                        <span className="font-medium">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-base">
+                        <span>Jūsų dalis (1/{splitCount})</span>
+                        <span className="text-primary">{(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between font-bold text-base">
+                      <span>Iš viso</span>
+                      <span className="text-primary">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
+                    </div>
+                  )}
                 </div>
               ) : selectedStart !== null ? (
                 <p className="text-xs text-center text-muted-foreground py-1">
@@ -1738,13 +1850,21 @@ export default function CourtDetail() {
                     </button>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
-                      <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
+                      <p className="font-bold text-base text-primary leading-tight">
+                        {splitEnabled
+                          ? `${(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €`
+                          : `${selectedSlotRange.totalPrice.toFixed(2)} €`}
+                      </p>
                     </div>
                     {!clerkLoaded ? (
                       <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
                     ) : isSignedIn ? (
-                      <Button onClick={() => handleReserve()} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
-                        {isPending ? "..." : "Rezervuoti"}
+                      <Button
+                        onClick={() => splitEnabled ? handleSplitReserve() : handleReserve()}
+                        className="button-primary h-10 px-5 font-semibold gap-2 shrink-0"
+                        disabled={isPending || splitPending}
+                      >
+                        {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : "Rezervuoti"}
                       </Button>
                     ) : (
                       <Button onClick={() => setGuestCheckoutOpen(true)} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
@@ -1839,17 +1959,21 @@ export default function CourtDetail() {
             </button>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground truncate">{selectedSlotRange.startTime} – {selectedSlotRange.endTime} · {selectedSlotRange.durationLabel}</p>
-              <p className="font-bold text-base text-primary leading-tight">{selectedSlotRange.totalPrice.toFixed(2)} €</p>
+              <p className="font-bold text-base text-primary leading-tight">
+                {splitEnabled
+                  ? `${(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €`
+                  : `${selectedSlotRange.totalPrice.toFixed(2)} €`}
+              </p>
             </div>
             {!clerkLoaded ? (
               <div className="h-11 w-32 rounded-xl bg-muted animate-pulse" />
             ) : isSignedIn ? (
               <Button
-                onClick={() => handleReserve()}
+                onClick={() => splitEnabled ? handleSplitReserve() : handleReserve()}
                 className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
-                disabled={isPending}
+                disabled={isPending || splitPending}
               >
-                {isPending ? "..." : "Rezervuoti"}
+                {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : "Rezervuoti"}
               </Button>
             ) : (
               <Button

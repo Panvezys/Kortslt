@@ -49,6 +49,7 @@ import BecomeOwnerPage from "@/pages/become-owner";
 import FavoritesPage from "@/pages/favorites";
 import SettingsPage from "@/pages/settings";
 import RanksPage from "@/pages/ranks";
+import JoinBookingPage from "@/pages/join-booking";
 
 const AdminDashboard = lazy(() => import("@/pages/admin"));
 const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
@@ -243,6 +244,7 @@ function Router() {
       <Route path="/terms" component={TermsPage} />
       <Route path="/contact" component={ContactPage} />
       <Route path="/ranks" component={RanksPage} />
+      <Route path="/join/:token" component={JoinBookingPage} />
       <Route path="/coach/me">
         {() => <CoachRoute><CoachPage /></CoachRoute>}
       </Route>

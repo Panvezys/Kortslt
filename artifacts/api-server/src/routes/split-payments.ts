@@ -1,0 +1,633 @@
+/**
+ * Split Payment routes
+ *
+ * POST /api/games/checkout-split  — host initiates a split booking + game + pays their share
+ * GET  /api/bookings/share/:token — public: get split booking info (for invite page)
+ * POST /api/bookings/share/:token/checkout — invitee pays their share
+ * GET  /api/bookings/:bookingId/split-status — host/participant: see all payment statuses
+ */
+import { Router, type IRouter } from "express";
+import { and, eq, ne, sql } from "drizzle-orm";
+import {
+  db,
+  bookingsTable,
+  courtsTable,
+  facilitiesTable,
+  gamesTable,
+  gameParticipantsTable,
+  userProfilesTable,
+  courtPricingTable,
+  courtBlockedSlotsTable,
+} from "@workspace/db";
+
+import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { getUncachableStripeClient } from "../stripeClient";
+import { logger } from "../lib/logger";
+import { z } from "zod";
+import crypto from "node:crypto";
+
+const router: IRouter = Router();
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
+  const m = toMin(startTime);
+  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+  return isWeekday && m >= 17 * 60 && m < 22 * 60;
+}
+
+function slotsBetween(startTime: string, endTime: string): string[] {
+  const slots: string[] = [];
+  let cur = toMin(startTime);
+  const end = toMin(endTime);
+  while (cur < end) {
+    const h = Math.floor(cur / 60).toString().padStart(2, "0");
+    const m = (cur % 60).toString().padStart(2, "0");
+    slots.push(`${h}:${m}`);
+    cur += 30;
+  }
+  return slots;
+}
+
+// ─── POST /api/games/checkout-split ──────────────────────────────────────────
+
+const SplitCheckoutBody = z.object({
+  courtId: z.number().int().positive(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  totalSlots: z.number().int().min(2).max(8),
+  sport: z.string().min(1),
+  skillLevel: z.string().optional().default("any"),
+  description: z.string().optional(),
+  customerName: z.string().min(1),
+  customerEmail: z.string().email(),
+  customerPhone: z.string().optional(),
+});
+
+router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const parsed = SplitCheckoutBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const {
+    courtId, date, startTime, endTime, totalSlots, sport, skillLevel, description,
+    customerName, customerEmail, customerPhone,
+  } = parsed.data;
+
+  const reqStartMin = toMin(startTime);
+  const reqEndMin = toMin(endTime);
+  if (reqEndMin <= reqStartMin) {
+    res.status(400).json({ error: "endTime must be after startTime" });
+    return;
+  }
+
+  // ── Fetch court and facility ──────────────────────────────────────────────
+  const [courtRow] = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtsTable)
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.id, courtId));
+
+  if (!courtRow?.court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const { court, facility } = courtRow;
+
+  // ── Server-side price calculation ─────────────────────────────────────────
+  const dateObj = new Date(`${date}T12:00:00`);
+  const dayOfWeek = dateObj.getDay();
+
+  const pricingEntries = await db.select()
+    .from(courtPricingTable)
+    .where(and(
+      eq(courtPricingTable.courtId, courtId),
+      eq(courtPricingTable.dayOfWeek, dayOfWeek),
+    ));
+
+  const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
+
+  const slots = slotsBetween(startTime, endTime);
+  let courtPrice = 0;
+  for (const slotStart of slots) {
+    if (pricingMap.has(slotStart)) {
+      courtPrice += pricingMap.get(slotStart)!;
+    } else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) {
+      courtPrice += peakSlotPrice;
+    } else {
+      courtPrice += defaultSlotPrice;
+    }
+  }
+
+  const totalPrice = courtPrice;
+  const pricePerSlot = Math.round((totalPrice / totalSlots) * 100) / 100;
+  const durationMinutes = reqEndMin - reqStartMin;
+
+  // ── Conflict check ────────────────────────────────────────────────────────
+  const conflictingBookings = await db
+    .select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, courtId),
+      eq(bookingsTable.date, date),
+      sql`${bookingsTable.status} IN ('confirmed', 'blocked', 'awaiting_players')`,
+    ));
+
+  const recentPending = await db
+    .select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, courtId),
+      eq(bookingsTable.date, date),
+      eq(bookingsTable.status, "pending"),
+      sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`,
+    ));
+
+  const allConflicting = [...conflictingBookings, ...recentPending];
+  for (const b of allConflicting) {
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    if (reqStartMin < bEnd && reqEndMin > bStart) {
+      res.status(409).json({ error: "Pasirinktas laikas užimtas", code: "SLOT_UNAVAILABLE" });
+      return;
+    }
+  }
+
+  // Also check blocked slots
+  const blockedSlots = await db
+    .select({ startTime: courtBlockedSlotsTable.startTime, endTime: courtBlockedSlotsTable.endTime })
+    .from(courtBlockedSlotsTable)
+    .where(and(
+      eq(courtBlockedSlotsTable.courtId, courtId),
+      eq(courtBlockedSlotsTable.date, date),
+    ));
+
+  for (const b of blockedSlots) {
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    if (reqStartMin < bEnd && reqEndMin > bStart) {
+      res.status(409).json({ error: "Pasirinktas laikas užblokuotas", code: "SLOT_BLOCKED" });
+      return;
+    }
+  }
+
+  // ── Create booking ────────────────────────────────────────────────────────
+  const splitInviteToken = crypto.randomBytes(20).toString("hex");
+  const datetime = `${date}T${startTime}:00`;
+
+  const [booking] = await db.insert(bookingsTable).values({
+    courtId,
+    bookerUserId: userId,
+    customerName,
+    customerEmail,
+    customerPhone: customerPhone ?? null,
+    date,
+    startTime,
+    endTime,
+    totalPrice: String(totalPrice),
+    status: "pending",
+    isSplit: true,
+    totalSlots,
+    pricePerSlot: String(pricePerSlot),
+    splitInviteToken,
+  }).returning();
+
+  // ── Create linked game ────────────────────────────────────────────────────
+  const [game] = await db.insert(gamesTable).values({
+    creatorUserId: userId,
+    creatorName: customerName,
+    creatorEmail: customerEmail,
+    sport,
+    city: facility?.city ?? "",
+    placeName: facility?.name ?? court.name,
+    facilityId: facility?.id ?? null,
+    courtId,
+    bookingId: booking.id,
+    playersNeeded: totalSlots,
+    skillLevel: skillLevel ?? "any",
+    datetime,
+    durationMinutes,
+    description: description ?? null,
+    status: "pending_payment",
+    matchType: "casual",
+    isPrivate: false,
+    requiresApproval: false,
+    teamCount: 2,
+  }).returning();
+
+  // ── Add host as participant (pending payment) ─────────────────────────────
+  const [hostParticipant] = await db.insert(gameParticipantsTable).values({
+    gameId: game.id,
+    userId,
+    userName: customerName,
+    userEmail: customerEmail,
+    status: "joined",
+    source: "join_request",
+    paymentStatus: "pending",
+  }).returning();
+
+  // ── Create Stripe checkout for host's share ───────────────────────────────
+  const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
+  const base = process.env.BASE_PATH ?? "";
+  const successUrl = `${origin}${base}/booking-confirmed?id=${booking.id}&split=1`;
+  const cancelUrl = `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`;
+
+  let checkoutUrl: string;
+
+  try {
+    const stripe = await getUncachableStripeClient();
+
+    // Resolve Connect account
+    let connectAccountId: string | null = null;
+    if (facility?.ownerUserId) {
+      const [profile] = await db
+        .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.userId, facility.ownerUserId));
+      if (profile?.stripeAccountId && profile.status === "active") {
+        connectAccountId = profile.stripeAccountId;
+      }
+    }
+
+    const amountCents = Math.round(pricePerSlot * 100);
+    const sessionParams: any = {
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${court.name} – mokėjimo dalis (1/${totalSlots})`,
+            description: `${date} · ${startTime}–${endTime}`,
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      }],
+      mode: "payment",
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      metadata: { bookingId: String(booking.id), splitParticipantId: String(hostParticipant.id) },
+      customer_email: customerEmail,
+      locale: "lt",
+    };
+
+    if (connectAccountId) {
+      const feeAmount = Math.round(amountCents * 5 / 100);
+      sessionParams.payment_intent_data = {
+        application_fee_amount: feeAmount,
+        transfer_data: { destination: connectAccountId },
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    // Store session ids
+    await db.update(bookingsTable)
+      .set({ stripeSessionId: session.id })
+      .where(eq(bookingsTable.id, booking.id));
+
+    await db.update(gameParticipantsTable)
+      .set({ stripeSessionId: session.id })
+      .where(eq(gameParticipantsTable.id, hostParticipant.id));
+
+    checkoutUrl = session.url!;
+
+  } catch (err: any) {
+    if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
+      // Mock checkout for dev
+      const mockId = `mock_split_${booking.id}_${Date.now()}`;
+      await db.update(bookingsTable)
+        .set({ stripeSessionId: mockId, status: "awaiting_players" })
+        .where(eq(bookingsTable.id, booking.id));
+      await db.update(gameParticipantsTable)
+        .set({ stripeSessionId: mockId, paymentStatus: "paid" })
+        .where(eq(gameParticipantsTable.id, hostParticipant.id));
+      await db.update(gamesTable)
+        .set({ status: "awaiting_players" })
+        .where(eq(gamesTable.id, game.id));
+      checkoutUrl = `${successUrl}&session_id=${mockId}`;
+    } else {
+      logger.error({ err }, "Failed to create Stripe session for split checkout");
+      // Rollback: cancel booking + delete game
+      await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, booking.id));
+      await db.delete(gamesTable).where(eq(gamesTable.id, game.id));
+      res.status(500).json({ error: "Failed to create payment session" });
+      return;
+    }
+  }
+
+  res.status(201).json({
+    url: checkoutUrl,
+    bookingId: booking.id,
+    gameId: game.id,
+    shareToken: splitInviteToken,
+    pricePerSlot,
+    totalPrice,
+    totalSlots,
+  });
+});
+
+// ─── GET /api/bookings/share/:token ──────────────────────────────────────────
+
+router.get("/bookings/share/:token", async (req, res): Promise<void> => {
+  const { token } = req.params;
+  if (!token) { res.status(400).json({ error: "Token required" }); return; }
+
+  const rows = await db
+    .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.splitInviteToken, token));
+
+  if (!rows[0]) { res.status(404).json({ error: "Invite link not found" }); return; }
+
+  const { booking, court, facility } = rows[0];
+
+  if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
+
+  if (booking.status === "cancelled") {
+    res.status(410).json({ error: "Booking was cancelled" });
+    return;
+  }
+
+  // Get linked game + participant counts
+  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.bookingId, booking.id));
+
+  let paidCount = 0;
+  let pendingCount = 0;
+  if (game) {
+    const participants = await db
+      .select({ paymentStatus: gameParticipantsTable.paymentStatus })
+      .from(gameParticipantsTable)
+      .where(and(
+        eq(gameParticipantsTable.gameId, game.id),
+        eq(gameParticipantsTable.status, "joined"),
+      ));
+    paidCount = participants.filter(p => p.paymentStatus === "paid").length;
+    pendingCount = participants.filter(p => p.paymentStatus === "pending").length;
+  }
+
+  const slotsLeft = Math.max(0, (booking.totalSlots ?? 1) - paidCount - pendingCount);
+
+  res.json({
+    bookingId: booking.id,
+    gameId: game?.id ?? null,
+    courtName: court?.name ?? "",
+    facilityName: facility?.name ?? "",
+    facilityCity: facility?.city ?? "",
+    courtImageUrl: court?.imageUrl ?? null,
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    pricePerSlot: Number(booking.pricePerSlot ?? 0),
+    totalSlots: booking.totalSlots ?? 1,
+    paidSlots: paidCount,
+    slotsLeft,
+    bookingStatus: booking.status,
+    sport: game?.sport ?? null,
+  });
+});
+
+// ─── POST /api/bookings/share/:token/checkout ─────────────────────────────────
+
+router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const { token } = req.params;
+
+  const rows = await db
+    .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.splitInviteToken, token));
+
+  if (!rows[0]) { res.status(404).json({ error: "Invite link not found" }); return; }
+
+  const { booking, court, facility } = rows[0];
+
+  if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
+  if (booking.status === "cancelled") { res.status(410).json({ error: "Booking was cancelled" }); return; }
+  if (booking.status === "confirmed") { res.status(409).json({ error: "Booking fully paid" }); return; }
+
+  // Prevent host from joining again via invite link
+  if (booking.bookerUserId === userId) {
+    res.status(409).json({ error: "Tu jau esi šio žaidimo organizatorius" });
+    return;
+  }
+
+  // Get linked game
+  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.bookingId, booking.id));
+  if (!game) { res.status(500).json({ error: "Game not found" }); return; }
+
+  // Get existing participants
+  const existingParticipants = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(and(
+      eq(gameParticipantsTable.gameId, game.id),
+      eq(gameParticipantsTable.status, "joined"),
+    ));
+
+  // Check if user already has a slot (paid or pending)
+  const alreadyJoined = existingParticipants.find(p => p.userId === userId);
+  if (alreadyJoined) {
+    if (alreadyJoined.paymentStatus === "paid") {
+      res.status(409).json({ error: "Tu jau sumokėjai savo dalį" });
+    } else {
+      // Has a pending slot — re-use it, return the existing checkout URL via metadata
+      res.status(409).json({ error: "Turi laukiančią mokėjimo sesiją. Užbaik mokėjimą arba bandyk vėliau." });
+    }
+    return;
+  }
+
+  // Check slots available
+  const activePlayers = existingParticipants.length; // joined but may be pending or paid
+  if (activePlayers >= (booking.totalSlots ?? 1)) {
+    res.status(409).json({ error: "Visos dalys jau užimtos" });
+    return;
+  }
+
+  const pricePerSlot = Number(booking.pricePerSlot ?? 0);
+
+  // ── Create participant (pending payment) ──────────────────────────────────
+  const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
+  const base = process.env.BASE_PATH ?? "";
+
+  const userName = (req.body?.playerName as string | undefined) ?? "Žaidėjas";
+  const userEmail = (req.body?.playerEmail as string | undefined) ?? "";
+
+  const successUrl = `${origin}${base}/join/${token}?paid=1`;
+  const cancelUrl = `${origin}${base}/join/${token}?cancelled=1`;
+
+  let checkoutUrl: string;
+
+  try {
+    const stripe = await getUncachableStripeClient();
+
+    let connectAccountId: string | null = null;
+    if (facility?.ownerUserId) {
+      const [ownerProfile] = await db
+        .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+        .from(userProfilesTable)
+        .where(eq(userProfilesTable.userId, facility.ownerUserId));
+      if (ownerProfile?.stripeAccountId && ownerProfile.status === "active") {
+        connectAccountId = ownerProfile.stripeAccountId;
+      }
+    }
+
+    // Create participant first (so we have the id for metadata)
+    const [participant] = await db.insert(gameParticipantsTable).values({
+      gameId: game.id,
+      userId,
+      userName,
+      userEmail: userEmail || null,
+      status: "joined",
+      source: "join_request",
+      paymentStatus: "pending",
+    }).returning();
+
+    const amountCents = Math.round(pricePerSlot * 100);
+    const slotNumber = existingParticipants.length + 1;
+    const sessionParams: any = {
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${court?.name ?? "Kortas"} – mokėjimo dalis (${slotNumber}/${booking.totalSlots})`,
+            description: `${booking.date} · ${booking.startTime}–${booking.endTime}`,
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      }],
+      mode: "payment",
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      metadata: {
+        bookingId: String(booking.id),
+        splitParticipantId: String(participant.id),
+      },
+      customer_email: userEmail || undefined,
+      locale: "lt",
+    };
+
+    if (connectAccountId) {
+      const feeAmount = Math.round(amountCents * 5 / 100);
+      sessionParams.payment_intent_data = {
+        application_fee_amount: feeAmount,
+        transfer_data: { destination: connectAccountId },
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    await db.update(gameParticipantsTable)
+      .set({ stripeSessionId: session.id })
+      .where(eq(gameParticipantsTable.id, participant.id));
+
+    checkoutUrl = session.url!;
+
+  } catch (err: any) {
+    if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
+      const mockId = `mock_split_join_${booking.id}_${Date.now()}`;
+      const [participant] = await db.insert(gameParticipantsTable).values({
+        gameId: game.id,
+        userId,
+        userName,
+        userEmail: userEmail || null,
+        status: "joined",
+        source: "join_request",
+        paymentStatus: "paid",
+        stripeSessionId: mockId,
+      }).returning();
+
+      // Check if all paid
+      const allParticipants = await db
+        .select({ paymentStatus: gameParticipantsTable.paymentStatus })
+        .from(gameParticipantsTable)
+        .where(and(eq(gameParticipantsTable.gameId, game.id), eq(gameParticipantsTable.status, "joined")));
+      const paidCount = allParticipants.filter(p => p.paymentStatus === "paid").length;
+
+      if (paidCount >= (booking.totalSlots ?? 1)) {
+        await db.update(bookingsTable).set({ status: "confirmed" }).where(eq(bookingsTable.id, booking.id));
+        await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, game.id));
+      }
+
+      checkoutUrl = `${successUrl}&session_id=${mockId}`;
+    } else {
+      logger.error({ err }, "Failed to create Stripe session for split participant");
+      res.status(500).json({ error: "Failed to create payment session" });
+      return;
+    }
+  }
+
+  res.json({ url: checkoutUrl });
+});
+
+// ─── GET /api/bookings/:bookingId/split-status ────────────────────────────────
+
+router.get("/bookings/:bookingId/split-status", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const bookingId = parseInt(String(req.params.bookingId), 10);
+  if (isNaN(bookingId)) { res.status(400).json({ error: "Invalid bookingId" }); return; }
+
+  const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, bookingId));
+  if (!booking) { res.status(404).json({ error: "Booking not found" }); return; }
+
+  if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
+
+  // Auth: must be the host
+  if (booking.bookerUserId !== userId) {
+    // Or a participant
+    const [game] = await db.select().from(gamesTable).where(eq(gamesTable.bookingId, bookingId));
+    if (!game) { res.status(403).json({ error: "Forbidden" }); return; }
+    const [p] = await db.select({ id: gameParticipantsTable.id })
+      .from(gameParticipantsTable)
+      .where(and(
+        eq(gameParticipantsTable.gameId, game.id),
+        eq(gameParticipantsTable.userId, userId),
+      ));
+    if (!p) { res.status(403).json({ error: "Forbidden" }); return; }
+  }
+
+  const [game] = await db.select().from(gamesTable).where(eq(gamesTable.bookingId, bookingId));
+
+  const participants = game
+    ? await db.select().from(gameParticipantsTable)
+        .where(and(eq(gameParticipantsTable.gameId, game.id), eq(gameParticipantsTable.status, "joined")))
+    : [];
+
+  res.json({
+    bookingId,
+    gameId: game?.id ?? null,
+    bookingStatus: booking.status,
+    totalSlots: booking.totalSlots ?? 1,
+    pricePerSlot: Number(booking.pricePerSlot ?? 0),
+    totalPrice: Number(booking.totalPrice),
+    shareToken: booking.splitInviteToken,
+    participants: participants.map(p => ({
+      userId: p.userId,
+      userName: p.userName,
+      userEmail: p.userEmail,
+      paymentStatus: p.paymentStatus,
+      joinedAt: p.joinedAt.toISOString(),
+    })),
+  });
+});
+
+export default router;
