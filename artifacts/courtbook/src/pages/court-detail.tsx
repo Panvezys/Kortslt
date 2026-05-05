@@ -26,6 +26,7 @@ import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
+import { BookingSummaryDialog } from "@/components/booking-summary-dialog";
 import { SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { WeatherWidget } from "@/components/weather-widget";
 import { SurfaceSpecs } from "@/components/surface-specs";
@@ -358,6 +359,8 @@ export default function CourtDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [guestCheckoutOpen, setGuestCheckoutOpen] = useState(false);
   const [guestCheckoutSubmitting, setGuestCheckoutSubmitting] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [pendingGuestData, setPendingGuestData] = useState<{ customerName: string; customerEmail: string; customerPhone?: string } | null>(null);
   const [splitEnabled, setSplitEnabled] = useState(false);
   const [splitCount, setSplitCount] = useState(4);
   const [splitPending, setSplitPending] = useState(false);
@@ -2061,7 +2064,7 @@ export default function CourtDetail() {
                       <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
                     ) : isSignedIn ? (
                       <Button
-                        onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : handleReserve()}
+                        onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : setSummaryOpen(true)}
                         className="button-primary h-10 px-5 font-semibold gap-2 shrink-0"
                         disabled={isPending || splitPending}
                       >
@@ -2174,7 +2177,7 @@ export default function CourtDetail() {
               <div className="h-11 w-32 rounded-xl bg-muted animate-pulse" />
             ) : isSignedIn ? (
               <Button
-                onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : handleReserve()}
+                onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : setSummaryOpen(true)}
                 className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
                 disabled={isPending || splitPending}
               >
@@ -2206,17 +2209,47 @@ export default function CourtDetail() {
         open={guestCheckoutOpen}
         onOpenChange={setGuestCheckoutOpen}
         onSignIn={() => openSignIn()}
-        submitting={guestCheckoutSubmitting || isPending}
+        submitting={false}
         onSubmit={async (data) => {
-          setGuestCheckoutSubmitting(true);
-          try {
-            await handleReserve(data);
-            setGuestCheckoutOpen(false);
-          } finally {
-            setGuestCheckoutSubmitting(false);
-          }
+          setPendingGuestData(data);
+          setGuestCheckoutOpen(false);
+          setSummaryOpen(true);
         }}
       />
+
+      {selectedSlotRange && (
+        <BookingSummaryDialog
+          open={summaryOpen}
+          onOpenChange={(open) => {
+            setSummaryOpen(open);
+            if (!open) setPendingGuestData(null);
+          }}
+          courtName={(court as any)?.name ?? `Kortas #${courtId}`}
+          courtImageUrl={(court as any)?.imageUrl ?? null}
+          sport={(court as any)?.sport ?? null}
+          date={date}
+          slotRange={selectedSlotRange}
+          selectedEquipment={selectedEquipment}
+          availableEquipment={availableEquipment}
+          splitEnabled={splitEnabled}
+          splitCount={splitCount}
+          isPending={isPending || guestCheckoutSubmitting}
+          onConfirm={async () => {
+            setSummaryOpen(false);
+            if (pendingGuestData) {
+              setGuestCheckoutSubmitting(true);
+              try {
+                await handleReserve(pendingGuestData);
+              } finally {
+                setGuestCheckoutSubmitting(false);
+                setPendingGuestData(null);
+              }
+            } else {
+              handleReserve();
+            }
+          }}
+        />
+      )}
 
       {waitlistSlot && (
         <WaitlistModal
