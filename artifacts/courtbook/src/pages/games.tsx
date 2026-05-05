@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SportIcon, SPORT_LABELS } from "@/components/sport-icon";
+import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { Calendar, Clock, MapPin, Users, Plus, UserCheck, UserPlus, Trophy, Lock, Search, X, Swords, Shield, Info } from "lucide-react";
@@ -65,14 +65,8 @@ function GameCard({ g }: { g: Game }) {
         <div className="p-4 sm:p-5 space-y-3.5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "linear-gradient(135deg, #132D4C, #1a3d66)" }}
-              >
-                <SportIcon sport={g.sport} className="w-5 h-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs text-muted-foreground font-medium">{SPORT_LABELS[g.sport] ?? g.sport}</div>
+              <div className="min-w-0 space-y-0.5">
+                <SportPill sport={g.sport} variant="subtle" size="sm" />
                 <div className="text-xs text-muted-foreground">{SKILL_LABELS[g.skillLevel]}</div>
               </div>
             </div>

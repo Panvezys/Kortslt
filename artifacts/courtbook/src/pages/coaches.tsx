@@ -403,14 +403,9 @@ export default function CoachesPage() {
                 <button
                   key={sport}
                   onClick={() => setSearchSport(active ? "" : sport)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
-                  style={active
-                    ? { background: color, borderColor: color, color: "#000" }
-                    : { borderColor: "rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.7)" }
-                  }
+                  className="rounded-full transition-all"
                 >
-                  <SportIcon sport={sport} size={11} strokeWidth={2} />
-                  {sportLT[sport]}
+                  <SportPill sport={sport} variant={active ? "solid" : "subtle"} size="sm" />
                 </button>
               );
             })}
