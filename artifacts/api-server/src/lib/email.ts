@@ -192,6 +192,8 @@ export interface BookingEmailData {
   // Guest bookings (no Clerk session) get an opaque token; including this enables
   // a "Manage your booking" link in the email pointing at /guest/booking/[token].
   managementToken?: string;
+  // Smart lock access code — shown prominently if the court has a smart lock
+  accessCode?: string;
 }
 
 export async function sendBookingConfirmationEmail(data: BookingEmailData): Promise<void> {
@@ -384,6 +386,19 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
               </table>
             </td>
           </tr>
+
+          <!-- Smart lock access code -->
+          ${data.accessCode ? `
+          <tr>
+            <td style="padding:0 32px 20px;">
+              <div style="background:#0b2110;border:2px solid #166534;border-radius:12px;padding:20px 24px;text-align:center;">
+                <p style="color:#86efac;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">🔐 Smart Lock prieigos kodas</p>
+                <p style="color:#4ade80;font-size:34px;font-weight:800;letter-spacing:10px;margin:0 0 10px;font-family:monospace;">${data.accessCode}</p>
+                <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.6;">Įveskite šį kodą prie aikštelės klaviatūros.<br/>Kodas galioja tik jūsų rezervacijos laikotarpiu.</p>
+              </div>
+            </td>
+          </tr>
+          ` : ""}
 
           <!-- Action buttons -->
           <tr>
@@ -879,6 +894,97 @@ export async function sendMatchInviteEmail(
     }
   } catch (err) {
     logger.error({ err }, "Exception sending match invite email");
+  }
+}
+
+export interface WaitlistNotificationData {
+  email: string;
+  name?: string;
+  courtName: string;
+  courtId: number;
+  date: Date | string;
+  startTime: string;
+  endTime: string;
+}
+
+export async function sendWaitlistNotificationEmail(data: WaitlistNotificationData): Promise<void> {
+  const resend = getResend();
+  if (!resend) { logger.warn("Resend not configured — skipping waitlist notification email"); return; }
+
+  const dateFormatted = formatDate(data.date);
+  const start = formatTime(data.startTime);
+  const end = formatTime(data.endTime);
+  const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="lt">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#111111;border-radius:16px;border:1px solid #1f1f1f;overflow:hidden;">
+        <tr><td style="padding:24px 32px;border-bottom:1px solid #1f1f1f;">
+          <a href="${SITE_URL}" style="text-decoration:none;">
+            <span style="background:#adff2f;color:#000;font-weight:800;font-size:14px;padding:5px 10px;border-radius:6px;">K</span>
+            <span style="color:#adff2f;font-weight:800;font-size:18px;margin-left:8px;">korts.lt</span>
+          </a>
+        </td></tr>
+        <tr><td style="padding:28px 32px 0;">
+          <div style="display:inline-block;background:#172554;color:#93c5fd;border:1px solid #1d4ed8;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;margin-bottom:16px;">
+            🔔 Laikotarpis atsilaisvino!
+          </div>
+          <h1 style="color:#ffffff;font-size:22px;font-weight:700;margin:0 0 6px;">Sveiki${data.name ? `, ${data.name}` : ""}!</h1>
+          <p style="color:#9ca3af;font-size:14px;margin:0 0 24px;line-height:1.6;">
+            Aikštelėje <strong style="color:#fff;">${data.courtName}</strong> atsilaisvino laikotarpis, kurio laukėte.
+          </p>
+        </td></tr>
+        <tr><td style="padding:0 32px 24px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border-radius:12px;border:1px solid #262626;overflow:hidden;">
+            <tr><td style="background:#adff2f;padding:11px 20px;"><span style="color:#000;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.8px;">Atsilaisvinęs laikotarpis</span></td></tr>
+            <tr><td style="padding:16px 20px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="padding:8px 0;border-bottom:1px solid #262626;">
+                  <table width="100%"><tr>
+                    <td style="color:#6b7280;font-size:13px;width:40%;">Data</td>
+                    <td style="color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${dateFormatted}</td>
+                  </tr></table>
+                </td></tr>
+                <tr><td style="padding:8px 0;">
+                  <table width="100%"><tr>
+                    <td style="color:#6b7280;font-size:13px;width:40%;">Laikas</td>
+                    <td style="color:#ffffff;font-size:14px;font-weight:600;text-align:right;">${start} – ${end}</td>
+                  </tr></table>
+                </td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:0 32px 28px;">
+          <a href="${courtUrl}" style="display:inline-block;background:#adff2f;color:#000;font-weight:700;font-size:14px;padding:13px 28px;border-radius:10px;text-decoration:none;">
+            Rezervuoti dabar →
+          </a>
+          <p style="color:#6b7280;font-size:11px;margin:10px 0 0;line-height:1.5;">Paskubėkite — laikas gali greitai užsiimti!</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #1f1f1f;">
+          <p style="color:#374151;font-size:12px;margin:0;text-align:center;">© ${new Date().getFullYear()} korts.lt</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`.trim();
+
+  try {
+    const { error } = await resend.emails.send({
+      from: "korts.lt <onboarding@resend.dev>",
+      to: data.email,
+      subject: `🔔 Laikotarpis atsilaisvino – ${data.courtName}, ${dateFormatted} ${start}–${end}`,
+      html,
+    });
+    if (error) logger.error({ error }, "Failed to send waitlist notification email");
+    else logger.info({ email: data.email }, "Waitlist notification email sent");
+  } catch (err) {
+    logger.error({ err }, "Exception sending waitlist notification email");
   }
 }
 

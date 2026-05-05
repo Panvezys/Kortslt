@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe, Lock, RotateCcw } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,11 @@ import { openChat } from "@/components/chat-bubble";
 import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
 import { SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { WeatherWidget } from "@/components/weather-widget";
+import { SurfaceSpecs } from "@/components/surface-specs";
+import { RelatedCourtsCarousel } from "@/components/related-courts-carousel";
+import { CancellationTimeline } from "@/components/cancellation-timeline";
+import { WaitlistModal } from "@/components/waitlist-modal";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -360,6 +365,10 @@ export default function CourtDetail() {
   const [splitMatchType, setSplitMatchType] = useState<"casual" | "competitive">("casual");
   const [splitMinSkill, setSplitMinSkill] = useState(1.0);
   const [splitMaxSkill, setSplitMaxSkill] = useState(7.0);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [waitlistSlot, setWaitlistSlot] = useState<{ startTime: string; endTime: string } | null>(null);
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [recurringWeeks, setRecurringWeeks] = useState(4);
 
   useEffect(() => {
     // Check URL params (direct Stripe redirect)
@@ -606,7 +615,17 @@ export default function CourtDetail() {
 
   // Handle slot click: select, extend, or deselect
   const handleSlotClick = (idx: number) => {
-    if (!slots[idx]?.isAvailable) return;
+    if (!slots[idx]?.isAvailable) {
+      const slot = slots[idx];
+      if (slot) {
+        const [hh, mm] = slot.startTime.split(":").map(Number);
+        const endMin = hh * 60 + mm + 30;
+        const endTime = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
+        setWaitlistSlot({ startTime: slot.startTime, endTime });
+        setWaitlistOpen(true);
+      }
+      return;
+    }
 
     if (selectedStart === null) {
       setSelectedStart(idx);
@@ -800,6 +819,55 @@ export default function CourtDetail() {
       toast({ title: "Klaida", description: msg, variant: "destructive" });
     } finally {
       setSplitPending(false);
+    }
+  };
+
+  const handleRecurringBookings = async () => {
+    if (!selectedSlotRange) {
+      toast({ title: "Pasirinkite laiką", variant: "destructive" });
+      return;
+    }
+    if (!isSignedIn || !user) { openSignIn(); return; }
+    const anyEmail = (user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress || "").trim();
+    const anyName = (user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || anyEmail.split("@")[0] || "").trim();
+    const customerName = anyName || "Vartotojas";
+    const customerEmail = anyEmail;
+    if (!customerEmail) {
+      toast({ title: "El. pašto adresas nerastas", variant: "destructive" });
+      return;
+    }
+    const recurringGroupId = crypto.randomUUID();
+    let successCount = 0;
+    for (let i = 0; i < recurringWeeks; i++) {
+      const futureDate = new Date(date);
+      futureDate.setDate(futureDate.getDate() + i * 7);
+      try {
+        await createBooking.mutateAsync({
+          data: {
+            courtId,
+            customerName,
+            customerEmail,
+            date: futureDate,
+            startTime: selectedSlotRange.startTime,
+            endTime: selectedSlotRange.endTime,
+            recurringGroupId,
+          } as any,
+        });
+        successCount++;
+      } catch {
+        // Skip conflicts for individual weeks silently
+      }
+    }
+    if (successCount > 0) {
+      toast({
+        title: `${successCount} rezervacij${successCount === 1 ? "a" : successCount < 10 ? "os" : "ų"} sukurta!`,
+        description: Number(court?.pricePerHour ?? 0) > 0 ? "Apmokėkite kiekvieną atskirai skiltyje 'Mano rezervacijos'." : undefined,
+      });
+      setSelectedStart(null);
+      setSelectedEnd(null);
+      setRecurringEnabled(false);
+    } else {
+      toast({ title: "Nepavyko sukurti rezervacijų", description: "Pasirinkti laikai gali būti jau užimti.", variant: "destructive" });
     }
   };
 
@@ -1179,6 +1247,13 @@ export default function CourtDetail() {
               </div>
             )}
 
+            {/* Surface specifications */}
+            <SurfaceSpecs
+              surface={court.surface}
+              surfaceSpeed={(court as any).surfaceSpeed}
+              surfaceBounce={(court as any).surfaceBounce}
+            />
+
             {/* Amenity photo popup */}
             {amenityPopup && (
               <div
@@ -1467,6 +1542,12 @@ export default function CourtDetail() {
               <div className="px-5 py-3.5 border-b bg-card shrink-0 flex items-center gap-2">
                 <CalendarDays className="w-4 h-4 text-primary" />
                 <h3 className="font-semibold text-sm">Rezervuoti aikštelę</h3>
+                {(court as any).hasSmartLock && (
+                  <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400 bg-green-500/10 border border-green-400/20 px-2 py-0.5 rounded-full shrink-0">
+                    <Lock className="w-3 h-3" />
+                    Smart lock
+                  </span>
+                )}
               </div>
 
               <div className="p-5 space-y-5 md:overflow-y-auto md:flex-1 md:min-h-0">
@@ -1489,6 +1570,13 @@ export default function CourtDetail() {
                     }}
                   />
                 </div>
+                {/* Weather forecast for selected date — outdoor courts only */}
+                <WeatherWidget
+                  lat={(court as any).latitude}
+                  lon={(court as any).longitude}
+                  date={dateStr}
+                  isIndoor={court.isIndoor}
+                />
               </div>
 
               {/* Step 2: Time slot selection */}
@@ -1577,6 +1665,43 @@ export default function CourtDetail() {
                   </div>
                 )}
               </div>
+
+              {/* Recurring booking toggle */}
+              {selectedSlotRange && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecurringEnabled(v => !v)}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-colors ${recurringEnabled ? "bg-primary/5 border-primary/30" : "bg-muted/20 border-transparent hover:bg-muted/40"}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className={`w-4 h-4 ${recurringEnabled ? "text-primary" : "text-muted-foreground"}`} />
+                      <div className="text-left">
+                        <p className="text-sm font-medium">Kartotinė rezervacija</p>
+                        <p className="text-xs text-muted-foreground">Rezervuoti kas savaitę</p>
+                      </div>
+                    </div>
+                    <span className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${recurringEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${recurringEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </span>
+                  </button>
+                  {recurringEnabled && (
+                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-primary/5 border-primary/20 text-sm">
+                      <RotateCcw className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-muted-foreground">Savaitės:</span>
+                      <select
+                        value={recurringWeeks}
+                        onChange={e => setRecurringWeeks(Number(e.target.value))}
+                        className="ml-auto font-semibold bg-background border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {[2, 3, 4, 6, 8, 12].map(n => (
+                          <option key={n} value={n}>{n} sav.</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Equipment rental — shown when slots are selected and court has equipment */}
               {selectedSlotRange && availableEquipment.length > 0 && (
@@ -1833,6 +1958,13 @@ export default function CourtDetail() {
                       <span className="font-medium">{equipmentTotal.toFixed(2)} €</span>
                     </div>
                   )}
+                  <CancellationTimeline
+                    hoursUntilStart={(() => {
+                      const now = new Date();
+                      const start = new Date(`${dateStr}T${selectedSlotRange.startTime}:00`);
+                      return (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    })()}
+                  />
                   <Separator className="my-1" />
                   {splitEnabled ? (
                     <>
@@ -1929,11 +2061,11 @@ export default function CourtDetail() {
                       <div className="h-10 w-28 rounded-xl bg-muted animate-pulse shrink-0" />
                     ) : isSignedIn ? (
                       <Button
-                        onClick={() => splitEnabled ? handleSplitReserve() : handleReserve()}
+                        onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : handleReserve()}
                         className="button-primary h-10 px-5 font-semibold gap-2 shrink-0"
                         disabled={isPending || splitPending}
                       >
-                        {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : "Rezervuoti"}
+                        {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
                       </Button>
                     ) : (
                       <Button onClick={() => setGuestCheckoutOpen(true)} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
@@ -2010,6 +2142,10 @@ export default function CourtDetail() {
             </p>
           )}
         </div>
+
+        {/* Related courts carousel */}
+        <RelatedCourtsCarousel currentCourtId={courtId} />
+
       </div>
 
       {/* Mobile sticky bottom reserve bar */}
@@ -2038,11 +2174,11 @@ export default function CourtDetail() {
               <div className="h-11 w-32 rounded-xl bg-muted animate-pulse" />
             ) : isSignedIn ? (
               <Button
-                onClick={() => splitEnabled ? handleSplitReserve() : handleReserve()}
+                onClick={() => splitEnabled ? handleSplitReserve() : recurringEnabled ? handleRecurringBookings() : handleReserve()}
                 className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
                 disabled={isPending || splitPending}
               >
-                {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : "Rezervuoti"}
+                {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
               </Button>
             ) : (
               <Button
@@ -2081,6 +2217,19 @@ export default function CourtDetail() {
           }
         }}
       />
+
+      {waitlistSlot && (
+        <WaitlistModal
+          open={waitlistOpen}
+          onOpenChange={setWaitlistOpen}
+          courtId={courtId}
+          date={dateStr}
+          startTime={waitlistSlot.startTime}
+          endTime={waitlistSlot.endTime}
+          prefillEmail={displayEmail}
+          prefillName={displayName !== "Vartotojas" ? displayName : undefined}
+        />
+      )}
     </Layout>
   );
 }

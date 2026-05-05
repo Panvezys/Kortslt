@@ -21,13 +21,16 @@ export const bookingsTable = pgTable("bookings", {
   refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   stripeRefundId: text("stripe_refund_id"),
   // Opaque token allowing a guest (no Clerk session) to view & cancel their booking.
-  // Generated server-side with crypto.randomBytes for guest bookings; null for authed users.
   managementToken: text("management_token").unique(),
   // Split payment fields
   isSplit: boolean("is_split").notNull().default(false),
   totalSlots: integer("total_slots"),
   pricePerSlot: numeric("price_per_slot", { precision: 10, scale: 2 }),
   splitInviteToken: text("split_invite_token").unique(),
+  // Smart lock access code (delivered post-payment)
+  accessCode: text("access_code"),
+  // Recurring booking group (null = one-off, uuid string = part of a weekly series)
+  recurringGroupId: text("recurring_group_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

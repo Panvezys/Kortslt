@@ -16,6 +16,9 @@ export const courtsTable = pgTable("courts", {
   isIndoor: boolean("is_indoor").notNull().default(false),
   maxPlayers: integer("max_players").notNull().default(4),
   surface: text("surface"),
+  // Surface performance specs
+  surfaceSpeed: text("surface_speed"),  // 'slow' | 'medium' | 'fast'
+  surfaceBounce: text("surface_bounce"), // 'low' | 'medium' | 'high'
   condition: text("condition").notNull().default("good"),
   rating: real("rating"),
   totalBookings: integer("total_bookings").notNull().default(0),
@@ -30,6 +33,9 @@ export const courtsTable = pgTable("courts", {
   facilityId: integer("facility_id").notNull().references(() => facilitiesTable.id, { onDelete: "cascade" }),
   workingHours: text("working_hours"),
   amenityPhotos: text("amenity_photos"),
+  // Smart lock / unmanned facility access
+  hasSmartLock: boolean("has_smart_lock").notNull().default(false),
+  accessInstructions: text("access_instructions"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

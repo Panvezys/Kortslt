@@ -35,6 +35,9 @@ import guestBookingsRouter from "./guest-bookings";
 import ownerBusinessInfoRouter from "./owner-business-info";
 import splitPaymentsRouter from "./split-payments";
 import openMatchesRouter from "./open-matches";
+import weatherRouter from "./weather";
+import waitlistsRouter from "./waitlists";
+import relatedCourtsRouter from "./related-courts";
 
 const router: IRouter = Router();
 
@@ -74,5 +77,8 @@ router.use(guestBookingsRouter);
 router.use(ownerBusinessInfoRouter);
 router.use(splitPaymentsRouter);
 router.use(openMatchesRouter);
+router.use(weatherRouter);
+router.use(waitlistsRouter);
+router.use(relatedCourtsRouter);
 
 export default router;

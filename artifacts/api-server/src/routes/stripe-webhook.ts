@@ -12,6 +12,7 @@
  */
 import type { Request, Response } from "express";
 import type Stripe from "stripe";
+import { randomBytes } from "node:crypto";
 import { eq, and, ne, sql } from "drizzle-orm";
 import {
   db,
@@ -115,6 +116,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       ownerName: facilitiesTable.companyName,
       ownerEmail: facilitiesTable.email,
       instantBookingEnabled: courtsTable.instantBookingEnabled,
+      hasSmartLock: courtsTable.hasSmartLock,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -188,6 +190,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       .set({ totalBookings: sql`total_bookings + 1` })
       .where(eq(courtsTable.id, rows[0].booking.courtId));
 
+    // Generate a smart-lock access code if the court has a smart lock
+    let smartAccessCode: string | undefined;
+    if (rows[0].hasSmartLock) {
+      smartAccessCode = randomBytes(3).toString("hex").toUpperCase(); // 6-char hex e.g. "A3F9C1"
+      await db
+        .update(bookingsTable)
+        .set({ accessCode: smartAccessCode })
+        .where(eq(bookingsTable.id, confirmedBooking.id));
+    }
+
     sendBookingConfirmationEmail({
       customerName: confirmedBooking.customerName,
       customerEmail: confirmedBooking.customerEmail,
@@ -202,6 +214,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       endTime: confirmedBooking.endTime,
       totalPrice: Number(confirmedBooking.totalPrice),
       bookingId: confirmedBooking.id,
+      accessCode: smartAccessCode,
     }).catch((err) => logger.error({ err }, "sendBookingConfirmationEmail (webhook) failed"));
 
     if (rows[0].ownerEmail) {

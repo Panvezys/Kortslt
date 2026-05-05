@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, or, sql, ne } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, waitlistsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
-import { sendCustomerCancellationEmail, sendOwnerCancellationEmail } from "../lib/email";
+import { sendCustomerCancellationEmail, sendOwnerCancellationEmail, sendWaitlistNotificationEmail } from "../lib/email";
 import {
   ListBookingsQueryParams,
   CreateBookingBody,
@@ -182,6 +182,11 @@ router.post("/bookings", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message, details: parsed.error.flatten() });
     return;
   }
+
+  const recurringGroupId =
+    typeof req.body?.recurringGroupId === "string" && req.body.recurringGroupId.length > 0
+      ? req.body.recurringGroupId
+      : null;
 
   const d0 = parsed.data.date;
   const dateStr0 = `${d0.getUTCFullYear()}-${String(d0.getUTCMonth() + 1).padStart(2, "0")}-${String(d0.getUTCDate()).padStart(2, "0")}`;
@@ -376,6 +381,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
         rentedItems: validatedRentedItems,
         status: "pending",
         managementToken,
+        recurringGroupId,
       }).returning();
 
       return inserted;
@@ -616,6 +622,32 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
       bookingId: booking.id,
     }).catch((err) => logger.error({ err, bookingId: booking.id }, "sendOwnerCancellationEmail failed"));
   }
+
+  // Notify waitlist subscribers that this slot just freed up (fire-and-forget)
+  db.select()
+    .from(waitlistsTable)
+    .where(
+      and(
+        eq(waitlistsTable.courtId, booking.courtId),
+        eq(waitlistsTable.date, String(booking.date).slice(0, 10)),
+        eq(waitlistsTable.startTime, booking.startTime),
+        eq(waitlistsTable.endTime, booking.endTime),
+      ),
+    )
+    .then((entries) => {
+      for (const entry of entries) {
+        sendWaitlistNotificationEmail({
+          email: entry.email,
+          name: entry.name ?? undefined,
+          courtName: displayCourtName,
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          courtId: booking.courtId,
+        }).catch((err) => logger.error({ err, waitlistId: entry.id }, "sendWaitlistNotificationEmail failed"));
+      }
+    })
+    .catch((err) => logger.error({ err }, "Waitlist query on cancellation failed"));
 
   res.json(CancelBookingResponse.parse(formatBooking(cancelled)));
 });
