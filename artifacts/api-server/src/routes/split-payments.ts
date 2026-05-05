@@ -352,7 +352,7 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
 // ─── GET /api/bookings/share/:token ──────────────────────────────────────────
 
 router.get("/bookings/share/:token", async (req, res): Promise<void> => {
-  const { token } = req.params;
+  const token = String(req.params.token);
   if (!token) { res.status(400).json({ error: "Token required" }); return; }
 
   const rows = await db
@@ -416,7 +416,7 @@ router.get("/bookings/share/:token", async (req, res): Promise<void> => {
 
 router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
-  const { token } = req.params;
+  const token = String(req.params.token);
 
   const rows = await db
     .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })

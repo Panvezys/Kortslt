@@ -5,9 +5,11 @@ import { BackButton } from "@/components/back-button";
 import {
   CheckCircle2, Calendar, Clock, MapPin, Phone, Mail,
   User, CreditCard, Loader2, XCircle, ExternalLink, Download,
+  Users, Copy, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { lt } from "date-fns/locale";
 
@@ -25,9 +27,32 @@ interface BookingDetail {
   startTime: string;
   endTime: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "pending" | "confirmed" | "cancelled" | "awaiting_players";
   stripeSessionId?: string | null;
   createdAt: string;
+  isSplit?: boolean;
+  totalSlots?: number;
+  pricePerSlot?: number;
+  splitInviteToken?: string | null;
+}
+
+interface SplitParticipant {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  paymentStatus: string;
+  joinedAt: string;
+}
+
+interface SplitStatus {
+  bookingId: number;
+  gameId: number | null;
+  bookingStatus: string;
+  totalSlots: number;
+  pricePerSlot: number;
+  totalPrice: number;
+  shareToken: string | null;
+  participants: SplitParticipant[];
 }
 
 interface CourtDetail {
@@ -57,6 +82,8 @@ function StatusBadge({ status }: { status: string }) {
       return <Badge className="bg-green-500 text-white"><CheckCircle2 className="w-3 h-3 mr-1" />Patvirtinta</Badge>;
     case "pending":
       return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400"><Clock className="w-3 h-3 mr-1" />Laukiama</Badge>;
+    case "awaiting_players":
+      return <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400"><Users className="w-3 h-3 mr-1" />Laukiama žaidėjų</Badge>;
     case "cancelled":
       return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Atšaukta</Badge>;
     default:
@@ -69,8 +96,10 @@ export default function BookingDetail() {
   const [, setLocation] = useLocation();
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [court, setCourt] = useState<CourtDetail | null>(null);
+  const [splitStatus, setSplitStatus] = useState<SplitStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -80,12 +109,20 @@ export default function BookingDetail() {
         const bookingData = await bookingRes.json();
         setBooking(bookingData);
 
-        if (bookingData.courtId) {
-          const courtRes = await fetch(`${API}/courts/${bookingData.courtId}`);
-          if (courtRes.ok) {
-            const courtData = await courtRes.json();
-            setCourt(courtData);
-          }
+        const [courtResult, splitResult] = await Promise.allSettled([
+          bookingData.courtId
+            ? fetch(`${API}/courts/${bookingData.courtId}`).then(r => r.ok ? r.json() : null)
+            : Promise.resolve(null),
+          bookingData.isSplit
+            ? fetch(`${API}/bookings/${bookingData.id}/split-status`).then(r => r.ok ? r.json() : null)
+            : Promise.resolve(null),
+        ]);
+
+        if (courtResult.status === "fulfilled" && courtResult.value) {
+          setCourt(courtResult.value);
+        }
+        if (splitResult.status === "fulfilled" && splitResult.value) {
+          setSplitStatus(splitResult.value);
         }
       } catch (err: any) {
         setError(err.message ?? "Klaida");
@@ -95,6 +132,21 @@ export default function BookingDetail() {
     };
     load();
   }, [id]);
+
+  const shareUrl = splitStatus?.shareToken
+    ? `${window.location.origin}${BASE}/join/${splitStatus.shareToken}`
+    : null;
+
+  const handleCopyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
 
   if (loading) {
     return (
@@ -177,11 +229,18 @@ export default function BookingDetail() {
             <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
             <div>
               <p className="text-xs text-muted-foreground">
-                {booking.status === "confirmed" ? "Sumokėta" : "Kaina"}
+                {booking.isSplit
+                  ? "Jūsų mokėjimo dalis"
+                  : booking.status === "confirmed" ? "Sumokėta" : "Kaina"}
               </p>
               <p className="text-sm font-medium">
-                {booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama"}
+                {booking.isSplit && booking.pricePerSlot != null
+                  ? (booking.pricePerSlot > 0 ? `€${Number(booking.pricePerSlot).toFixed(2)}` : "Nemokama")
+                  : (booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama")}
               </p>
+              {booking.isSplit && booking.pricePerSlot != null && (
+                <p className="text-xs text-muted-foreground">Visa kaina: €{Number(booking.totalPrice).toFixed(2)}</p>
+              )}
             </div>
           </div>
           <div className="px-4 py-3 flex items-center gap-3">
@@ -192,6 +251,86 @@ export default function BookingDetail() {
             </div>
           </div>
         </div>
+
+        {/* Split payment progress panel */}
+        {booking.isSplit && splitStatus && (
+          <div className="bg-card border rounded-xl overflow-hidden mb-4">
+            <div className="px-4 py-3 flex items-center justify-between border-b">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <p className="text-sm font-semibold">Bendras mokėjimas</p>
+              </div>
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
+                {splitStatus.participants.filter(p => p.paymentStatus === "paid").length}/{splitStatus.totalSlots} apmokėta
+              </Badge>
+            </div>
+
+            {/* Progress bar */}
+            <div className="px-4 pt-3 pb-1">
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 rounded-full bg-blue-500 transition-all"
+                  style={{ width: `${Math.round((splitStatus.participants.filter(p => p.paymentStatus === "paid").length / splitStatus.totalSlots) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Slot dots */}
+            <div className="px-4 pt-2 pb-3 flex gap-1.5 flex-wrap">
+              {Array.from({ length: splitStatus.totalSlots }).map((_, i) => {
+                const paid = splitStatus.participants.filter(p => p.paymentStatus === "paid");
+                const isPaid = i < paid.length;
+                return (
+                  <div
+                    key={i}
+                    className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-xs font-bold ${
+                      isPaid
+                        ? "bg-blue-500 border-blue-500 text-white"
+                        : "bg-muted border-border text-muted-foreground"
+                    }`}
+                  >
+                    {isPaid ? "✓" : i + 1}
+                  </div>
+                );
+              })}
+            </div>
+
+            <Separator />
+
+            {/* Participant list */}
+            {splitStatus.participants.length > 0 && (
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Žaidėjai</p>
+                {splitStatus.participants.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="truncate text-sm">{p.userName ?? p.userEmail ?? `Žaidėjas ${i + 1}`}</span>
+                    {p.paymentStatus === "paid"
+                      ? <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0 text-xs">Sumokėta</Badge>
+                      : <Badge variant="secondary" className="text-xs">Laukiama</Badge>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Share link (only if still awaiting players) */}
+            {shareUrl && booking.status === "awaiting_players" && (
+              <>
+                <Separator />
+                <div className="px-4 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kvietimo nuoroda</p>
+                  <p className="text-xs text-muted-foreground">Pasidalinkite su žaidėjais, kad jie galėtų sumokėti savo dalį.</p>
+                  <div className="flex gap-2">
+                    <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 truncate font-mono">{shareUrl}</code>
+                    <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={handleCopyLink}>
+                      {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? "Nukopijuota" : "Kopijuoti"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Court contact info */}
         {(address || phone || email) && (

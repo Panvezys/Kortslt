@@ -724,7 +724,7 @@ components:
           type: number
         status:
           type: string
-          enum: [pending, confirmed, cancelled]
+          enum: [pending, confirmed, cancelled, awaiting_players]
         stripeSessionId:
           type: string
         refundAmount:
@@ -738,6 +738,18 @@ components:
         createdAt:
           type: string
           format: date-time
+        isSplit:
+          type: boolean
+          description: Whether this is a split-payment booking where multiple players each pay their share.
+        totalSlots:
+          type: integer
+          description: Total number of player slots for a split booking.
+        pricePerSlot:
+          type: number
+          description: Price each player pays for their slot in a split booking.
+        splitInviteToken:
+          type: string
+          description: Shareable token for players to join and pay their share of a split booking.
       required:
         - id
         - courtId

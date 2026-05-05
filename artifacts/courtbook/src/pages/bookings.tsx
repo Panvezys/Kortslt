@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Clock, XCircle, Star, MapPin, Calendar, ChevronRight, Image as ImageIcon, X, Loader2, Upload } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Star, MapPin, Calendar, ChevronRight, Image as ImageIcon, X, Loader2, Upload, Users } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -200,9 +200,13 @@ type BookingItem = {
   startTime: string;
   endTime: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "pending" | "confirmed" | "cancelled" | "awaiting_players";
   createdAt?: string;
   refundAmount?: number;
+  isSplit?: boolean;
+  totalSlots?: number;
+  pricePerSlot?: number;
+  splitInviteToken?: string | null;
 };
 
 function CancelBookingDialog({
@@ -303,6 +307,8 @@ function getStatusBadge(status: string, t: ReturnType<typeof useT>, refundAmount
       return <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />{t("bookings.status.confirmed")}</Badge>;
     case "pending":
       return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs"><Clock className="w-3 h-3 mr-1" />{t("bookings.status.pending")}</Badge>;
+    case "awaiting_players":
+      return <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs"><Users className="w-3 h-3 mr-1" />Laukiama žaidėjų</Badge>;
     case "cancelled": {
       const r = Number(refundAmount ?? 0);
       const label = r > 0
@@ -373,11 +379,26 @@ function BookingCard({
         </div>
       )}
 
+      {/* Split badge */}
+      {booking.isSplit && (
+        <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-400">
+          <Users className="w-3.5 h-3.5" />
+          <span>Bendras mokėjimas · jūsų dalis {booking.pricePerSlot != null ? `€${Number(booking.pricePerSlot).toFixed(2)}` : ""} iš {booking.totalSlots ?? "?"} žaidėjų</span>
+        </div>
+      )}
+
       {/* Price + actions */}
       <div className="flex items-center justify-between pt-1 border-t border-border/50">
-        <span className="text-sm font-semibold">
-          {booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama"}
-        </span>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold">
+            {booking.isSplit && booking.pricePerSlot != null
+              ? (booking.pricePerSlot > 0 ? `€${Number(booking.pricePerSlot).toFixed(2)}` : "Nemokama")
+              : (booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama")}
+          </span>
+          {booking.isSplit && booking.pricePerSlot != null && (
+            <span className="text-[10px] text-muted-foreground">iš €{Number(booking.totalPrice).toFixed(2)} viso</span>
+          )}
+        </div>
         <div className="flex gap-2" onClick={e => e.stopPropagation()}>
           {!isUpcoming && booking.status === "confirmed" && (
             <Button
@@ -390,7 +411,7 @@ function BookingCard({
               {t("bookings.rate")}
             </Button>
           )}
-          {isUpcoming && booking.status === "confirmed" && (
+          {isUpcoming && (booking.status === "confirmed" || booking.status === "awaiting_players") && (
             <Button
               variant="ghost"
               size="sm"

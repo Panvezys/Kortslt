@@ -341,7 +341,7 @@ export const ListBookingsResponseItem = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
-  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  status: zod.enum(["pending", "confirmed", "cancelled", "awaiting_players"]),
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
@@ -352,6 +352,26 @@ export const ListBookingsResponseItem = zod.object({
       "Opaque token for guest bookings to manage the reservation without an account.",
     ),
   createdAt: zod.coerce.date(),
+  isSplit: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this is a split-payment booking where multiple players each pay their share.",
+    ),
+  totalSlots: zod
+    .number()
+    .optional()
+    .describe("Total number of player slots for a split booking."),
+  pricePerSlot: zod
+    .number()
+    .optional()
+    .describe("Price each player pays for their slot in a split booking."),
+  splitInviteToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Shareable token for players to join and pay their share of a split booking.",
+    ),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
 
@@ -389,7 +409,7 @@ export const GetBookingResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
-  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  status: zod.enum(["pending", "confirmed", "cancelled", "awaiting_players"]),
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
@@ -400,6 +420,26 @@ export const GetBookingResponse = zod.object({
       "Opaque token for guest bookings to manage the reservation without an account.",
     ),
   createdAt: zod.coerce.date(),
+  isSplit: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this is a split-payment booking where multiple players each pay their share.",
+    ),
+  totalSlots: zod
+    .number()
+    .optional()
+    .describe("Total number of player slots for a split booking."),
+  pricePerSlot: zod
+    .number()
+    .optional()
+    .describe("Price each player pays for their slot in a split booking."),
+  splitInviteToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Shareable token for players to join and pay their share of a split booking.",
+    ),
 });
 
 /**
@@ -419,7 +459,7 @@ export const CancelBookingResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
-  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  status: zod.enum(["pending", "confirmed", "cancelled", "awaiting_players"]),
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
@@ -430,6 +470,26 @@ export const CancelBookingResponse = zod.object({
       "Opaque token for guest bookings to manage the reservation without an account.",
     ),
   createdAt: zod.coerce.date(),
+  isSplit: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this is a split-payment booking where multiple players each pay their share.",
+    ),
+  totalSlots: zod
+    .number()
+    .optional()
+    .describe("Total number of player slots for a split booking."),
+  pricePerSlot: zod
+    .number()
+    .optional()
+    .describe("Price each player pays for their slot in a split booking."),
+  splitInviteToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Shareable token for players to join and pay their share of a split booking.",
+    ),
 });
 
 /**
@@ -518,7 +578,7 @@ export const ConfirmPaymentResponse = zod.object({
   startTime: zod.string(),
   endTime: zod.string(),
   totalPrice: zod.number(),
-  status: zod.enum(["pending", "confirmed", "cancelled"]),
+  status: zod.enum(["pending", "confirmed", "cancelled", "awaiting_players"]),
   stripeSessionId: zod.string().optional(),
   refundAmount: zod.number().optional(),
   stripeRefundId: zod.string().optional(),
@@ -529,6 +589,26 @@ export const ConfirmPaymentResponse = zod.object({
       "Opaque token for guest bookings to manage the reservation without an account.",
     ),
   createdAt: zod.coerce.date(),
+  isSplit: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this is a split-payment booking where multiple players each pay their share.",
+    ),
+  totalSlots: zod
+    .number()
+    .optional()
+    .describe("Total number of player slots for a split booking."),
+  pricePerSlot: zod
+    .number()
+    .optional()
+    .describe("Price each player pays for their slot in a split booking."),
+  splitInviteToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Shareable token for players to join and pay their share of a split booking.",
+    ),
 });
 
 /**

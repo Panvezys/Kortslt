@@ -24,4 +24,12 @@ export interface Booking {
   /** Opaque token for guest bookings to manage the reservation without an account. */
   managementToken?: string | null;
   createdAt: Date;
+  /** Whether this is a split-payment booking where multiple players each pay their share. */
+  isSplit?: boolean;
+  /** Total number of player slots for a split booking. */
+  totalSlots?: number;
+  /** Price each player pays for their slot in a split booking. */
+  pricePerSlot?: number;
+  /** Shareable token for players to join and pay their share of a split booking. */
+  splitInviteToken?: string;
 }
