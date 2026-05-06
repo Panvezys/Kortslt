@@ -138,19 +138,13 @@ const courtSchema = z.object({
 });
 type CourtFormValues = z.infer<typeof courtSchema>;
 
-function CourtStatusBadge({ status }: { status?: string }) {
-  if (status === "approved" || status === "active")
-    return <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">Aktyvus</Badge>;
-  if (status === "pending_review")
-    return <Badge className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">Peržiūroje</Badge>;
-  if (status === "pending")
-    return <Badge className="text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Laukia</Badge>;
-  if (status === "rejected")
-    return <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/30">Atmesta</Badge>;
-  if (status === "hidden")
-    return <Badge className="text-xs bg-zinc-500/20 text-zinc-400 border-zinc-500/30">Paslėpta</Badge>;
-  // draft (or unknown / null / undefined)
-  return <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">Juodraštis</Badge>;
+function CourtStatusBadge({ status, isActive }: { status?: string; isActive?: boolean }) {
+  if (isActive)
+    return <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">Matoma</Badge>;
+  if (!status || status === "draft")
+    return <Badge className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">Juodraštis</Badge>;
+  // isActive=false but previously approved — owner hid it
+  return <Badge className="text-xs bg-zinc-500/20 text-zinc-400 border-zinc-500/30">Paslėpta</Badge>;
 }
 
 interface CourtBlockedSlot {
@@ -868,6 +862,7 @@ interface FacilityData {
   equipment: string[]; courtCount: number; sportTypes: string[];
   courts: any[];
   latitude?: number; longitude?: number; postcode?: string;
+  verificationNotes?: string; rejectionReason?: string;
 }
 
 interface MembershipPlan {
@@ -1220,9 +1215,14 @@ export default function OwnerFacilityDetail() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{facility.name}</h1>
           </div>
-          {facility.verificationStatus === "verified" && (
+          {facility.verificationStatus === "active" && (
             <Badge className="bg-green-500/10 text-green-500 border-green-500/30 gap-1 hidden sm:flex">
               <ShieldCheck className="w-3 h-3" /> Patvirtinta
+            </Badge>
+          )}
+          {facility.verificationStatus === "pending_verification" && (
+            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 gap-1 hidden sm:flex">
+              ⏳ Laukiama patvirtinimo
             </Badge>
           )}
         </div>
@@ -1238,14 +1238,70 @@ export default function OwnerFacilityDetail() {
               <p className="text-2xl font-bold text-primary">{[...new Set(facilityCourts.map(c => c.type))].length}</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">Aktyvūs</p>
-              <p className="text-2xl font-bold text-emerald-500">{facilityCourts.filter(c => ["approved","active"].includes((c as any).status ?? "")).length}</p>
+              <p className="text-xs text-muted-foreground mb-1">Matomos viešai</p>
+              <p className="text-2xl font-bold text-emerald-500">{facilityCourts.filter(c => (c as any).isActive === true).length}</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">Laukia</p>
-              <p className="text-2xl font-bold text-amber-400">{facilityCourts.filter(c => ["pending","pending_review","draft"].includes((c as any).status ?? "")).length}</p>
+              <p className="text-xs text-muted-foreground mb-1">Paslėptos</p>
+              <p className="text-2xl font-bold text-amber-400">{facilityCourts.filter(c => !(c as any).isActive).length}</p>
             </div>
           </div>
+
+        {/* Facility submission banners */}
+        {["draft", "onboarding"].includes(facility.verificationStatus) && (
+          <div className="mb-5 rounded-xl border border-primary/30 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm">Pateikite kompleksą patvirtinimui</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Kai administratorius patvirtins objektą, visi kortai taps matomi viešai.
+              </p>
+              {facility.rejectionReason && (
+                <p className="text-xs text-destructive mt-1">Pastaba: {facility.rejectionReason}</p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              disabled={!facility.address || !facility.city || facilityCourts.length === 0}
+              title={
+                !facility.address || !facility.city
+                  ? "Užpildykite adresą ir miestą"
+                  : facilityCourts.length === 0
+                  ? "Pridėkite bent vieną kortą"
+                  : ""
+              }
+              onClick={async () => {
+                try {
+                  await customFetch(`${API_URL}/facilities/${id}/submit-for-verification`, { method: "POST" });
+                  queryClient.invalidateQueries({ queryKey: ["facility-detail", id] });
+                  toast({ title: "Pateikta patvirtinimui ✓" });
+                } catch (err: any) {
+                  toast({ title: err?.message ?? "Klaida pateikiant", variant: "destructive" });
+                }
+              }}
+            >
+              Pateikti patvirtinimui
+            </Button>
+          </div>
+        )}
+
+        {facility.verificationStatus === "pending_verification" && (
+          <div className="mb-5 rounded-xl border border-yellow-500/30 bg-yellow-500/5 px-5 py-4">
+            <p className="font-semibold text-sm text-yellow-600 dark:text-yellow-400">⏳ Laukiama administratoriaus patvirtinimo</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Peržiūrimi jūsų objekto duomenys. Redagavimas laikinai išjungtas. Gausime pranešimą po patvirtinimo.
+            </p>
+          </div>
+        )}
+
+        {facility.verificationStatus === "suspended" && (
+          <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4">
+            <p className="font-semibold text-sm text-destructive">Objektas sustabdytas</p>
+            {facility.verificationNotes && (
+              <p className="text-xs text-muted-foreground mt-0.5">Priežastis: {facility.verificationNotes}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">Kreipkitės į administratorių norėdami atnaujinti.</p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Aikštelės</h2>
@@ -1273,7 +1329,7 @@ export default function OwnerFacilityDetail() {
                     </div>
                   )}
                   <div className="absolute top-2 left-2">
-                    <CourtStatusBadge status={(court as any).status} />
+                    <CourtStatusBadge status={(court as any).status} isActive={(court as any).isActive} />
                   </div>
                   <div className="absolute top-2 right-2">
                     <SportPill sport={court.type} variant="solid" />
@@ -1351,54 +1407,31 @@ export default function OwnerFacilityDetail() {
                   </div>
 
                   <div className="mt-2 pt-2 border-t space-y-2">
-                    {/* Online/offline toggle */}
-                    {["active", "hidden"].includes((court as any).status ?? "") && (
+                    {/* isActive toggle — only available when facility is approved */}
+                    {facility.verificationStatus === "active" ? (
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Matoma viešai</span>
                         <button
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).status === "active" ? "bg-green-500" : "bg-muted-foreground/30"}`}
-                          title={(court as any).status === "active" ? "Slepia aikštelę" : "Parodo aikštelę viešai"}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).isActive ? "bg-green-500" : "bg-muted-foreground/30"}`}
+                          title={(court as any).isActive ? "Paslėpti aikštelę" : "Parodyti aikštelę viešai"}
                           onClick={() => {
-                            const nextStatus = (court as any).status === "active" ? "hidden" : "active";
-                            customFetch(`${API_URL}/courts/${court.id}/status`, {
+                            customFetch(`${API_URL}/courts/${court.id}/is-active`, {
                               method: "PATCH",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: nextStatus }),
+                              body: JSON.stringify({ isActive: !(court as any).isActive }),
                             }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
-                              .catch(() => toast({ title: "Klaida keičiant statusą", variant: "destructive" }));
+                              .catch(() => toast({ title: "Klaida keičiant matomumą", variant: "destructive" }));
                           }}
                         >
-                          <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).status === "active" ? "translate-x-4" : "translate-x-0"}`} />
+                          <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).isActive ? "translate-x-4" : "translate-x-0"}`} />
                         </button>
                       </div>
-                    )}
-
-                    {/* Submit for review — only before first approval */}
-                    {["draft", "rejected"].includes((court as any).status ?? "draft") && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
-                        disabled={
-                          !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city)
-                        }
-                        onClick={() => {
-                          customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                            .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
-                            .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
-                        }}
-                        title={!(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city) ? "Pildykite: kaina, vieta" : ""}
-                      >
-                        Pateikti peržiūrai
-                      </Button>
-                    )}
-                    {(court as any).status === "pending_review" && (
-                      <p className="text-xs text-blue-400 flex items-center gap-1">
-                        <span>⏳</span> Laukiame administratoriaus patvirtinimo
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {facility.verificationStatus === "pending_verification"
+                          ? "⏳ Kortai bus matomi po objekto patvirtinimo"
+                          : "Pateikite objektą patvirtinimui, kad kortai taptų matomi"}
                       </p>
-                    )}
-                    {(court as any).status === "rejected" && (court as any).rejectionReason && (
-                      <p className="text-xs text-red-400">Priežastis: {(court as any).rejectionReason}</p>
                     )}
                   </div>
                 </div>

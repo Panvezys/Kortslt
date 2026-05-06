@@ -150,14 +150,12 @@ function generateSlots(openTime = "07:00", closeTime = "22:00"): { startTime: st
   return slots;
 }
 
-const PUBLIC_STATUSES = ["approved", "active"] as const;
-
 router.get("/courts/cities", async (_req, res): Promise<void> => {
   const rows = await db
     .selectDistinct({ city: facilitiesTable.city })
     .from(courtsTable)
     .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-    .where(or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active")))
+    .where(and(eq(courtsTable.isActive, true), eq(facilitiesTable.verificationStatus, "active")))
     .orderBy(facilitiesTable.city);
   res.json(rows.map(r => r.city).filter(Boolean));
 });
@@ -185,8 +183,8 @@ router.get("/courts", async (req, res): Promise<void> => {
       return;
     }
   } else {
-    // Public callers only see active/approved courts.
-    conditions.push(inArray(courtsTable.status, ["approved", "active"]));
+    // Public callers only see courts where isActive=true (facility gate applied below).
+    conditions.push(eq(courtsTable.isActive, true));
   }
 
   if (params.data.type) conditions.push(eq(courtsTable.type, params.data.type));
@@ -226,8 +224,10 @@ router.get("/courts", async (req, res): Promise<void> => {
     return;
   }
 
-  // Public view: courts must belong to a verified facility.
-  const facilityConditions: ReturnType<typeof eq>[] = [];
+  // Public view: courts must belong to a verified (active) facility.
+  const facilityConditions: ReturnType<typeof eq>[] = [
+    eq(facilitiesTable.verificationStatus, "active"),
+  ];
   if (params.data.city) facilityConditions.push(eq(facilitiesTable.city, params.data.city));
 
   const rows = await db
@@ -236,7 +236,7 @@ router.get("/courts", async (req, res): Promise<void> => {
     .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(and(...conditions, ...facilityConditions));
 
-  const filtered = rows.filter(r => r.facility.verificationStatus === "active");
+  const filtered = rows;
 
   const courtIds = filtered.map(r => r.court.id);
   const photoMap = new Map<number, string[]>();
@@ -324,7 +324,8 @@ router.get("/courts/:id", async (req, res): Promise<void> => {
   const facility = await getFacility(court.facilityId);
   const facilityOwnerUserId = facility?.ownerUserId ?? null;
 
-  const isPublic = court.status === "approved" || court.status === "active";
+  // A court is publicly visible only when it is active AND its facility is verified.
+  const isPublic = court.isActive && facility?.verificationStatus === "active";
 
   if (!isPublic) {
     // Non-public courts are only visible to the owner or an admin.
@@ -767,6 +768,33 @@ router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> 
     .returning();
 
   res.json(formatCourt(updated, facility));
+});
+
+// ─── Owner: toggle court public visibility (isActive) ─────────────────────────
+router.patch("/courts/:id/is-active", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(String(req.params.id));
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const { isActive } = req.body as { isActive?: boolean };
+  if (typeof isActive !== "boolean") {
+    res.status(400).json({ error: "isActive (boolean) required" }); return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const facility = await getFacility(court.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [updated] = await db
+    .update(courtsTable)
+    .set({ isActive })
+    .where(eq(courtsTable.id, courtId))
+    .returning();
+
+  res.json({ id: updated.id, isActive: updated.isActive });
 });
 
 // ─── Admin: list courts pending review ───────────────────────────────────────

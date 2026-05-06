@@ -36,6 +36,9 @@ export const courtsTable = pgTable("courts", {
   // Smart lock / unmanned facility access
   hasSmartLock: boolean("has_smart_lock").notNull().default(false),
   accessInstructions: text("access_instructions"),
+  /** Owner-controlled public visibility toggle. Court is publicly visible only when
+   *  this is true AND the parent facility.verificationStatus === 'active'. */
+  isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
