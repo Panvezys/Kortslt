@@ -1244,18 +1244,12 @@ export default function OwnerFacilityDetail() {
         <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{facility.name}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Aikštelės</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => setFacilityEditOpen(true)}>
-              <Edit2 className="w-3.5 h-3.5" /> Redaguoti objektą
-            </Button>
-            {facility.verificationStatus === "verified" && (
-              <Badge className="bg-green-500/10 text-green-500 border-green-500/30 gap-1 hidden sm:flex">
-                <ShieldCheck className="w-3 h-3" /> Patvirtinta
-              </Badge>
-            )}
-          </div>
+          {facility.verificationStatus === "verified" && (
+            <Badge className="bg-green-500/10 text-green-500 border-green-500/30 gap-1 hidden sm:flex">
+              <ShieldCheck className="w-3 h-3" /> Patvirtinta
+            </Badge>
+          )}
         </div>
 
         {/* Facility stats row */}
