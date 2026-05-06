@@ -538,6 +538,17 @@ components:
           type: integer
         surface:
           type: string
+        surfaceSpeed:
+          type: string
+          nullable: true
+        surfaceBounce:
+          type: string
+          nullable: true
+        hasSmartLock:
+          type: boolean
+        accessInstructions:
+          type: string
+          nullable: true
         condition:
           type: string
           enum: [excellent, good, fair]
@@ -603,6 +614,17 @@ components:
           type: integer
         surface:
           type: string
+        surfaceSpeed:
+          type: string
+          nullable: true
+        surfaceBounce:
+          type: string
+          nullable: true
+        hasSmartLock:
+          type: boolean
+        accessInstructions:
+          type: string
+          nullable: true
         condition:
           type: string
           enum: [excellent, good, fair]

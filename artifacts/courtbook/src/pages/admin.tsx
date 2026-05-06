@@ -20,7 +20,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useRole } from "@/lib/useRole";
-import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { SportPill } from "@/components/sport-icon";
 
 function safeDocUrl(url: string | undefined | null): string | undefined {
@@ -314,11 +313,12 @@ function CourtsPanel() {
                           e.stopPropagation();
                           const fId = court.facilityId;
                           if (fId) {
-                            navigate(`/owner/facility/${fId}?editCourt=${court.id}`);
-                          } else {
-                            setEditCourt(court);
+                            navigate(`/owner/facility/${fId}/court/${court.id}/edit`);
                           }
-                        }}>
+                        }}
+                        disabled={!court.facilityId}
+                        title={!court.facilityId ? "Aikštelė neturi objekto" : ""}
+                      >
                         <Pencil className="w-3.5 h-3.5" /> Redaguoti
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs"
@@ -333,12 +333,6 @@ function CourtsPanel() {
           </table>
         </div>
       )}
-
-      <CourtEditDialog
-        court={editCourt}
-        open={editCourt !== null}
-        onClose={() => setEditCourt(null)}
-      />
 
       <CourtReviewDialog
         court={reviewCourt}

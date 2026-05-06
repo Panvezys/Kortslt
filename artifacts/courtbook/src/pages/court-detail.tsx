@@ -24,7 +24,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
-import { CourtEditDialog } from "@/components/court-edit-dialog";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
 import { BookingSummaryDialog } from "@/components/booking-summary-dialog";
 import { SPORT_LABELS, SportPill } from "@/components/sport-icon";
@@ -1151,11 +1150,11 @@ export default function CourtDetail() {
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-2 shrink-0 pt-1">
-                  {canEdit && (
+                  {canEdit && (court as any).facilityId && (
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => setEditOpen(true)}
+                      onClick={() => setLocation(`/owner/facility/${(court as any).facilityId}/court/${court.id}/edit`)}
                       aria-label="Edit court"
                       title="Redaguoti aikštelę"
                       className="transition-all duration-150 hover:scale-110 hover:shadow-md hover:border-primary/60 hover:bg-primary/5 hover:text-primary active:scale-95"
@@ -2195,15 +2194,6 @@ export default function CourtDetail() {
             )}
           </div>
         </div>
-      )}
-
-      {canEdit && (
-        <CourtEditDialog
-          court={court}
-          open={editOpen}
-          onClose={() => setEditOpen(false)}
-          showOwnerContext={isAdmin && !isOwner}
-        />
       )}
 
       <GuestCheckoutDialog

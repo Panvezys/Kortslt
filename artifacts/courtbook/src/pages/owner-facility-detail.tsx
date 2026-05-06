@@ -467,7 +467,7 @@ function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null;
   );
 }
 
-function CoachManagementModal({ courtId }: { courtId: number }) {
+export function CoachManagementModal({ courtId }: { courtId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const coachesQk = ["court-coaches", courtId];
@@ -875,7 +875,7 @@ interface MembershipPlan {
   pricePerYear: number; weeklySlots: number; isActive: boolean;
 }
 
-function MembershipPlanManager({ courtId }: { courtId: number }) {
+export function MembershipPlanManager({ courtId }: { courtId: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -1126,32 +1126,7 @@ export default function OwnerFacilityDetail() {
   };
 
   const handleEdit = (court: any) => {
-    setEditingId(court.id);
-    setMapKey(k => k + 1);
-    setFormTab("info");
-    form.reset({
-      name: court.name, type: court.type, description: court.description || "",
-      pricePerHour: court.pricePerHour, peakPricePerHour: court.peakPricePerHour ?? undefined,
-      imageUrl: court.imageUrl || "",
-      isIndoor: court.isIndoor, maxPlayers: court.maxPlayers,
-      amenities: Array.isArray(court.amenities) ? court.amenities : [],
-      socialFacebook: court.socialFacebook ?? "", socialInstagram: court.socialInstagram ?? "",
-      socialWhatsapp: court.socialWhatsapp ?? "", socialWebsite: court.socialWebsite ?? "",
-      facilityId: Number(id), workingHours: court.workingHours ?? undefined,
-    });
-    if (court.workingHours) {
-      try { setWorkingHoursState({ ...defaultWorkingHours(), ...JSON.parse(court.workingHours) }); }
-      catch { setWorkingHoursState(defaultWorkingHours()); }
-    } else { setWorkingHoursState(defaultWorkingHours()); }
-    try {
-      const raw: any[] = court.rentableItems ? JSON.parse(court.rentableItems) : [];
-      setRentableItems(raw.map(r => ({ name: r.name, pricePerSlot: r.pricePerSlot ?? r.pricePerBooking ?? 0, stock: r.stock ?? 1 })));
-    } catch { setRentableItems([]); }
-    try {
-      const photos = court.amenityPhotos ? JSON.parse(court.amenityPhotos) : {};
-      setAmenityPhotos(typeof photos === "object" && photos !== null ? photos : {});
-    } catch { setAmenityPhotos({}); }
-    setIsDialogOpen(true);
+    navigate(`/owner/facility/${id}/court/${court.id}/edit`);
   };
 
   const handleDelete = async (courtId: number) => {
@@ -1202,10 +1177,10 @@ export default function OwnerFacilityDetail() {
       const target = facilityCourts.find(c => c.id === targetId);
       if (target) {
         autoOpenedRef.current.court = targetId;
-        handleEdit(target);
         params.delete("editCourt");
         const qs = params.toString();
         window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+        navigate(`/owner/facility/${id}/court/${targetId}/edit`);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1277,315 +1252,6 @@ export default function OwnerFacilityDetail() {
           <Button onClick={() => navigate(`/owner/facility/${id}/court/new`)} className="gap-2">
             <Plus className="w-4 h-4" /> Pridėti aikštelę
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) { setEditingId(null); setMapKey(k => k + 1); }
-          }}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingId ? "Redaguoti aikštelę" : "Pridėti naują aikštelę"}</DialogTitle>
-              </DialogHeader>
-
-              <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none -mx-6 px-6 pb-0">
-                {([
-                  { id: "info", label: "Pagrindai" }, { id: "schedule", label: "Grafikas" },
-                  { id: "amenities", label: "Patogumai" }, { id: "media", label: "Medija" },
-                  { id: "contact", label: "Kontaktai" },
-                ] as const).map(t => (
-                  <button key={t.id} type="button" onClick={() => setFormTab(t.id)}
-                    className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${formTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                  >{t.label}</button>
-                ))}
-              </div>
-
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-
-                  {formTab === "info" && (<div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="name" render={({ field }) => (
-                        <FormItem><FormLabel>Aikštelės pavadinimas</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name="type" render={({ field }) => (
-                        <FormItem><FormLabel>Sporto šaka</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              {Object.keys(SPORT_LABELS).filter(k => k !== "table-tennis").map((val) => (
-                                <SelectItem key={val} value={val}>{SPORT_LABELS[val]}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select><FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-                    <FormField control={form.control} name="description" render={({ field }) => (
-                      <FormItem><FormLabel>Aprašymas</FormLabel><FormControl><Textarea rows={2} placeholder="Trumpas aikštelės aprašymas..." {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
-                    )} />
-                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground">Vieta ir adresas paveldimas iš objekto. Redaguokite objekto nustatymuose.</p>
-                    </div>
-                  </div>)}
-
-                  {formTab === "schedule" && (<div className="space-y-5">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="pricePerHour" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5"><Euro className="w-3.5 h-3.5 text-primary" /> Numatytoji kaina (€/val)</FormLabel>
-                          <FormControl>
-                            <CourtPricingField
-                              value={field.value}
-                              onChange={field.onChange}
-                              pricingCourtId={pricingCourtId}
-                              onOpenPricing={() => {
-                                setPricingCourtId(editingId ?? null);
-                                setPricingDefaultPrice(Number(field.value || 20));
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center gap-2 mb-1"><Clock3 className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Darbo laikas</span></div>
-                      <div className="space-y-2">
-                        {(["1","2","3","4","5","6","0"] as const).map(dayKey => {
-                          const dayNames: Record<string, string> = { "0": "Sekmadienis", "1": "Pirmadienis", "2": "Antradienis", "3": "Trečiadienis", "4": "Ketvirtadienis", "5": "Penktadienis", "6": "Šeštadienis" };
-                          const dh = workingHoursState[dayKey] ?? { open: "08:00", close: "22:00", closed: false };
-                          return (
-                            <div key={dayKey} className="flex items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
-                              <span className="w-28 text-sm font-medium shrink-0">{dayNames[dayKey]}</span>
-                              <button type="button" onClick={() => setWorkingHoursState(prev => ({ ...prev, [dayKey]: { ...prev[dayKey], closed: !prev[dayKey]?.closed } }))}
-                                className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 transition-colors ${dh.closed ? "bg-red-500/15 text-red-500 border border-red-500/30" : "bg-green-500/15 text-green-600 border border-green-500/30"}`}
-                              >{dh.closed ? "Uždaryta" : "Atidaryta"}</button>
-                              {!dh.closed && (<>
-                                <select className="text-xs border rounded px-1.5 py-1 bg-background" value={dh.open}
-                                  onChange={e => setWorkingHoursState(prev => ({ ...prev, [dayKey]: { ...prev[dayKey], open: e.target.value } }))}>
-                                  {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-                                </select>
-                                <span className="text-muted-foreground text-xs">–</span>
-                                <select className="text-xs border rounded px-1.5 py-1 bg-background" value={dh.close}
-                                  onChange={e => setWorkingHoursState(prev => ({ ...prev, [dayKey]: { ...prev[dayKey], close: e.target.value } }))}>
-                                  {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
-                                </select>
-                              </>)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2"><Euro className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Kainos pagal laiką</span></div>
-                        <span className="text-xs text-muted-foreground">Numatytoji: {(Number(form.watch("pricePerHour") || 20) / 2).toFixed(2)}€ / 30 min</span>
-                      </div>
-                      <div className="flex gap-1 flex-wrap">
-                        {DAYS.map((day, i) => {
-                          const dayWh = workingHoursState[String(i)];
-                          const dayClosed = dayWh?.closed ?? false;
-                          return (
-                            <button key={i} type="button" onClick={() => !dayClosed && setPricingDay(i)}
-                              disabled={dayClosed}
-                              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${dayClosed ? "opacity-40 cursor-not-allowed line-through bg-muted text-muted-foreground" : pricingDay === i ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-                            >{DAY_SHORT[i]}</button>
-                          );
-                        })}
-                        {!(workingHoursState[String(pricingDay)]?.closed) && (
-                          <button type="button" onClick={() => {
-                            setLocalPricingMap(prev => { const next = new Map(prev); TIME_SLOTS.forEach(s => next.delete(`${pricingDay}:${s}`)); return next; });
-                          }} className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                            <RotateCcw className="w-3 h-3" /> Atstatyti dieną
-                          </button>
-                        )}
-                      </div>
-                      {workingHoursState[String(pricingDay)]?.closed ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">Ši diena uždaryta pagal darbo valandas</div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto pr-1">
-                          {(slotsForDayFromJson(JSON.stringify(workingHoursState), pricingDay) ?? TIME_SLOTS).map(slot => {
-                            const key = `${pricingDay}:${slot}`;
-                            const defaultHalf = (form.watch("pricePerHour") || 20) / 2;
-                            const slotPrice = localPricingMap.has(key) ? localPricingMap.get(key)! : defaultHalf;
-                            const isOverridden = localPricingMap.has(key);
-                            const isEditing = pricingEditKey === key;
-                            return (
-                              <div key={slot} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs ${isOverridden ? "bg-primary/10 border border-primary/20" : "bg-muted/30"}`}>
-                                <span className="font-mono text-muted-foreground w-10">{slot}</span>
-                                {isEditing ? (
-                                  <input autoFocus type="number" className="w-14 text-xs border rounded px-1 py-0.5 bg-background text-center"
-                                    value={pricingEditValue} min={0} step={0.5}
-                                    onChange={e => setPricingEditValue(e.target.value)}
-                                    onBlur={() => {
-                                      const price = parseFloat(pricingEditValue);
-                                      if (!isNaN(price) && price >= 0) setLocalPricingMap(prev => { const m = new Map(prev); m.set(key, price); return m; });
-                                      setPricingEditKey(null);
-                                    }}
-                                    onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setPricingEditKey(null); }} />
-                                ) : (
-                                  <button type="button" onClick={() => { setPricingEditKey(key); setPricingEditValue(slotPrice.toString()); }}
-                                    className={`font-medium tabular-nums w-14 text-right ${isOverridden ? "text-primary" : "text-foreground"}`}
-                                  >{slotPrice.toFixed(2)}€</button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>)}
-
-                  {formTab === "media" && (<div className="space-y-4">
-                    <FormField control={form.control} name="imageUrl" render={({ field }) => (
-                      <FormItem><FormLabel>Pagrindinė nuotrauka</FormLabel><FormControl>
-                        <CourtImageUpload value={field.value} onChange={(path) => form.setValue("imageUrl", path)} onClear={() => form.setValue("imageUrl", "")} />
-                      </FormControl><FormMessage /></FormItem>
-                    )} />
-                    {editingId && <CourtPhotosSection courtId={editingId} />}
-                  </div>)}
-
-                  {formTab === "amenities" && (<div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField control={form.control} name="maxPlayers" render={({ field }) => (
-                        <FormItem><FormLabel>Maks. žaidėjai</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                      )} />
-                      <FormField control={form.control} name="isIndoor" render={({ field }) => (
-                        <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3 h-[62px]">
-                          <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                          <div><FormLabel>Vidaus aikštelė</FormLabel></div>
-                        </FormItem>
-                      )} />
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center gap-2"><Lightbulb className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Patogumai</span></div>
-                      <FormField control={form.control} name="amenities" render={({ field }) => (
-                        <FormItem>
-                          <div className="grid grid-cols-2 gap-2">
-                            {STANDARD_AMENITIES.map(({ id, label, icon: Icon }) => {
-                              const checked = (field.value ?? []).includes(id);
-                              return (
-                                <button key={id} type="button" onClick={() => {
-                                  const current = field.value ?? [];
-                                  field.onChange(checked ? current.filter(a => a !== id) : [...current, id]);
-                                }}
-                                  className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all text-left ${checked ? "bg-primary/10 border-primary text-primary" : "bg-muted/30 border-border hover:border-primary/40"}`}>
-                                  <Icon className={`w-4 h-4 shrink-0 ${checked ? "text-primary" : "text-muted-foreground"}`} />
-                                  {label}
-                                  {checked && amenityPhotos[id] && <Images className="w-3 h-3 ml-auto shrink-0 text-primary/70" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {(field.value ?? []).length > 0 && (
-                            <div className="mt-3 space-y-2">
-                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5"><Images className="w-3.5 h-3.5" /> Nuotraukos patogumiams</p>
-                              {STANDARD_AMENITIES.filter(a => (field.value ?? []).includes(a.id)).map(({ id, label, icon: Icon }) => {
-                                const photoUrl = amenityPhotos[id];
-                                const isUploading = uploadingAmenity === id;
-                                return (
-                                  <div key={id} className="flex items-center gap-3 p-2 rounded-lg border bg-muted/20">
-                                    <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />
-                                    <span className="text-xs font-medium flex-1 truncate">{label}</span>
-                                    {photoUrl ? (<>
-                                      <img src={`${BASE_URL}/${photoUrl}`} alt={label} className="w-12 h-8 object-cover rounded border shrink-0" />
-                                      <button type="button" onClick={() => setAmenityPhotos(prev => { const n = { ...prev }; delete n[id]; return n; })} className="text-muted-foreground hover:text-destructive transition-colors shrink-0"><X className="w-3.5 h-3.5" /></button>
-                                    </>) : (
-                                      <label className="cursor-pointer shrink-0">
-                                        <input type="file" accept="image/*" className="hidden" disabled={isUploading}
-                                          onChange={e => { const file = e.target.files?.[0]; if (file) handleAmenityPhotoUpload(id, file); e.target.value = ""; }} />
-                                        <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${isUploading ? "opacity-70 cursor-not-allowed" : "hover:border-primary hover:text-primary"}`}>
-                                          {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                                          {isUploading ? "Keliama..." : "Įkelti"}
-                                        </span>
-                                      </label>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </FormItem>
-                      )} />
-                    </div>
-
-                    <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center gap-2"><ShoppingBag className="w-4 h-4 text-primary" /><span className="font-semibold text-sm">Nuomojama įranga</span></div>
-                      <div className="space-y-2">
-                        {rentableItems.map((item, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg px-3 py-2 text-sm">
-                            <span className="font-medium">{item.name}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">{item.pricePerSlot}€</span>
-                              <span className="text-muted-foreground">· {item.stock} vnt.</span>
-                              <button type="button" onClick={() => setRentableItems(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </div>
-                        ))}
-                        <div className="flex gap-2">
-                          <Input placeholder="Pavadinimas" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="flex-1" />
-                          <Input type="number" placeholder="€" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-20" />
-                          <Input type="number" placeholder="Kiekis" value={newItemStock} onChange={e => setNewItemStock(e.target.value)} className="w-20" />
-                          <Button type="button" variant="outline" size="sm" onClick={() => {
-                            const price = parseFloat(newItemPrice); const stock = parseInt(newItemStock);
-                            if (newItemName.trim() && !isNaN(price) && price >= 0 && !isNaN(stock) && stock >= 1) {
-                              setRentableItems(prev => [...prev, { name: newItemName.trim(), pricePerSlot: price, stock }]);
-                              setNewItemName(""); setNewItemPrice(""); setNewItemStock("");
-                            }
-                          }} disabled={!newItemName.trim() || !newItemPrice || !newItemStock}><Plus className="w-4 h-4" /></Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>)}
-
-                  {formTab === "contact" && (<div className="space-y-4">
-                    <div>
-                      <p className="text-sm font-semibold mb-3">Socialiniai tinklai</p>
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField control={form.control} name="socialFacebook" render={({ field }) => (
-                          <FormItem><FormLabel>Facebook</FormLabel><FormControl><Input placeholder="https://facebook.com/..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="socialInstagram" render={({ field }) => (
-                          <FormItem><FormLabel>Instagram</FormLabel><FormControl><Input placeholder="https://instagram.com/..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="socialWhatsapp" render={({ field }) => (
-                          <FormItem><FormLabel>WhatsApp</FormLabel><FormControl><Input placeholder="https://wa.me/370..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                        )} />
-                        <FormField control={form.control} name="socialWebsite" render={({ field }) => (
-                          <FormItem><FormLabel>Svetainė</FormLabel><FormControl><Input placeholder="https://..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                        )} />
-                      </div>
-                    </div>
-                  </div>)}
-
-                  <div className="flex items-center justify-between pt-2 border-t mt-4">
-                    <div className="flex gap-1">
-                      {formTab !== "info" && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => {
-                          const order = ["info","schedule","amenities","media","contact"] as const;
-                          const idx = order.indexOf(formTab as any);
-                          if (idx > 0) setFormTab(order[idx - 1]);
-                        }}>← Atgal</Button>
-                      )}
-                    </div>
-                    {formTab !== "contact" ? (
-                      <Button type="button" size="sm" onClick={() => {
-                        const order = ["info","schedule","amenities","media","contact"] as const;
-                        const idx = order.indexOf(formTab as any);
-                        if (idx < order.length - 1) setFormTab(order[idx + 1]);
-                      }}>Toliau →</Button>
-                    ) : (
-                      <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending}>
-                        {editingId ? "Išsaugoti pakeitimus" : "Sukurti aikštelę"}
-                      </Button>
-                    )}
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
         </div>
 
         {facilityCourts.length === 0 ? (
@@ -1661,10 +1327,10 @@ export default function OwnerFacilityDetail() {
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" /> Rankinė rezervacija
                     </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => setCoachesCourtId(court.id)}>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => navigate(`/owner/facility/${id}/court/${court.id}/coaches`)}>
                       <Users className="w-3 h-3" /> Treneriai
                     </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-cyan-600" onClick={() => setMembershipCourtId(court.id)}>
+                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-cyan-600" onClick={() => navigate(`/owner/facility/${id}/court/${court.id}/memberships`)}>
                       <Star className="w-3 h-3" /> Narystės
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" title="QR" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
@@ -1741,12 +1407,6 @@ export default function OwnerFacilityDetail() {
           </div>
         )}
 
-        <Dialog open={pricingCourtId !== null} onOpenChange={(open) => { if (!open) setPricingCourtId(null); }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Euro className="w-5 h-5 text-primary" /> Kainų redaktorius</DialogTitle></DialogHeader>
-            {pricingCourtId !== null && <PricingEditor courtId={pricingCourtId} defaultPrice={pricingDefaultPrice} workingHours={pricingWorkingHours} onClose={() => setPricingCourtId(null)} />}
-          </DialogContent>
-        </Dialog>
 
         <Dialog open={blockedSlotsCourtId !== null} onOpenChange={(open) => { if (!open) setBlockedSlotsCourtId(null); }}>
           <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -1755,12 +1415,6 @@ export default function OwnerFacilityDetail() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={coachesCourtId !== null} onOpenChange={(open) => { if (!open) setCoachesCourtId(null); }}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Trophy className="w-5 h-5 text-primary" /> Aikštelės treneriai</DialogTitle></DialogHeader>
-            {coachesCourtId !== null && <CoachManagementModal courtId={coachesCourtId} />}
-          </DialogContent>
-        </Dialog>
 
         <FreeBookingDialog
           courtId={freeBookingCourtId}
@@ -1768,12 +1422,6 @@ export default function OwnerFacilityDetail() {
           onClose={() => setFreeBookingCourtId(null)}
         />
 
-        <Dialog open={membershipCourtId !== null} onOpenChange={(open) => { if (!open) setMembershipCourtId(null); }}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle className="flex items-center gap-2"><Star className="w-5 h-5 text-cyan-500" /> Narystės planai</DialogTitle></DialogHeader>
-            {membershipCourtId !== null && <MembershipPlanManager courtId={membershipCourtId} />}
-          </DialogContent>
-        </Dialog>
 
         {qrCourt && (() => {
           const courtUrl = `${window.location.origin}${BASE_URL}/courts/${qrCourt.id}`;

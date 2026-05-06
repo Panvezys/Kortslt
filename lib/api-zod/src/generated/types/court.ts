@@ -30,6 +30,10 @@ export interface Court {
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
+  surfaceSpeed?: string | null;
+  surfaceBounce?: string | null;
+  hasSmartLock?: boolean;
+  accessInstructions?: string | null;
   condition: CourtCondition;
   rating?: number;
   totalBookings?: number;

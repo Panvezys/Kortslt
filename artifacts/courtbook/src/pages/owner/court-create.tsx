@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useCreateCourt, useSetCourtPricing, customFetch, getListCourtsQueryKey,
+  useCreateCourt, useUpdateCourt, useSetCourtPricing, customFetch, getListCourtsQueryKey,
+  useGetCourt, useGetCourtPricing, getGetCourtQueryKey, getGetCourtPricingQueryKey,
 } from "@workspace/api-client-react";
 import { OwnerLayout } from "@/components/owner-layout";
 import { Button } from "@/components/ui/button";
@@ -122,10 +123,19 @@ const courtSchema = z.object({
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
   pricePerHour: z.coerce.number().min(1),
+  peakPricePerHour: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+    z.number().min(0).optional(),
+  ),
   imageUrl: z.string().optional(),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
   amenities: z.array(z.string()).default([]),
+  surface: z.string().optional(),
+  surfaceSpeed: z.string().optional(),
+  surfaceBounce: z.string().optional(),
+  hasSmartLock: z.boolean().default(false),
+  accessInstructions: z.string().optional(),
 });
 type CourtFormValues = z.infer<typeof courtSchema>;
 
@@ -160,10 +170,14 @@ export default function CourtCreatePage() {
   const params = useParams();
   const queryClient = useQueryClient();
   const createCourt = useCreateCourt();
+  const updateCourt = useUpdateCourt();
   const setPricing = useSetCourtPricing();
   const facilityId = Number(params.id ?? 0);
+  const editingCourtId = params.courtId ? Number(params.courtId) : null;
+  const isEdit = editingCourtId !== null;
   const [facility, setFacility] = useState<FacilityData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
 
   const [formTab, setFormTab] = useState<TabId>("info");
 
@@ -229,12 +243,105 @@ export default function CourtCreatePage() {
       type: "tennis",
       description: "",
       pricePerHour: 20,
+      peakPricePerHour: undefined,
       imageUrl: "",
       isIndoor: false,
       maxPlayers: 4,
       amenities: [],
+      surface: "",
+      surfaceSpeed: "",
+      surfaceBounce: "",
+      hasSmartLock: false,
+      accessInstructions: "",
     },
   });
+
+  // Edit-mode: load existing court + pricing and hydrate form/state once.
+  const { data: editingCourt } = useGetCourt(editingCourtId ?? 0, {
+    query: {
+      queryKey: getGetCourtQueryKey(editingCourtId ?? 0),
+      enabled: isEdit && editingCourtId !== null && editingCourtId > 0,
+    },
+  });
+  const { data: editingPricing } = useGetCourtPricing(editingCourtId ?? 0, {
+    query: {
+      queryKey: getGetCourtPricingQueryKey(editingCourtId ?? 0),
+      enabled: isEdit && editingCourtId !== null && editingCourtId > 0,
+    },
+  });
+
+  useEffect(() => {
+    if (!isEdit || hydrated || !editingCourt) return;
+    const c = editingCourt as any;
+    form.reset({
+      name: c.name ?? "",
+      type: c.type ?? "tennis",
+      description: c.description ?? "",
+      pricePerHour: Number(c.pricePerHour ?? 20),
+      peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
+      imageUrl: c.imageUrl ?? "",
+      isIndoor: !!c.isIndoor,
+      maxPlayers: Number(c.maxPlayers ?? 4),
+      amenities: Array.isArray(c.amenities) ? c.amenities : [],
+      surface: c.surface ?? "",
+      surfaceSpeed: c.surfaceSpeed ?? "",
+      surfaceBounce: c.surfaceBounce ?? "",
+      hasSmartLock: !!c.hasSmartLock,
+      accessInstructions: c.accessInstructions ?? "",
+    });
+    if (c.workingHours) {
+      try {
+        const parsed = JSON.parse(c.workingHours);
+        setWorkingHoursState({ ...defaultWorkingHours(), ...parsed });
+        setOverrideHours(true);
+      } catch { /* keep facility-inherited defaults */ }
+    }
+    if (c.rentableItems) {
+      try {
+        const raw: any[] = JSON.parse(c.rentableItems);
+        setRentableItems(raw.map((r) => ({
+          name: r.name,
+          pricePerSlot: r.pricePerSlot ?? r.pricePerBooking ?? 0,
+          stock: r.stock ?? 1,
+        })));
+      } catch { /* ignore */ }
+    }
+    if (c.amenityPhotos) {
+      try {
+        const photos = JSON.parse(c.amenityPhotos);
+        if (typeof photos === "object" && photos !== null) setAmenityPhotos(photos);
+      } catch { /* ignore */ }
+    }
+    // Contact override: if any court-specific contact value differs from facility, enable override
+    const facPhone = facility?.phone ?? "";
+    const facFb = facility?.socialFacebook ?? "";
+    const facIg = facility?.socialInstagram ?? "";
+    const facWa = facility?.socialWhatsapp ?? "";
+    const facWeb = facility?.websiteUrl ?? "";
+    const cPhone = c.phone ?? "";
+    const cFb = c.socialFacebook ?? "";
+    const cIg = c.socialInstagram ?? "";
+    const cWa = c.socialWhatsapp ?? "";
+    const cWeb = c.socialWebsite ?? "";
+    const hasOverride =
+      (cPhone && cPhone !== facPhone) || (cFb && cFb !== facFb) ||
+      (cIg && cIg !== facIg) || (cWa && cWa !== facWa) || (cWeb && cWeb !== facWeb);
+    if (hasOverride) {
+      setOverrideContacts(true);
+      setCourtPhone(cPhone); setCourtFacebook(cFb);
+      setCourtInstagram(cIg); setCourtWhatsapp(cWa); setCourtWebsite(cWeb);
+    }
+    setHydrated(true);
+  }, [isEdit, hydrated, editingCourt, facility, form]);
+
+  useEffect(() => {
+    if (!isEdit || !editingPricing?.entries) return;
+    const map = new Map<string, number>();
+    (editingPricing.entries as any[]).forEach((e) => {
+      map.set(`${e.dayOfWeek}:${e.startTime}`, Number(e.price));
+    });
+    setPriceMap(map);
+  }, [isEdit, editingPricing]);
 
   const handleAmenityPhotoUpload = async (amenityId: string, file: File) => {
     setUploadingAmenity(amenityId);
@@ -308,18 +415,27 @@ export default function CourtCreatePage() {
     name: "info",
     type: "info",
     description: "info",
+    surface: "info",
+    surfaceSpeed: "info",
+    surfaceBounce: "info",
     pricePerHour: "schedule",
+    peakPricePerHour: "pricing",
     maxPlayers: "amenities",
     isIndoor: "amenities",
+    hasSmartLock: "amenities",
+    accessInstructions: "amenities",
     imageUrl: "media",
   };
   const FIELD_LABELS: Record<string, string> = {
     name: "Aikštelės pavadinimas",
     type: "Sporto šaka",
     pricePerHour: "Numatytoji kaina",
+    peakPricePerHour: "Piko valandų kaina",
     maxPlayers: "Maks. žaidėjai",
     description: "Aprašymas",
     imageUrl: "Pagrindinė nuotrauka",
+    surface: "Dangos tipas",
+    accessInstructions: "Prieigos instrukcijos",
   };
 
   const onInvalid = (errors: Record<string, { message?: string } | undefined>) => {
@@ -355,10 +471,15 @@ export default function CourtCreatePage() {
       ...data,
       facilityId,
       rentableItems: rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined,
-      workingHours: JSON.stringify(workingHoursState),
+      workingHours: overrideHours ? JSON.stringify(workingHoursState) : null,
       amenityPhotos: Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined,
       description: cleanStr(data.description),
       imageUrl: cleanStr(data.imageUrl),
+      surface: cleanStr((data as any).surface),
+      surfaceSpeed: cleanStr((data as any).surfaceSpeed),
+      surfaceBounce: cleanStr((data as any).surfaceBounce),
+      hasSmartLock: !!(data as any).hasSmartLock,
+      accessInstructions: cleanStr((data as any).accessInstructions),
       phone: cleanStr(effPhone),
       socialFacebook: cleanStr(effFacebook),
       socialInstagram: cleanStr(effInstagram),
@@ -414,8 +535,15 @@ export default function CourtCreatePage() {
   const onSubmit = async (data: CourtFormValues) => {
     try {
       const payload = buildPayload(data);
-      const newCourt = await createCourt.mutateAsync({ data: payload as any });
-      const newCourtId: number = (newCourt as any).id;
+      let courtIdResult: number;
+      if (isEdit && editingCourtId) {
+        await updateCourt.mutateAsync({ id: editingCourtId, data: payload as any });
+        courtIdResult = editingCourtId;
+      } else {
+        const newCourt = await createCourt.mutateAsync({ data: payload as any });
+        courtIdResult = (newCourt as any).id;
+      }
+      const newCourtId = courtIdResult;
 
       // Persist per-slot pricing (defaultPrice + custom entries)
       try {
@@ -431,7 +559,7 @@ export default function CourtCreatePage() {
             data: { entries },
           });
         }
-      } catch { /* pricing failure should not block creation */ }
+      } catch { /* pricing failure should not block save */ }
 
       // Upload gallery photos sequentially
       if (galleryFiles.length > 0) {
@@ -460,7 +588,10 @@ export default function CourtCreatePage() {
       });
       queryClient.invalidateQueries({ queryKey: ["facility-detail", String(facilityId)] });
       queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
-      toast({ title: "Aikštelė sukurta — laukia patvirtinimo" });
+      if (isEdit && editingCourtId) {
+        queryClient.invalidateQueries({ queryKey: getGetCourtQueryKey(editingCourtId) });
+      }
+      toast({ title: isEdit ? "Aikštelė atnaujinta" : "Aikštelė sukurta — laukia patvirtinimo" });
       navigate(`/owner/facility/${facilityId}`);
     } catch (err) {
       const anyErr = err as any;
@@ -472,9 +603,9 @@ export default function CourtCreatePage() {
     }
   };
 
-  if (loading || !facility) {
+  if (loading || !facility || (isEdit && !editingCourt)) {
     return (
-      <OwnerLayout facilityId={facilityId} title="Pridėti aikštelę">
+      <OwnerLayout facilityId={facilityId} title={isEdit ? "Redaguoti aikštelę" : "Pridėti aikštelę"}>
         <div className="p-4 md:p-6 space-y-4">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="h-80 rounded-2xl" />
@@ -489,12 +620,12 @@ export default function CourtCreatePage() {
   const facilityHoursDisplay = facilityHoursToCourtFormat(facility.businessHours) ?? defaultWorkingHours();
 
   return (
-    <OwnerLayout facilityId={facilityId} facilityName={facility.name} title="Pridėti aikštelę">
+    <OwnerLayout facilityId={facilityId} facilityName={facility.name} title={isEdit ? "Redaguoti aikštelę" : "Pridėti aikštelę"}>
       <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold">Pridėti naują aikštelę</h1>
-            <p className="text-sm text-muted-foreground">{facility.name}</p>
+            <h1 className="text-2xl font-bold">{isEdit ? "Redaguoti aikštelę" : "Pridėti naują aikštelę"}</h1>
+            <p className="text-sm text-muted-foreground">{facility.name}{isEdit && editingCourt ? ` — ${(editingCourt as any).name}` : ""}</p>
           </div>
           <Button variant="outline" onClick={() => navigate(`/owner/facility/${facilityId}`)} className="gap-2">
             <ChevronLeft className="w-4 h-4" />Grįžti
@@ -567,6 +698,46 @@ export default function CourtCreatePage() {
                         <FormMessage />
                       </FormItem>
                     )} />
+
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <p className="font-semibold text-sm">Aikštelės dangos charakteristikos</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <FormField control={form.control} name="surface" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Dangos tipas</FormLabel>
+                            <FormControl>
+                              <Input placeholder="pvz. Kietoji, Žolė, Akrilas..." {...field} value={field.value ?? ""} />
+                            </FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="surfaceSpeed" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Greitis</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                <SelectItem value="slow">Lėtas</SelectItem>
+                                <SelectItem value="medium">Vidutinis</SelectItem>
+                                <SelectItem value="fast">Greitas</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="surfaceBounce" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Atšokimas</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                <SelectItem value="low">Žemas</SelectItem>
+                                <SelectItem value="medium">Vidutinis</SelectItem>
+                                <SelectItem value="high">Aukštas</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                      </div>
+                    </div>
 
                     <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30 flex items-center gap-3 flex-wrap">
                       <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -656,6 +827,26 @@ export default function CourtCreatePage() {
 
                 {formTab === "pricing" && (
                   <div className="space-y-4">
+                    <div className="rounded-xl border p-4">
+                      <FormField control={form.control} name="peakPricePerHour" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Euro className="w-3.5 h-3.5 text-amber-500" /> Piko valandų kaina (€/val) — neprivaloma
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number" min="0" step="0.5"
+                              placeholder="Palikite tuščią, jei nėra atskiros piko kainos"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.value)}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Naudojama kaip nuoroda už piko valandas (pvz., vakarais ar savaitgaliais).
+                          </p>
+                        </FormItem>
+                      )} />
+                    </div>
                     <div>
                       <p className="font-semibold text-sm mb-1">Kainoraštis pagal laiką</p>
                       <p className="text-xs text-muted-foreground">
@@ -738,6 +929,40 @@ export default function CourtCreatePage() {
                           <div><FormLabel className="cursor-pointer">Vidaus aikštelė</FormLabel></div>
                         </FormItem>
                       )} />
+                    </div>
+
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm">Išmanus prieigos valdymas</span>
+                      </div>
+                      <FormField control={form.control} name="hasSmartLock" render={({ field }) => (
+                        <FormItem className="flex flex-row items-center gap-3 space-y-0 rounded-md border p-3">
+                          <FormControl>
+                            <Checkbox checked={!!field.value} onCheckedChange={(v) => field.onChange(Boolean(v))} />
+                          </FormControl>
+                          <div>
+                            <FormLabel className="cursor-pointer">Aikštelėje yra išmanus užraktas / be administratoriaus</FormLabel>
+                            <p className="text-xs text-muted-foreground">Klientai patenka savarankiškai pagal pateiktą instrukciją.</p>
+                          </div>
+                        </FormItem>
+                      )} />
+                      {form.watch("hasSmartLock") && (
+                        <FormField control={form.control} name="accessInstructions" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs">Prieigos instrukcijos klientui</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                rows={3}
+                                placeholder="Pvz.: Kodas durims atsiunčiamas SMS žinute prieš rezervacijos pradžią..."
+                                {...field}
+                                value={field.value ?? ""}
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">Bus rodoma klientui po patvirtintos rezervacijos.</p>
+                          </FormItem>
+                        )} />
+                      )}
                     </div>
 
                     <div className="rounded-xl border p-4 space-y-3">
@@ -986,23 +1211,27 @@ export default function CourtCreatePage() {
                     <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
                       Atšaukti
                     </Button>
-                    <Button type="button" variant="outline" size="sm"
-                      onClick={saveAsDraft}
-                      disabled={savingDraft || createCourt.isPending}>
-                      {savingDraft ? "Saugoma..." : "Išsaugoti juodraštį"}
-                    </Button>
+                    {!isEdit && (
+                      <Button type="button" variant="outline" size="sm"
+                        onClick={saveAsDraft}
+                        disabled={savingDraft || createCourt.isPending}>
+                        {savingDraft ? "Saugoma..." : "Išsaugoti juodraštį"}
+                      </Button>
+                    )}
                     {formTab !== "contact" ? (
                       <Button type="button" size="sm" onClick={() => {
                         const idx = TABS.findIndex((t) => t.id === formTab);
                         if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
                       }}>Toliau →</Button>
                     ) : (
-                      <Button type="submit" disabled={createCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}>
-                        {createCourt.isPending
-                          ? "Kuriama..."
-                          : uploadingGallery
-                            ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
-                            : "Sukurti aikštelę"}
+                      <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}>
+                        {isEdit
+                          ? (updateCourt.isPending ? "Saugoma..." : "Išsaugoti pakeitimus")
+                          : (createCourt.isPending
+                              ? "Kuriama..."
+                              : uploadingGallery
+                                ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
+                                : "Sukurti aikštelę")}
                       </Button>
                     )}
                   </div>

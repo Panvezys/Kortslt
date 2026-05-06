@@ -20,9 +20,18 @@ router.post("/courts/:id/memberships", requireAuth, async (req, res): Promise<vo
   if (!court) { res.status(404).json({ error: "Not found" }); return; }
   const [mbFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId }).from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
   if (!(await isOwner(req, mbFacility?.ownerUserId ?? null))) { res.status(403).json({ error: "Forbidden" }); return; }
-  const { name, description, pricePerYear, weeklySlots } = req.body as any;
-  if (!name || !pricePerYear) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
-  const [plan] = await db.insert(courtMembershipsTable).values({ courtId, name, description, pricePerYear: Number(pricePerYear), weeklySlots: Number(weeklySlots ?? 1) }).returning();
+  const { name, description, pricePerYear, pricePerMonth, weeklySlots, conditions, discountPercent } = req.body as any;
+  if (!name || pricePerYear == null) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
+  const [plan] = await db.insert(courtMembershipsTable).values({
+    courtId,
+    name,
+    description: description ?? null,
+    pricePerYear: Number(pricePerYear),
+    pricePerMonth: pricePerMonth != null && pricePerMonth !== "" ? Number(pricePerMonth) : null,
+    weeklySlots: Number(weeklySlots ?? 1),
+    conditions: conditions ?? null,
+    discountPercent: discountPercent != null && discountPercent !== "" ? Number(discountPercent) : null,
+  }).returning();
   res.status(201).json(plan);
 });
 
@@ -35,12 +44,15 @@ router.patch("/courts/:id/memberships/:planId", requireAuth, async (req, res): P
   if (!(await isOwner(req, mbFacility2?.ownerUserId ?? null))) { res.status(403).json({ error: "Forbidden" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(and(eq(courtMembershipsTable.id, planId), eq(courtMembershipsTable.courtId, courtId)));
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
-  const { name, description, pricePerYear, weeklySlots, isActive } = req.body as any;
+  const { name, description, pricePerYear, pricePerMonth, weeklySlots, conditions, discountPercent, isActive } = req.body as any;
   const update: Record<string, unknown> = {};
   if (name !== undefined) update.name = name;
   if (description !== undefined) update.description = description;
   if (pricePerYear !== undefined) update.pricePerYear = Number(pricePerYear);
+  if (pricePerMonth !== undefined) update.pricePerMonth = pricePerMonth === null || pricePerMonth === "" ? null : Number(pricePerMonth);
   if (weeklySlots !== undefined) update.weeklySlots = Number(weeklySlots);
+  if (conditions !== undefined) update.conditions = conditions;
+  if (discountPercent !== undefined) update.discountPercent = discountPercent === null || discountPercent === "" ? null : Number(discountPercent);
   if (isActive !== undefined) update.isActive = Boolean(isActive);
   const [updated] = await db.update(courtMembershipsTable).set(update).where(and(eq(courtMembershipsTable.id, planId), eq(courtMembershipsTable.courtId, courtId))).returning();
   res.json(updated);

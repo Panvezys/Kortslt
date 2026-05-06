@@ -7,7 +7,10 @@ export const courtMembershipsTable = pgTable("court_memberships", {
   name: text("name").notNull(),
   description: text("description"),
   pricePerYear: integer("price_per_year").notNull(),
+  pricePerMonth: integer("price_per_month"),
   weeklySlots: integer("weekly_slots").notNull().default(1),
+  conditions: text("conditions"),
+  discountPercent: integer("discount_percent"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -59,6 +59,8 @@ const OwnerSettings = lazy(() => import("@/pages/owner/settings"));
 const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
 const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
 const OwnerCourtCreate = lazy(() => import("@/pages/owner/court-create"));
+const OwnerCourtCoaches = lazy(() => import("@/pages/owner/court-coaches"));
+const OwnerCourtMemberships = lazy(() => import("@/pages/owner/court-memberships"));
 const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
 const OwnerTournamentCreate = lazy(() => import("@/pages/owner/tournament-create"));
@@ -219,6 +221,9 @@ function Router() {
       <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
       <Route path="/owner/tournaments/new" component={() => <CreatorRoute><Suspense fallback={null}><OwnerTournamentCreate /></Suspense></CreatorRoute>} />
       <Route path="/owner/facility/:id/court/new" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtCreate /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:id/court/:courtId/edit" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtCreate /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:facilityId/court/:courtId/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtCoaches /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:facilityId/court/:courtId/memberships" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtMemberships /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id/messages" component={() => <OwnerRoute><Suspense fallback={null}><OwnerFacilityMessages /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />

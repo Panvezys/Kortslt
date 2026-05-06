@@ -18,6 +18,10 @@ export interface CreateCourtBody {
   isIndoor: boolean;
   maxPlayers: number;
   surface?: string;
+  surfaceSpeed?: string | null;
+  surfaceBounce?: string | null;
+  hasSmartLock?: boolean;
+  accessInstructions?: string | null;
   condition?: CreateCourtBodyCondition;
   facilityId: number;
   peakPricePerHour?: number | null;

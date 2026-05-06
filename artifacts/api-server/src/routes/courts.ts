@@ -45,6 +45,10 @@ function formatCourt(c: CourtRow, facility: FacilityRow | null) {
     imageUrl: c.imageUrl ?? undefined,
     rating: c.rating ?? undefined,
     surface: c.surface ?? undefined,
+    surfaceSpeed: c.surfaceSpeed ?? undefined,
+    surfaceBounce: c.surfaceBounce ?? undefined,
+    hasSmartLock: c.hasSmartLock ?? false,
+    accessInstructions: c.accessInstructions ?? undefined,
     condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
     phone: c.phone ?? undefined,
     rejectionReason: c.rejectionReason ?? undefined,
@@ -80,6 +84,10 @@ function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
     isIndoor: c.isIndoor,
     maxPlayers: c.maxPlayers,
     surface: c.surface ?? undefined,
+    surfaceSpeed: c.surfaceSpeed ?? undefined,
+    surfaceBounce: c.surfaceBounce ?? undefined,
+    hasSmartLock: c.hasSmartLock ?? false,
+    accessInstructions: c.accessInstructions ?? undefined,
     condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
     rating: c.rating ?? undefined,
     totalBookings: c.totalBookings,
@@ -284,6 +292,10 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       isIndoor: parsed.data.isIndoor,
       maxPlayers: parsed.data.maxPlayers,
       surface: parsed.data.surface ?? null,
+      surfaceSpeed: (parsed.data as any).surfaceSpeed ?? null,
+      surfaceBounce: (parsed.data as any).surfaceBounce ?? null,
+      hasSmartLock: Boolean((parsed.data as any).hasSmartLock ?? false),
+      accessInstructions: (parsed.data as any).accessInstructions ?? null,
       condition: (parsed.data.condition ?? "good") as string,
       status: "draft",
       instantBookingEnabled: true,
@@ -358,6 +370,11 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   if (typeof (req.body as any).instantBookingEnabled === "boolean") {
     extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
   }
+  const rb = req.body as any;
+  if ("surfaceSpeed" in rb) extraFields.surfaceSpeed = rb.surfaceSpeed ?? null;
+  if ("surfaceBounce" in rb) extraFields.surfaceBounce = rb.surfaceBounce ?? null;
+  if ("hasSmartLock" in rb) extraFields.hasSmartLock = Boolean(rb.hasSmartLock);
+  if ("accessInstructions" in rb) extraFields.accessInstructions = rb.accessInstructions ?? null;
 
   const { ...safeFields } = body.data as any;
 
