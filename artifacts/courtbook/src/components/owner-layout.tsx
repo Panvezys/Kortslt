@@ -126,6 +126,9 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
         </div>
         {facilityName && (
           <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30 shrink-0">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">
+              Objektas
+            </p>
             <p className="text-sm font-medium truncate">{facilityName}</p>
           </div>
         )}
