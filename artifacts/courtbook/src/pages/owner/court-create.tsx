@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -819,14 +820,14 @@ export default function CourtCreatePage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <FormLabel>Telefonas</FormLabel>
+                        <Label>Telefonas</Label>
                         <Input placeholder="+370..."
                           disabled={!overrideContacts}
                           value={overrideContacts ? courtPhone : (facility.phone ?? "")}
                           onChange={(e) => setCourtPhone(e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <FormLabel>El. paštas (paveldima iš objekto)</FormLabel>
+                        <Label>El. paštas (paveldima iš objekto)</Label>
                         <Input value={facility.email ?? ""} disabled placeholder="—" />
                       </div>
                     </div>
@@ -834,28 +835,28 @@ export default function CourtCreatePage() {
                     <p className="text-sm font-semibold mt-2">Socialiniai tinklai</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <FormLabel>Facebook</FormLabel>
+                        <Label>Facebook</Label>
                         <Input placeholder="https://facebook.com/..."
                           disabled={!overrideContacts}
                           value={overrideContacts ? courtFacebook : (facility.socialFacebook ?? "")}
                           onChange={(e) => setCourtFacebook(e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <FormLabel>Instagram</FormLabel>
+                        <Label>Instagram</Label>
                         <Input placeholder="https://instagram.com/..."
                           disabled={!overrideContacts}
                           value={overrideContacts ? courtInstagram : (facility.socialInstagram ?? "")}
                           onChange={(e) => setCourtInstagram(e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <FormLabel>WhatsApp</FormLabel>
+                        <Label>WhatsApp</Label>
                         <Input placeholder="https://wa.me/370..."
                           disabled={!overrideContacts}
                           value={overrideContacts ? courtWhatsapp : (facility.socialWhatsapp ?? "")}
                           onChange={(e) => setCourtWhatsapp(e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <FormLabel>Svetainė</FormLabel>
+                        <Label>Svetainė</Label>
                         <Input placeholder="https://..."
                           disabled={!overrideContacts}
                           value={overrideContacts ? courtWebsite : (facility.websiteUrl ?? "")}
