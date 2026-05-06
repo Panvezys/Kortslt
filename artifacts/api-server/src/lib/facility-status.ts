@@ -21,25 +21,21 @@ export type FacilityStatus =
   | "active"
   | "suspended";
 
-/** Minimum required information for a facility to be submitted for verification. */
-export const VERIFICATION_REQUIREMENTS = {
-  minPhotos: 3,
-  requireLatLng: true,
-  requireAddress: true,
-  minAddressLength: 3,
-} as const;
-
 export interface ValidationIssue {
   field: string;
   message: string;
 }
 
-/** Validate whether a facility has the minimum data required to enter the verification queue. */
+/**
+ * Validate whether a facility has the minimum data required to enter the
+ * verification queue. Intentionally lean:
+ *   - name, address, city — core identity that an admin needs to review the facility
+ *   - coordinates are NOT required (text address is sufficient; owner may not use the map picker)
+ *   - photos are NOT required here (facility-level photos are optional; court photos
+ *     are uploaded per-court and are what players actually see)
+ */
 export function validateForVerification(
-  facility: Pick<
-    Facility,
-    "name" | "address" | "city" | "latitude" | "longitude" | "photos"
-  >,
+  facility: Pick<Facility, "name" | "address" | "city">,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -47,30 +43,12 @@ export function validateForVerification(
     issues.push({ field: "name", message: "Pavadinimas privalomas (bent 2 simboliai)." });
   }
 
-  if (!facility.address || facility.address.trim().length < VERIFICATION_REQUIREMENTS.minAddressLength) {
+  if (!facility.address || facility.address.trim().length < 3) {
     issues.push({ field: "address", message: "Reikalingas pilnas adresas." });
   }
 
   if (!facility.city || facility.city.trim().length < 2) {
     issues.push({ field: "city", message: "Reikalingas miestas." });
-  }
-
-  if (
-    VERIFICATION_REQUIREMENTS.requireLatLng &&
-    (facility.latitude == null || facility.longitude == null)
-  ) {
-    issues.push({
-      field: "latitude",
-      message: "Reikalingos koordinatės — pasirinkite vietą žemėlapyje.",
-    });
-  }
-
-  const photoCount = Array.isArray(facility.photos) ? facility.photos.length : 0;
-  if (photoCount < VERIFICATION_REQUIREMENTS.minPhotos) {
-    issues.push({
-      field: "photos",
-      message: `Reikalinga bent ${VERIFICATION_REQUIREMENTS.minPhotos} nuotraukos (turite ${photoCount}).`,
-    });
   }
 
   return issues;
