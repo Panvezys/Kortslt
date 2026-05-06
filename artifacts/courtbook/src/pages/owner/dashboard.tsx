@@ -611,18 +611,20 @@ export default function OwnerDashboard() {
                     <h2 className="font-semibold text-sm">Grafiko peržiūra</h2>
                     <p className="text-xs text-muted-foreground capitalize">{today.toLocaleDateString("lt-LT", { weekday: "long", day: "numeric", month: "long" })}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setBlockOpen(true)}>
-                      <X className="h-3 w-3" />
-                      <span className="hidden sm:inline">Blokuoti kortą</span>
-                      <span className="sm:hidden">Blokuoti</span>
-                    </Button>
-                    <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreHour(undefined); setManualOpen(true); }}>
-                      <Phone className="h-3 w-3" />
-                      <span className="hidden sm:inline">Rankinė rezervacija</span>
-                      <span className="sm:hidden">Rankinė</span>
-                    </Button>
-                  </div>
+                  {courts.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setBlockOpen(true)}>
+                        <X className="h-3 w-3" />
+                        <span className="hidden sm:inline">Blokuoti kortą</span>
+                        <span className="sm:hidden">Blokuoti</span>
+                      </Button>
+                      <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreHour(undefined); setManualOpen(true); }}>
+                        <Phone className="h-3 w-3" />
+                        <span className="hidden sm:inline">Rankinė rezervacija</span>
+                        <span className="sm:hidden">Rankinė</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {isLoading ? (
@@ -632,7 +634,7 @@ export default function OwnerDashboard() {
                 ) : courts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <Building2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">Kortų nerasta. <a href={`${BASE_URL}/owner`} className="text-primary underline">Pridėkite kortą</a>.</p>
+                    <p className="text-sm text-muted-foreground">Kortų nerasta. <a href={`${BASE_URL}/owner/courts/new`} className="text-primary underline">Pridėkite kortą</a>.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
