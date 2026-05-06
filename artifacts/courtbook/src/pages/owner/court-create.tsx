@@ -1218,22 +1218,25 @@ export default function CourtCreatePage() {
                         {savingDraft ? "Saugoma..." : "Išsaugoti juodraštį"}
                       </Button>
                     )}
-                    {formTab !== "contact" ? (
-                      <Button type="button" size="sm" onClick={() => {
+                    <Button
+                      type={formTab === "contact" ? "submit" : "button"}
+                      size="sm"
+                      onClick={formTab !== "contact" ? () => {
                         const idx = TABS.findIndex((t) => t.id === formTab);
                         if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
-                      }}>Toliau →</Button>
-                    ) : (
-                      <Button type="submit" disabled={createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}>
-                        {isEdit
-                          ? (updateCourt.isPending ? "Saugoma..." : "Išsaugoti pakeitimus")
-                          : (createCourt.isPending
-                              ? "Kuriama..."
-                              : uploadingGallery
-                                ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
-                                : "Sukurti aikštelę")}
-                      </Button>
-                    )}
+                      } : undefined}
+                      disabled={formTab === "contact" && (createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft)}
+                    >
+                      {formTab === "contact"
+                        ? (isEdit
+                            ? (updateCourt.isPending ? "Saugoma..." : "Išsaugoti pakeitimus")
+                            : (createCourt.isPending
+                                ? "Kuriama..."
+                                : uploadingGallery
+                                  ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
+                                  : "Sukurti aikštelę"))
+                        : "Toliau →"}
+                    </Button>
                   </div>
                 </div>
               </form>
