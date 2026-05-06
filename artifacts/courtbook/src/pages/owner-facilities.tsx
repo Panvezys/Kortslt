@@ -501,10 +501,20 @@ export default function OwnerFacilities() {
       }
     },
     onError: (err) => {
-      const detail = extractApiError(err, "Patikrinkite, ar užpildėte visus privalomus duomenis.");
+      const data = (err && typeof err === "object" ? (err as unknown as Record<string, unknown>)["data"] : null) as
+        | { error?: string; issues?: Array<{ field?: string; message?: string }> }
+        | null;
+      const issues = Array.isArray(data?.issues) ? data!.issues! : [];
+      const description = issues.length > 0 ? (
+        <ul className="list-disc pl-4 space-y-0.5 mt-1">
+          {issues.map((i, idx) => (
+            <li key={idx}>{i.message ?? i.field ?? ""}</li>
+          ))}
+        </ul>
+      ) : extractApiError(err, "Patikrinkite, ar užpildėte visus privalomus duomenis.");
       toast({
-        title: "Negalima pateikti patvirtinimui",
-        description: detail,
+        title: data?.error ?? "Negalima pateikti patvirtinimui",
+        description,
         variant: "destructive",
       });
     },
