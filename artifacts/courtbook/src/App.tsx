@@ -58,8 +58,8 @@ const OwnerDashboard = lazy(() => import("@/pages/owner/dashboard"));
 const OwnerSettings = lazy(() => import("@/pages/owner/settings"));
 const OwnerPayments = lazy(() => import("@/pages/owner/payments"));
 const OwnerCoaches = lazy(() => import("@/pages/owner/coaches"));
-const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerCourtCreate = lazy(() => import("@/pages/owner/court-create"));
+const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
 const OwnerTournamentCreate = lazy(() => import("@/pages/owner/tournament-create"));
 const OwnerFacilityMessages = lazy(() => import("@/pages/owner-facility-messages"));
@@ -78,72 +78,281 @@ function stripBase(path: string): string {
     : path;
 }
 
-function HomeRoute() { return <Home />; }
-function BookingsRoute() { return (<><SafeShow when="signed-in"><Bookings /></SafeShow><SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow></>); }
-function OwnerRoute({ children }: { children: React.ReactNode }) { const { isLoaded, isSignedIn } = useSafeAuth(); const { isOwner, isLoading } = useRole(); if (!isLoaded || isLoading) return null; if (!isSignedIn) return <Redirect to="/sign-in" />; if (!isOwner) return <Redirect to="/become-owner" />; return <>{children}</>; }
-function OwnerFacilitiesRoute() { return <OwnerRoute><OwnerFacilities /></OwnerRoute>; }
-function OwnerFacilityDetailRoute() { return <OwnerRoute><OwnerFacilityDetail /></OwnerRoute>; }
-function ProfileRoute() { return (<><SafeShow when="signed-in"><Profile /></SafeShow><SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow></>); }
-function FavoritesRoute() { return (<><SafeShow when="signed-in"><FavoritesPage /></SafeShow><SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow></>); }
-function AdminRoute() { const { isSignedIn, isLoaded } = useSafeAuth(); const { isAdmin, isLoading, refresh } = useRole(); useEffect(() => { if (isLoaded && isSignedIn) refresh(); }, [isLoaded, isSignedIn, refresh]); if (!isLoaded || isLoading) return null; if (!isSignedIn) return <Redirect to="/sign-in" />; if (!isAdmin) return <Redirect to="/" />; return <Suspense fallback={null}><AdminDashboard /></Suspense>; }
-function AdminApprovalsRoute() { const { isSignedIn, isLoaded } = useSafeAuth(); const { isAdmin, isLoading, refresh } = useRole(); useEffect(() => { if (isLoaded && isSignedIn) refresh(); }, [isLoaded, isSignedIn, refresh]); if (!isLoaded || isLoading) return null; if (!isSignedIn) return <Redirect to="/sign-in" />; if (!isAdmin) return <Redirect to="/" />; return <Suspense fallback={null}><AdminApprovalsPage /></Suspense>; }
-function CoachRoute({ children }: { children: React.ReactNode }) { const { isSignedIn, isLoaded } = useSafeAuth(); const { isCoach, isLoading } = useRole(); if (!isLoaded || isLoading) return null; if (!isSignedIn) return <Redirect to="/sign-in" />; if (!isCoach) return <Redirect to="/become-coach" />; return <>{children}</>; }
-function CreatorRoute({ children }: { children: React.ReactNode }) { const { isSignedIn, isLoaded } = useSafeAuth(); const { isOwner, isCoach, isLoading } = useRole(); if (!isLoaded || isLoading) return null; if (!isSignedIn) return <Redirect to="/sign-in" />; if (!isOwner && !isCoach) return <Redirect to="/tournaments" />; return <>{children}</>; }
-function WelcomeRoute() { return (<><SafeShow when="signed-in"><WelcomePage /></SafeShow><SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow></>); }
-function ScrollToTop() { const [location] = useLocation(); useEffect(() => { window.scrollTo(0, 0); }, [location]); return null; }
+function HomeRoute() {
+  return <Home />;
+}
+
+function BookingsRoute() {
+  return (
+    <>
+      <SafeShow when="signed-in"><Bookings /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
+    </>
+  );
+}
+
+function OwnerRoute({ children }: { children: React.ReactNode }) {
+  const { isLoaded: authLoaded, isSignedIn } = useSafeAuth();
+  const { isOwner, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isOwner) return <Redirect to="/become-owner" />;
+  return <>{children}</>;
+}
+
+function OwnerFacilitiesRoute() {
+  return <OwnerRoute><OwnerFacilities /></OwnerRoute>;
+}
+
+function OwnerFacilityDetailRoute() {
+  return <OwnerRoute><OwnerFacilityDetail /></OwnerRoute>;
+}
+
+function ProfileRoute() {
+  return (
+    <>
+      <SafeShow when="signed-in"><Profile /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
+    </>
+  );
+}
+
+function FavoritesRoute() {
+  return (
+    <>
+      <SafeShow when="signed-in"><FavoritesPage /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
+    </>
+  );
+}
+
+function AdminRoute() {
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isAdmin, isLoading: roleLoading, refresh } = useRole();
+
+  useEffect(() => {
+    if (authLoaded && isSignedIn) refresh();
+  }, [authLoaded, isSignedIn, refresh]);
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return (
+    <Suspense fallback={null}>
+      <AdminDashboard />
+    </Suspense>
+  );
+}
+
+function AdminApprovalsRoute() {
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isAdmin, isLoading: roleLoading, refresh } = useRole();
+
+  useEffect(() => {
+    if (authLoaded && isSignedIn) refresh();
+  }, [authLoaded, isSignedIn, refresh]);
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isAdmin) return <Redirect to="/" />;
+  return (
+    <Suspense fallback={null}>
+      <AdminApprovalsPage />
+    </Suspense>
+  );
+}
+
+function CoachRoute({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isCoach, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isCoach) return <Redirect to="/become-coach" />;
+  return <>{children}</>;
+}
+
+/** Allows owners (incl. admins) and coaches — used for tournament-organizer pages. */
+function CreatorRoute({ children }: { children: React.ReactNode }) {
+  const { isSignedIn, isLoaded: authLoaded } = useSafeAuth();
+  const { isOwner, isCoach, isLoading: roleLoading } = useRole();
+
+  if (!authLoaded || roleLoading) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  if (!isOwner && !isCoach) return <Redirect to="/tournaments" />;
+  return <>{children}</>;
+}
+
+function WelcomeRoute() {
+  return (
+    <>
+      <SafeShow when="signed-in"><WelcomePage /></SafeShow>
+      <SafeShow when="signed-out"><Redirect to="/sign-in" /></SafeShow>
+    </>
+  );
+}
+
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
+  return null;
+}
 
 function Router() {
-  return (<><ScrollToTop /><Switch>
-    <Route path="/" component={HomeRoute} />
-    <Route path="/courts" component={Courts} />
-    <Route path="/courts/:id" component={CourtDetail} />
-    <Route path="/bookings/:id" component={BookingDetail} />
-    <Route path="/bookings" component={BookingsRoute} />
-    <Route path="/guest/booking/:token" component={GuestBooking} />
-    <Route path="/owner/dashboard" component={() => <OwnerRoute><Suspense fallback={null}><OwnerDashboard /></Suspense></OwnerRoute>} />
-    <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
-    <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
-    <Route path="/owner/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCoaches /></Suspense></OwnerRoute>} />
-    <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
-    <Route path="/owner/tournaments/new" component={() => <CreatorRoute><Suspense fallback={null}><OwnerTournamentCreate /></Suspense></CreatorRoute>} />
-    <Route path="/owner/facility/:id/court/new" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtCreate /></Suspense></OwnerRoute>} />
-    <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
-    <Route path="/owner/facility/:id/messages" component={() => <OwnerRoute><Suspense fallback={null}><OwnerFacilityMessages /></Suspense></OwnerRoute>} />
-    <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
-    <Route path="/owner" component={OwnerFacilitiesRoute} />
-    <Route path="/profile" component={ProfileRoute} />
-    <Route path="/admin/approvals" component={AdminApprovalsRoute} />
-    <Route path="/admin/roles"><Redirect to="/admin?tab=users" /></Route>
-    <Route path="/admin" component={AdminRoute} />
-    <Route path="/payment-success" component={PaymentSuccess} />
-    <Route path="/booking-confirmed" component={BookingConfirmed} />
-    <Route path="/payment-cancel" component={PaymentCancel} />
-    <Route path="/coaches" component={CoachesPage} />
-    <Route path="/tournaments" component={TournamentsPage} />
-    <Route path="/tournaments/:id" component={TournamentDetail} />
-    <Route path="/games" component={GamesPage} />
-    <Route path="/games/guide" component={GamesGuidePage} />
-    <Route path="/games/:id" component={GameDetailPage} />
-    <Route path="/messages" component={MessagesPage} />
-    <Route path="/list-your-court" component={ListYourCourt} />
-    <Route path="/faq" component={FAQPage} />
-    <Route path="/owners" component={OwnersInfoPage} />
-    <Route path="/privacy" component={PrivacyPage} />
-    <Route path="/delete-account" component={DeleteAccountPage} />
-    <Route path="/terms" component={TermsPage} />
-    <Route path="/contact" component={ContactPage} />
-    <Route path="/ranks" component={RanksPage} />
-    <Route path="/join/:token" component={JoinBookingPage} />
-    <Route path="/matches" component={OpenMatchesPage} />
-    <Route path="/coach/me">{() => <CoachRoute><CoachPage /></CoachRoute>}</Route>
-    <Route path="/coach/:id" component={CoachPage} />
-    <Route path="/welcome" component={WelcomeRoute} />
-    <Route path="/become-coach" component={BecomeCoachPage} />
-    <Route path="/become-owner" component={BecomeOwnerPage} />
-    <Route path="/favorites" component={FavoritesRoute} />
-    <Route path="/settings" component={SettingsPage} />
-    <Route path="/sign-in/*?" component={SignInPage} />
-    <Route path="/sign-up/*?" component={SignUpPage} />
-    <Route component={NotFound} />
-  </Switch></>);
+  return (
+    <>
+    <ScrollToTop />
+    <Switch>
+      <Route path="/" component={HomeRoute} />
+      <Route path="/courts" component={Courts} />
+      <Route path="/courts/:id" component={CourtDetail} />
+      <Route path="/bookings/:id" component={BookingDetail} />
+      <Route path="/bookings" component={BookingsRoute} />
+      <Route path="/guest/booking/:token" component={GuestBooking} />
+      <Route path="/owner/dashboard" component={() => <OwnerRoute><Suspense fallback={null}><OwnerDashboard /></Suspense></OwnerRoute>} />
+      <Route path="/owner/settings" component={() => <OwnerRoute><Suspense fallback={null}><OwnerSettings /></Suspense></OwnerRoute>} />
+      <Route path="/owner/payments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerPayments /></Suspense></OwnerRoute>} />
+      <Route path="/owner/coaches" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCoaches /></Suspense></OwnerRoute>} />
+      <Route path="/owner/tournaments" component={() => <OwnerRoute><Suspense fallback={null}><OwnerTournaments /></Suspense></OwnerRoute>} />
+      <Route path="/owner/tournaments/new" component={() => <CreatorRoute><Suspense fallback={null}><OwnerTournamentCreate /></Suspense></CreatorRoute>} />
+      <Route path="/owner/facility/:id/court/new" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtCreate /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:id/messages" component={() => <OwnerRoute><Suspense fallback={null}><OwnerFacilityMessages /></Suspense></OwnerRoute>} />
+      <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
+      <Route path="/owner" component={OwnerFacilitiesRoute} />
+      <Route path="/profile" component={ProfileRoute} />
+      <Route path="/admin/approvals" component={AdminApprovalsRoute} />
+      <Route path="/admin/roles">
+        <Redirect to="/admin?tab=users" />
+      </Route>
+      <Route path="/admin" component={AdminRoute} />
+      <Route path="/payment-success" component={PaymentSuccess} />
+      <Route path="/booking-confirmed" component={BookingConfirmed} />
+      <Route path="/payment-cancel" component={PaymentCancel} />
+      <Route path="/coaches" component={CoachesPage} />
+      <Route path="/tournaments" component={TournamentsPage} />
+      <Route path="/tournaments/:id" component={TournamentDetail} />
+      <Route path="/games" component={GamesPage} />
+      <Route path="/games/guide" component={GamesGuidePage} />
+      <Route path="/games/:id" component={GameDetailPage} />
+      <Route path="/messages" component={MessagesPage} />
+      <Route path="/list-your-court" component={ListYourCourt} />
+      <Route path="/faq" component={FAQPage} />
+      <Route path="/owners" component={OwnersInfoPage} />
+      <Route path="/privacy" component={PrivacyPage} />
+      <Route path="/delete-account" component={DeleteAccountPage} />
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/contact" component={ContactPage} />
+      <Route path="/ranks" component={RanksPage} />
+      <Route path="/join/:token" component={JoinBookingPage} />
+      <Route path="/matches" component={OpenMatchesPage} />
+      <Route path="/coach/me">
+        {() => <CoachRoute><CoachPage /></CoachRoute>}
+      </Route>
+      <Route path="/coach/:id" component={CoachPage} />
+      <Route path="/welcome" component={WelcomeRoute} />
+      <Route path="/become-coach" component={BecomeCoachPage} />
+      <Route path="/become-owner" component={BecomeOwnerPage} />
+      <Route path="/favorites" component={FavoritesRoute} />
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route component={NotFound} />
+    </Switch>
+    </>
+  );
 }
+
+function ClerkAuthTokenBridge() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return null;
+}
+
+function ClerkQueryClientCacheInvalidator() {
+  const { addListener } = useClerk();
+  const qc = useQueryClient();
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const unsubscribe = addListener(({ user }) => {
+      const userId = user?.id ?? null;
+      if (
+        prevUserIdRef.current !== undefined &&
+        prevUserIdRef.current !== userId
+      ) {
+        qc.clear();
+      }
+      prevUserIdRef.current = userId;
+    });
+    return unsubscribe;
+  }, [addListener, qc]);
+
+  return null;
+}
+
+function ClerkProviderWithRoutes() {
+  const [, setLocation] = useLocation();
+  const { locale } = useI18n();
+  const clerkLocalization = locale === "lt" ? ltLT : locale === "ru" ? ruRU : enUS;
+
+  if (!clerkPubKey) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <FavoritesProvider>
+          <TooltipProvider>
+            <Router />
+            <Toaster />
+          </TooltipProvider>
+        </FavoritesProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  return (
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      domain={CLERK_DOMAIN}
+      isSatellite={false}
+      localization={clerkLocalization}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      routerPush={(to) => setLocation(stripBase(to))}
+      routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkAuthTokenBridge />
+        <ClerkQueryClientCacheInvalidator />
+        <SafeAuthBridge>
+          <FavoritesProvider>
+            <TooltipProvider>
+              <Router />
+              <Toaster />
+              <ClerkLoadFailureBanner />
+            </TooltipProvider>
+          </FavoritesProvider>
+        </SafeAuthBridge>
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
+}
+
+function App() {
+  return (
+    <I18nProvider>
+      <WouterRouter base={basePath}>
+        <ClerkProviderWithRoutes />
+      </WouterRouter>
+    </I18nProvider>
+  );
+}
+
+export default App;

@@ -1280,29 +1280,13 @@ export default function OwnerFacilityDetail() {
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Aikštelės</h2>
+          <Button onClick={() => navigate(`/owner/facility/${id}/court/new`)} className="gap-2">
+            <Plus className="w-4 h-4" /> Pridėti aikštelę
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) { setEditingId(null); setMapKey(k => k + 1); }
           }}>
-            <DialogTrigger asChild>
-              <Button
-                onClick={() => {
-                setEditingId(null);
-                form.reset({
-                  name: "", type: "tennis", description: "",
-                  pricePerHour: 20,
-                  imageUrl: "",
-                  isIndoor: false, maxPlayers: 4, amenities: [],
-                  facilityId: Number(id), workingHours: undefined,
-                });
-                setMapKey(k => k + 1);
-                setWorkingHoursState(defaultWorkingHours());
-                setRentableItems([]);
-                setAmenityPhotos({});
-              }} className="gap-2">
-                <Plus className="w-4 h-4" /> Pridėti aikštelę
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingId ? "Redaguoti aikštelę" : "Pridėti naują aikštelę"}</DialogTitle>
