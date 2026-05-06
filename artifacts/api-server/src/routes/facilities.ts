@@ -13,8 +13,60 @@ import {
 import { inArray, gte, or } from "drizzle-orm";
 import { CreateFacilityBody, UpdateFacilityParams, UpdateFacilityBody, DeleteFacilityParams } from "@workspace/api-zod";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
-import { sendAdminNotification } from "../lib/notify";
+import { sendAdminNotification, sendNotification } from "../lib/notify";
+import {
+  validateForVerification,
+  computeNextStatusOnSubmit,
+  isStripeAccountReady,
+} from "../lib/facility-status";
+import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
+
+/**
+ * Cheap readiness check using only the cached `stripeAccountStatus` on the
+ * owner's profile. The webhook keeps this column accurate using the strict
+ * isStripeAccountReady predicate, so 'active' implies the strict predicate
+ * passed at the time of the last account.updated event.
+ *
+ * Used on the hot path of facility creation to avoid a Stripe round trip.
+ */
+async function ownerStripeReadyCached(userId: string): Promise<boolean> {
+  const [profile] = await db
+    .select({ stripeAccountId: userProfilesTable.stripeAccountId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId));
+  if (!profile?.stripeAccountId) return false;
+  return profile.stripeAccountStatus === "active";
+}
+
+/**
+ * Source-of-truth readiness check that calls Stripe directly. Returns one of:
+ *   - { ready: true }            — Stripe says the account is fully ready
+ *   - { ready: false }           — Stripe says the account is NOT ready
+ *   - { ready: false, error: … } — Stripe call failed; caller must NOT promote
+ *
+ * Used at the verification gate. Fail-closed by design: when we can't reach
+ * Stripe, we refuse to advance the facility rather than trusting a possibly
+ * stale cache. The caller surfaces a 503 so the owner retries later.
+ */
+async function ownerStripeReadyLive(
+  userId: string,
+): Promise<{ ready: boolean; error?: string }> {
+  const [profile] = await db
+    .select()
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, userId));
+  if (!profile?.stripeAccountId) return { ready: false };
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    const account = await stripe.accounts.retrieve(profile.stripeAccountId);
+    return { ready: isStripeAccountReady(account) };
+  } catch (err: any) {
+    logger.warn({ err, userId }, "ownerStripeReadyLive: Stripe call failed — failing closed");
+    return { ready: false, error: err?.message ?? "Stripe unreachable" };
+  }
+}
 
 const router: IRouter = Router();
 
@@ -118,11 +170,19 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  // If the owner already has a "ready" Stripe Connect account, pre-populate the new
+  // facility's stripeOnboardingComplete=true so they don't get stuck in 'onboarding'
+  // when they later submit it. We use the cached profile status here for speed; the
+  // submit-for-verification endpoint does a live re-check so any cache drift is
+  // corrected before the facility actually enters the verification queue.
+  const stripeReady = await ownerStripeReadyCached(userId);
+
   const [facility] = await db
     .insert(facilitiesTable)
     .values({
       ...parsed.data,
       ownerUserId: userId,
+      stripeOnboardingComplete: stripeReady,
     })
     .returning();
 
@@ -197,10 +257,11 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 /**
  * POST /facilities/:id/submit-for-verification
  *
- * Owner submits a facility for admin review. Requirements:
- *   - facility name + address + city filled
- *   - at least 1 court added
- * No Stripe gate — facility approval is purely admin-driven.
+ * Owner moves a facility out of 'draft' (or back into the queue from 'onboarding')
+ * after filling in all required information. The "Gatekeeper" enforces:
+ *   - minimum data quality (≥3 photos, lat/lng, address)
+ *   - if Stripe Connect is not yet onboarded, status becomes 'onboarding'
+ *   - otherwise status becomes 'pending_verification' and admin is notified
  */
 router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
@@ -227,37 +288,42 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
     return;
   }
 
-  // Validate minimum required fields.
-  const issues: { field: string; message: string }[] = [];
-  if (!facility.name || facility.name.trim().length < 2) {
-    issues.push({ field: "name", message: "Pavadinimas privalomas (bent 2 simboliai)." });
-  }
-  if (!facility.address || facility.address.trim().length < 3) {
-    issues.push({ field: "address", message: "Reikalingas pilnas adresas." });
-  }
-  if (!facility.city || facility.city.trim().length < 2) {
-    issues.push({ field: "city", message: "Reikalingas miestas." });
-  }
+  const issues = validateForVerification(facility);
   if (issues.length > 0) {
-    res.status(400).json({ error: "Trūksta privalomų duomenų.", issues });
+    res.status(400).json({
+      error: "Trūksta privalomų duomenų prieš pateikiant patvirtinimui.",
+      issues,
+    });
     return;
   }
 
-  // Require at least one court before submission.
-  const [{ courtCount }] = await db
-    .select({ courtCount: sql<number>`count(*)::int` })
-    .from(courtsTable)
-    .where(eq(courtsTable.facilityId, id));
-  if (Number(courtCount) === 0) {
-    res.status(400).json({ error: "Pridėkite bent vieną kortą prieš pateikiant patvirtinimui." });
+  // Live Stripe sync — fail-closed. Re-check readiness against Stripe directly
+  // before computing nextStatus so a missed webhook can't leave a facility stuck,
+  // AND a stripe outage can't promote a stale-cached facility past the gate.
+  const liveResult = await ownerStripeReadyLive(userId);
+  if (liveResult.error) {
+    // Stripe unreachable — refuse to advance. Owner retries when Stripe recovers.
+    res.status(503).json({
+      error: "Nepavyko pasiekti Stripe paslaugos. Bandykite dar kartą po kelių sekundžių.",
+    });
     return;
   }
+  if (liveResult.ready !== facility.stripeOnboardingComplete) {
+    await db
+      .update(facilitiesTable)
+      .set({ stripeOnboardingComplete: liveResult.ready })
+      .where(eq(facilitiesTable.id, id));
+    facility.stripeOnboardingComplete = liveResult.ready;
+  }
 
-  // Compare-and-set to prevent concurrent race.
+  const nextStatus = computeNextStatusOnSubmit(liveResult.ready);
+
+  // Compare-and-set: only mutate if the row is STILL in the status we read. Prevents
+  // a concurrent admin action or stripe webhook from getting clobbered by a stale submit.
   const [updated] = await db
     .update(facilitiesTable)
     .set({
-      verificationStatus: "pending_verification",
+      verificationStatus: nextStatus,
       verificationNotes: null,
       rejectionReason: null,
     })
@@ -274,15 +340,27 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
     return;
   }
 
-  await sendAdminNotification(
-    "Objektas laukia patvirtinimo",
-    `„${updated.name}" (${updated.city ?? "—"}) pateiktas peržiūrai.`,
-    "/admin",
-  );
+  if (nextStatus === "pending_verification") {
+    await sendAdminNotification(
+      "Objektas laukia patvirtinimo",
+      `„${updated.name}" (${updated.city ?? "—"}) pateiktas peržiūrai.`,
+      "/admin",
+    );
+  } else {
+    // onboarding — let owner know they still need to finish Stripe Connect
+    await sendNotification(
+      userId,
+      "facility_rejected",
+      `„${updated.name}" — užbaikite Stripe Connect`,
+      "Užbaikite Stripe Connect duomenis, kad objektas galėtų judėti į patvirtinimo eilę.",
+      `/owner/facility/${updated.id}`,
+    );
+  }
 
   res.json({
     id: updated.id,
     verificationStatus: updated.verificationStatus,
+    stripeOnboardingComplete: updated.stripeOnboardingComplete,
   });
 });
 

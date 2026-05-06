@@ -35,14 +35,14 @@ router.get("/admin/courts", requireAdmin, async (_req, res): Promise<void> => {
   );
 });
 
-/** PUT /admin/courts/:id/approve — sets isActive=true, marks court as approved */
+/** PUT /admin/courts/:id/approve */
 router.put("/admin/courts/:id/approve", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [court] = await db
     .update(courtsTable)
-    .set({ status: "approved", isActive: true, rejectionReason: null })
+    .set({ status: "approved", rejectionReason: null })
     .where(eq(courtsTable.id, id))
     .returning();
 
@@ -79,7 +79,7 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
 
   const [court] = await db
     .update(courtsTable)
-    .set({ status: "rejected", isActive: false, rejectionReason: reason })
+    .set({ status: "rejected", rejectionReason: reason })
     .where(eq(courtsTable.id, id))
     .returning();
 
@@ -94,7 +94,7 @@ router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<v
       await db.insert(notificationsTable).values({
         userId: facility.ownerUserId,
         type: "court_rejected",
-        title: `Kortas paslėptas: ${court.name}`,
+        title: `Kortas atmestas: ${court.name}`,
         body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
         link: `/owner/facility/${court.facilityId}`,
       }).catch(() => {});
@@ -140,14 +140,17 @@ router.get("/admin/facilities/pending", requireAdmin, async (_req, res): Promise
 
 /**
  * PUT /admin/facilities/:id/approve
- * Move a 'pending_verification' facility to 'active' and cascade isActive=true
- * to all of its courts so they immediately appear in public search.
+ * Move a 'pending_verification' facility to 'active'. Requires Stripe onboarding
+ * to be complete on the owner's account so we never publish a court that can't
+ * accept payments.
  */
 router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  // Compare-and-set: only update if still in 'pending_verification'.
+  // Compare-and-set: the row is only updated if it is STILL in 'pending_verification'
+  // AND stripe is STILL complete. This prevents a stale stripe webhook (or another admin
+  // session) from racing the approval and producing a status drift.
   const [facility] = await db
     .update(facilitiesTable)
     .set({
@@ -159,33 +162,39 @@ router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Prom
     .where(and(
       eq(facilitiesTable.id, id),
       eq(facilitiesTable.verificationStatus, "pending_verification"),
+      eq(facilitiesTable.stripeOnboardingComplete, true),
     ))
     .returning();
 
   if (!facility) {
+    // Disambiguate why the CAS missed: 404 vs wrong-state vs stripe-gate.
     const [existing] = await db
-      .select({ id: facilitiesTable.id, verificationStatus: facilitiesTable.verificationStatus })
+      .select({
+        id: facilitiesTable.id,
+        verificationStatus: facilitiesTable.verificationStatus,
+        stripeOnboardingComplete: facilitiesTable.stripeOnboardingComplete,
+      })
       .from(facilitiesTable)
       .where(eq(facilitiesTable.id, id));
     if (!existing) { res.status(404).json({ error: "Facility not found" }); return; }
+    if (existing.verificationStatus !== "pending_verification") {
+      res.status(400).json({
+        error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
+      });
+      return;
+    }
     res.status(400).json({
-      error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
+      error: "Negalima patvirtinti — savininkas dar neužbaigė Stripe Connect.",
     });
     return;
   }
 
-  // Cascade: make all courts of this facility publicly visible.
-  await db
-    .update(courtsTable)
-    .set({ isActive: true, status: "active" })
-    .where(eq(courtsTable.facilityId, facility.id));
-
-  if (facility.ownerUserId) {
+  if (facility?.ownerUserId) {
     await db.insert(notificationsTable).values({
       userId: facility.ownerUserId,
       type: "facility_approved",
       title: `Objektas patvirtintas: ${facility.name}`,
-      body: "Jūsų objektas patvirtintas ir matomas paieškoje. Kortai jau matomi viešai.",
+      body: "Jūsų objektas patvirtintas ir matomas paieškoje. Galite priimti rezervacijas.",
       link: `/owner/facility/${facility.id}`,
     }).catch(() => {});
   }

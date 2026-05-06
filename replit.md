@@ -32,7 +32,7 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
 **Core Features**:
 *   **Court Management**: Detailed court pages with 30-minute slot booking, duration picker, per-slot pricing, and booking summary. Includes buffer minutes, amenity toggles, and rentable equipment.
 *   **Booking & Review System**: Customer booking history, 1-5 star rating system for confirmed bookings, aggregated ratings, and dedicated reviews section.
-*   **Top-Down Facility Approval**: Courts are publicly visible only when `facilities.verificationStatus === 'active'` AND `courts.isActive === true`. Owner submits the entire facility for admin review (no Stripe gate); admin approval cascades `isActive=true` to all courts. Owner can then toggle individual courts' visibility independently via `PATCH /courts/:id/is-active`. Legacy per-court submit-review flow removed.
+*   **Instant Booking & Court Status**: `instantBookingEnabled` per court, with `draft`, `pending_review`, `active`, and `hidden` lifecycle states.
 *   **Photo Gallery System**: Management of court images with upload, captioning, ordering, and deletion features, displayed in frontend carousels.
 *   **Role-Based Access Control (RBAC)**: Four roles (`admin`, `owner`, `coach`, `player`) with route guards.
 *   **Role Onboarding System**: Guided processes for users to upgrade roles (coach, owner) with admin approval.
