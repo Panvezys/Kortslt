@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,13 +19,14 @@ import { z } from "zod";
 import {
   ChevronLeft, Euro, Clock3, Lightbulb, ShoppingBag, ShowerHead, DoorOpen,
   Droplets, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock,
-  Flame, Plus, X, Images, Upload, Loader2,
+  Flame, Plus, X, Images, Upload, Loader2, MapPin, RotateCcw,
 } from "lucide-react";
 import { CourtImageUpload } from "@/components/court-image-upload";
 import { SPORT_LABELS } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
+const MAX_GALLERY_PHOTOS = 3;
 
 const STANDARD_AMENITIES = [
   { id: "floodlights", label: "Prožektoriai", icon: Lightbulb },
@@ -47,6 +48,8 @@ interface RentableItem { name: string; pricePerSlot: number; stock: number; }
 
 type WorkingHourDay = { open: string; close: string; closed: boolean };
 type WorkingHoursMap = Record<string, WorkingHourDay>;
+
+// Court working hours use numeric day-of-week keys ("0"=Sunday … "6"=Saturday).
 function defaultWorkingHours(): WorkingHoursMap {
   return {
     "0": { open: "08:00", close: "22:00", closed: true },
@@ -58,12 +61,57 @@ function defaultWorkingHours(): WorkingHoursMap {
     "6": { open: "09:00", close: "20:00", closed: false },
   };
 }
+
+// Facility business hours use named keys ("monday"…"sunday"). Convert → court format.
+const FACILITY_DAY_TO_NUM: Record<string, string> = {
+  sunday: "0", monday: "1", tuesday: "2", wednesday: "3",
+  thursday: "4", friday: "5", saturday: "6",
+};
+function facilityHoursToCourtFormat(jsonStr: string | null | undefined): WorkingHoursMap | null {
+  if (!jsonStr) return null;
+  try {
+    const parsed = JSON.parse(jsonStr) as Record<string, WorkingHourDay>;
+    const out: WorkingHoursMap = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const num = FACILITY_DAY_TO_NUM[k.toLowerCase()];
+      if (num && v && typeof v === "object") {
+        out[num] = { open: v.open ?? "08:00", close: v.close ?? "22:00", closed: !!v.closed };
+      }
+    }
+    // Fill in any missing days
+    for (const d of ["0", "1", "2", "3", "4", "5", "6"]) {
+      if (!out[d]) out[d] = { open: "08:00", close: "22:00", closed: false };
+    }
+    return out;
+  } catch { return null; }
+}
+
 const HOUR_OPTIONS: string[] = [];
 for (let h = 0; h <= 23; h++) {
   for (const m of [0, 30]) {
     HOUR_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
   }
 }
+
+// 30-min slots range generator (used for pricing grid)
+function generateSlotsRange(open: string, close: string): string[] {
+  const toM = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const openMin = toM(open);
+  const closeMin = toM(close);
+  const out: string[] = [];
+  for (let m = openMin; m + 30 <= closeMin; m += 30) {
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    out.push(`${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+  }
+  return out;
+}
+const DAYS_FULL = ["Sekmadienis", "Pirmadienis", "Antradienis", "Trečiadienis", "Ketvirtadienis", "Penktadienis", "Šeštadienis"];
+const DAYS_SHORT = ["Sek", "Pir", "Ant", "Tre", "Ket", "Pen", "Šeš"];
+const dayNames: Record<string, string> = {
+  "0": "Sekmadienis", "1": "Pirmadienis", "2": "Antradienis", "3": "Trečiadienis",
+  "4": "Ketvirtadienis", "5": "Penktadienis", "6": "Šeštadienis",
+};
 
 const courtSchema = z.object({
   name: z.string().min(2, "Pavadinimas privalomas"),
@@ -74,18 +122,28 @@ const courtSchema = z.object({
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
   amenities: z.array(z.string()).default([]),
-  socialFacebook: z.string().optional(),
-  socialInstagram: z.string().optional(),
-  socialWhatsapp: z.string().optional(),
-  socialWebsite: z.string().optional(),
 });
 type CourtFormValues = z.infer<typeof courtSchema>;
 
-interface FacilityData { id: number; name: string; ownerUserId?: string | null }
+interface FacilityData {
+  id: number;
+  name: string;
+  ownerUserId?: string | null;
+  address?: string | null;
+  city?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  businessHours?: string | null;
+  websiteUrl?: string | null;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialWhatsapp?: string | null;
+}
 
 const TABS = [
   { id: "info", label: "Pagrindai" },
   { id: "schedule", label: "Grafikas" },
+  { id: "pricing", label: "Kainoraštis" },
   { id: "amenities", label: "Patogumai" },
   { id: "media", label: "Medija" },
   { id: "contact", label: "Kontaktai" },
@@ -104,7 +162,32 @@ export default function CourtCreatePage() {
   const [loading, setLoading] = useState(true);
 
   const [formTab, setFormTab] = useState<TabId>("info");
+
+  // Working hours: inherit from facility by default; override flag = use court-specific hours
+  const [overrideHours, setOverrideHours] = useState(false);
   const [workingHoursState, setWorkingHoursState] = useState<WorkingHoursMap>(defaultWorkingHours());
+
+  // Contacts: inherit from facility by default; override flag = use court-specific contacts
+  const [overrideContacts, setOverrideContacts] = useState(false);
+  const [courtPhone, setCourtPhone] = useState("");
+  const [courtFacebook, setCourtFacebook] = useState("");
+  const [courtInstagram, setCourtInstagram] = useState("");
+  const [courtWhatsapp, setCourtWhatsapp] = useState("");
+  const [courtWebsite, setCourtWebsite] = useState("");
+
+  // Per-slot pricing: local price map saved after court creation
+  const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
+  const [pricingDay, setPricingDay] = useState(1);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // Photo gallery: local file buffer uploaded after court creation
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryProgress, setGalleryProgress] = useState<{ current: number; total: number } | null>(null);
+
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
@@ -115,9 +198,25 @@ export default function CourtCreatePage() {
   useEffect(() => {
     if (!facilityId) return;
     customFetch<FacilityData>(`${API_URL}/facilities/${facilityId}`)
-      .then((data) => setFacility(data))
+      .then((data) => {
+        setFacility(data);
+        // Pre-fill working hours from facility's businessHours
+        const fromFacility = facilityHoursToCourtFormat(data.businessHours);
+        if (fromFacility) setWorkingHoursState(fromFacility);
+        // Pre-fill contacts
+        setCourtPhone(data.phone ?? "");
+        setCourtFacebook(data.socialFacebook ?? "");
+        setCourtInstagram(data.socialInstagram ?? "");
+        setCourtWhatsapp(data.socialWhatsapp ?? "");
+        setCourtWebsite(data.websiteUrl ?? "");
+      })
       .finally(() => setLoading(false));
   }, [facilityId]);
+
+  // Cleanup blob URLs on unmount / change
+  useEffect(() => {
+    return () => { galleryPreviews.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [galleryPreviews]);
 
   const form = useForm<CourtFormValues>({
     resolver: zodResolver(courtSchema),
@@ -130,10 +229,6 @@ export default function CourtCreatePage() {
       isIndoor: false,
       maxPlayers: 4,
       amenities: [],
-      socialFacebook: "",
-      socialInstagram: "",
-      socialWhatsapp: "",
-      socialWebsite: "",
     },
   });
 
@@ -154,6 +249,56 @@ export default function CourtCreatePage() {
     }
   };
 
+  const handleAddGalleryFiles = (files: FileList) => {
+    const remaining = MAX_GALLERY_PHOTOS - galleryFiles.length;
+    if (remaining <= 0) {
+      toast({ title: "Pasiektas limitas", description: `Maks. ${MAX_GALLERY_PHOTOS} nuotraukos.`, variant: "destructive" });
+      return;
+    }
+    const toAdd = Array.from(files).slice(0, remaining);
+    if (toAdd.length < files.length) {
+      toast({ title: `Pridedamos tik ${toAdd.length} nuotraukos` });
+    }
+    const newPreviews = toAdd.map((f) => URL.createObjectURL(f));
+    setGalleryFiles((p) => [...p, ...toAdd]);
+    setGalleryPreviews((p) => [...p, ...newPreviews]);
+  };
+  const handleRemoveGallery = (idx: number) => {
+    URL.revokeObjectURL(galleryPreviews[idx]);
+    setGalleryFiles((p) => p.filter((_, i) => i !== idx));
+    setGalleryPreviews((p) => p.filter((_, i) => i !== idx));
+  };
+
+  // Pricing helpers
+  const defaultSlotPrice = useMemo(() => (form.watch("pricePerHour") || 20) / 2, [form.watch("pricePerHour")]);
+  const pricingDayHours = workingHoursState[String(pricingDay)] ?? { open: "08:00", close: "22:00", closed: false };
+  const pricingDaySlots = pricingDayHours.closed ? [] : generateSlotsRange(pricingDayHours.open, pricingDayHours.close);
+  const getPrice = (day: number, t: string) => {
+    const k = `${day}:${t}`;
+    return priceMap.has(k) ? priceMap.get(k)! : defaultSlotPrice;
+  };
+  const startEdit = (day: number, t: string) => {
+    setEditingKey(`${day}:${t}`);
+    setEditValue(getPrice(day, t).toString());
+  };
+  const commitEdit = () => {
+    if (!editingKey) return;
+    const p = parseFloat(editValue);
+    if (!isNaN(p) && p >= 0) {
+      setPriceMap((prev) => { const next = new Map(prev); next.set(editingKey, p); return next; });
+    }
+    setEditingKey(null);
+  };
+  const resetDay = (day: number) => {
+    setPriceMap((prev) => {
+      const next = new Map(prev);
+      for (const k of Array.from(next.keys())) {
+        if (k.startsWith(`${day}:`)) next.delete(k);
+      }
+      return next;
+    });
+  };
+
   const onSubmit = async (data: CourtFormValues) => {
     try {
       const cleanStr = (v: unknown): string | undefined => {
@@ -161,6 +306,14 @@ export default function CourtCreatePage() {
         const t = v.trim();
         return t.length > 0 ? t : undefined;
       };
+
+      // Resolve effective contacts: facility-inherited unless overridden
+      const effPhone     = overrideContacts ? courtPhone     : facility?.phone     ?? "";
+      const effFacebook  = overrideContacts ? courtFacebook  : facility?.socialFacebook  ?? "";
+      const effInstagram = overrideContacts ? courtInstagram : facility?.socialInstagram ?? "";
+      const effWhatsapp  = overrideContacts ? courtWhatsapp  : facility?.socialWhatsapp  ?? "";
+      const effWebsite   = overrideContacts ? courtWebsite   : facility?.websiteUrl      ?? "";
+
       const payload: Record<string, unknown> = {
         ...data,
         facilityId,
@@ -169,18 +322,53 @@ export default function CourtCreatePage() {
         amenityPhotos: Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined,
         description: cleanStr(data.description),
         imageUrl: cleanStr(data.imageUrl),
-        socialFacebook: cleanStr(data.socialFacebook),
-        socialInstagram: cleanStr(data.socialInstagram),
-        socialWhatsapp: cleanStr(data.socialWhatsapp),
-        socialWebsite: cleanStr(data.socialWebsite),
+        phone: cleanStr(effPhone),
+        socialFacebook: cleanStr(effFacebook),
+        socialInstagram: cleanStr(effInstagram),
+        socialWhatsapp: cleanStr(effWhatsapp),
+        socialWebsite: cleanStr(effWebsite),
       };
       const newCourt = await createCourt.mutateAsync({ data: payload as any });
+      const newCourtId: number = (newCourt as any).id;
+
+      // Persist per-slot pricing (defaultPrice + custom entries)
       try {
-        await setPricing.mutateAsync({
-          id: (newCourt as any).id,
-          data: { defaultPrice: data.pricePerHour, entries: [] } as any,
+        const entries: { dayOfWeek: number; startTime: string; price: number }[] = [];
+        priceMap.forEach((price, key) => {
+          const [dayStr, startTime] = key.split(":");
+          const dayOfWeek = parseInt(dayStr);
+          if (!isNaN(dayOfWeek) && startTime) entries.push({ dayOfWeek, startTime, price });
         });
+        if (entries.length > 0) {
+          await setPricing.mutateAsync({
+            id: newCourtId,
+            data: { entries },
+          });
+        }
       } catch { /* pricing failure should not block creation */ }
+
+      // Upload gallery photos sequentially
+      if (galleryFiles.length > 0) {
+        setUploadingGallery(true);
+        setGalleryProgress({ current: 0, total: galleryFiles.length });
+        try {
+          for (let i = 0; i < galleryFiles.length; i++) {
+            setGalleryProgress({ current: i + 1, total: galleryFiles.length });
+            const fd = new FormData();
+            fd.append("image", galleryFiles[i]);
+            const r = await fetch(`${API_URL}/courts/${newCourtId}/photos`, {
+              method: "POST", body: fd, credentials: "include",
+            });
+            if (!r.ok) throw new Error(`Photo upload failed (${r.status})`);
+          }
+        } catch (e: any) {
+          toast({ title: "Galerijos įkėlimas nepavyko", description: e?.message ?? "Bandykite vėliau redaguodami aikštelę", variant: "destructive" });
+        } finally {
+          setUploadingGallery(false);
+          setGalleryProgress(null);
+        }
+      }
+
       queryClient.invalidateQueries({
         queryKey: getListCourtsQueryKey(facility?.ownerUserId ? { ownerUserId: facility.ownerUserId } : undefined),
       });
@@ -209,10 +397,10 @@ export default function CourtCreatePage() {
     );
   }
 
-  const dayNames: Record<string, string> = {
-    "0": "Sekmadienis", "1": "Pirmadienis", "2": "Antradienis", "3": "Trečiadienis",
-    "4": "Ketvirtadienis", "5": "Penktadienis", "6": "Šeštadienis",
-  };
+  const editAddressHref = `${BASE_URL}/owner/settings?facility=${facilityId}&tab=profile&profileTab=vieta`;
+
+  // Read-only preview of facility hours when override is OFF
+  const facilityHoursDisplay = facilityHoursToCourtFormat(facility.businessHours) ?? defaultWorkingHours();
 
   return (
     <OwnerLayout facilityId={facilityId} facilityName={facility.name} title="Pridėti aikštelę">
@@ -280,8 +468,21 @@ export default function CourtCreatePage() {
                         <FormMessage />
                       </FormItem>
                     )} />
-                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground">Vieta ir adresas paveldimas iš objekto. Redaguokite objekto nustatymuose.</p>
+
+                    <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3 bg-muted/30 flex items-center gap-3 flex-wrap">
+                      <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-[200px]">
+                        <p className="text-xs text-muted-foreground">Vieta ir adresas paveldimas iš objekto. Redaguokite objekto nustatymuose.</p>
+                        {facility.address && (
+                          <p className="text-xs font-medium mt-0.5">{facility.address}{facility.city ? `, ${facility.city}` : ""}</p>
+                        )}
+                      </div>
+                      <Button type="button" variant="outline" size="sm"
+                        onClick={() => navigate(`/owner/settings?facility=${facilityId}&tab=profile&profileTab=vieta`)}
+                        className="gap-1.5 shrink-0">
+                        <MapPin className="w-3.5 h-3.5" />
+                        Redaguoti adresą
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -296,34 +497,52 @@ export default function CourtCreatePage() {
                       </FormItem>
                     )} />
                     <p className="text-xs text-muted-foreground">
-                      Detalų kainoraštį pagal laiką galėsite redaguoti sukūrus aikštelę.
+                      Detalų kainoraštį (kainas atskiriems laiko tarpams) galite nustatyti „Kainoraštis“ skirtuke.
                     </p>
 
                     <div className="rounded-xl border p-4 space-y-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Clock3 className="w-4 h-4 text-primary" />
-                        <span className="font-semibold text-sm">Darbo laikas</span>
+                      <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Clock3 className="w-4 h-4 text-primary" />
+                          <span className="font-semibold text-sm">Darbo laikas</span>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                          <Checkbox checked={overrideHours} onCheckedChange={(v) => setOverrideHours(Boolean(v))} />
+                          Naudoti skirtingą darbo laiką šiai aikštelei
+                        </label>
                       </div>
+
+                      {!overrideHours && (
+                        <p className="text-xs text-muted-foreground">
+                          Paveldima iš objekto darbo grafiko. Pažymėkite langelį, kad nustatytumėte kitokį.
+                        </p>
+                      )}
+
                       <div className="space-y-2">
                         {(["1", "2", "3", "4", "5", "6", "0"] as const).map((dayKey) => {
-                          const dh = workingHoursState[dayKey] ?? { open: "08:00", close: "22:00", closed: false };
+                          const src = overrideHours ? workingHoursState : facilityHoursDisplay;
+                          const dh = src[dayKey] ?? { open: "08:00", close: "22:00", closed: false };
+                          const disabled = !overrideHours;
                           return (
-                            <div key={dayKey} className="flex flex-wrap items-center gap-2 py-1.5 border-b border-border/50 last:border-0">
+                            <div key={dayKey} className={`flex flex-wrap items-center gap-2 py-1.5 border-b border-border/50 last:border-0 ${disabled ? "opacity-70" : ""}`}>
                               <span className="w-28 text-sm font-medium shrink-0">{dayNames[dayKey]}</span>
                               <button type="button"
-                                onClick={() => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...p[dayKey], closed: !p[dayKey]?.closed } }))}
-                                className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 transition-colors ${dh.closed ? "bg-red-500/15 text-red-500 border border-red-500/30" : "bg-green-500/15 text-green-600 border border-green-500/30"}`}>
+                                disabled={disabled}
+                                onClick={() => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...(p[dayKey] ?? dh), closed: !(p[dayKey]?.closed ?? dh.closed) } }))}
+                                className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 transition-colors ${dh.closed ? "bg-red-500/15 text-red-500 border border-red-500/30" : "bg-green-500/15 text-green-600 border border-green-500/30"} ${disabled ? "cursor-not-allowed" : ""}`}>
                                 {dh.closed ? "Uždaryta" : "Atidaryta"}
                               </button>
                               {!dh.closed && (
                                 <>
-                                  <select className="text-xs border rounded px-1.5 py-1 bg-background" value={dh.open}
-                                    onChange={(e) => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...p[dayKey], open: e.target.value } }))}>
+                                  <select className="text-xs border rounded px-1.5 py-1 bg-background disabled:bg-muted/50 disabled:cursor-not-allowed" value={dh.open}
+                                    disabled={disabled}
+                                    onChange={(e) => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...(p[dayKey] ?? dh), open: e.target.value } }))}>
                                     {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
                                   </select>
                                   <span className="text-muted-foreground text-xs">–</span>
-                                  <select className="text-xs border rounded px-1.5 py-1 bg-background" value={dh.close}
-                                    onChange={(e) => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...p[dayKey], close: e.target.value } }))}>
+                                  <select className="text-xs border rounded px-1.5 py-1 bg-background disabled:bg-muted/50 disabled:cursor-not-allowed" value={dh.close}
+                                    disabled={disabled}
+                                    onChange={(e) => setWorkingHoursState((p) => ({ ...p, [dayKey]: { ...(p[dayKey] ?? dh), close: e.target.value } }))}>
                                     {HOUR_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
                                   </select>
                                 </>
@@ -333,6 +552,74 @@ export default function CourtCreatePage() {
                         })}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {formTab === "pricing" && (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="font-semibold text-sm mb-1">Kainoraštis pagal laiką</p>
+                      <p className="text-xs text-muted-foreground">
+                        Nustatykite kainą kiekvienam 30 min. tarpui. Numatytoji kaina: <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-1.5 flex-wrap">
+                      {DAYS_FULL.map((_, i) => {
+                        const dh = (overrideHours ? workingHoursState : facilityHoursDisplay)[String(i)];
+                        const closed = dh?.closed === true;
+                        return (
+                          <button key={i} type="button" disabled={closed}
+                            onClick={() => !closed && setPricingDay(i)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${closed ? "opacity-40 cursor-not-allowed border-border bg-muted text-muted-foreground line-through" : pricingDay === i ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}>
+                            {DAYS_SHORT[i]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="border rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
+                        <span className="text-sm font-semibold">{DAYS_FULL[pricingDay]}</span>
+                        {pricingDaySlots.length > 0 && (
+                          <button type="button" onClick={() => resetDay(pricingDay)}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                            <RotateCcw className="w-3.5 h-3.5" /> Atstatyti numatytąją
+                          </button>
+                        )}
+                      </div>
+                      {pricingDaySlots.length === 0 ? (
+                        <div className="py-8 text-center text-sm text-muted-foreground">Ši diena uždaryta pagal darbo valandas</div>
+                      ) : (
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-px bg-border max-h-72 overflow-y-auto">
+                          {pricingDaySlots.map((startTime) => {
+                            const key = `${pricingDay}:${startTime}`;
+                            const isEditing = editingKey === key;
+                            const price = getPrice(pricingDay, startTime);
+                            const isCustom = priceMap.has(key);
+                            return (
+                              <div key={startTime}
+                                className={`bg-card p-2 flex flex-col items-center gap-0.5 cursor-pointer hover:bg-primary/5 transition-colors ${isEditing ? "bg-primary/10 ring-1 ring-primary" : ""}`}
+                                onClick={() => !isEditing && startEdit(pricingDay, startTime)}>
+                                <span className="text-xs text-muted-foreground font-medium">{startTime}</span>
+                                {isEditing ? (
+                                  <input autoFocus type="number" value={editValue} min={0} step={0.5}
+                                    onChange={(e) => setEditValue(e.target.value)} onBlur={commitEdit}
+                                    onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingKey(null); }}
+                                    className="w-full text-center text-xs font-bold bg-transparent border-0 outline-none p-0 text-primary"
+                                    onClick={(e) => e.stopPropagation()} />
+                                ) : (
+                                  <span className={`text-sm font-bold flex items-center gap-0.5 ${isCustom ? "text-primary" : "text-foreground"}`}>
+                                    <Euro className="w-3 h-3" />{price.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Pakeisti kainas galima paspaudus ant tarpo. Pakeitimai bus išsaugoti sukūrus aikštelę.</p>
                   </div>
                 )}
 
@@ -459,7 +746,7 @@ export default function CourtCreatePage() {
                 )}
 
                 {formTab === "media" && (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     <FormField control={form.control} name="imageUrl" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Pagrindinė nuotrauka</FormLabel>
@@ -473,29 +760,117 @@ export default function CourtCreatePage() {
                         <FormMessage />
                       </FormItem>
                     )} />
-                    <p className="text-xs text-muted-foreground">
-                      Papildomą nuotraukų galeriją galėsite valdyti sukūrus aikštelę.
-                    </p>
+
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Images className="w-4 h-4 text-primary" />
+                          <span className="font-semibold text-sm">Galerijos nuotraukos</span>
+                          <span className="text-[10px] text-muted-foreground font-normal">({galleryFiles.length}/{MAX_GALLERY_PHOTOS})</span>
+                        </div>
+                        {galleryFiles.length < MAX_GALLERY_PHOTOS && (
+                          <button type="button"
+                            onClick={() => galleryInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border hover:border-primary hover:text-primary transition-colors">
+                            <Upload className="w-3 h-3" />
+                            Pridėti (dar {MAX_GALLERY_PHOTOS - galleryFiles.length})
+                          </button>
+                        )}
+                        <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden"
+                          onChange={(e) => { if (e.target.files?.length) handleAddGalleryFiles(e.target.files); e.target.value = ""; }} />
+                      </div>
+                      {galleryPreviews.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          {galleryPreviews.map((src, i) => (
+                            <div key={i} className="relative group rounded-lg overflow-hidden aspect-video bg-muted border border-border">
+                              <img src={src} alt="" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => handleRemoveGallery(i)}
+                                className="absolute top-1 right-1 p-1 rounded-full bg-black/60 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-all">
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <button type="button"
+                          onClick={() => galleryInputRef.current?.click()}
+                          className="w-full border border-dashed rounded-lg py-4 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors flex flex-col items-center gap-1.5">
+                          <Images className="h-5 w-5 opacity-40" />
+                          Nėra nuotraukų. Spauskite, kad pridėtumėte.
+                        </button>
+                      )}
+                      <p className="text-[11px] text-muted-foreground italic">Nuotraukos bus įkeltos sukūrus aikštelę.</p>
+                    </div>
                   </div>
                 )}
 
                 {formTab === "contact" && (
                   <div className="space-y-4">
-                    <p className="text-sm font-semibold mb-3">Socialiniai tinklai</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField control={form.control} name="socialFacebook" render={({ field }) => (
-                        <FormItem><FormLabel>Facebook</FormLabel><FormControl><Input placeholder="https://facebook.com/..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="socialInstagram" render={({ field }) => (
-                        <FormItem><FormLabel>Instagram</FormLabel><FormControl><Input placeholder="https://instagram.com/..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="socialWhatsapp" render={({ field }) => (
-                        <FormItem><FormLabel>WhatsApp</FormLabel><FormControl><Input placeholder="https://wa.me/370..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="socialWebsite" render={({ field }) => (
-                        <FormItem><FormLabel>Svetainė</FormLabel><FormControl><Input placeholder="https://..." {...field} value={field.value ?? ""} /></FormControl></FormItem>
-                      )} />
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="font-semibold text-sm">Kontaktai</p>
+                        <p className="text-xs text-muted-foreground">Pagal nutylėjimą paveldima iš objekto kontaktų.</p>
+                      </div>
+                      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <Checkbox checked={overrideContacts} onCheckedChange={(v) => setOverrideContacts(Boolean(v))} />
+                        Naudoti kitokius kontaktus šiai aikštelei
+                      </label>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <FormLabel>Telefonas</FormLabel>
+                        <Input placeholder="+370..."
+                          disabled={!overrideContacts}
+                          value={overrideContacts ? courtPhone : (facility.phone ?? "")}
+                          onChange={(e) => setCourtPhone(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <FormLabel>El. paštas (paveldima iš objekto)</FormLabel>
+                        <Input value={facility.email ?? ""} disabled placeholder="—" />
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-semibold mt-2">Socialiniai tinklai</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <FormLabel>Facebook</FormLabel>
+                        <Input placeholder="https://facebook.com/..."
+                          disabled={!overrideContacts}
+                          value={overrideContacts ? courtFacebook : (facility.socialFacebook ?? "")}
+                          onChange={(e) => setCourtFacebook(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <FormLabel>Instagram</FormLabel>
+                        <Input placeholder="https://instagram.com/..."
+                          disabled={!overrideContacts}
+                          value={overrideContacts ? courtInstagram : (facility.socialInstagram ?? "")}
+                          onChange={(e) => setCourtInstagram(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <FormLabel>WhatsApp</FormLabel>
+                        <Input placeholder="https://wa.me/370..."
+                          disabled={!overrideContacts}
+                          value={overrideContacts ? courtWhatsapp : (facility.socialWhatsapp ?? "")}
+                          onChange={(e) => setCourtWhatsapp(e.target.value)} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <FormLabel>Svetainė</FormLabel>
+                        <Input placeholder="https://..."
+                          disabled={!overrideContacts}
+                          value={overrideContacts ? courtWebsite : (facility.websiteUrl ?? "")}
+                          onChange={(e) => setCourtWebsite(e.target.value)} />
+                      </div>
+                    </div>
+
+                    {!overrideContacts && (
+                      <p className="text-xs text-muted-foreground">
+                        <a href={editAddressHref.replace("profileTab=vieta", "profileTab=kontaktai")}
+                          className="text-primary underline">
+                          Redaguoti objekto kontaktus
+                        </a>
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -518,8 +893,12 @@ export default function CourtCreatePage() {
                         if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
                       }}>Toliau →</Button>
                     ) : (
-                      <Button type="submit" disabled={createCourt.isPending || setPricing.isPending}>
-                        {createCourt.isPending ? "Kuriama..." : "Sukurti aikštelę"}
+                      <Button type="submit" disabled={createCourt.isPending || setPricing.isPending || uploadingGallery}>
+                        {createCourt.isPending
+                          ? "Kuriama..."
+                          : uploadingGallery
+                            ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
+                            : "Sukurti aikštelę"}
                       </Button>
                     )}
                   </div>

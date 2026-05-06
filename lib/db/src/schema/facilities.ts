@@ -51,6 +51,9 @@ export const facilitiesTable = pgTable("facilities", {
   businessHours: text("business_hours"),
   vatNumber: text("vat_number"),
   websiteUrl: text("website_url"),
+  socialFacebook: text("social_facebook"),
+  socialInstagram: text("social_instagram"),
+  socialWhatsapp: text("social_whatsapp"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

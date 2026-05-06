@@ -30,6 +30,10 @@ interface Facility {
   cancellationWindow?: number | null;
   advanceBookingLimit?: number | null;
   businessHours?: string | null;
+  websiteUrl?: string | null;
+  socialFacebook?: string | null;
+  socialInstagram?: string | null;
+  socialWhatsapp?: string | null;
 }
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
@@ -73,8 +77,22 @@ export default function OwnerSettings() {
   const [profileLatitude, setProfileLatitude] = useState(0);
   const [profileLongitude, setProfileLongitude] = useState(0);
 
+  const [profileWebsite, setProfileWebsite] = useState("");
+  const [profileFacebook, setProfileFacebook] = useState("");
+  const [profileInstagram, setProfileInstagram] = useState("");
+  const [profileWhatsapp, setProfileWhatsapp] = useState("");
+
   const [cancellationWindow, setCancellationWindow] = useState("24");
   const [advanceBookingLimit, setAdvanceBookingLimit] = useState("30");
+
+  // Apply ?tab=&profileTab= URL params on mount
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("tab");
+    if (t === "profile" || t === "rules" || t === "hours") setTab(t);
+    const pt = sp.get("profileTab");
+    if (pt === "pagrindai" || pt === "vieta" || pt === "kontaktai") setProfileTab(pt);
+  }, []);
 
   const [businessHours, setBusinessHours] = useState<Record<DayKey, { open: string; close: string; closed: boolean }>>(DEFAULT_HOURS);
 
@@ -97,6 +115,10 @@ export default function OwnerSettings() {
     setProfileCity(facility.city ?? "");
     setProfilePhone(facility.phone ?? "");
     setProfileEmail(facility.email ?? "");
+    setProfileWebsite(facility.websiteUrl ?? "");
+    setProfileFacebook(facility.socialFacebook ?? "");
+    setProfileInstagram(facility.socialInstagram ?? "");
+    setProfileWhatsapp(facility.socialWhatsapp ?? "");
     setProfilePostcode(facility.postcode ?? "");
     setProfileLatitude(facility.latitude ?? 0);
     setProfileLongitude(facility.longitude ?? 0);
@@ -145,6 +167,10 @@ export default function OwnerSettings() {
       city: profileCity || undefined,
       phone: profilePhone || undefined,
       email: profileEmail || undefined,
+      websiteUrl: profileWebsite || undefined,
+      socialFacebook: profileFacebook || undefined,
+      socialInstagram: profileInstagram || undefined,
+      socialWhatsapp: profileWhatsapp || undefined,
       postcode: profilePostcode || undefined,
       latitude: profileLatitude || undefined,
       longitude: profileLongitude || undefined,
@@ -311,22 +337,65 @@ export default function OwnerSettings() {
 
                   {profileTab === "kontaktai" && (
                     <div className="space-y-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">Telefonas</Label>
-                        <Input
-                          value={profilePhone}
-                          onChange={e => setProfilePhone(e.target.value)}
-                          placeholder="+370..."
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Telefonas</Label>
+                          <Input
+                            value={profilePhone}
+                            onChange={e => setProfilePhone(e.target.value)}
+                            placeholder="+370..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">El. paštas</Label>
+                          <Input
+                            type="email"
+                            value={profileEmail}
+                            onChange={e => setProfileEmail(e.target.value)}
+                            placeholder="info@klubas.lt"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-sm">El. paštas</Label>
-                        <Input
-                          type="email"
-                          value={profileEmail}
-                          onChange={e => setProfileEmail(e.target.value)}
-                          placeholder="info@klubas.lt"
-                        />
+
+                      <Separator />
+
+                      <div>
+                        <p className="font-semibold text-sm mb-0.5">Socialiniai tinklai</p>
+                        <p className="text-xs text-muted-foreground">Šios nuorodos pagal nutylėjimą bus rodomos visose objekto aikštelėse.</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Svetainė</Label>
+                          <Input
+                            value={profileWebsite}
+                            onChange={e => setProfileWebsite(e.target.value)}
+                            placeholder="https://..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Facebook</Label>
+                          <Input
+                            value={profileFacebook}
+                            onChange={e => setProfileFacebook(e.target.value)}
+                            placeholder="https://facebook.com/..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">Instagram</Label>
+                          <Input
+                            value={profileInstagram}
+                            onChange={e => setProfileInstagram(e.target.value)}
+                            placeholder="https://instagram.com/..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">WhatsApp</Label>
+                          <Input
+                            value={profileWhatsapp}
+                            onChange={e => setProfileWhatsapp(e.target.value)}
+                            placeholder="https://wa.me/370..."
+                          />
+                        </div>
                       </div>
                     </div>
                   )}

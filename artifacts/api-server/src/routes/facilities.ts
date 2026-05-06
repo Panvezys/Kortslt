@@ -238,7 +238,8 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 
   const allowed = ["name", "description", "address", "city", "phone", "email",
     "postcode", "latitude", "longitude",
-    "cancellationWindow", "advanceBookingLimit", "businessHours"] as const;
+    "cancellationWindow", "advanceBookingLimit", "businessHours",
+    "websiteUrl", "socialFacebook", "socialInstagram", "socialWhatsapp"] as const;
   type AllowedKey = typeof allowed[number];
   const updates: Partial<typeof facilitiesTable.$inferInsert> = {};
   for (const key of allowed) {
