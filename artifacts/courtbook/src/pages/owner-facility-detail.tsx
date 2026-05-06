@@ -1375,22 +1375,32 @@ export default function OwnerFacilityDetail() {
 
                     {/* Submit for review — only before first approval */}
                     {["draft", "rejected"].includes((court as any).status ?? "draft") && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
-                        disabled={
-                          !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city)
-                        }
-                        onClick={() => {
-                          customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                            .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
-                            .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
-                        }}
-                        title={!(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city) ? "Pildykite: kaina, vieta" : ""}
-                      >
-                        Pateikti peržiūrai
-                      </Button>
+                      (() => {
+                        const facilityApproved = facility?.verificationStatus === "active";
+                        const fieldsMissing = !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city);
+                        const isDisabled = !facilityApproved || fieldsMissing;
+                        const tooltipMsg = !facilityApproved
+                          ? "Objektas turi būti patvirtintas administratoriaus"
+                          : fieldsMissing
+                            ? "Pildykite: kaina, vieta"
+                            : "";
+                        return (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
+                            disabled={isDisabled}
+                            onClick={() => {
+                              customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
+                                .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                                .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
+                            }}
+                            title={tooltipMsg}
+                          >
+                            Pateikti peržiūrai
+                          </Button>
+                        );
+                      })()
                     )}
                     {(court as any).status === "pending_review" && (
                       <p className="text-xs text-blue-400 flex items-center gap-1">

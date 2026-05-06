@@ -697,6 +697,13 @@ router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
+  // Facility must be admin-approved before any of its courts can enter review
+  if (facility?.verificationStatus !== "active") {
+    res.status(422).json({
+      error: "Objektas dar nepatvirtintas. Prieš teikiant aikštelę peržiūrai, objektas turi būti patvirtintas administratoriaus.",
+    }); return;
+  }
+
   // Validate required fields
   const missingFields: string[] = [];
   if (!court.pricePerHour || Number(court.pricePerHour) <= 0) missingFields.push("kaina");
