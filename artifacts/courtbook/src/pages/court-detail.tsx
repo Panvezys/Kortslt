@@ -1604,13 +1604,13 @@ export default function CourtDetail() {
                 </div>
 
                 {availabilityLoading ? (
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                  <div className="grid grid-cols-4 gap-1">
+                    {Array.from({ length: 16 }).map((_, i) => (
+                      <Skeleton key={i} className="h-9 w-full rounded-md" />
                     ))}
                   </div>
                 ) : slots.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-4 gap-1">
                     {slots.map((slot, idx) => {
                       const selectedDate = new Date(date);
                       const now = new Date();
@@ -1637,7 +1637,7 @@ export default function CourtDetail() {
                             vibrateTap();
                             handleSlotClick(idx);
                           }}
-                          className={`relative rounded-lg border px-1 py-2.5 text-xs font-medium transition-all focus:outline-none ${
+                          className={`relative rounded-md border px-0.5 py-1.5 text-[11px] font-medium transition-all focus:outline-none ${
                             !slot.isAvailable
                             ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
                             : isSelected
