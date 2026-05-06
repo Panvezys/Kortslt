@@ -51,15 +51,18 @@ type WorkingHourDay = { open: string; close: string; closed: boolean };
 type WorkingHoursMap = Record<string, WorkingHourDay>;
 
 // Court working hours use numeric day-of-week keys ("0"=Sunday … "6"=Saturday).
+// Defaults must match the facility's DEFAULT_HOURS in settings.tsx so the
+// inheritance preview shows the same values when the facility has no saved
+// businessHours yet.
 function defaultWorkingHours(): WorkingHoursMap {
   return {
-    "0": { open: "08:00", close: "22:00", closed: true },
+    "0": { open: "09:00", close: "20:00", closed: false }, // Sunday
     "1": { open: "08:00", close: "22:00", closed: false },
     "2": { open: "08:00", close: "22:00", closed: false },
     "3": { open: "08:00", close: "22:00", closed: false },
     "4": { open: "08:00", close: "22:00", closed: false },
     "5": { open: "08:00", close: "22:00", closed: false },
-    "6": { open: "09:00", close: "20:00", closed: false },
+    "6": { open: "09:00", close: "20:00", closed: false }, // Saturday
   };
 }
 
@@ -300,35 +303,117 @@ export default function CourtCreatePage() {
     });
   };
 
+  // Map form field name → tab id (for routing validation errors to the right tab)
+  const FIELD_TO_TAB: Record<string, TabId> = {
+    name: "info",
+    type: "info",
+    description: "info",
+    pricePerHour: "schedule",
+    maxPlayers: "amenities",
+    isIndoor: "amenities",
+    imageUrl: "media",
+  };
+  const FIELD_LABELS: Record<string, string> = {
+    name: "Aikštelės pavadinimas",
+    type: "Sporto šaka",
+    pricePerHour: "Numatytoji kaina",
+    maxPlayers: "Maks. žaidėjai",
+    description: "Aprašymas",
+    imageUrl: "Pagrindinė nuotrauka",
+  };
+
+  const onInvalid = (errors: Record<string, { message?: string } | undefined>) => {
+    const fields = Object.keys(errors);
+    if (fields.length === 0) return;
+    // Switch to the first tab that has an error (in tab order)
+    const tabOrder = TABS.map((t) => t.id) as TabId[];
+    let firstTab: TabId | null = null;
+    for (const tid of tabOrder) {
+      if (fields.some((f) => FIELD_TO_TAB[f] === tid)) { firstTab = tid; break; }
+    }
+    if (firstTab) setFormTab(firstTab);
+    const labels = fields.map((f) => FIELD_LABELS[f] ?? f).join(", ");
+    toast({
+      title: "Užpildykite privalomus laukus",
+      description: `Trūksta arba neteisingi: ${labels}`,
+      variant: "destructive",
+    });
+  };
+
+  const buildPayload = (data: Partial<CourtFormValues>): Record<string, unknown> => {
+    const cleanStr = (v: unknown): string | undefined => {
+      if (typeof v !== "string") return undefined;
+      const t = v.trim();
+      return t.length > 0 ? t : undefined;
+    };
+    const effPhone     = overrideContacts ? courtPhone     : facility?.phone     ?? "";
+    const effFacebook  = overrideContacts ? courtFacebook  : facility?.socialFacebook  ?? "";
+    const effInstagram = overrideContacts ? courtInstagram : facility?.socialInstagram ?? "";
+    const effWhatsapp  = overrideContacts ? courtWhatsapp  : facility?.socialWhatsapp  ?? "";
+    const effWebsite   = overrideContacts ? courtWebsite   : facility?.websiteUrl      ?? "";
+    return {
+      ...data,
+      facilityId,
+      rentableItems: rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined,
+      workingHours: JSON.stringify(workingHoursState),
+      amenityPhotos: Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined,
+      description: cleanStr(data.description),
+      imageUrl: cleanStr(data.imageUrl),
+      phone: cleanStr(effPhone),
+      socialFacebook: cleanStr(effFacebook),
+      socialInstagram: cleanStr(effInstagram),
+      socialWhatsapp: cleanStr(effWhatsapp),
+      socialWebsite: cleanStr(effWebsite),
+    };
+  };
+
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveAsDraft = async () => {
+    const values = form.getValues();
+    const name = (values.name ?? "").trim();
+    if (!name) {
+      setFormTab("info");
+      form.setError("name", { type: "manual", message: "Įveskite bent pavadinimą juodraščiui" });
+      toast({
+        title: "Reikia bent pavadinimo",
+        description: "Įveskite aikštelės pavadinimą, kad išsaugotumėte juodraštį.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      // Relaxed defaults so the API always accepts the partial draft
+      const payload = buildPayload({
+        ...values,
+        name,
+        type: values.type ?? "tennis",
+        pricePerHour: values.pricePerHour && values.pricePerHour >= 1 ? values.pricePerHour : 1,
+        maxPlayers: values.maxPlayers && values.maxPlayers >= 2 ? values.maxPlayers : 2,
+        isIndoor: !!values.isIndoor,
+        amenities: values.amenities ?? [],
+      });
+      (payload as any).status = "draft";
+      await createCourt.mutateAsync({ data: payload as any });
+      queryClient.invalidateQueries({ queryKey: ["facility-detail", String(facilityId)] });
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      toast({ title: "Juodraštis išsaugotas" });
+      navigate(`/owner/facility/${facilityId}`);
+    } catch (err) {
+      const anyErr = err as any;
+      toast({
+        title: "Nepavyko išsaugoti juodraščio",
+        description: anyErr?.data?.error ?? anyErr?.message ?? "Bandykite dar kartą",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const onSubmit = async (data: CourtFormValues) => {
     try {
-      const cleanStr = (v: unknown): string | undefined => {
-        if (typeof v !== "string") return undefined;
-        const t = v.trim();
-        return t.length > 0 ? t : undefined;
-      };
-
-      // Resolve effective contacts: facility-inherited unless overridden
-      const effPhone     = overrideContacts ? courtPhone     : facility?.phone     ?? "";
-      const effFacebook  = overrideContacts ? courtFacebook  : facility?.socialFacebook  ?? "";
-      const effInstagram = overrideContacts ? courtInstagram : facility?.socialInstagram ?? "";
-      const effWhatsapp  = overrideContacts ? courtWhatsapp  : facility?.socialWhatsapp  ?? "";
-      const effWebsite   = overrideContacts ? courtWebsite   : facility?.websiteUrl      ?? "";
-
-      const payload: Record<string, unknown> = {
-        ...data,
-        facilityId,
-        rentableItems: rentableItems.length > 0 ? JSON.stringify(rentableItems) : undefined,
-        workingHours: JSON.stringify(workingHoursState),
-        amenityPhotos: Object.keys(amenityPhotos).length > 0 ? JSON.stringify(amenityPhotos) : undefined,
-        description: cleanStr(data.description),
-        imageUrl: cleanStr(data.imageUrl),
-        phone: cleanStr(effPhone),
-        socialFacebook: cleanStr(effFacebook),
-        socialInstagram: cleanStr(effInstagram),
-        socialWhatsapp: cleanStr(effWhatsapp),
-        socialWebsite: cleanStr(effWebsite),
-      };
+      const payload = buildPayload(data);
       const newCourt = await createCourt.mutateAsync({ data: payload as any });
       const newCourtId: number = (newCourt as any).id;
 
@@ -418,23 +503,36 @@ export default function CourtCreatePage() {
 
         <div className="rounded-2xl border bg-card">
           <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none px-6">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setFormTab(t.id)}
-                className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
-                  formTab === t.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+            {TABS.map((t) => {
+              const tabErrors = Object.keys(form.formState.errors).filter(
+                (f) => FIELD_TO_TAB[f] === t.id,
+              );
+              const hasError = tabErrors.length > 0;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setFormTab(t.id)}
+                  className={`relative px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+                    formTab === t.id
+                      ? hasError ? "border-destructive text-destructive" : "border-primary text-primary"
+                      : hasError ? "border-transparent text-destructive" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                  {hasError && (
+                    <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
+                      {tabErrors.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <div className="p-6">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
                 {formTab === "info" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -884,9 +982,14 @@ export default function CourtCreatePage() {
                       }}>← Atgal</Button>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
                       Atšaukti
+                    </Button>
+                    <Button type="button" variant="outline" size="sm"
+                      onClick={saveAsDraft}
+                      disabled={savingDraft || createCourt.isPending}>
+                      {savingDraft ? "Saugoma..." : "Išsaugoti juodraštį"}
                     </Button>
                     {formTab !== "contact" ? (
                       <Button type="button" size="sm" onClick={() => {
@@ -894,7 +997,7 @@ export default function CourtCreatePage() {
                         if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
                       }}>Toliau →</Button>
                     ) : (
-                      <Button type="submit" disabled={createCourt.isPending || setPricing.isPending || uploadingGallery}>
+                      <Button type="submit" disabled={createCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}>
                         {createCourt.isPending
                           ? "Kuriama..."
                           : uploadingGallery
