@@ -30,7 +30,7 @@ import {
   sendOwnerBookingNotificationEmail,
 } from "../lib/email";
 import { sendNotification, sendAdminNotification } from "../lib/notify";
-import { computeStatusAfterStripeChange, isStripeAccountReady } from "../lib/facility-status";
+import { isStripeAccountReady } from "../lib/facility-status";
 
 export async function handleStripeWebhook(req: Request, res: Response): Promise<void> {
   const sigHeader = req.headers["stripe-signature"];
@@ -455,70 +455,25 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
   );
   const newStatus = stripeComplete ? "active" : "pending";
 
-  await db
+  // Owner profile is the single source of truth for Stripe readiness — payment
+  // and submission flows read it directly. There is no per-facility cascade.
+  const [profile] = await db
     .update(userProfilesTable)
     .set({ stripeAccountStatus: newStatus })
-    .where(eq(userProfilesTable.stripeAccountId, account.id));
+    .where(eq(userProfilesTable.stripeAccountId, account.id))
+    .returning({ userId: userProfilesTable.userId, prevStatus: userProfilesTable.stripeAccountStatus });
 
-  const [profile] = await db
-    .select()
-    .from(userProfilesTable)
-    .where(eq(userProfilesTable.stripeAccountId, account.id));
+  if (!profile) return;
 
-  if (profile) {
-    const ownedFacilities = await db
-      .select()
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.ownerUserId, profile.userId));
-
-    for (const f of ownedFacilities) {
-      const nextStatus = computeStatusAfterStripeChange(
-        f.verificationStatus,
-        stripeComplete,
-        f.adminVerified,
-      );
-
-      const transitions = nextStatus && nextStatus !== f.verificationStatus;
-
-      const updated = await db
-        .update(facilitiesTable)
-        .set(
-          transitions
-            ? { stripeOnboardingComplete: stripeComplete, verificationStatus: nextStatus }
-            : { stripeOnboardingComplete: stripeComplete }
-        )
-        .where(and(
-          eq(facilitiesTable.id, f.id),
-          eq(facilitiesTable.verificationStatus, f.verificationStatus),
-        ))
-        .returning({ id: facilitiesTable.id });
-
-      if (updated.length === 0) continue;
-
-      if (transitions) {
-        if (nextStatus === "pending_verification") {
-          sendNotification(
-            profile.userId,
-            "facility_approved",
-            `„${f.name}" — Stripe paruoštas`,
-            "Stripe Connect duomenys užbaigti. Objektas perduotas administratoriaus peržiūrai.",
-            `/owner/facility/${f.id}`,
-          ).catch(() => {});
-          sendAdminNotification(
-            "Objektas laukia patvirtinimo (Stripe paruoštas)",
-            `„${f.name}" (${f.city ?? "—"}) automatiškai perėjo į patvirtinimo eilę po Stripe Connect užbaigimo.`,
-            "/admin",
-          ).catch(() => {});
-        } else if (nextStatus === "onboarding") {
-          sendNotification(
-            profile.userId,
-            "facility_rejected",
-            `„${f.name}" — reikia atnaujinti Stripe duomenis`,
-            "Stripe pranešė apie trūkstamą informaciją. Objektas laikinai pašalintas iš paieškos kol baigsite duomenis.",
-            `/owner/facility/${f.id}`,
-          ).catch(() => {});
-        }
-      }
-    }
+  // Notify the owner so they're aware their account regressed and any new
+  // bookings won't go through until they re-complete Stripe.
+  if (!stripeComplete) {
+    await sendNotification(
+      profile.userId,
+      "facility_rejected",
+      "Reikia atnaujinti Stripe duomenis",
+      "Stripe pranešė apie trūkstamą informaciją. Atnaujinkite duomenis, kad galėtumėte priimti mokėjimus.",
+      `/owner`,
+    ).catch(() => {});
   }
 }

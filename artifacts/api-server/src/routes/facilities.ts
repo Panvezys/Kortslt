@@ -16,28 +16,10 @@ import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 import { sendAdminNotification, sendNotification } from "../lib/notify";
 import {
   validateForVerification,
-  computeNextStatusOnSubmit,
   isStripeAccountReady,
 } from "../lib/facility-status";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
-
-/**
- * Cheap readiness check using only the cached `stripeAccountStatus` on the
- * owner's profile. The webhook keeps this column accurate using the strict
- * isStripeAccountReady predicate, so 'active' implies the strict predicate
- * passed at the time of the last account.updated event.
- *
- * Used on the hot path of facility creation to avoid a Stripe round trip.
- */
-async function ownerStripeReadyCached(userId: string): Promise<boolean> {
-  const [profile] = await db
-    .select({ stripeAccountId: userProfilesTable.stripeAccountId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
-    .from(userProfilesTable)
-    .where(eq(userProfilesTable.userId, userId));
-  if (!profile?.stripeAccountId) return false;
-  return profile.stripeAccountStatus === "active";
-}
 
 /**
  * Source-of-truth readiness check that calls Stripe directly. Returns one of:
@@ -170,19 +152,11 @@ router.post("/facilities", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  // If the owner already has a "ready" Stripe Connect account, pre-populate the new
-  // facility's stripeOnboardingComplete=true so they don't get stuck in 'onboarding'
-  // when they later submit it. We use the cached profile status here for speed; the
-  // submit-for-verification endpoint does a live re-check so any cache drift is
-  // corrected before the facility actually enters the verification queue.
-  const stripeReady = await ownerStripeReadyCached(userId);
-
   const [facility] = await db
     .insert(facilitiesTable)
     .values({
       ...parsed.data,
       ownerUserId: userId,
-      stripeOnboardingComplete: stripeReady,
     })
     .returning();
 
@@ -257,11 +231,14 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 /**
  * POST /facilities/:id/submit-for-verification
  *
- * Owner moves a facility out of 'draft' (or back into the queue from 'onboarding')
- * after filling in all required information. The "Gatekeeper" enforces:
- *   - minimum data quality (≥3 photos, lat/lng, address)
- *   - if Stripe Connect is not yet onboarded, status becomes 'onboarding'
- *   - otherwise status becomes 'pending_verification' and admin is notified
+ * Owner moves a facility from 'draft' into the admin verification queue. The
+ * gate enforces:
+ *   - facility data quality (≥3 photos, lat/lng, address)
+ *   - the OWNER has a fully ready Stripe Connect account
+ *
+ * Stripe Connect lives on the owner's profile — a single owner-level connection
+ * unlocks submission for every draft facility they own. If Stripe is not ready
+ * we refuse the transition with 422 and leave the facility in 'draft'.
  */
 router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req);
@@ -297,33 +274,34 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
     return;
   }
 
-  // Live Stripe sync — fail-closed. Re-check readiness against Stripe directly
-  // before computing nextStatus so a missed webhook can't leave a facility stuck,
-  // AND a stripe outage can't promote a stale-cached facility past the gate.
+  // Owner-level Stripe gate — single source of truth. Live re-check against
+  // Stripe so a missed webhook can't block the owner indefinitely, and a stale
+  // cache can't promote past the gate.
   const liveResult = await ownerStripeReadyLive(userId);
   if (liveResult.error) {
-    // Stripe unreachable — refuse to advance. Owner retries when Stripe recovers.
     res.status(503).json({
       error: "Nepavyko pasiekti Stripe paslaugos. Bandykite dar kartą po kelių sekundžių.",
     });
     return;
   }
-  if (liveResult.ready !== facility.stripeOnboardingComplete) {
+  if (!liveResult.ready) {
+    // Sync the cached owner status before refusing so the UI can react.
     await db
-      .update(facilitiesTable)
-      .set({ stripeOnboardingComplete: liveResult.ready })
-      .where(eq(facilitiesTable.id, id));
-    facility.stripeOnboardingComplete = liveResult.ready;
+      .update(userProfilesTable)
+      .set({ stripeAccountStatus: "pending" })
+      .where(eq(userProfilesTable.userId, userId));
+    res.status(422).json({
+      error: "Prijunkite Stripe Connect prieš teikdami objektą patvirtinimui.",
+      code: "stripe_not_connected",
+    });
+    return;
   }
 
-  const nextStatus = computeNextStatusOnSubmit(liveResult.ready);
-
-  // Compare-and-set: only mutate if the row is STILL in the status we read. Prevents
-  // a concurrent admin action or stripe webhook from getting clobbered by a stale submit.
+  // Compare-and-set: only mutate if the row is STILL in the status we read.
   const [updated] = await db
     .update(facilitiesTable)
     .set({
-      verificationStatus: nextStatus,
+      verificationStatus: "pending_verification",
       verificationNotes: null,
       rejectionReason: null,
     })
@@ -340,27 +318,15 @@ router.post("/facilities/:id/submit-for-verification", requireAuth, async (req, 
     return;
   }
 
-  if (nextStatus === "pending_verification") {
-    await sendAdminNotification(
-      "Objektas laukia patvirtinimo",
-      `„${updated.name}" (${updated.city ?? "—"}) pateiktas peržiūrai.`,
-      "/admin",
-    );
-  } else {
-    // onboarding — let owner know they still need to finish Stripe Connect
-    await sendNotification(
-      userId,
-      "facility_rejected",
-      `„${updated.name}" — užbaikite Stripe Connect`,
-      "Užbaikite Stripe Connect duomenis, kad objektas galėtų judėti į patvirtinimo eilę.",
-      `/owner/facility/${updated.id}`,
-    );
-  }
+  await sendAdminNotification(
+    "Objektas laukia patvirtinimo",
+    `„${updated.name}" (${updated.city ?? "—"}) pateiktas peržiūrai.`,
+    "/admin",
+  );
 
   res.json({
     id: updated.id,
     verificationStatus: updated.verificationStatus,
-    stripeOnboardingComplete: updated.stripeOnboardingComplete,
   });
 });
 

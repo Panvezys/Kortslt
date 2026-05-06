@@ -63,7 +63,6 @@ interface FacilityWithCourts {
   verificationStatus: string;
   verificationDocUrl?: string;
   ownershipDocUrl?: string;
-  stripeOnboardingComplete?: boolean;
   adminVerified?: boolean;
   verificationNotes?: string | null;
   rejectionReason?: string | null;
@@ -104,11 +103,6 @@ function VerificationBadge({ status }: { status: string }) {
   if (status === "pending_verification") return (
     <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 gap-1">
       <Hourglass className="w-3 h-3" /> Laukia patvirtinimo
-    </Badge>
-  );
-  if (status === "onboarding") return (
-    <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 gap-1">
-      <CreditCard className="w-3 h-3" /> Stripe registracija
     </Badge>
   );
   if (status === "suspended") return (
@@ -502,11 +496,6 @@ export default function OwnerFacilities() {
           title: "Pateikta patvirtinimui",
           description: "Administratorius peržiūrės jūsų objektą per kelias darbo dienas.",
         });
-      } else if (data?.verificationStatus === "onboarding") {
-        toast({
-          title: "Užbaikite Stripe Connect",
-          description: "Duomenys įrašyti, bet dar reikia užbaigti Stripe registraciją.",
-        });
       } else {
         toast({ title: "Statusas atnaujintas" });
       }
@@ -818,7 +807,7 @@ export default function OwnerFacilities() {
                       )}
                     </div>
 
-                    {(facility.verificationStatus === "draft" || facility.verificationStatus === "onboarding") && facility.verificationNotes && (
+                    {facility.verificationStatus === "draft" && facility.verificationNotes && (
                       <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
                         <div className="font-semibold mb-1 flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
@@ -828,7 +817,7 @@ export default function OwnerFacilities() {
                       </div>
                     )}
 
-                    {(facility.verificationStatus === "draft" || facility.verificationStatus === "onboarding") && (
+                    {facility.verificationStatus === "draft" && (
                       <div className="mt-3">
                         <Button
                           variant={stripeActive ? "default" : "secondary"}

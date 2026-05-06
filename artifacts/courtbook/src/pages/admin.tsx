@@ -798,7 +798,6 @@ function CourtReviewDialog({
 
 const VERIFICATION_LABEL: Record<string, string> = {
   draft: "Juodraštis",
-  onboarding: "Stripe nebaigtas",
   pending_verification: "Laukia patvirtinimo",
   active: "Aktyvus",
   suspended: "Sustabdytas",
@@ -806,7 +805,6 @@ const VERIFICATION_LABEL: Record<string, string> = {
 
 const VERIFICATION_COLOR: Record<string, string> = {
   draft: "bg-slate-500/10 text-slate-300 border-slate-500/30",
-  onboarding: "bg-blue-500/10 text-blue-400 border-blue-500/30",
   pending_verification: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
   active: "bg-green-500/10 text-green-400 border-green-500/30",
   suspended: "bg-red-500/10 text-red-400 border-red-500/30",
@@ -850,7 +848,6 @@ function FacilityReviewDialog({
 
   const isActive = facility.verificationStatus === "active";
   const isPendingVerification = facility.verificationStatus === "pending_verification";
-  const isOnboarding = facility.verificationStatus === "onboarding";
   const isDraft = facility.verificationStatus === "draft";
   const isSuspended = facility.verificationStatus === "suspended";
   const stripeReady = facility.ownerStripeStatus === "active";
@@ -1077,10 +1074,9 @@ function FacilityReviewDialog({
                   {isActive ? "Grąžinti pataisymams" : "Prašyti pataisymų"}
                 </Button>
               )}
-              {(isDraft || isOnboarding || isSuspended) && (
+              {(isDraft || isSuspended) && (
                 <p className="text-sm text-muted-foreground text-center w-full py-2">
                   {isDraft && "Savininkas dar nepateikė objekto patvirtinimui."}
-                  {isOnboarding && "Savininkas dar neužbaigė Stripe Connect."}
                   {isSuspended && "Šis objektas yra sustabdytas."}
                 </p>
               )}
@@ -1121,7 +1117,7 @@ function FacilityReviewDialog({
 function FacilitiesPanel() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "draft" | "onboarding" | "pending_verification" | "active" | "suspended">("all");
+  const [filter, setFilter] = useState<"all" | "draft" | "pending_verification" | "active" | "suspended">("all");
   const [search, setSearch] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [reviewFacility, setReviewFacility] = useState<any | null>(null);
@@ -1198,7 +1194,6 @@ function FacilitiesPanel() {
   const counts = {
     all: facilities.length,
     draft: facilities.filter((f: any) => f.verificationStatus === "draft").length,
-    onboarding: facilities.filter((f: any) => f.verificationStatus === "onboarding").length,
     pending_verification: facilities.filter((f: any) => f.verificationStatus === "pending_verification").length,
     active: facilities.filter((f: any) => f.verificationStatus === "active").length,
     suspended: facilities.filter((f: any) => f.verificationStatus === "suspended").length,
@@ -1208,7 +1203,7 @@ function FacilitiesPanel() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1.5 flex-wrap">
-          {(["all","pending_verification","onboarding","draft","active","suspended"] as const).map(s => (
+          {(["all","pending_verification","draft","active","suspended"] as const).map(s => (
             <button
               key={s}
               onClick={() => setFilter(s)}

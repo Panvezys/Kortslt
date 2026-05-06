@@ -140,17 +140,42 @@ router.get("/admin/facilities/pending", requireAdmin, async (_req, res): Promise
 
 /**
  * PUT /admin/facilities/:id/approve
- * Move a 'pending_verification' facility to 'active'. Requires Stripe onboarding
- * to be complete on the owner's account so we never publish a court that can't
- * accept payments.
+ * Move a 'pending_verification' facility to 'active'. The owner must STILL have
+ * an active Stripe Connect account at approval time — checked by joining the
+ * owner profile (single source of truth) instead of a per-facility mirror.
  */
 router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  // Compare-and-set: the row is only updated if it is STILL in 'pending_verification'
-  // AND stripe is STILL complete. This prevents a stale stripe webhook (or another admin
-  // session) from racing the approval and producing a status drift.
+  const [existing] = await db
+    .select({
+      id: facilitiesTable.id,
+      ownerUserId: facilitiesTable.ownerUserId,
+      verificationStatus: facilitiesTable.verificationStatus,
+    })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (existing.verificationStatus !== "pending_verification") {
+    res.status(400).json({
+      error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
+    });
+    return;
+  }
+
+  const [ownerProfile] = await db
+    .select({ stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, existing.ownerUserId));
+  if (ownerProfile?.stripeAccountStatus !== "active") {
+    res.status(400).json({
+      error: "Negalima patvirtinti — savininkas dar neužbaigė Stripe Connect.",
+    });
+    return;
+  }
+
+  // Compare-and-set: only mutate if the row is STILL in 'pending_verification'.
   const [facility] = await db
     .update(facilitiesTable)
     .set({
@@ -162,29 +187,12 @@ router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Prom
     .where(and(
       eq(facilitiesTable.id, id),
       eq(facilitiesTable.verificationStatus, "pending_verification"),
-      eq(facilitiesTable.stripeOnboardingComplete, true),
     ))
     .returning();
 
   if (!facility) {
-    // Disambiguate why the CAS missed: 404 vs wrong-state vs stripe-gate.
-    const [existing] = await db
-      .select({
-        id: facilitiesTable.id,
-        verificationStatus: facilitiesTable.verificationStatus,
-        stripeOnboardingComplete: facilitiesTable.stripeOnboardingComplete,
-      })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, id));
-    if (!existing) { res.status(404).json({ error: "Facility not found" }); return; }
-    if (existing.verificationStatus !== "pending_verification") {
-      res.status(400).json({
-        error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
-      });
-      return;
-    }
-    res.status(400).json({
-      error: "Negalima patvirtinti — savininkas dar neužbaigė Stripe Connect.",
+    res.status(409).json({
+      error: "Objekto būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą.",
     });
     return;
   }
@@ -337,11 +345,6 @@ router.get("/admin/reset-stripe", requireAdmin, async (req, res): Promise<void> 
     .update(userProfilesTable)
     .set({ stripeAccountId: null, stripeAccountStatus: "not_connected" })
     .where(eq(userProfilesTable.userId, target.id));
-
-  await db
-    .update(facilitiesTable)
-    .set({ stripeOnboardingComplete: false })
-    .where(eq(facilitiesTable.ownerUserId, target.id));
 
   res.json({ status: "success", message: "Stripe reset for panvezys@gmail.com" });
 });

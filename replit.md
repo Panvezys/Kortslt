@@ -60,6 +60,8 @@ Do not make changes to the folder `artifacts/courtbook/public/courts/`.
 *   **Match-result race protection**: Transactional updates with `SELECT ... FOR UPDATE` row locks to prevent concurrent submission issues for tournament bracket data.
 *   **Structured Score Reporting**: `sport-score-input.tsx` component for sport-aware score entry with validation and structured output.
 
+*   **Owner-level Stripe Connect (single source of truth)**: Stripe Connect readiness lives only on `user_profiles.stripeAccountId/stripeAccountStatus`. Facilities have no `stripeOnboardingComplete` mirror and no `"onboarding"` status — `FACILITY_STATUSES` is `draft | pending_verification | active | suspended`. `POST /facilities/:id/submit-for-verification` performs a live Stripe re-check and refuses with **422 `stripe_not_connected`** if the owner is not active (facility stays in `draft`). `PUT /admin/facilities/:id/approve` joins `user_profiles` to enforce the same gate at approval time. The `account.updated` webhook only updates the owner profile and notifies the owner on regression — no per-facility cascade.
+
 ## External Dependencies
 
 *   **PostgreSQL**: Primary database for all application data, managed with Drizzle ORM.

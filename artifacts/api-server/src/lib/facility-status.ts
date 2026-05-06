@@ -5,16 +5,18 @@
  *
  * Stages:
  *   draft                → Owner is still editing; not visible to public.
- *   onboarding           → Submitted but Stripe Connect onboarding is incomplete.
- *   pending_verification → Info complete + Stripe ready; awaiting admin approval.
- *   active               → Admin-approved AND Stripe-ready; visible in search.
+ *   pending_verification → Info complete + owner Stripe ready; awaiting admin approval.
+ *   active               → Admin-approved AND owner Stripe-ready; visible in search.
  *   suspended            → Manually disabled by admin.
+ *
+ * Stripe Connect lives on the OWNER's user_profiles row. The submit endpoint
+ * refuses the transition draft → pending_verification when the owner has not
+ * connected Stripe; there is no per-facility "onboarding" status.
  */
 import type { Facility } from "@workspace/db";
 
 export type FacilityStatus =
   | "draft"
-  | "onboarding"
   | "pending_verification"
   | "active"
   | "suspended";
@@ -75,39 +77,6 @@ export function validateForVerification(
 }
 
 /**
- * Compute the next verification status when an owner asks to submit/refresh.
- * Pure: does not touch the database.
- */
-export function computeNextStatusOnSubmit(
-  ownerStripeReady: boolean,
-): "onboarding" | "pending_verification" {
-  return ownerStripeReady ? "pending_verification" : "onboarding";
-}
-
-/**
- * Compute the status after Stripe reports a change. Used by the webhook.
- * - If Stripe is now complete and facility was 'onboarding', advance to pending_verification.
- * - If Stripe regressed (no longer complete) and facility was 'active' or 'pending_verification',
- *   move back to 'onboarding' so the owner is alerted.
- * - Otherwise keep the current status.
- */
-export function computeStatusAfterStripeChange(
-  current: string,
-  stripeComplete: boolean,
-  adminVerified: boolean,
-): FacilityStatus | null {
-  if (stripeComplete) {
-    if (current === "onboarding") return "pending_verification";
-    if (current === "draft") return null; // owner hasn't submitted yet
-    if (current === "pending_verification" && adminVerified) return "active";
-    return null;
-  }
-  // Stripe regressed
-  if (current === "active" || current === "pending_verification") return "onboarding";
-  return null;
-}
-
-/**
  * Strict Stripe Connect readiness predicate. A Connect account is only
  * considered "ready" — i.e. safe to mark the facility live and accept money —
  * when ALL of these are true:
@@ -118,7 +87,7 @@ export function computeStatusAfterStripeChange(
  *
  * Used in: stripe webhook (account.updated), /stripe/connect/status,
  * facility submit-for-verification, and the admin approval gate (transitively
- * via the persisted `stripeOnboardingComplete` boolean).
+ * via the owner profile's `stripeAccountStatus`).
  */
 export interface StripeReadinessInput {
   details_submitted?: boolean | null;
@@ -140,7 +109,6 @@ export function isStripeAccountReady(account: StripeReadinessInput | null | unde
 /** Public-facing labels (Lithuanian). */
 export const FACILITY_STATUS_LABELS: Record<FacilityStatus, string> = {
   draft: "Juodraštis",
-  onboarding: "Stripe pilnai neužbaigtas",
   pending_verification: "Laukiama patvirtinimo",
   active: "Aktyvus",
   suspended: "Sustabdytas",
