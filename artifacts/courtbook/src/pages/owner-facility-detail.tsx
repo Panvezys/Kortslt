@@ -33,6 +33,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CourtImageUpload } from "@/components/court-image-upload";
@@ -1385,20 +1386,28 @@ export default function OwnerFacilityDetail() {
                             ? "Pildykite: kaina, vieta"
                             : "";
                         return (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
-                            disabled={isDisabled}
-                            onClick={() => {
-                              customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                                .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
-                                .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
-                            }}
-                            title={tooltipMsg}
-                          >
-                            Pateikti peržiūrai
-                          </Button>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="block w-full">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5 disabled:opacity-100 disabled:cursor-not-allowed"
+                                    disabled={isDisabled}
+                                    onClick={() => {
+                                      customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
+                                        .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                                        .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
+                                    }}
+                                  >
+                                    Pateikti peržiūrai
+                                  </Button>
+                                </span>
+                              </TooltipTrigger>
+                              {tooltipMsg && <TooltipContent>{tooltipMsg}</TooltipContent>}
+                            </Tooltip>
+                          </TooltipProvider>
                         );
                       })()
                     )}
