@@ -844,13 +844,14 @@ export default function CourtDetail() {
     for (let i = 0; i < recurringWeeks; i++) {
       const futureDate = new Date(date);
       futureDate.setDate(futureDate.getDate() + i * 7);
+      const futureDateStr = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, "0")}-${String(futureDate.getDate()).padStart(2, "0")}`;
       try {
         await createBooking.mutateAsync({
           data: {
             courtId,
             customerName,
             customerEmail,
-            date: futureDate,
+            date: futureDateStr,
             startTime: selectedSlotRange.startTime,
             endTime: selectedSlotRange.endTime,
             recurringGroupId,
