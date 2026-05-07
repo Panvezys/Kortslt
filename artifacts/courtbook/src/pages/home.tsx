@@ -32,7 +32,7 @@ const HERO_IMAGES = [
   "courts/court_4_verkiai.webp",
 ];
 
-type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null };
+type PopularCourt = { id: number; name: string; type: string; city: string; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null; minDisplayPrice?: number | null };
 
 interface FeaturedTournament {
   id: number; name: string; sport: string; startDate: string; endDate: string;
@@ -232,13 +232,14 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
             />
             <StarRatingSmall rating={court.rating} />
           </div>
-          {court.pricePerHour && (
-            <span
-              className="font-bold text-lg shrink-0 transition-colors duration-200"
-              style={{ color: hovered ? color : undefined }}
-            >
-              <span className="text-xs font-normal text-muted-foreground mr-0.5">{t("card.from")}</span>{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
-            </span>
+          {(court.minDisplayPrice ?? court.pricePerHour) && (
+            <div className="flex items-baseline gap-0.5 shrink-0">
+              <span className="text-xs text-muted-foreground">{t("card.from")}</span>
+              <span className="text-lg font-bold text-foreground">
+                {Math.round(Number(court.minDisplayPrice ?? court.pricePerHour))}€
+              </span>
+              <span className="text-xs text-muted-foreground">{t("card.perHour")}</span>
+            </div>
           )}
         </div>
         <CardTitle

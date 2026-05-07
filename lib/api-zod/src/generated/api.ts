@@ -673,6 +673,12 @@ export const GetPopularCourtsResponseItem = zod.object({
   address: zod.string().optional(),
   imageUrl: zod.string().optional(),
   pricePerHour: zod.number().optional(),
+  minDisplayPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Minimum displayable hourly price from active pricing slots (06:00–23:00). Falls back to pricePerHour when no custom pricing exists.",
+    ),
   isIndoor: zod.boolean().optional(),
   condition: zod.string().optional(),
   bookingCount: zod.number(),

@@ -1346,7 +1346,7 @@ export default function OwnerFacilityDetail() {
 
                     {/* Price + badges */}
                     <div className="flex items-center gap-3 text-sm mb-4">
-                      <span className="font-semibold text-foreground">{court.pricePerHour}€/val</span>
+                      <span className="font-semibold text-foreground">nuo {Math.round((court as any).minDisplayPrice ?? Number(court.pricePerHour))}€/val</span>
                       {court.isIndoor && <Badge variant="outline" className="text-xs">Viduje</Badge>}
                       {(court as any).rating && (
                         <span className="text-xs text-yellow-500 flex items-center gap-0.5">

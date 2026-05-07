@@ -362,7 +362,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
           {/* Price + CTA */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "2px" }}>
             <span style={{ fontWeight: 700, color, fontSize: "15px" }}>
-              <span style={{ color: textSecondary, fontSize: "10px", fontWeight: 400, marginRight: "2px" }}>nuo</span>{court.pricePerHour}€
+              <span style={{ color: textSecondary, fontSize: "10px", fontWeight: 400, marginRight: "2px" }}>nuo</span>{Math.round(court.minDisplayPrice ?? court.pricePerHour)}€
               <span style={{ color: textSecondary, fontSize: "11px", fontWeight: 400 }}>/val</span>
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>

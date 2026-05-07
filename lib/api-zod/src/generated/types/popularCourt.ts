@@ -14,6 +14,8 @@ export interface PopularCourt {
   address?: string;
   imageUrl?: string;
   pricePerHour?: number;
+  /** Minimum displayable hourly price from active pricing slots (06:00–23:00). Falls back to pricePerHour when no custom pricing exists. */
+  minDisplayPrice?: number | null;
   isIndoor?: boolean;
   condition?: string;
   bookingCount: number;

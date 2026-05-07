@@ -209,20 +209,40 @@ router.get("/courts", async (req, res): Promise<void> => {
 
     const courtIds = rows.map(r => r.court.id);
     const photoMap = new Map<number, string[]>();
+    const ownerPricingMinMap = new Map<number, number>();
     if (courtIds.length > 0) {
-      const photos = await db
-        .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
-        .from(courtPhotosTable)
-        .where(inArray(courtPhotosTable.courtId, courtIds))
-        .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+      const [photos, pricingRows] = await Promise.all([
+        db
+          .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+          .from(courtPhotosTable)
+          .where(inArray(courtPhotosTable.courtId, courtIds))
+          .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt)),
+        db
+          .select({ courtId: courtPricingTable.courtId, price: courtPricingTable.price })
+          .from(courtPricingTable)
+          .where(and(
+            inArray(courtPricingTable.courtId, courtIds),
+            gte(courtPricingTable.startTime, "06:00"),
+            lte(courtPricingTable.startTime, "23:00"),
+          )),
+      ]);
       for (const p of photos) {
         const arr = photoMap.get(p.courtId) ?? [];
         if (arr.length < 3) arr.push(p.url);
         photoMap.set(p.courtId, arr);
       }
+      for (const entry of pricingRows) {
+        const hourly = Number(entry.price) * 2;
+        const prev = ownerPricingMinMap.get(entry.courtId);
+        if (prev === undefined || hourly < prev) ownerPricingMinMap.set(entry.courtId, hourly);
+      }
     }
 
-    res.json(rows.map(r => ({ ...formatCourt(r.court, r.facility), photos: photoMap.get(r.court.id) ?? [] })));
+    res.json(rows.map(r => ({
+      ...formatCourt(r.court, r.facility),
+      photos: photoMap.get(r.court.id) ?? [],
+      minDisplayPrice: ownerPricingMinMap.get(r.court.id) ?? Number(r.court.pricePerHour),
+    })));
     return;
   }
 

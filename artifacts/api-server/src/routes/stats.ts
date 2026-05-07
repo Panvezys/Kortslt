@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, courtsTable, bookingsTable, facilitiesTable } from "@workspace/db";
-import { sql, eq, desc } from "drizzle-orm";
+import { db, courtsTable, bookingsTable, facilitiesTable, courtPricingTable } from "@workspace/db";
+import { sql, eq, desc, inArray, and, gte, lte } from "drizzle-orm";
 import {
   GetStatsSummaryResponse,
   GetPopularCourtsResponse,
@@ -62,6 +62,25 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
     .orderBy(desc(sql`count(${bookingsTable.id})`))
     .limit(6);
 
+  // Compute minDisplayPrice for each popular court (same bait-and-switch guard: 06:00–23:00 only)
+  const courtIds = rows.map(r => r.id);
+  const pricingMinMap = new Map<number, number>();
+  if (courtIds.length > 0) {
+    const pricingRows = await db
+      .select({ courtId: courtPricingTable.courtId, price: courtPricingTable.price })
+      .from(courtPricingTable)
+      .where(and(
+        inArray(courtPricingTable.courtId, courtIds),
+        gte(courtPricingTable.startTime, "06:00"),
+        lte(courtPricingTable.startTime, "23:00"),
+      ));
+    for (const entry of pricingRows) {
+      const hourly = Number(entry.price) * 2;
+      const prev = pricingMinMap.get(entry.courtId);
+      if (prev === undefined || hourly < prev) pricingMinMap.set(entry.courtId, hourly);
+    }
+  }
+
   res.json(GetPopularCourtsResponse.parse(rows.map(r => ({
     id: r.id,
     name: r.name,
@@ -70,6 +89,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
     address: r.address,
     imageUrl: r.imageUrl ?? undefined,
     pricePerHour: Number(r.pricePerHour),
+    minDisplayPrice: pricingMinMap.get(r.id) ?? Number(r.pricePerHour),
     isIndoor: r.isIndoor,
     condition: r.condition ?? "good",
     bookingCount: Number(r.bookingCount),
