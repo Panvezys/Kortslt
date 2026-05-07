@@ -72,6 +72,12 @@ export const ListCourtsResponseItem = zod.object({
   socialInstagram: zod.string().nullish(),
   socialWhatsapp: zod.string().nullish(),
   socialWebsite: zod.string().nullish(),
+  minDisplayPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -157,6 +163,12 @@ export const GetCourtResponse = zod.object({
   socialInstagram: zod.string().nullish(),
   socialWhatsapp: zod.string().nullish(),
   socialWebsite: zod.string().nullish(),
+  minDisplayPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -238,6 +250,12 @@ export const UpdateCourtResponse = zod.object({
   socialInstagram: zod.string().nullish(),
   socialWhatsapp: zod.string().nullish(),
   socialWebsite: zod.string().nullish(),
+  minDisplayPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
+    ),
   createdAt: zod.coerce.date(),
 });
 

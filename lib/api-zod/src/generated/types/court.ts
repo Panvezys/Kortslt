@@ -44,5 +44,7 @@ export interface Court {
   socialInstagram?: string | null;
   socialWhatsapp?: string | null;
   socialWebsite?: string | null;
+  /** Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist. */
+  minDisplayPrice?: number | null;
   createdAt: Date;
 }

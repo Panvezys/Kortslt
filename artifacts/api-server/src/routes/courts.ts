@@ -240,16 +240,34 @@ router.get("/courts", async (req, res): Promise<void> => {
 
   const courtIds = filtered.map(r => r.court.id);
   const photoMap = new Map<number, string[]>();
+  const pricingMinMap = new Map<number, number>();
   if (courtIds.length > 0) {
-    const photos = await db
-      .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
-      .from(courtPhotosTable)
-      .where(inArray(courtPhotosTable.courtId, courtIds))
-      .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+    const [photos, pricingRows] = await Promise.all([
+      db
+        .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+        .from(courtPhotosTable)
+        .where(inArray(courtPhotosTable.courtId, courtIds))
+        .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt)),
+      db
+        .select({ courtId: courtPricingTable.courtId, price: courtPricingTable.price })
+        .from(courtPricingTable)
+        .where(and(
+          inArray(courtPricingTable.courtId, courtIds),
+          // Bait-and-switch guard: only consider slots a normal human can book (06:00–23:00)
+          gte(courtPricingTable.startTime, "06:00"),
+          lte(courtPricingTable.startTime, "23:00"),
+        )),
+    ]);
     for (const p of photos) {
       const arr = photoMap.get(p.courtId) ?? [];
       if (arr.length < 3) arr.push(p.url);
       photoMap.set(p.courtId, arr);
+    }
+    // Pricing entries store per-30-min prices; multiply × 2 to get an hourly rate for display
+    for (const entry of pricingRows) {
+      const hourly = Number(entry.price) * 2;
+      const prev = pricingMinMap.get(entry.courtId);
+      if (prev === undefined || hourly < prev) pricingMinMap.set(entry.courtId, hourly);
     }
   }
 
@@ -257,6 +275,8 @@ router.get("/courts", async (req, res): Promise<void> => {
     ...formatPublicCourt(r.court, r.facility),
     facilityVerified: r.facility.verificationStatus === "active",
     photos: photoMap.get(r.court.id) ?? [],
+    // minDisplayPrice: lowest hourly rate from custom pricing; falls back to pricePerHour
+    minDisplayPrice: pricingMinMap.get(r.court.id) ?? Number(r.court.pricePerHour),
   })));
 });
 

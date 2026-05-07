@@ -171,12 +171,13 @@ export function CourtCard({ court }: { court: Court }) {
               </Badge>
             )}
           </div>
-          <span
-            className="font-bold text-lg shrink-0 transition-colors duration-200"
-            style={{ color: hovered ? sport.color : undefined }}
-          >
-            <span className="text-xs font-normal text-muted-foreground mr-0.5">{t("card.from")}</span>{court.pricePerHour}€<span className="text-xs font-normal text-muted-foreground">{t("card.perHour")}</span>
-          </span>
+          <div className="flex items-baseline gap-0.5 shrink-0">
+            <span className="text-xs text-muted-foreground">{t("card.from")}</span>
+            <span className="text-lg font-bold text-foreground">
+              {Math.round(court.minDisplayPrice ?? court.pricePerHour)}€
+            </span>
+            <span className="text-xs text-muted-foreground">{t("card.perHour")}</span>
+          </div>
         </div>
         <CardTitle
           className="transition-colors duration-200 line-clamp-1 text-base"
