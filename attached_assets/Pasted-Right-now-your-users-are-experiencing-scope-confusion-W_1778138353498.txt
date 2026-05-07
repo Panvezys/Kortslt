@@ -1,0 +1,55 @@
+Right now, your users are experiencing "scope confusion." When they click into a specific court, the main content changes to the court scope, but the sidebar stays in the facility scope. This makes them wonder: "If I click 'Nustatymai' (Settings) right now, am I editing the whole facility or just this one court?"
+
+The cleanest and most industry-standard way to solve this is to implement Contextual Sidebars. When a user drills down into a specific court, the entire sidebar should swap to a "Court-Specific" menu, with a very prominent "Back to Facility" button at the top.
+
+Here is a highly detailed, copy-pasteable prompt for your Replit Agent to execute this architectural shift.
+
+Copy and Paste this into Replit
+Plaintext
+Objective: Refactor the Owner Dashboard layout to implement "Contextual Sidebars" to fix scope confusion. Currently, navigating to a specific court keeps the global Facility sidebar, mixing facility-level and court-level actions. We need two distinct sidebars: one for the Facility scope, and one for the Court scope.
+
+Step 1: Router & Layout Restructuring
+1. Review the current routing structure for the owner dashboard.
+2. Create or separate the layouts into two distinct components: `FacilityLayout.tsx` and `CourtLayout.tsx` (or handle the conditional rendering cleanly within the existing `OwnerLayout.tsx` based on the URL params).
+3. URL Structure should logically reflect the scope:
+   - Facility Scope: `/owner/facilities/:facilityId/*`
+   - Court Scope: `/owner/facilities/:facilityId/courts/:courtId/*`
+
+Step 2: Create the Facility Sidebar
+1. This is the default sidebar when viewing the Facility Dashboard.
+2. Top Header: Display the Facility Name (e.g., "UAB Testine aikstele").
+3. Navigation Links:
+   - Suvestinė (Dashboard / Overview)
+   - Mano aikštelės (My Courts) -> Keep the existing dropdown/list here. Clicking a court transitions the user to the Court Scope.
+   - Treneriai (Facility Coaches)
+   - Žinutės (Messages)
+   - Turnyrai (Facility Tournaments)
+   - Mokėjimai (Payments - Global)
+   - Nustatymai (Facility Settings)
+
+Step 3: Create the Court Sidebar
+1. This sidebar replaces the Facility sidebar entirely when a user is on a `/courts/:courtId/*` route.
+2. Top Action: A prominent "← Grįžti į kompleksą" (Back to facility) button that links back to the Facility Dashboard.
+3. Top Header: Display the Court Name and Sport badge (e.g., "Teniso kortai" with the Tennis badge).
+4. Navigation Links:
+   - Suvestinė (Court Dashboard - The view with the 4 stat cards and calendar)
+   - Grafikas (Schedule)
+   - Treneriai (Court-specific Coaches)
+   - Turnyrai (Court-specific Tournaments)
+   - Nustatymai (Court-specific Settings - like pricing, surface type, isActive toggle)
+
+Step 4: Refactor the Pages to Accept Scope
+1. Update existing pages like Settings, Coaches, and Tournaments. 
+2. If the user clicks "Nustatymai" from the Facility Sidebar, they should see the facility settings form (Name, Address, Registration code).
+3. If the user clicks "Nustatymai" from the Court Sidebar, they should see the court settings form (Price, Surface speed, Indoor/Outdoor).
+4. Ensure the React Router passes down the `courtId` to these components so the backend queries fetch the correct scoped data.
+
+Step 5: Visual Polish & UX
+1. Ensure the active state (highlighted background/text color) works perfectly in both sidebars to indicate which tab the user is currently on.
+2. Add a subtle visual distinction to the Court Sidebar (e.g., a slightly different background tint or a thin colored left border on the active items) so the user subconsciously recognizes they are in a "drilled-down" sub-menu, not the main menu.
+Why this approach works best:
+Zero Ambiguity: By replacing the sidebar, the user can only click actions that apply to the exact court they are looking at.
+
+Scalability: If you later add features like "Court-Specific Discount Codes" or "Court Maintenance Logs," you have a dedicated menu to put them in without cluttering the main Facility dashboard.
+
+The "Escape Hatch": The prominent "← Grįžti į kompleksą" button at the top left anchors the user so they never feel lost.
