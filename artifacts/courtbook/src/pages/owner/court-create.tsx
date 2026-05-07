@@ -664,15 +664,7 @@ export default function CourtCreatePage() {
           <div className="p-6">
             <Form {...form}>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (formTab !== "contact") {
-                    const idx = TABS.findIndex((t) => t.id === formTab);
-                    if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
-                    return;
-                  }
-                  form.handleSubmit(onSubmit, onInvalid)(e);
-                }}
+                onSubmit={(e) => e.preventDefault()}
                 className="space-y-4"
               >
                 {formTab === "info" && (
@@ -1240,6 +1232,7 @@ export default function CourtCreatePage() {
                     )}
                     {formTab !== "contact" ? (
                       <Button
+                        key="nav-next"
                         type="button"
                         size="sm"
                         onClick={() => {
@@ -1251,8 +1244,10 @@ export default function CourtCreatePage() {
                       </Button>
                     ) : (
                       <Button
-                        type="submit"
+                        key="nav-submit"
+                        type="button"
                         size="sm"
+                        onClick={form.handleSubmit(onSubmit, onInvalid)}
                         disabled={createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}
                       >
                         {isEdit
