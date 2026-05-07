@@ -1,5 +1,7 @@
-import { useMemo, useState, type ReactNode, type ComponentType } from "react";
+import { useMemo, useState, useEffect, type ReactNode, type ComponentType } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import {
   LayoutDashboard,
   Building2,
@@ -11,10 +13,14 @@ import {
   MessageSquare,
   X,
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
+import { getSportLabel } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
 
 export function useFacilityId(): number | undefined {
   const [location] = useLocation();
@@ -47,7 +53,7 @@ function buildNavItems(facilityId?: number): NavItem[] {
       href: facilityId ? `/owner/facility/${facilityId}` : `/owner`,
       match: (l) =>
         l === "/owner" ||
-        (l.startsWith("/owner/facility") && !l.endsWith("/messages")),
+        (l.startsWith("/owner/facility") && !l.endsWith("/messages") && !l.includes("/court/")),
     },
     {
       icon: Users,
@@ -87,6 +93,18 @@ function buildNavItems(facilityId?: number): NavItem[] {
   ];
 }
 
+interface Court {
+  id: number;
+  name: string;
+  type: string;
+  status?: string;
+}
+
+interface FacilityWithCourts {
+  id: number;
+  courts?: Court[];
+}
+
 interface OwnerSidebarProps {
   open: boolean;
   onClose: () => void;
@@ -97,6 +115,34 @@ interface OwnerSidebarProps {
 function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarProps) {
   const [location, navigate] = useLocation();
   const items = buildNavItems(facilityId);
+
+  const onCourtRoute = facilityId
+    ? location.includes(`/owner/facility/${facilityId}/court/`)
+    : false;
+
+  const [courtsOpen, setCourtsOpen] = useState(onCourtRoute);
+
+  useEffect(() => {
+    if (onCourtRoute) setCourtsOpen(true);
+  }, [onCourtRoute]);
+
+  const { data: facilities } = useQuery<FacilityWithCourts[]>({
+    queryKey: ["owner-facilities"],
+    queryFn: () => customFetch<FacilityWithCourts[]>(`${API_URL}/facilities`),
+    enabled: !!facilityId,
+    staleTime: 60_000,
+  });
+
+  const facilityCourts: Court[] = facilityId
+    ? (facilities?.find(f => f.id === facilityId)?.courts ?? [])
+    : [];
+
+  const showCourtsDropdown = facilityId && facilityCourts.length > 1;
+
+  const [mano, ...rest] = items;
+  const treneriai = rest[0];
+  const afterDropdown = rest.slice(1);
+
   return (
     <>
       {open && (
@@ -151,7 +197,87 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
             Valdymas
           </p>
-          {items.map((item) => {
+
+          {/* "Mano aikštelės" — first item */}
+          {[mano].map((item) => {
+            const active = item.match(location);
+            return (
+              <a
+                key={item.label}
+                href={`${BASE_URL}${item.href}`}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onClose();
+                  navigate(item.href);
+                }}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </a>
+            );
+          })}
+
+          {/* Courts dropdown — only when facility has 2+ courts */}
+          {showCourtsDropdown && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setCourtsOpen(o => !o)}
+                className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <span className="flex items-center gap-3">
+                  <Building2 className="h-4 w-4 shrink-0 opacity-60" />
+                  Kortai
+                </span>
+                {courtsOpen
+                  ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                  : <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                }
+              </button>
+
+              {courtsOpen && (
+                <div className="ml-3 mt-0.5 pl-3 border-l border-border/60 space-y-0.5">
+                  {facilityCourts.map((court) => {
+                    const courtHref = `/owner/facility/${facilityId}/court/${court.id}`;
+                    const active = location.startsWith(courtHref);
+                    return (
+                      <a
+                        key={court.id}
+                        href={`${BASE_URL}${courtHref}`}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                          e.preventDefault();
+                          onClose();
+                          navigate(courtHref);
+                        }}
+                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                          active
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        <span className="truncate flex-1 min-w-0">{court.name}</span>
+                        {court.type && (
+                          <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                            {getSportLabel(court.type)}
+                          </span>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* "Treneriai" and the rest */}
+          {[treneriai, ...afterDropdown].map((item) => {
             const active = item.match(location);
             return (
               <a
