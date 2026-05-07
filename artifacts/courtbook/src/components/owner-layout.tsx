@@ -198,83 +198,79 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             Valdymas
           </p>
 
-          {/* "Mano aikštelės" — first item */}
-          {[mano].map((item) => {
-            const active = item.match(location);
+          {/* "Mano aikštelės" — with optional courts chevron when facility has 2+ courts */}
+          {(() => {
+            const active = mano.match(location);
             return (
-              <a
-                key={item.label}
-                href={`${BASE_URL}${item.href}`}
-                onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  e.preventDefault();
-                  onClose();
-                  navigate(item.href);
-                }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              <div>
+                <div className={`flex items-center rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-primary/10 text-primary font-semibold"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-
-          {/* Courts dropdown — only when facility has 2+ courts */}
-          {showCourtsDropdown && (
-            <div>
-              <button
-                type="button"
-                onClick={() => setCourtsOpen(o => !o)}
-                className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <span className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 shrink-0 opacity-60" />
-                  Kortai
-                </span>
-                {courtsOpen
-                  ? <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  : <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                }
-              </button>
-
-              {courtsOpen && (
-                <div className="ml-3 mt-0.5 pl-3 border-l border-border/60 space-y-0.5">
-                  {facilityCourts.map((court) => {
-                    const courtHref = `/owner/facility/${facilityId}/court/${court.id}`;
-                    const active = location.startsWith(courtHref);
-                    return (
-                      <a
-                        key={court.id}
-                        href={`${BASE_URL}${courtHref}`}
-                        onClick={(e) => {
-                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                          e.preventDefault();
-                          onClose();
-                          navigate(courtHref);
-                        }}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-                          active
-                            ? "bg-primary/10 text-primary font-semibold"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }`}
-                      >
-                        <span className="truncate flex-1 min-w-0">{court.name}</span>
-                        {court.type && (
-                          <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
-                            {getSportLabel(court.type)}
-                          </span>
-                        )}
-                      </a>
-                    );
-                  })}
+                }`}>
+                  <a
+                    href={`${BASE_URL}${mano.href}`}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                      e.preventDefault();
+                      onClose();
+                      navigate(mano.href);
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 flex-1 min-w-0"
+                  >
+                    <mano.icon className="h-4 w-4 shrink-0" />
+                    {mano.label}
+                  </a>
+                  {showCourtsDropdown && (
+                    <button
+                      type="button"
+                      onClick={() => setCourtsOpen(o => !o)}
+                      className="px-2 py-2 rounded-r-lg hover:bg-black/10 transition-colors shrink-0"
+                      aria-label="Rodyti kortus"
+                    >
+                      {courtsOpen
+                        ? <ChevronDown className="h-3.5 w-3.5" />
+                        : <ChevronRight className="h-3.5 w-3.5" />
+                      }
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+
+                {showCourtsDropdown && courtsOpen && (
+                  <div className="ml-3 mt-0.5 pl-3 border-l border-border/60 space-y-0.5">
+                    {facilityCourts.map((court) => {
+                      const courtHref = `/owner/facility/${facilityId}/court/${court.id}`;
+                      const courtActive = location.startsWith(courtHref);
+                      return (
+                        <a
+                          key={court.id}
+                          href={`${BASE_URL}${courtHref}`}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                            e.preventDefault();
+                            onClose();
+                            navigate(courtHref);
+                          }}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                            courtActive
+                              ? "bg-primary/10 text-primary font-semibold"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          }`}
+                        >
+                          <span className="truncate flex-1 min-w-0">{court.name}</span>
+                          {court.type && (
+                            <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                              {getSportLabel(court.type)}
+                            </span>
+                          )}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* "Treneriai" and the rest */}
           {[treneriai, ...afterDropdown].map((item) => {
