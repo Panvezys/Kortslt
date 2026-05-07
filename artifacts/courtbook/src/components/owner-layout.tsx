@@ -139,7 +139,7 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
 
   const showCourtsDropdown = facilityId && facilityCourts.length > 1;
 
-  const [mano, ...rest] = items;
+  const [suvestine, mano, ...rest] = items;
   const treneriai = rest[0];
   const afterDropdown = rest.slice(1);
 
@@ -197,6 +197,31 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
           <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
             Valdymas
           </p>
+
+          {/* "Suvestinė" — plain nav item */}
+          {[suvestine].map((item) => {
+            const active = item.match(location);
+            return (
+              <a
+                key={item.label}
+                href={`${BASE_URL}${item.href}`}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  onClose();
+                  navigate(item.href);
+                }}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </a>
+            );
+          })}
 
           {/* "Mano aikštelės" — with optional courts chevron when facility has 2+ courts */}
           {(() => {
