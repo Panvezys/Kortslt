@@ -663,7 +663,18 @@ export default function CourtCreatePage() {
 
           <div className="p-6">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (formTab !== "contact") {
+                    const idx = TABS.findIndex((t) => t.id === formTab);
+                    if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
+                    return;
+                  }
+                  form.handleSubmit(onSubmit, onInvalid)(e);
+                }}
+                className="space-y-4"
+              >
                 {formTab === "info" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
