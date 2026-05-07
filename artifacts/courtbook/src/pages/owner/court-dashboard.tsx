@@ -1,16 +1,14 @@
 import { useState } from "react";
-import { Link, useLocation, useParams } from "wouter";
+import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  LayoutDashboard, Building2, CreditCard, Settings,
-  LogOut, Menu, X, ArrowLeft, BarChart3, Euro, CalendarDays,
-  Users, Clock, CheckCircle2, XCircle, ChevronRight, ExternalLink, Ban, Trophy,
+  X, ArrowLeft, CalendarDays, ExternalLink, Ban,
 } from "lucide-react";
-import { CourtIcon, SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { SportPill } from "@/components/sport-icon";
+import { OwnerLayout } from "@/components/owner-layout";
 import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -70,80 +68,6 @@ interface Booking {
   id: number; courtId: number; customerName: string; customerEmail: string;
   customerPhone?: string | null; date: string; startTime: string; endTime: string;
   totalPrice: number; status: string; createdAt: string;
-}
-
-function buildNavItems(facilityId: number | string | null) {
-  if (!facilityId) return [
-    { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard` },
-    { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner` },
-    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
-    { icon: Trophy,          label: "Turnyrai",       href: `${BASE_URL}/owner/tournaments` },
-    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments` },
-    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings` },
-  ];
-  const fid = Number(facilityId);
-  return [
-    { icon: LayoutDashboard, label: "Suvestinė",      href: `${BASE_URL}/owner/dashboard?facility=${fid}` },
-    { icon: Building2,       label: "Mano aikštelės", href: `${BASE_URL}/owner/facility/${fid}` },
-    { icon: Users,           label: "Treneriai",      href: `${BASE_URL}/owner/coaches` },
-    { icon: Trophy,          label: "Turnyrai",       href: `${BASE_URL}/owner/tournaments` },
-    { icon: CreditCard,      label: "Mokėjimai",      href: `${BASE_URL}/owner/payments?facility=${fid}` },
-    { icon: Settings,        label: "Nustatymai",     href: `${BASE_URL}/owner/settings?facility=${fid}` },
-  ];
-}
-
-function Sidebar({ open, onClose, facilityId, facilityName, activeHref }: {
-  open: boolean; onClose: () => void; facilityId: number | null; facilityName?: string; activeHref: string;
-}) {
-  const [, navigate] = useLocation();
-  const navItems = buildNavItems(facilityId);
-  return (
-    <>
-      {open && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onClose} />}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-60 bg-card border-r border-border flex flex-col
-        transition-transform duration-200
-        ${open ? "translate-x-0" : "-translate-x-full"}
-        md:relative md:translate-x-0 md:flex md:z-auto
-      `}>
-        <div className="flex items-center justify-between px-5 h-16 border-b border-border shrink-0">
-          <Link href="/" className="font-bold text-lg tracking-tight">korts<span className="text-primary">.lt</span></Link>
-          <button onClick={onClose} className="md:hidden p-1 rounded hover:bg-muted"><X className="h-4 w-4" /></button>
-        </div>
-        {facilityName && (
-          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">Objektas</p>
-            <p className="text-sm font-medium truncate">{facilityName}</p>
-          </div>
-        )}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">Valdymas</p>
-          {navItems.map(item => {
-            const isActive = activeHref === item.href;
-            return (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={e => { e.preventDefault(); onClose(); navigate(item.href.replace(BASE_URL, "") || "/"); }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-        </nav>
-        <div className="border-t border-border px-3 py-3">
-          <button onClick={() => navigate("/")} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-            <LogOut className="h-4 w-4" />
-            Grįžti į svetainę
-          </button>
-        </div>
-      </aside>
-    </>
-  );
 }
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
@@ -329,7 +253,6 @@ export default function OwnerCourtDashboard() {
   const facilityId = params.facilityId;
   const courtId = params.courtId;
   const [, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
   const [blockOpen, setBlockOpen] = useState(false);
 
@@ -339,31 +262,24 @@ export default function OwnerCourtDashboard() {
     enabled: !!courtId,
   });
 
-  const today = todayStr();
-
   if (isLoading) {
     return (
-      <div className="flex h-screen bg-muted/20 overflow-hidden">
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} facilityId={Number(facilityId) || null} activeHref="" />
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <div className="h-16 border-b border-border flex items-center px-6"><Skeleton className="h-5 w-48" /></div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-            </div>
-            <Skeleton className="h-36 rounded-2xl" />
-            <Skeleton className="h-80 rounded-2xl" />
+      <OwnerLayout facilityId={Number(facilityId) || undefined} title="Aikštelė">
+        <div className="p-4 md:p-6 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
           </div>
+          <Skeleton className="h-36 rounded-2xl" />
+          <Skeleton className="h-80 rounded-2xl" />
         </div>
-      </div>
+      </OwnerLayout>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="flex h-screen bg-muted/20 overflow-hidden">
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} facilityId={Number(facilityId) || null} activeHref="" />
-        <div className="flex-1 flex items-center justify-center">
+      <OwnerLayout facilityId={Number(facilityId) || undefined} title="Aikštelė">
+        <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <p className="text-muted-foreground mb-4">Nepavyko gauti duomenų</p>
             <Button variant="outline" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
@@ -371,7 +287,7 @@ export default function OwnerCourtDashboard() {
             </Button>
           </div>
         </div>
-      </div>
+      </OwnerLayout>
     );
   }
 
@@ -387,38 +303,15 @@ export default function OwnerCourtDashboard() {
   const facilityIdNum = court.facilityId ?? Number(facilityId);
 
   return (
-    <div className="flex h-screen bg-muted/20 overflow-hidden">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        facilityId={facilityIdNum}
-        facilityName={facility?.name}
-        activeHref=""
-      />
-
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Top bar */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors">
-              <Menu className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => navigate(`/owner/facility/${facilityIdNum}`)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">{facility?.name ?? "Kortas"}</span>
-            </button>
-            <span className="text-muted-foreground/40">/</span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-base leading-tight">{court.name}</h1>
-                <SportPill sport={court.type} variant="subtle" className="hidden sm:inline-flex" />
-              </div>
-            </div>
+    <OwnerLayout facilityId={facilityIdNum} facilityName={facility?.name} title={court.name}>
+      <div className="flex flex-col">
+        {/* Page header with court actions */}
+        <header className="bg-card border-b border-border flex items-center justify-between px-4 md:px-6 py-3 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">{court.name}</h1>
+            <SportPill sport={court.type} variant="subtle" className="hidden sm:inline-flex" />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               size="sm" variant="outline" className="gap-1.5 text-xs"
               onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
@@ -433,16 +326,10 @@ export default function OwnerCourtDashboard() {
               <Ban className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Blokuoti</span>
             </Button>
-            <Button
-              size="sm" variant="outline" className="gap-1.5 text-xs"
-              onClick={() => navigate(`/owner/facility/${facilityIdNum}?editCourt=${court.id}`)}
-            >
-              Valdyti
-            </Button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+        <div className="p-4 md:p-6 space-y-5">
           {/* Stats row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
@@ -520,6 +407,6 @@ export default function OwnerCourtDashboard() {
         onClose={() => setBlockOpen(false)}
         courtId={Number(courtId)}
       />
-    </div>
+    </OwnerLayout>
   );
 }

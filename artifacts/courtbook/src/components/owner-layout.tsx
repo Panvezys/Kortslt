@@ -15,9 +15,10 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  Star,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
-import { getSportLabel } from "@/components/sport-icon";
+import { getSportLabel, SportPill } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -31,6 +32,12 @@ export function useFacilityId(): number | undefined {
   }, [location]);
 }
 
+function getCourtScope(location: string): { facilityId: number; courtId: number } | null {
+  const m = location.match(/^\/owner\/facility\/(\d+)\/court\/(\d+)(?:\/|$)/);
+  if (!m) return null;
+  return { facilityId: Number(m[1]), courtId: Number(m[2]) };
+}
+
 interface NavItem {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -38,7 +45,7 @@ interface NavItem {
   match: (location: string) => boolean;
 }
 
-function buildNavItems(facilityId?: number): NavItem[] {
+function buildFacilityNavItems(facilityId?: number): NavItem[] {
   const fq = facilityId ? `?facility=${facilityId}` : "";
   return [
     {
@@ -93,6 +100,36 @@ function buildNavItems(facilityId?: number): NavItem[] {
   ];
 }
 
+function buildCourtNavItems(facilityId: number, courtId: number): NavItem[] {
+  const base = `/owner/facility/${facilityId}/court/${courtId}`;
+  return [
+    {
+      icon: LayoutDashboard,
+      label: "Suvestinė",
+      href: base,
+      match: (l) => l === base,
+    },
+    {
+      icon: Users,
+      label: "Treneriai",
+      href: `${base}/coaches`,
+      match: (l) => l.startsWith(`${base}/coaches`),
+    },
+    {
+      icon: Star,
+      label: "Narystės",
+      href: `${base}/memberships`,
+      match: (l) => l.startsWith(`${base}/memberships`),
+    },
+    {
+      icon: Settings,
+      label: "Nustatymai",
+      href: `${base}/edit`,
+      match: (l) => l.startsWith(`${base}/edit`),
+    },
+  ];
+}
+
 interface Court {
   id: number;
   name: string;
@@ -105,26 +142,53 @@ interface FacilityWithCourts {
   courts?: Court[];
 }
 
-interface OwnerSidebarProps {
+// ── Shared row ────────────────────────────────────────────────────────────────
+
+function NavLink({
+  item,
+  active,
+  onNavigate,
+  accent = false,
+}: {
+  item: NavItem;
+  active: boolean;
+  onNavigate: (href: string) => void;
+  accent?: boolean;
+}) {
+  return (
+    <a
+      href={`${BASE_URL}${item.href}`}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        onNavigate(item.href);
+      }}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+        active
+          ? accent
+            ? "bg-primary/10 text-primary font-semibold border-l-2 border-primary -ml-[2px] pl-[calc(0.75rem-2px)]"
+            : "bg-primary/10 text-primary font-semibold"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}
+    >
+      <item.icon className="h-4 w-4 shrink-0" />
+      {item.label}
+    </a>
+  );
+}
+
+// ── Facility sidebar (default) ────────────────────────────────────────────────
+
+interface FacilitySidebarProps {
   open: boolean;
   onClose: () => void;
   facilityId?: number;
   facilityName?: string;
 }
 
-function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarProps) {
+function FacilitySidebar({ open, onClose, facilityId, facilityName }: FacilitySidebarProps) {
   const [location, navigate] = useLocation();
-  const items = buildNavItems(facilityId);
-
-  const onCourtRoute = facilityId
-    ? location.includes(`/owner/facility/${facilityId}/court/`)
-    : false;
-
-  const [courtsOpen, setCourtsOpen] = useState(onCourtRoute);
-
-  useEffect(() => {
-    if (onCourtRoute) setCourtsOpen(true);
-  }, [onCourtRoute]);
+  const items = buildFacilityNavItems(facilityId);
 
   const { data: facilities } = useQuery<FacilityWithCourts[]>({
     queryKey: ["owner-facilities"],
@@ -134,26 +198,230 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
   });
 
   const facilityCourts: Court[] = facilityId
-    ? (facilities?.find(f => f.id === facilityId)?.courts ?? [])
+    ? (facilities?.find((f) => f.id === facilityId)?.courts ?? [])
     : [];
 
   const showCourtsDropdown = facilityId && facilityCourts.length > 1;
+  const [courtsOpen, setCourtsOpen] = useState(false);
 
   const [suvestine, mano, ...rest] = items;
   const treneriai = rest[0];
   const afterDropdown = rest.slice(1);
 
+  const onNavigate = (href: string) => {
+    onClose();
+    navigate(href);
+  };
+
+  return (
+    <SidebarShell open={open} onClose={onClose}>
+      {facilityName && (
+        <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30 shrink-0">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">
+            Objektas
+          </p>
+          <p className="text-sm font-medium truncate">{facilityName}</p>
+        </div>
+      )}
+      <div className="shrink-0 border-b border-border/60 p-3">
+        <a
+          href={`${BASE_URL}/owner`}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            onNavigate("/owner");
+          }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white transition-colors w-full"
+        >
+          <ArrowLeft className="h-4 w-4 shrink-0" />
+          Grįžti į objektus
+        </a>
+      </div>
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
+          Valdymas
+        </p>
+
+        <NavLink item={suvestine} active={suvestine.match(location)} onNavigate={onNavigate} />
+
+        {/* "Mano aikštelės" + optional courts dropdown chevron */}
+        {(() => {
+          const active = mano.match(location);
+          return (
+            <div>
+              <div
+                className={`flex items-center rounded-lg text-sm transition-colors ${
+                  active
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <a
+                  href={`${BASE_URL}${mano.href}`}
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    onNavigate(mano.href);
+                  }}
+                  className="flex items-center gap-3 px-3 py-2 flex-1 min-w-0"
+                >
+                  <mano.icon className="h-4 w-4 shrink-0" />
+                  {mano.label}
+                </a>
+                {showCourtsDropdown && (
+                  <button
+                    type="button"
+                    onClick={() => setCourtsOpen((o) => !o)}
+                    className="px-2 py-2 rounded-r-lg hover:bg-black/10 transition-colors shrink-0"
+                    aria-label="Rodyti kortus"
+                  >
+                    {courtsOpen ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {showCourtsDropdown && courtsOpen && (
+                <div className="ml-3 mt-0.5 pl-3 border-l border-border/60 space-y-0.5">
+                  {facilityCourts.map((court) => {
+                    const courtHref = `/owner/facility/${facilityId}/court/${court.id}`;
+                    return (
+                      <a
+                        key={court.id}
+                        href={`${BASE_URL}${courtHref}`}
+                        onClick={(e) => {
+                          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                          e.preventDefault();
+                          onNavigate(courtHref);
+                        }}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <span className="truncate flex-1 min-w-0">{court.name}</span>
+                        {court.type && (
+                          <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
+                            {getSportLabel(court.type)}
+                          </span>
+                        )}
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {[treneriai, ...afterDropdown].map((item) => (
+          <NavLink key={item.label} item={item} active={item.match(location)} onNavigate={onNavigate} />
+        ))}
+      </nav>
+    </SidebarShell>
+  );
+}
+
+// ── Court sidebar (drilled-in scope) ──────────────────────────────────────────
+
+interface CourtSidebarProps {
+  open: boolean;
+  onClose: () => void;
+  facilityId: number;
+  courtId: number;
+  facilityName?: string;
+}
+
+function CourtSidebar({ open, onClose, facilityId, courtId, facilityName }: CourtSidebarProps) {
+  const [location, navigate] = useLocation();
+  const items = buildCourtNavItems(facilityId, courtId);
+
+  const { data: court } = useQuery<{ name?: string; type?: string }>({
+    queryKey: ["court-detail", courtId],
+    queryFn: () => customFetch(`${API_URL}/courts/${courtId}`),
+    enabled: !!courtId,
+    staleTime: 60_000,
+  });
+
+  const onNavigate = (href: string) => {
+    onClose();
+    navigate(href);
+  };
+
+  return (
+    <SidebarShell open={open} onClose={onClose} accent>
+      {/* Back to facility — prominent at the top */}
+      <div className="shrink-0 border-b border-border/60 p-3">
+        <a
+          href={`${BASE_URL}/owner/facility/${facilityId}`}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            onNavigate(`/owner/facility/${facilityId}`);
+          }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-primary hover:bg-primary hover:text-primary-foreground transition-colors w-full"
+        >
+          <ArrowLeft className="h-4 w-4 shrink-0" />
+          <span className="truncate">Grįžti į kompleksą</span>
+        </a>
+        {facilityName && (
+          <p className="text-[10px] text-muted-foreground mt-1 px-3 truncate">{facilityName}</p>
+        )}
+      </div>
+
+      {/* Court header */}
+      <div className="px-4 py-3 border-b border-border/60 bg-primary/5 shrink-0">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">
+          Aikštelė
+        </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-sm font-semibold truncate flex-1 min-w-0">
+            {court?.name ?? "…"}
+          </p>
+          {court?.type && <SportPill sport={court.type} variant="subtle" />}
+        </div>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
+          Šios aikštelės valdymas
+        </p>
+        {items.map((item) => (
+          <NavLink
+            key={item.label}
+            item={item}
+            active={item.match(location)}
+            onNavigate={onNavigate}
+            accent
+          />
+        ))}
+      </nav>
+    </SidebarShell>
+  );
+}
+
+// ── Shared shell (drawer/sticky aside) ────────────────────────────────────────
+
+function SidebarShell({
+  open,
+  onClose,
+  children,
+  accent = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  accent?: boolean;
+}) {
   return (
     <>
       {open && (
-        <div
-          className="fixed inset-0 bg-black/50 z-[55] md:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 bg-black/50 z-[55] md:hidden" onClick={onClose} />
       )}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-[60] w-60 bg-card border-r border-border flex flex-col
+          fixed inset-y-0 left-0 z-[60] w-60 bg-card border-r flex flex-col
+          ${accent ? "border-r-primary/40" : "border-border"}
           transition-transform duration-200
           ${open ? "translate-x-0" : "-translate-x-full"}
           md:sticky md:translate-x-0 md:flex md:self-start md:z-auto
@@ -170,162 +438,13 @@ function OwnerSidebar({ open, onClose, facilityId, facilityName }: OwnerSidebarP
             <X className="h-4 w-4" />
           </button>
         </div>
-        {facilityName && (
-          <div className="px-4 py-2.5 border-b border-border/60 bg-muted/30 shrink-0">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-0.5">
-              Objektas
-            </p>
-            <p className="text-sm font-medium truncate">{facilityName}</p>
-          </div>
-        )}
-        <div className="shrink-0 border-b border-border/60 p-3">
-          <a
-            href={`${BASE_URL}/owner`}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              onClose();
-              navigate("/owner");
-            }}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-600 hover:text-white transition-colors w-full"
-          >
-            <ArrowLeft className="h-4 w-4 shrink-0" />
-            Grįžti į objektus
-          </a>
-        </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest px-3 pb-2">
-            Valdymas
-          </p>
-
-          {/* "Suvestinė" — plain nav item */}
-          {[suvestine].map((item) => {
-            const active = item.match(location);
-            return (
-              <a
-                key={item.label}
-                href={`${BASE_URL}${item.href}`}
-                onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  e.preventDefault();
-                  onClose();
-                  navigate(item.href);
-                }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-
-          {/* "Mano aikštelės" — with optional courts chevron when facility has 2+ courts */}
-          {(() => {
-            const active = mano.match(location);
-            return (
-              <div>
-                <div className={`flex items-center rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}>
-                  <a
-                    href={`${BASE_URL}${mano.href}`}
-                    onClick={(e) => {
-                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                      e.preventDefault();
-                      onClose();
-                      navigate(mano.href);
-                    }}
-                    className="flex items-center gap-3 px-3 py-2 flex-1 min-w-0"
-                  >
-                    <mano.icon className="h-4 w-4 shrink-0" />
-                    {mano.label}
-                  </a>
-                  {showCourtsDropdown && (
-                    <button
-                      type="button"
-                      onClick={() => setCourtsOpen(o => !o)}
-                      className="px-2 py-2 rounded-r-lg hover:bg-black/10 transition-colors shrink-0"
-                      aria-label="Rodyti kortus"
-                    >
-                      {courtsOpen
-                        ? <ChevronDown className="h-3.5 w-3.5" />
-                        : <ChevronRight className="h-3.5 w-3.5" />
-                      }
-                    </button>
-                  )}
-                </div>
-
-                {showCourtsDropdown && courtsOpen && (
-                  <div className="ml-3 mt-0.5 pl-3 border-l border-border/60 space-y-0.5">
-                    {facilityCourts.map((court) => {
-                      const courtHref = `/owner/facility/${facilityId}/court/${court.id}`;
-                      const courtActive = location.startsWith(courtHref);
-                      return (
-                        <a
-                          key={court.id}
-                          href={`${BASE_URL}${courtHref}`}
-                          onClick={(e) => {
-                            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                            e.preventDefault();
-                            onClose();
-                            navigate(courtHref);
-                          }}
-                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-                            courtActive
-                              ? "bg-primary/10 text-primary font-semibold"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          }`}
-                        >
-                          <span className="truncate flex-1 min-w-0">{court.name}</span>
-                          {court.type && (
-                            <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
-                              {getSportLabel(court.type)}
-                            </span>
-                          )}
-                        </a>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* "Treneriai" and the rest */}
-          {[treneriai, ...afterDropdown].map((item) => {
-            const active = item.match(location);
-            return (
-              <a
-                key={item.label}
-                href={`${BASE_URL}${item.href}`}
-                onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  e.preventDefault();
-                  onClose();
-                  navigate(item.href);
-                }}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            );
-          })}
-        </nav>
+        {children}
       </aside>
     </>
   );
 }
+
+// ── OwnerLayout entry point ───────────────────────────────────────────────────
 
 export interface OwnerLayoutProps {
   facilityId?: number;
@@ -341,18 +460,35 @@ export function OwnerLayout({
   children,
 }: OwnerLayoutProps) {
   const detectedId = useFacilityId();
-  const facilityId = facilityIdProp ?? detectedId;
+  const [location] = useLocation();
+  const courtScope = getCourtScope(location);
+  const facilityId = courtScope?.facilityId ?? facilityIdProp ?? detectedId;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close drawer when route changes
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
 
   return (
     <Layout>
       <div className="flex bg-muted/20 min-h-[calc(100dvh-4rem)]">
-        <OwnerSidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          facilityId={facilityId}
-          facilityName={facilityName}
-        />
+        {courtScope ? (
+          <CourtSidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            facilityId={courtScope.facilityId}
+            courtId={courtScope.courtId}
+            facilityName={facilityName}
+          />
+        ) : (
+          <FacilitySidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            facilityId={facilityId}
+            facilityName={facilityName}
+          />
+        )}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="md:hidden flex items-center gap-3 px-4 h-12 border-b border-border bg-card">
             <button
