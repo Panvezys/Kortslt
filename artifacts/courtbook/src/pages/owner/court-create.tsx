@@ -909,7 +909,10 @@ export default function CourtCreatePage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">Pakeisti kainas galima paspaudus ant tarpo. Pakeitimai bus išsaugoti sukūrus aikštelę.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pakeisti kainas galima paspaudus ant tarpo.{" "}
+                      {isEdit ? "Pakeitimai bus išsaugoti paspaudus mygtką \"Išsaugoti pakeitimus\"." : "Pakeitimai bus išsaugoti sukūrus aikštelę."}
+                    </p>
                   </div>
                 )}
 
@@ -1211,32 +1214,45 @@ export default function CourtCreatePage() {
                     <Button type="button" variant="ghost" size="sm" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
                       Atšaukti
                     </Button>
-                    {!isEdit && (
+                    {isEdit ? (
+                      <Button type="button" variant="outline" size="sm"
+                        onClick={form.handleSubmit(onSubmit, onInvalid)}
+                        disabled={updateCourt.isPending || createCourt.isPending || setPricing.isPending || uploadingGallery}>
+                        {updateCourt.isPending ? "Saugoma..." : "Išsaugoti"}
+                      </Button>
+                    ) : (
                       <Button type="button" variant="outline" size="sm"
                         onClick={saveAsDraft}
                         disabled={savingDraft || createCourt.isPending}>
                         {savingDraft ? "Saugoma..." : "Išsaugoti juodraštį"}
                       </Button>
                     )}
-                    <Button
-                      type={formTab === "contact" ? "submit" : "button"}
-                      size="sm"
-                      onClick={formTab !== "contact" ? () => {
-                        const idx = TABS.findIndex((t) => t.id === formTab);
-                        if (idx < TABS.length - 1) setFormTab(TABS[idx + 1].id);
-                      } : undefined}
-                      disabled={formTab === "contact" && (createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft)}
-                    >
-                      {formTab === "contact"
-                        ? (isEdit
-                            ? (updateCourt.isPending ? "Saugoma..." : "Išsaugoti pakeitimus")
-                            : (createCourt.isPending
-                                ? "Kuriama..."
-                                : uploadingGallery
-                                  ? `Keliama nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
-                                  : "Sukurti aikštelę"))
-                        : "Toliau →"}
-                    </Button>
+                    {formTab !== "contact" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          const idx = TABS.findIndex((t) => t.id === formTab);
+                          setFormTab(TABS[idx + 1].id);
+                        }}
+                      >
+                        Toliau →
+                      </Button>
+                    ) : (
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={createCourt.isPending || updateCourt.isPending || setPricing.isPending || uploadingGallery || savingDraft}
+                      >
+                        {isEdit
+                          ? (updateCourt.isPending ? "Saugoma..." : "Išsaugoti pakeitimus")
+                          : (createCourt.isPending
+                              ? "Kuriama..."
+                              : uploadingGallery
+                                ? `Keliamos nuotraukos${galleryProgress ? ` ${galleryProgress.current}/${galleryProgress.total}` : ""}...`
+                                : "Sukurti aikštelę")}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </form>
