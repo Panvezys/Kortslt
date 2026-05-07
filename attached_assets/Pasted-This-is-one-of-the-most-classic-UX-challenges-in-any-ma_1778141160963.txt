@@ -1,0 +1,44 @@
+This is one of the most classic UX challenges in any marketplace that uses dynamic pricing (like Airbnb, Uber, or Playtomic). If a court costs 15€ on a Tuesday morning but 30€ on a Thursday evening, what number do you put on the main search card?
+
+If you show the highest price, you scare players away. If you show an average price, you confuse them (because they can never actually book a slot for that exact average amount).
+
+Here is the industry-standard way to solve this, broken down by how the player is interacting with your platform:
+
+1. The Contextual Rule (Search-Driven Pricing)
+The price displayed on the card must completely depend on whether the player searched for a specific time or not.
+
+Scenario A: The player searched for a specific time. (e.g., Filtered for "Ketvirtadienis 19:00")
+In this case, your backend knows exactly which time slot they want. You must show the exact price for that specific hour.
+UI Text: 30€ /val
+
+Scenario B: The player is just browsing generally. (e.g., Looking at all courts in Vilnius with no date/time selected)
+Because you don't know when they want to play, you use the "From" pricing model. You query the database for the absolute lowest price this court offers and display it with the prefix "Nuo" (From).
+UI Text: nuo 15€ /val
+
+2. Why the "Nuo" (From) Model Wins
+Displaying the lowest price (min(court.prices)) is what Booking.com, Airbnb, and Playtomic do. It serves as a hook to get the player to click the card.
+
+Once they click the card and look at the actual calendar (the Court Detail Page), they will see the real prices for the prime-time slots. Players are already culturally trained to understand that "nuo 15€" probably means Tuesday at 8:00 AM, but it gets them in the door.
+
+3. The UI/UX Implementation on the Card
+To make this look clean and prevent users from feeling tricked, you need a strong visual hierarchy for the price block on the player-facing card.
+
+Here is how you should style it:
+
+The Prefix: The word "nuo" should be small, muted text (e.g., text-sm text-gray-500).
+
+The Number: The actual price should be the largest, boldest element in that block (e.g., text-lg font-bold text-gray-900).
+
+The Suffix: The "/val" should also be smaller and muted, matching the prefix.
+
+Visually, it looks like this:
+nuo 15€ /val
+
+4. The "Bait-and-Switch" Guardrail (Crucial Backend Detail)
+If you use the "Nuo" pricing model, some sneaky facility owners will create a 1€ price slot on Sunday at 3:00 AM just so their court shows up as "nuo 1€/val" on your main page to beat the competition.
+
+How to prevent this: When your backend calculates the minPrice to display on the card, do not just blindly take the lowest number in the database. Ensure that the price belongs to an isActive time slot that can actually be booked by a normal human. (Some platforms even ignore slots outside of 06:00 - 23:00 when calculating the "From" price, just to be safe).
+
+Summary for your code:
+If searchParams.time exists -> Show Exact Price.
+If searchParams.time is null -> Show nuo ${minPrice}€/val.

@@ -1,0 +1,36 @@
+This is a great, functional view. You have all the necessary data wired up. However, from a UX and UI perspective, this page is suffering from Action Overload (Button Soup).
+
+Because you just implemented Contextual Sidebars, you actually have the perfect architectural excuse to clean this up drastically.
+
+Here is a candid breakdown of what needs fixing and how to make this look like a Tier-1 SaaS product:
+
+1. The "Button Soup" (Cognitive Overload)
+The Problem: There are up to 11 clickable elements on a single card. You have Suvestinė, Redaguoti, Blokuoti, Rankinė rezervacija, Treneriai, Narystės, QR, Link, Trash, and Pateikti peržiūrai. It looks like an airplane cockpit.
+
+The Fix: Now that you have a Court-Specific Sidebar, you don't need Treneriai, Narystės, Suvestinė, or Redaguoti explicitly on the card face.
+
+Make the entire top half of the card clickable to enter the "Court Scope" (where the sidebar changes).
+
+Move secondary actions (QR code, External Link, Delete) into a simple 3-dot "Kebab" menu in the top right corner.
+
+2. Logical Inconsistencies (Draft State)
+The Problem: The cards clearly say "Juodraštis" (Draft). If a court is a draft and not live, an owner should not be able to do a "Rankinė rezervacija" (Manual booking) or "Blokuoti kortą" (Block court). You cannot block a court that doesn't exist to the public yet.
+
+The Fix: Use conditional rendering. Hide operational buttons entirely if the court is in a Draft/Pending state. Only show them if isActive === true.
+
+3. Color Hierarchy and Contrast
+The Problem: Your eye doesn't know where to look. The price is bright green, "Rankinė rezervacija" is green outline, "Pridėti aikštelę" is solid lime green, and "Pateikti peržiūrai" is a very low-contrast pale yellow/green that is hard to read.
+
+The Fix: * Change the price (20€/val) to a standard dark gray or black text. It's information, not an action.
+
+Make "Pateikti peržiūrai" (Submit for review) a highly visible, solid primary button. If the court is a draft, submitting it is the only thing you want the user to do.
+
+Reserve the green/blue outline buttons for active courts only.
+
+4. Redundant Data
+The Problem: The address (Panevėžys, Žiemgalių 10B) is repeated on every court card.
+
+The Fix: Since you are inside the Facility Dashboard ("UAB Testine aikstele"), the facility already owns the address. You don't need to repeat it on every individual court unless courts can physically be in different cities (which defeats the purpose of a facility). Removing it saves vertical space.
+
+How to fix it (Replit Prompt)
+If you agree with this cleanup, copy and paste this prompt to your agent to instantly modernize these cards:

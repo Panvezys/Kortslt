@@ -25,8 +25,12 @@ import {
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
   Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
   Star, Search, UserCheck, XCircle, LayoutDashboard, Settings, LogOut, Menu,
-  BarChart3, Camera,
+  BarChart3, Camera, MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -1263,166 +1267,191 @@ export default function OwnerFacilityDetail() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {facilityCourts.map(court => (
-              <div key={court.id} className="bg-card border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-                <div className="relative h-36 bg-muted overflow-hidden">
-                  {court.imageUrl ? (
-                    <img src={resolveCourtImage(court.imageUrl) ?? undefined} alt={court.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/15">
-                      <SportIcon sport={court.type} size={48} strokeWidth={1.5} style={{ color: getSportColor(court.type) }} className="opacity-70" />
+            {facilityCourts.map(court => {
+              const courtStatus = (court as any).status ?? "draft";
+              const isActive = courtStatus === "active";
+              const isDraftOrRejected = ["draft", "rejected"].includes(courtStatus);
+              const isActiveOrHidden = ["active", "hidden"].includes(courtStatus);
+
+              return (
+                <div key={court.id} className="bg-card border rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+
+                  {/* ── Clickable image area ─────────────────────────────── */}
+                  <div className="relative h-36 bg-muted overflow-hidden group/img">
+                    <Link
+                      href={`/owner/facility/${id}/court/${court.id}`}
+                      className="absolute inset-0 block"
+                    >
+                      {court.imageUrl ? (
+                        <img
+                          src={resolveCourtImage(court.imageUrl) ?? undefined}
+                          alt={court.name}
+                          className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/15">
+                          <SportIcon sport={court.type} size={48} strokeWidth={1.5} style={{ color: getSportColor(court.type) }} className="opacity-70" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/15 transition-colors duration-200" />
+                    </Link>
+
+                    {/* Status badge — pointer-events-none so Link still captures clicks */}
+                    <div className="absolute top-2 left-2 pointer-events-none">
+                      <CourtStatusBadge status={courtStatus} />
                     </div>
-                  )}
-                  <div className="absolute top-2 left-2">
-                    <CourtStatusBadge status={(court as any).status} />
-                  </div>
-                  <div className="absolute top-2 right-2">
-                    <SportPill sport={court.type} variant="solid" />
-                  </div>
-                </div>
 
-                <div className="p-4">
-                  <h3 className="font-bold text-base mb-1">{court.name}</h3>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-                    <MapPin className="w-3 h-3" />
-                    {court.city}, {court.address}
-                  </div>
+                    {/* Sport pill — leave room for kebab on the right */}
+                    <div className="absolute top-2 right-9 pointer-events-none">
+                      <SportPill sport={court.type} variant="solid" />
+                    </div>
 
-                  <div className="flex items-center gap-3 text-sm mb-4">
-                    <span className="font-semibold text-primary">{court.pricePerHour}€/val</span>
-                    {court.isIndoor && <Badge variant="outline" className="text-xs">Viduje</Badge>}
-                    {(court as any).rating && (
-                      <span className="text-xs text-yellow-500 flex items-center gap-0.5">★ {Number((court as any).rating).toFixed(1)}</span>
-                    )}
-                  </div>
-
-                  {/* Primary action: Suvestinė */}
-                  <Button
-                    variant="default" size="sm"
-                    className="w-full gap-2 mb-3 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 hover:text-primary"
-                    onClick={() => navigate(`/owner/facility/${id}/court/${court.id}`)}
-                  >
-                    <BarChart3 className="w-3.5 h-3.5" /> Suvestinė
-                  </Button>
-
-                  {/* Management actions */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => handleEdit(court)} title="Redaguoti">
-                      <Edit2 className="w-3 h-3" /> Redaguoti
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-xs h-8 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-800 dark:hover:text-amber-200 font-medium"
-                      onClick={() => setBlockedSlotsCourtId(court.id)}
-                      title="Blokuoti laiko tarpus, kad jie neatsidurtų viešam rezervavimui"
-                    >
-                      <CalendarClock className="w-3.5 h-3.5" /> Blokuoti kortą
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-xs h-8 border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-500/20 hover:text-green-800 dark:hover:text-green-200 font-medium"
-                      onClick={() => setFreeBookingCourtId(court.id)}
-                      title="Sukurti rankinę rezervaciją (nemokamą / be Stripe)"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Rankinė rezervacija
-                    </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8" onClick={() => navigate(`/owner/facility/${id}/court/${court.id}/coaches`)}>
-                      <Users className="w-3 h-3" /> Treneriai
-                    </Button>
-                    <Button variant="ghost" size="sm" className="gap-1 text-xs h-8 text-cyan-600" onClick={() => navigate(`/owner/facility/${id}/court/${court.id}/memberships`)}>
-                      <Star className="w-3 h-3" /> Narystės
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="QR" onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
-                      <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      title="Viešas puslapis"
-                      onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                    </Button>
-                    <div className="ml-auto flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(court.id)}>
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      </Button>
+                    {/* Kebab menu — stops propagation so Link is not triggered */}
+                    <div className="absolute top-1.5 right-1.5" onClick={e => e.preventDefault()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center hover:bg-black/80 transition-colors"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <MoreVertical className="w-3.5 h-3.5 text-white" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
+                            <QrCode className="w-3.5 h-3.5 mr-2" /> QR kodas
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}>
+                            <ExternalLink className="w-3.5 h-3.5 mr-2" /> Viešas puslapis
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDelete(court.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Ištrinti
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t space-y-2">
-                    {/* Online/offline toggle */}
-                    {["active", "hidden"].includes((court as any).status ?? "") && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Matoma viešai</span>
-                        <button
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${(court as any).status === "active" ? "bg-green-500" : "bg-muted-foreground/30"}`}
-                          title={(court as any).status === "active" ? "Slepia aikštelę" : "Parodo aikštelę viešai"}
-                          onClick={() => {
-                            const nextStatus = (court as any).status === "active" ? "hidden" : "active";
-                            customFetch(`${API_URL}/courts/${court.id}/status`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ status: nextStatus }),
-                            }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
-                              .catch(() => toast({ title: "Klaida keičiant statusą", variant: "destructive" }));
-                          }}
+                  {/* ── Card body ────────────────────────────────────────── */}
+                  <div className="p-4 flex flex-col flex-1">
+
+                    {/* Title — also a link */}
+                    <Link href={`/owner/facility/${id}/court/${court.id}`} className="block mb-3">
+                      <h3 className="font-bold text-base hover:text-primary transition-colors line-clamp-1">{court.name}</h3>
+                    </Link>
+
+                    {/* Price + badges */}
+                    <div className="flex items-center gap-3 text-sm mb-4">
+                      <span className="font-semibold text-foreground">{court.pricePerHour}€/val</span>
+                      {court.isIndoor && <Badge variant="outline" className="text-xs">Viduje</Badge>}
+                      {(court as any).rating && (
+                        <span className="text-xs text-yellow-500 flex items-center gap-0.5">
+                          ★ {Number((court as any).rating).toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Operational buttons — active courts only */}
+                    {isActive && (
+                      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs h-8 border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-800 dark:hover:text-amber-200 font-medium"
+                          onClick={() => setBlockedSlotsCourtId(court.id)}
+                          title="Blokuoti laiko tarpus"
                         >
-                          <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${(court as any).status === "active" ? "translate-x-4" : "translate-x-0"}`} />
-                        </button>
+                          <CalendarClock className="w-3.5 h-3.5" /> Blokuoti kortą
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs h-8 border-green-500/50 bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-500/20 hover:text-green-800 dark:hover:text-green-200 font-medium"
+                          onClick={() => setFreeBookingCourtId(court.id)}
+                          title="Sukurti rankinę rezervaciją"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Rankinė rezervacija
+                        </Button>
                       </div>
                     )}
 
-                    {/* Submit for review — only before first approval */}
-                    {["draft", "rejected"].includes((court as any).status ?? "draft") && (
-                      (() => {
-                        const facilityApproved = facility?.verificationStatus === "active";
-                        const fieldsMissing = !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city);
-                        const isDisabled = !facilityApproved || fieldsMissing;
-                        const tooltipMsg = !facilityApproved
-                          ? "Objektas turi būti patvirtintas administratoriaus"
-                          : fieldsMissing
-                            ? "Pildykite: kaina, vieta"
-                            : "";
-                        return (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="block w-full">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full text-xs h-7 border-primary/40 text-primary hover:bg-primary/5 disabled:opacity-100 disabled:cursor-not-allowed"
-                                    disabled={isDisabled}
-                                    onClick={() => {
-                                      customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                                        .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
-                                        .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
-                                    }}
-                                  >
-                                    Pateikti peržiūrai
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              {tooltipMsg && <TooltipContent>{tooltipMsg}</TooltipContent>}
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })()
-                    )}
-                    {(court as any).status === "pending_review" && (
-                      <p className="text-xs text-blue-400 flex items-center gap-1">
-                        <span>⏳</span> Laukiame administratoriaus patvirtinimo
-                      </p>
-                    )}
-                    {(court as any).status === "rejected" && (court as any).rejectionReason && (
-                      <p className="text-xs text-red-400">Priežastis: {(court as any).rejectionReason}</p>
-                    )}
+                    <div className="mt-auto space-y-2">
+                      {/* Online/offline toggle */}
+                      {isActiveOrHidden && (
+                        <div className="flex items-center justify-between pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">Matoma viešai</span>
+                          <button
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${courtStatus === "active" ? "bg-green-500" : "bg-muted-foreground/30"}`}
+                            title={courtStatus === "active" ? "Slepia aikštelę" : "Parodo aikštelę viešai"}
+                            onClick={() => {
+                              const nextStatus = courtStatus === "active" ? "hidden" : "active";
+                              customFetch(`${API_URL}/courts/${court.id}/status`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ status: nextStatus }),
+                              }).then(() => queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }))
+                                .catch(() => toast({ title: "Klaida keičiant statusą", variant: "destructive" }));
+                            }}
+                          >
+                            <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg transform ring-0 transition-transform ${courtStatus === "active" ? "translate-x-4" : "translate-x-0"}`} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Submit for review — draft/rejected: solid primary CTA */}
+                      {isDraftOrRejected && (
+                        (() => {
+                          const facilityApproved = facility?.verificationStatus === "active";
+                          const fieldsMissing = !(court.pricePerHour && Number(court.pricePerHour) > 0 && court.address && court.city);
+                          const isDisabled = !facilityApproved || fieldsMissing;
+                          const tooltipMsg = !facilityApproved
+                            ? "Objektas turi būti patvirtintas administratoriaus"
+                            : fieldsMissing
+                              ? "Pildykite: kaina, vieta"
+                              : "";
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="block w-full">
+                                    <Button
+                                      size="sm"
+                                      className="w-full text-xs h-8 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                      disabled={isDisabled}
+                                      onClick={() => {
+                                        customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
+                                          .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                                          .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
+                                      }}
+                                    >
+                                      Pateikti peržiūrai
+                                    </Button>
+                                  </span>
+                                </TooltipTrigger>
+                                {tooltipMsg && <TooltipContent>{tooltipMsg}</TooltipContent>}
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()
+                      )}
+
+                      {courtStatus === "pending_review" && (
+                        <p className="text-xs text-blue-400 flex items-center gap-1">
+                          <span>⏳</span> Laukiame administratoriaus patvirtinimo
+                        </p>
+                      )}
+                      {courtStatus === "rejected" && (court as any).rejectionReason && (
+                        <p className="text-xs text-red-400">Priežastis: {(court as any).rejectionReason}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
