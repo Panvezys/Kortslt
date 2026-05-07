@@ -189,7 +189,7 @@ export function CourtCard({ court }: { court: Court }) {
         </CardTitle>
         <CardDescription className="flex items-center text-xs">
           <MapPin className="h-3 w-3 mr-1 shrink-0" />
-          <span className="truncate">{court.address}</span>
+          <span className="truncate">{court.city} — {court.address}</span>
         </CardDescription>
       </CardHeader>
 
