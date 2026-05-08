@@ -1,0 +1,33 @@
+Objective: Merge the `/games` and `/matches` functionality into a single unified `/matches` page to eliminate friction and increase feed density.
+
+Step 1: Routing & Redirects
+- Delete the `/games` route and any components specifically tied only to that page.
+- Ensure any old links to `/games` redirect to `/matches`.
+- Update the navigation menu to show only "Mačai" (Matches), removing "Žaidimai".
+
+Step 2: Unified Schema & Types
+- Ensure the `Game` or `Match` type can handle both states:
+  1. Booked Match: Has a `bookingId`, `facilityId`, and `pricePerSlot`.
+  2. Casual Game: `bookingId` is null, but has a `city`, `level`, and `description`.
+- Update the public API fetching logic to return both types in a single array, sorted by `startTime`.
+
+Step 3: Filter UI
+- At the top of the `/matches` page, add a Tab or Toggle filter:
+  - "Visi" (Default)
+  - "Su kortu" (Only shows split-payment bookings with a real court)
+  - "Ieško kompanijos" (Only shows casual/free games)
+
+Step 4: Polymorphic Card UI
+- Refactor the card component to have two distinct visual styles:
+  - Match Style (Paid): High-contrast. Show Price/slot prominently. Show Facility Name + Address. Show the slot progress bar (e.g., 2/4 paid). Primary button: "Prisijungti ir apmokėti".
+  - Game Style (Casual): Softer, social style. Highlight "Skill Level" and "City". Use a "Nemokama / Kortas neužsakytas" badge. Primary button: "Dalyvauti".
+
+Step 5: The "Book Court" Upgrade Flow
+- On the Game Details page for a Casual Game:
+  - If the user is the Host, show a "Užsakyti aikštelę šiam žaidimui" (Book court for this game) button.
+  - Clicking this should take them to the Court Search flow, but keep the Game ID in state.
+  - Once they select a court and complete a Split Payment booking, update the existing Game record: link the new `bookingId` and change its status so it now appears as a "Paid Match" in the feed.
+
+Step 6: Cleanup
+- Remove any redundant "Games" vs "Matches" logic in the Sidebar and Footer.
+- Ensure the "Mačai" page title and SEO metadata reflect both community games and official matches.
