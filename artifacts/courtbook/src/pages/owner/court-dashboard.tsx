@@ -3,6 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus, Phone,
@@ -309,10 +310,14 @@ function TodayGrid({
   todayBookings,
   pricePerHour,
   todayPricing,
+  onFreeClick,
+  onBookingClick,
 }: {
   todayBookings: Booking[];
   pricePerHour: number;
   todayPricing: Record<string, number>;
+  onFreeClick: (startTime: string) => void;
+  onBookingClick: (booking: Booking) => void;
 }) {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -350,20 +355,28 @@ function TodayGrid({
                   {slot}
                 </span>
                 {booking ? (
-                  <div className={`flex-1 rounded px-2 py-1 text-xs font-medium border ${
-                    booking.status === "confirmed"
-                      ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-400/30"
-                      : booking.status === "pending"
-                        ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
-                        : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
-                  }`}>
+                  <div
+                    onClick={() => onBookingClick(booking)}
+                    className={`flex-1 rounded px-2 py-1 text-xs font-medium border cursor-pointer transition-opacity hover:opacity-75 ${
+                      booking.status === "confirmed"
+                        ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                        : booking.status === "pending"
+                          ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                          : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                    }`}
+                  >
                     <span className="truncate block">{booking.customerName}</span>
                     <span className="text-[10px] opacity-70">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {fmtPrice(booking.totalPrice)}</span>
                   </div>
                 ) : (
-                  <div className={`flex-1 flex items-center justify-between rounded border border-dashed border-border/40 px-2 py-1 ${isPast ? "opacity-40" : ""}`}>
+                  <div
+                    onClick={() => !isPast && onFreeClick(slot)}
+                    className={`flex-1 flex items-center justify-between rounded border border-dashed border-border/40 px-2 py-1 transition-colors ${
+                      isPast ? "opacity-40" : "cursor-pointer hover:bg-muted/40 group"
+                    }`}
+                  >
                     <div className="flex items-center gap-1.5">
-                      <Plus className="w-3 h-3 text-muted-foreground/40" />
+                      <Plus className="w-3 h-3 text-muted-foreground/40 group-hover:text-muted-foreground/60" />
                       <span className="text-[11px] text-muted-foreground/50">{slot}–{slotEnd}</span>
                     </div>
                     {slotPrice > 0 && (
@@ -376,6 +389,42 @@ function TodayGrid({
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingInfoModal({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+  const [, navigate] = useLocation();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Rezervacija #{booking.id}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)}</p>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Klientas</span><span className="font-medium">{booking.customerName}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">El. paštas</span><span className="font-medium truncate max-w-[60%] text-right">{booking.customerEmail}</span></div>
+          {booking.customerPhone && <div className="flex justify-between"><span className="text-muted-foreground">Telefonas</span><span className="font-medium">{booking.customerPhone}</span></div>}
+          <div className="flex justify-between"><span className="text-muted-foreground">Data</span><span className="font-medium">{booking.date}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Laikas</span><span className="font-medium">{booking.startTime.slice(0,5)} – {booking.endTime.slice(0,5)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Kaina</span><span className="font-medium">€{booking.totalPrice.toFixed(2)}</span></div>
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Statusas</span>
+            <Badge variant={booking.status === "confirmed" ? "default" : booking.status === "cancelled" ? "destructive" : "secondary"}>
+              {STATUS_LT[booking.status] ?? booking.status}
+            </Badge>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
+          <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
+            Pilna peržiūra
+          </Button>
         </div>
       </div>
     </div>
@@ -461,6 +510,7 @@ export default function OwnerCourtDashboard() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const { data, isLoading, error } = useQuery<CourtStats>({
     queryKey: ["owner-court-stats", courtId],
@@ -578,6 +628,8 @@ export default function OwnerCourtDashboard() {
             todayBookings={todayBookings}
             pricePerHour={court.pricePerHour}
             todayPricing={todayPricing ?? {}}
+            onFreeClick={startTime => { setManualPreStartTime(startTime); setManualOpen(true); }}
+            onBookingClick={setSelectedBooking}
           />
 
           {/* Weekly calendar */}
@@ -624,6 +676,9 @@ export default function OwnerCourtDashboard() {
         </div>
       </div>
 
+      {selectedBooking && (
+        <BookingInfoModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+      )}
       <ManualBookingModal
         open={manualOpen}
         onClose={() => setManualOpen(false)}
