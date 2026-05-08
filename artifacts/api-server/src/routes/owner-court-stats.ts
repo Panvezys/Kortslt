@@ -15,12 +15,21 @@ function monthStart(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-function weekStart(): string {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const mon = new Date(d.setDate(diff));
-  return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+function parseQueryDate(raw: unknown): string {
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return todayStr();
+}
+
+function weekRange(dateStr: string): { wStart: string; wEnd: string } {
+  const d = new Date(dateStr + "T12:00:00");
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (x: Date): string =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  return { wStart: fmt(mon), wEnd: fmt(sun) };
 }
 
 /** GET /api/owner/courts/:courtId/stats */
@@ -45,10 +54,10 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
   }
 
   const today = todayStr();
+  const selectedDate = parseQueryDate(req.query.date);
   const mStart = monthStart();
-  const wStart = weekStart();
-
-  const todayDow = new Date().getDay();
+  const { wStart, wEnd } = weekRange(selectedDate);
+  const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
 
   const [todayBookings, weeklyBookings, recentBookings, monthlyStats, facilityRow, pricingRows] = await Promise.all([
     db.select({
@@ -67,8 +76,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       .from(bookingsTable)
       .where(and(
         eq(bookingsTable.courtId, courtId),
-        eq(bookingsTable.date, today),
-        // Schedule view ignores cancelled rows so the slot reads as free.
+        eq(bookingsTable.date, selectedDate),
         inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.startTime),
@@ -78,6 +86,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       courtId: bookingsTable.courtId,
       customerName: bookingsTable.customerName,
       customerEmail: bookingsTable.customerEmail,
+      customerPhone: bookingsTable.customerPhone,
       date: bookingsTable.date,
       startTime: bookingsTable.startTime,
       endTime: bookingsTable.endTime,
@@ -89,8 +98,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       .where(and(
         eq(bookingsTable.courtId, courtId),
         gte(bookingsTable.date, wStart),
-        lte(bookingsTable.date, today),
-        // Weekly schedule excludes cancelled bookings so freed slots appear empty.
+        lte(bookingsTable.date, wEnd),
         inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.date, bookingsTable.startTime),
@@ -142,7 +150,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       .where(
         and(
           eq(courtPricingTable.courtId, courtId),
-          eq(courtPricingTable.dayOfWeek, todayDow),
+          eq(courtPricingTable.dayOfWeek, selectedDow),
         )
       ),
   ]);

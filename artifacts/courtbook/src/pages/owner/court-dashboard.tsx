@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus, Phone,
+  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus, Phone, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { SportPill } from "@/components/sport-icon";
 import { OwnerLayout } from "@/components/owner-layout";
@@ -28,6 +28,19 @@ const STATUS_LT: Record<string, string> = {
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function prevDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() - 1); return isoDate(d); }
+function nextDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + 1); return isoDate(d); }
+function weekDays(s: string): string[] {
+  const d = new Date(s + "T12:00:00");
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return isoDate(x); });
 }
 
 function getWeekDates() {
@@ -84,12 +97,13 @@ function addThirty(t: string): string {
 }
 
 function ManualBookingModal({
-  open, onClose, courtId, preStartTime,
+  open, onClose, courtId, preStartTime, preDate,
 }: {
   open: boolean;
   onClose: () => void;
   courtId: number;
   preStartTime?: string;
+  preDate?: string;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,7 +112,7 @@ function ManualBookingModal({
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(preDate ?? today);
   const [startHour, setStartHour] = useState(() => preStartTime ?? "08:00");
   const [endHour, setEndHour] = useState(() => preStartTime ? addThirty(preStartTime) : "08:30");
   const [note, setNote] = useState("");
@@ -310,24 +324,51 @@ function TodayGrid({
   todayBookings,
   pricePerHour,
   todayPricing,
+  selectedDate,
+  isToday,
+  onDateChange,
   onFreeClick,
   onBookingClick,
 }: {
   todayBookings: Booking[];
   pricePerHour: number;
   todayPricing: Record<string, number>;
+  selectedDate: string;
+  isToday: boolean;
+  onDateChange: (d: string) => void;
   onFreeClick: (startTime: string) => void;
   onBookingClick: (booking: Booking) => void;
 }) {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const defaultHalf = pricePerHour / 2;
+  const isPastDay = selectedDate < todayStr();
+  const isFutureDay = selectedDate > todayStr();
+  const dateLbl = new Date(selectedDate + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "short", day: "numeric", month: "short" });
 
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <CalendarDays className="w-4 h-4 text-primary" />
-        <h3 className="font-semibold text-sm">Šiandien — grafikas</h3>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-1.5">
+          <CalendarDays className="w-4 h-4 text-primary shrink-0" />
+          <span className="font-semibold text-sm">Dienos grafikas</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onDateChange(prevDay(selectedDate))} className="p-1 rounded hover:bg-muted transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className={`text-xs font-medium px-1 tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
+            {dateLbl}{isToday ? " (šiandien)" : ""}
+          </span>
+          <button onClick={() => onDateChange(nextDay(selectedDate))} className="p-1 rounded hover:bg-muted transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          {!isToday && (
+            <button onClick={() => onDateChange(todayStr())} className="ml-1 text-[10px] text-primary hover:underline">
+              šiandien
+            </button>
+          )}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[360px] max-h-[340px] overflow-y-auto">
@@ -341,8 +382,8 @@ function TodayGrid({
               return bStart <= slotMin && bEnd > slotMin && ["confirmed", "pending", "blocked"].includes(b.status);
             });
 
-            const isNow = nowMin >= slotMin && nowMin < slotMin + 30;
-            const isPast = slotMin + 30 <= nowMin;
+            const isNow = isToday && nowMin >= slotMin && nowMin < slotMin + 30;
+            const isPast = isPastDay || (isToday && slotMin + 30 <= nowMin);
 
             const slotPrice = todayPricing[slot] ?? defaultHalf;
 
@@ -389,6 +430,100 @@ function TodayGrid({
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DAY_SHORT_LT = ["Pir", "Ant", "Tre", "Ket", "Pen", "Šeš", "Sek"];
+
+function WeekGrid({
+  days, weeklyBookings, pricePerHour, todayPricing,
+  onFreeClick, onBookingClick,
+}: {
+  days: string[];
+  weeklyBookings: Booking[];
+  pricePerHour: number;
+  todayPricing: Record<string, number>;
+  onFreeClick: (date: string, startTime: string) => void;
+  onBookingClick: (booking: Booking) => void;
+}) {
+  const today = todayStr();
+  const now = new Date();
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: `${56 + 7 * 90}px` }}>
+          {/* Day header */}
+          <div className="grid border-b border-border bg-muted/30" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+            <div className="px-2 py-2" />
+            {days.map((day, i) => {
+              const isToday = day === today;
+              const isPast = day < today;
+              const [, mm, dd] = day.split("-");
+              return (
+                <div key={day} className={`px-1 py-2 text-center ${isToday ? "bg-primary/5" : ""}`}>
+                  <p className={`text-[10px] font-semibold uppercase ${isToday ? "text-primary" : isPast ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                    {DAY_SHORT_LT[i]}
+                  </p>
+                  <p className={`text-xs font-bold ${isToday ? "text-primary" : isPast ? "text-muted-foreground/50" : "text-foreground"}`}>
+                    {parseInt(dd)}.{parseInt(mm)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {/* Slot rows */}
+          <div className="max-h-[400px] overflow-y-auto">
+            {SLOTS.map(slot => {
+              const slotMin = toMin(slot);
+              return (
+                <div key={slot} className="grid border-b border-border/40 last:border-0" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+                  <div className="px-2 py-1 flex items-center justify-end text-[10px] tabular-nums font-mono text-muted-foreground shrink-0">
+                    {slot}
+                  </div>
+                  {days.map(day => {
+                    const isToday = day === today;
+                    const nowMin = now.getHours() * 60 + now.getMinutes();
+                    const isPast = day < today || (isToday && slotMin + 30 <= nowMin);
+                    const booking = weeklyBookings.find(b => {
+                      if (b.date !== day) return false;
+                      return toMin(b.startTime) <= slotMin && toMin(b.endTime) > slotMin &&
+                        ["confirmed", "pending", "blocked"].includes(b.status);
+                    });
+                    if (booking) {
+                      return (
+                        <div key={day} className="px-0.5 py-0.5">
+                          <div
+                            onClick={() => onBookingClick(booking)}
+                            className={`h-7 rounded text-[9px] font-medium border cursor-pointer hover:opacity-75 transition-opacity flex items-center px-1 overflow-hidden ${
+                              booking.status === "confirmed" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                              : booking.status === "pending" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                              : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                            }`}
+                          >
+                            <span className="truncate">{booking.customerName.split(" ")[0]}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={day} className="px-0.5 py-0.5">
+                        <div
+                          onClick={() => !isPast && onFreeClick(day, slot)}
+                          className={`h-7 rounded border border-dashed border-border/30 transition-colors ${
+                            isToday && slotMin >= (now.getHours() * 60 + now.getMinutes() - 30) && slotMin < (now.getHours() * 60 + now.getMinutes() + 30) ? "bg-primary/5" : ""
+                          } ${isPast ? "opacity-25" : "cursor-pointer hover:bg-muted/40"}`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -507,14 +642,19 @@ export default function OwnerCourtDashboard() {
   const courtId = params.courtId;
   const [, navigate] = useLocation();
   const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
+  const [scheduleView, setScheduleView] = useState<"day" | "week">("day");
+  const [selectedDate, setSelectedDate] = useState(todayStr());
   const [blockOpen, setBlockOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
+  const [manualPreDate, setManualPreDate] = useState<string | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
+  const isSelectedToday = selectedDate === todayStr();
+
   const { data, isLoading, error } = useQuery<CourtStats>({
-    queryKey: ["owner-court-stats", courtId],
-    queryFn: () => customFetch<CourtStats>(`${API_URL}/owner/courts/${courtId}/stats`),
+    queryKey: ["owner-court-stats", courtId, selectedDate],
+    queryFn: () => customFetch<CourtStats>(`${API_URL}/owner/courts/${courtId}/stats?date=${selectedDate}`),
     enabled: !!courtId,
   });
 
@@ -623,17 +763,45 @@ export default function OwnerCourtDashboard() {
             />
           </div>
 
-          {/* Today's schedule grid */}
-          <TodayGrid
-            todayBookings={todayBookings}
-            pricePerHour={court.pricePerHour}
-            todayPricing={todayPricing ?? {}}
-            onFreeClick={startTime => { setManualPreStartTime(startTime); setManualOpen(true); }}
-            onBookingClick={setSelectedBooking}
-          />
-
-          {/* Weekly calendar */}
-          <WeeklyCalendar weeklyBookings={weeklyBookings} />
+          {/* Schedule section — day / week tabs */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+              <div className="flex gap-0.5">
+                {(["day", "week"] as const).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setScheduleView(v)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      scheduleView === v ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {v === "day" ? "Diena" : "Savaitė"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {scheduleView === "day" ? (
+              <TodayGrid
+                todayBookings={todayBookings}
+                pricePerHour={court.pricePerHour}
+                todayPricing={todayPricing ?? {}}
+                selectedDate={selectedDate}
+                isToday={isSelectedToday}
+                onDateChange={d => { setSelectedDate(d); setScheduleView("day"); }}
+                onFreeClick={startTime => { setManualPreStartTime(startTime); setManualPreDate(selectedDate); setManualOpen(true); }}
+                onBookingClick={setSelectedBooking}
+              />
+            ) : (
+              <WeekGrid
+                days={weekDays(selectedDate)}
+                weeklyBookings={weeklyBookings}
+                pricePerHour={court.pricePerHour}
+                todayPricing={todayPricing ?? {}}
+                onFreeClick={(date, startTime) => { setManualPreDate(date); setManualPreStartTime(startTime); setManualOpen(true); }}
+                onBookingClick={setSelectedBooking}
+              />
+            )}
+          </div>
 
           {/* Bookings section */}
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -680,10 +848,12 @@ export default function OwnerCourtDashboard() {
         <BookingInfoModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
       )}
       <ManualBookingModal
+        key={`${manualPreDate ?? ""}-${manualPreStartTime ?? ""}`}
         open={manualOpen}
         onClose={() => setManualOpen(false)}
         courtId={Number(courtId)}
         preStartTime={manualPreStartTime}
+        preDate={manualPreDate}
       />
       <BlockCourtModal
         open={blockOpen}

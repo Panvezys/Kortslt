@@ -15,6 +15,23 @@ function monthStart(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
+function parseQueryDate(raw: unknown): string {
+  if (typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return todayStr();
+}
+
+function weekRange(dateStr: string): { wStart: string; wEnd: string } {
+  const d = new Date(dateStr + "T12:00:00");
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (x: Date): string =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  return { wStart: fmt(mon), wEnd: fmt(sun) };
+}
+
 /** GET /api/owner/dashboard — owner-only summary for the dashboard.
  *  Optional query param: ?facilityId=N  →  scope to a single facility's courts.
  */
@@ -23,7 +40,10 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const today = todayStr();
+  const selectedDate = parseQueryDate(req.query.date);
   const mStart = monthStart();
+  const { wStart, wEnd } = weekRange(selectedDate);
+  const selectedDow = new Date(selectedDate + "T12:00:00").getDay();
 
   const scopedFacilityId = req.query.facilityId ? Number(req.query.facilityId) : undefined;
 
@@ -59,6 +79,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       courts: [],
       todayBookings: [],
       todayBlockedSlots: [],
+      weeklyBookings: [],
       recentBookings: [],
       monthlyRevenue: 0,
       monthlyBookingCount: 0,
@@ -68,9 +89,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
 
   const courtIds = courts.map(c => c.id);
 
-  const todayDow = new Date().getDay();
-
-  const [todayBookings, todayBlockedSlots, recentBookings, monthlyStats, pricingRows] = await Promise.all([
+  const [todayBookings, todayBlockedSlots, weeklyBookings, recentBookings, monthlyStats, pricingRows] = await Promise.all([
     db
       .select({
         id: bookingsTable.id,
@@ -94,7 +113,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       .where(
         and(
           inArray(bookingsTable.courtId, courtIds),
-          eq(bookingsTable.date, today),
+          eq(bookingsTable.date, selectedDate),
           inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
         )
       ),
@@ -105,9 +124,31 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       .where(
         and(
           inArray(courtBlockedSlotsTable.courtId, courtIds),
-          eq(courtBlockedSlotsTable.date, today),
+          eq(courtBlockedSlotsTable.date, selectedDate),
         )
       ),
+
+    db
+      .select({
+        id: bookingsTable.id,
+        courtId: bookingsTable.courtId,
+        customerName: bookingsTable.customerName,
+        date: bookingsTable.date,
+        startTime: bookingsTable.startTime,
+        endTime: bookingsTable.endTime,
+        totalPrice: bookingsTable.totalPrice,
+        status: bookingsTable.status,
+      })
+      .from(bookingsTable)
+      .where(
+        and(
+          inArray(bookingsTable.courtId, courtIds),
+          gte(bookingsTable.date, wStart),
+          lte(bookingsTable.date, wEnd),
+          inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
+        )
+      )
+      .orderBy(bookingsTable.date, bookingsTable.startTime),
 
     db
       .select({
@@ -159,7 +200,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       .where(
         and(
           inArray(courtPricingTable.courtId, courtIds),
-          eq(courtPricingTable.dayOfWeek, todayDow),
+          eq(courtPricingTable.dayOfWeek, selectedDow),
         )
       ),
   ]);
@@ -191,6 +232,7 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       totalPrice: Number(b.totalPrice),
     })),
     todayBlockedSlots,
+    weeklyBookings: weeklyBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
     recentBookings: recentBookings.map(b => ({
       ...b,
       totalPrice: Number(b.totalPrice),

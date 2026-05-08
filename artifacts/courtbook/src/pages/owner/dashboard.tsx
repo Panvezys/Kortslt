@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2,
-  Euro, Percent, CalendarDays, BanknoteIcon, ChevronRight,
+  Euro, Percent, CalendarDays, BanknoteIcon, ChevronLeft, ChevronRight,
   Plus, Phone, X, CheckCircle2, Clock, BarChart3,
   ArrowUpRight, CreditCard, ExternalLink,
 } from "lucide-react";
@@ -27,6 +27,19 @@ const SLOTS = Array.from({ length: 28 }, (_, i) => {
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function prevDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() - 1); return isoDate(d); }
+function nextDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + 1); return isoDate(d); }
+function weekDays(s: string): string[] {
+  const d = new Date(s + "T12:00:00");
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return isoDate(x); });
 }
 
 function toMin(t: string): number {
@@ -77,11 +90,17 @@ interface BlockedSlot {
   reason?: string | null;
 }
 
+interface WeeklyBookingEntry {
+  id: number; courtId: number; customerName: string;
+  date: string; startTime: string; endTime: string; totalPrice: number; status: string;
+}
+
 interface DashboardData {
   facility: { id: number; name: string } | null;
   courts: OwnerCourt[];
   todayBookings: OwnerBooking[];
   todayBlockedSlots: BlockedSlot[];
+  weeklyBookings?: WeeklyBookingEntry[];
   recentBookings: OwnerBooking[];
   monthlyRevenue: number;
   monthlyGrossRevenue?: number;
@@ -193,13 +212,14 @@ function SlotCell({
 // ── Manual Booking Modal ──────────────────────────────────────────────────────
 
 function ManualBookingModal({
-  open, onClose, courts, preCourtId, preStartTime,
+  open, onClose, courts, preCourtId, preStartTime, preDate,
 }: {
   open: boolean;
   onClose: () => void;
   courts: OwnerCourt[];
   preCourtId?: number;
   preStartTime?: string;
+  preDate?: string;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -209,7 +229,7 @@ function ManualBookingModal({
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(preDate ?? today);
   const [startHour, setStartHour] = useState<string>(() => preStartTime ?? "08:00");
   const [endHour, setEndHour] = useState<string>(() => preStartTime ? addThirty(preStartTime) : "08:30");
   const [note, setNote] = useState("");
@@ -461,6 +481,107 @@ function BookingInfoModal({ booking, onClose }: { booking: OwnerBooking; onClose
   );
 }
 
+// ── Week schedule grid (multi-court, 7 days) ──────────────────────────────────
+
+const DAY_SHORT_LT = ["Pir", "Ant", "Tre", "Ket", "Pen", "Šeš", "Sek"];
+
+function WeekScheduleGrid({
+  days, courts, weeklyBookings, todayBookings, blockedSlots, isSelectedToday,
+  onDayClick, onFreeClick, onBookingClick,
+}: {
+  days: string[];
+  courts: OwnerCourt[];
+  weeklyBookings: WeeklyBookingEntry[];
+  todayBookings: OwnerBooking[];
+  blockedSlots: BlockedSlot[];
+  isSelectedToday: boolean;
+  onDayClick: (date: string) => void;
+  onFreeClick: (date: string, startTime: string) => void;
+  onBookingClick: (b: OwnerBooking) => void;
+}) {
+  const today = todayStr();
+  const now = new Date();
+
+  return (
+    <div className="overflow-x-auto">
+      <div style={{ minWidth: `${64 + 7 * 80}px` }}>
+        <div className="grid border-b border-border bg-muted/30" style={{ gridTemplateColumns: `64px repeat(7, 1fr)` }}>
+          <div className="px-2 py-2" />
+          {days.map((day, i) => {
+            const isToday = day === today;
+            const isPast = day < today;
+            const [, mm, dd] = day.split("-");
+            return (
+              <button
+                key={day}
+                onClick={() => onDayClick(day)}
+                className={`px-1 py-2 text-center hover:bg-muted/50 transition-colors w-full ${isToday ? "bg-primary/5" : ""}`}
+              >
+                <p className={`text-[10px] font-semibold uppercase ${isToday ? "text-primary" : isPast ? "text-muted-foreground/40" : "text-muted-foreground"}`}>
+                  {DAY_SHORT_LT[i]}
+                </p>
+                <p className={`text-xs font-bold ${isToday ? "text-primary" : isPast ? "text-muted-foreground/40" : "text-foreground"}`}>
+                  {parseInt(dd)}.{parseInt(mm)}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        <div className="max-h-[400px] overflow-y-auto">
+          {SLOTS.map(slot => {
+            const slotMin = toMin(slot);
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            return (
+              <div key={slot} className="grid border-b border-border/40 last:border-0" style={{ gridTemplateColumns: `64px repeat(7, 1fr)` }}>
+                <div className="px-2 py-1 flex items-center justify-end text-[10px] tabular-nums font-mono text-muted-foreground shrink-0">
+                  {slot}
+                </div>
+                {days.map(day => {
+                  const isToday = day === today;
+                  const isPast = day < today || (isToday && slotMin + 30 <= nowMin);
+                  const dayBookings = isToday
+                    ? todayBookings.filter(b => { const bs = toMin(b.startTime), be = toMin(b.endTime); return bs <= slotMin && be > slotMin && ["confirmed","pending","blocked"].includes(b.status); })
+                    : weeklyBookings.filter(b => b.date === day && toMin(b.startTime) <= slotMin && toMin(b.endTime) > slotMin && ["confirmed","pending","blocked"].includes(b.status));
+                  const dayBlocked = isToday ? blockedSlots.filter(bl => { const bs = toMin(bl.startTime), be = toMin(bl.endTime); return bs <= slotMin && be > slotMin && bl.courtId; }) : [];
+                  const bookedCount = dayBookings.length + dayBlocked.length;
+                  const firstBooking = isToday && todayBookings.length > 0
+                    ? todayBookings.find(b => { const bs = toMin(b.startTime), be = toMin(b.endTime); return bs <= slotMin && be > slotMin && ["confirmed","pending","blocked"].includes(b.status); })
+                    : undefined;
+                  return (
+                    <div key={day} className="px-0.5 py-0.5">
+                      {bookedCount > 0 ? (
+                        <div
+                          onClick={() => firstBooking && onBookingClick(firstBooking)}
+                          className={`h-7 rounded text-[9px] font-medium border flex items-center justify-center ${firstBooking ? "cursor-pointer hover:opacity-75 transition-opacity" : ""} ${
+                            firstBooking?.status === "confirmed" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                            : firstBooking?.status === "pending" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                            : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                          }`}
+                        >
+                          {firstBooking ? (
+                            <span className="truncate px-1">{firstBooking.customerName.split(" ")[0]}</span>
+                          ) : (
+                            <span className="text-zinc-400">{bookedCount}×</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => !isPast && onFreeClick(day, slot)}
+                          className={`h-7 rounded border border-dashed border-border/25 transition-colors ${isToday && slotMin >= nowMin - 30 && slotMin < nowMin + 30 ? "bg-primary/5" : ""} ${isPast ? "opacity-20" : "cursor-pointer hover:bg-muted/40"}`}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function OwnerDashboard() {
@@ -469,20 +590,24 @@ export default function OwnerDashboard() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreCourtId, setManualPreCourtId] = useState<number | undefined>();
   const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
+  const [manualPreDate, setManualPreDate] = useState<string | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [scheduleView, setScheduleView] = useState<"day" | "week">("day");
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const isSelectedToday = selectedDate === todayStr();
 
   const apiUrl = facilityId
-    ? `${API_URL}/owner/dashboard?facilityId=${facilityId}`
-    : `${API_URL}/owner/dashboard`;
+    ? `${API_URL}/owner/dashboard?facilityId=${facilityId}&date=${selectedDate}`
+    : `${API_URL}/owner/dashboard?date=${selectedDate}`;
 
   const { toast } = useToast();
 
   const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["owner-dashboard", facilityId ?? "all"],
+    queryKey: ["owner-dashboard", facilityId ?? "all", selectedDate],
     queryFn: () => customFetch<DashboardData>(apiUrl),
     refetchInterval: 60_000,
   });
@@ -544,9 +669,10 @@ export default function OwnerDashboard() {
     ? Math.round(occupancyPerCourt.reduce((acc, o) => acc + o.pct, 0) / courts.length)
     : 0;
 
-  function handleFreeClick(courtId: number, startTime: string) {
+  function handleFreeClick(courtId: number, startTime: string, date?: string) {
     setManualPreCourtId(courtId);
     setManualPreStartTime(startTime);
+    setManualPreDate(date ?? selectedDate);
     setManualOpen(true);
   }
 
@@ -628,25 +754,58 @@ export default function OwnerDashboard() {
 
               {/* Schedule grid */}
               <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                  <div>
-                    <h2 className="font-semibold text-sm">Grafiko peržiūra</h2>
-                    <p className="text-xs text-muted-foreground capitalize">{today.toLocaleDateString("lt-LT", { weekday: "long", day: "numeric", month: "long" })}</p>
-                  </div>
-                  {courts.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setBlockOpen(true)}>
-                        <X className="h-3 w-3" />
-                        <span className="hidden sm:inline">Blokuoti kortą</span>
-                        <span className="sm:hidden">Blokuoti</span>
-                      </Button>
-                      <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreStartTime(undefined); setManualOpen(true); }}>
-                        <Phone className="h-3 w-3" />
-                        <span className="hidden sm:inline">Rankinė rezervacija</span>
-                        <span className="sm:hidden">Rankinė</span>
-                      </Button>
+                {/* Header: title + date nav + view tabs + actions */}
+                <div className="flex flex-col gap-0 border-b border-border">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="font-semibold text-sm">Grafiko peržiūra</h2>
+                      <div className="flex gap-0.5 ml-2">
+                        {(["day", "week"] as const).map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setScheduleView(v)}
+                            className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                              scheduleView === v ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            {v === "day" ? "Diena" : "Savaitė"}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  )}
+                    {courts.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setBlockOpen(true)}>
+                          <X className="h-3 w-3" />
+                          <span className="hidden sm:inline">Blokuoti kortą</span>
+                          <span className="sm:hidden">Blokuoti</span>
+                        </Button>
+                        <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreStartTime(undefined); setManualPreDate(selectedDate); setManualOpen(true); }}>
+                          <Phone className="h-3 w-3" />
+                          <span className="hidden sm:inline">Rankinė rezervacija</span>
+                          <span className="sm:hidden">Rankinė</span>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {/* Date nav bar */}
+                  <div className="flex items-center gap-1.5 px-4 pb-2.5">
+                    <button onClick={() => setSelectedDate(d => prevDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className={`text-xs font-medium tabular-nums ${isSelectedToday ? "text-primary" : "text-foreground"}`}>
+                      {new Date(selectedDate + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "long", day: "numeric", month: "long" })}
+                      {isSelectedToday ? " (šiandien)" : ""}
+                    </span>
+                    <button onClick={() => setSelectedDate(d => nextDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    {!isSelectedToday && (
+                      <button onClick={() => setSelectedDate(todayStr())} className="text-[10px] text-primary hover:underline ml-1">
+                        šiandien
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {isLoading ? (
@@ -658,6 +817,18 @@ export default function OwnerDashboard() {
                     <Building2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
                     <p className="text-sm text-muted-foreground">Kortų nerasta. <a href={facilityId ? `${BASE_URL}/owner/facility/${facilityId}/court/new` : `${BASE_URL}/owner`} className="text-primary underline">Pridėkite kortą</a>.</p>
                   </div>
+                ) : scheduleView === "week" ? (
+                  <WeekScheduleGrid
+                    days={weekDays(selectedDate)}
+                    courts={courts}
+                    weeklyBookings={data?.weeklyBookings ?? []}
+                    todayBookings={todayBookings}
+                    blockedSlots={todayBlockedSlots}
+                    isSelectedToday={isSelectedToday}
+                    onDayClick={d => { setSelectedDate(d); setScheduleView("day"); }}
+                    onFreeClick={(date, startTime) => handleFreeClick(courts[0]?.id ?? 0, startTime, date)}
+                    onBookingClick={b => setSelectedBooking(b as OwnerBooking)}
+                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <div className="min-w-[540px]">
@@ -680,7 +851,7 @@ export default function OwnerDashboard() {
                         {SLOTS.map(slot => {
                           const nowMin = today.getHours() * 60 + today.getMinutes();
                           const slotMin = toMin(slot);
-                          const isNowSlot = nowMin >= slotMin && nowMin < slotMin + 30;
+                          const isNowSlot = isSelectedToday && nowMin >= slotMin && nowMin < slotMin + 30;
                           return (
                             <div
                               key={slot}
@@ -697,7 +868,7 @@ export default function OwnerDashboard() {
                                     startTime={slot}
                                     todayBookings={todayBookings}
                                     blockedSlots={todayBlockedSlots}
-                                    onFreeClick={handleFreeClick}
+                                    onFreeClick={(cId, t) => handleFreeClick(cId, t, selectedDate)}
                                     onBookingClick={setSelectedBooking}
                                     pricePerHour={c.pricePerHour}
                                     todayPricing={c.todayPricing}
@@ -923,11 +1094,13 @@ export default function OwnerDashboard() {
 
       {/* Modals */}
       <ManualBookingModal
+        key={`${manualPreDate ?? ""}-${manualPreStartTime ?? ""}`}
         open={manualOpen}
         onClose={() => setManualOpen(false)}
         courts={courts}
         preCourtId={manualPreCourtId}
         preStartTime={manualPreStartTime}
+        preDate={manualPreDate}
       />
       <BlockCourtModal
         open={blockOpen}
