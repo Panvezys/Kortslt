@@ -1,0 +1,23 @@
+Objective: Implement a "Read-Only Lock" for facility and court settings when the facility is under admin review. 
+
+Context (The Business Logic): 
+To prevent a "Bait-and-Switch" scenario, owners must not be able to change their facility details or court pricing while an admin is actively reviewing their submission. If the `verificationStatus` is `pending_verification`, the entire editing interface for that facility and its courts must be locked down. 
+
+Step 1: Lock the Facility Settings Page
+1. Locate the Facility Settings page (where the owner edits the Name, Address, and Registration Code).
+2. Check the facility's current `verificationStatus`.
+3. If `verificationStatus === 'pending_verification'`:
+   - Add the `disabled` attribute to all input fields, textareas, and the "Save/Submit" button.
+   - Render a prominent informational banner at the top of the page (e.g., using a yellow/amber alert component). 
+   - Banner Text: "⚠️ Kompleksas peržiūrimas. Redagavimas laikinai išjungtas." (Facility under review. Editing temporarily disabled.)
+
+Step 2: Lock the Court Settings Page
+1. Locate the Court Settings page (where the owner edits Price, Surface, Photos, etc. for a specific court).
+2. Since court editing is dictated by the parent facility's status, ensure you are checking the parent facility's `verificationStatus`.
+3. If the parent facility is `pending_verification`:
+   - Disable all form inputs, toggles, photo uploads, and the "Save" button.
+   - Render the exact same warning banner at the top of the court settings page: "⚠️ Kompleksas peržiūrimas. Redagavimas laikinai išjungtas."
+
+Step 3: Maintain Draft and Active States
+1. Ensure that if the status is `draft`, all fields remain fully editable.
+2. Ensure that if the status is `active`, operational fields (like pricing and photos on the court level) remain fully editable. (We will handle locking the core legal identity of active facilities in a separate step if needed, just focus on the `pending_verification` lock for now).

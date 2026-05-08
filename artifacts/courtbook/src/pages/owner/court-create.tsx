@@ -152,6 +152,7 @@ interface FacilityData {
   socialFacebook?: string | null;
   socialInstagram?: string | null;
   socialWhatsapp?: string | null;
+  verificationStatus?: string | null;
 }
 
 const TABS = [
@@ -615,6 +616,7 @@ export default function CourtCreatePage() {
   }
 
   const editAddressHref = `${BASE_URL}/owner/settings?facility=${facilityId}&tab=profile&profileTab=vieta`;
+  const locked = facility.verificationStatus === "pending_verification";
 
   // Read-only preview of facility hours when override is OFF
   const facilityHoursDisplay = facilityHoursToCourtFormat(facility.businessHours) ?? defaultWorkingHours();
@@ -631,6 +633,13 @@ export default function CourtCreatePage() {
             <ChevronLeft className="w-4 h-4" />Grįžti
           </Button>
         </div>
+
+        {locked && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
+            <span className="text-base shrink-0">⚠️</span>
+            <span className="font-medium">Kompleksas peržiūrimas. Redagavimas laikinai išjungtas.</span>
+          </div>
+        )}
 
         <div className="rounded-2xl border bg-card">
           <div className="flex gap-0.5 border-b border-border overflow-x-auto scrollbar-none px-6">
@@ -661,7 +670,7 @@ export default function CourtCreatePage() {
             })}
           </div>
 
-          <div className="p-6">
+          <div className={`p-6${locked ? " pointer-events-none opacity-60" : ""}`}>
             <Form {...form}>
               <form
                 onSubmit={(e) => e.preventDefault()}

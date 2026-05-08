@@ -34,6 +34,7 @@ interface Facility {
   socialFacebook?: string | null;
   socialInstagram?: string | null;
   socialWhatsapp?: string | null;
+  verificationStatus?: string;
 }
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
@@ -106,6 +107,8 @@ export default function OwnerSettings() {
     if (facilityId) return facilities.find(f => f.id === facilityId);
     return facilities[0];
   }, [facilities, facilityId]);
+
+  const locked = facility?.verificationStatus === "pending_verification";
 
   useEffect(() => {
     if (!facility) return;
@@ -219,6 +222,12 @@ export default function OwnerSettings() {
           </div>
         ) : (
           <div className="max-w-2xl space-y-5">
+            {locked && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
+                <span className="text-base shrink-0">⚠️</span>
+                <span className="font-medium">Kompleksas peržiūrimas. Redagavimas laikinai išjungtas.</span>
+              </div>
+            )}
             <div className="flex gap-1 bg-muted rounded-xl p-1 w-fit">
               {TABS.map(t => (
                 <button
@@ -233,6 +242,7 @@ export default function OwnerSettings() {
               ))}
             </div>
 
+            <div className={locked ? "pointer-events-none opacity-60" : undefined}>
             {tab === "profile" && (
               <div className="bg-card border border-border rounded-2xl p-6 space-y-4">
                 <div>
@@ -513,6 +523,7 @@ export default function OwnerSettings() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
