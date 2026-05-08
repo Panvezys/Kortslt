@@ -560,7 +560,7 @@ components:
           type: string
         status:
           type: string
-          enum: [draft, pending, approved, rejected]
+          enum: [draft, pending, pending_review, active, hidden, approved, rejected]
         rejectionReason:
           type: string
           nullable: true

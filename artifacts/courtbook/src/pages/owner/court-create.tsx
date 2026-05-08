@@ -616,7 +616,8 @@ export default function CourtCreatePage() {
   }
 
   const editAddressHref = `${BASE_URL}/owner/settings?facility=${facilityId}&tab=profile&profileTab=vieta`;
-  const locked = facility.verificationStatus === "pending_verification";
+  const courtUnderReview = isEdit && (editingCourt as any)?.status === "pending_review";
+  const locked = facility.verificationStatus === "pending_verification" || courtUnderReview;
 
   // Read-only preview of facility hours when override is OFF
   const facilityHoursDisplay = facilityHoursToCourtFormat(facility.businessHours) ?? defaultWorkingHours();
@@ -637,7 +638,11 @@ export default function CourtCreatePage() {
         {locked && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm">
             <span className="text-base shrink-0">⚠️</span>
-            <span className="font-medium">Kompleksas peržiūrimas. Redagavimas laikinai išjungtas.</span>
+            <span className="font-medium">
+              {courtUnderReview
+                ? "Aikštelė peržiūrima. Redagavimas laikinai išjungtas."
+                : "Kompleksas peržiūrimas. Redagavimas laikinai išjungtas."}
+            </span>
           </div>
         )}
 

@@ -11,6 +11,9 @@ export type CourtStatus = (typeof CourtStatus)[keyof typeof CourtStatus];
 export const CourtStatus = {
   draft: "draft",
   pending: "pending",
+  pending_review: "pending_review",
+  active: "active",
+  hidden: "hidden",
   approved: "approved",
   rejected: "rejected",
 } as const;
