@@ -1379,7 +1379,7 @@ export default function OwnerFacilityDetail() {
                       </div>
                     )}
 
-                    {facility?.verificationStatus !== "pending_verification" && (
+                    {facility?.verificationStatus !== "pending_verification" && courtStatus !== "pending_review" && (
                       <div className="mb-3">
                         <Button asChild variant="outline" size="sm" className="h-8 w-full gap-1 text-xs">
                           <Link href={`/owner/facility/${id}/court/${court.id}/edit`}>
