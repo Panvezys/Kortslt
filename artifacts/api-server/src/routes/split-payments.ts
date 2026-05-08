@@ -336,6 +336,99 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   });
 });
 
+// ─── POST /api/payments/confirm-split ────────────────────────────────────────
+// Called by booking-confirmed.tsx when ?split=1 is present.
+// Marks the host participant as paid, moves booking→awaiting_players, game→awaiting_players.
+
+router.post("/payments/confirm-split", async (req, res): Promise<void> => {
+  const sessionId = String(req.body?.sessionId ?? "");
+  if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
+
+  // Find the booking by stripeSessionId
+  const [booking] = await db
+    .select()
+    .from(bookingsTable)
+    .where(eq(bookingsTable.stripeSessionId, sessionId));
+
+  if (!booking) { res.status(404).json({ error: "Booking not found for session" }); return; }
+  if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
+
+  // Verify Stripe payment (skip for mocks)
+  if (!sessionId.startsWith("mock_")) {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        res.status(402).json({ error: "Payment not completed" });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err }, "Stripe retrieve session error in confirm-split");
+    }
+  }
+
+  // Find participant by stripeSessionId → mark as paid (idempotent)
+  const [participant] = await db
+    .select()
+    .from(gameParticipantsTable)
+    .where(eq(gameParticipantsTable.stripeSessionId, sessionId));
+
+  if (participant && participant.paymentStatus !== "paid") {
+    await db
+      .update(gameParticipantsTable)
+      .set({ paymentStatus: "paid" })
+      .where(eq(gameParticipantsTable.id, participant.id));
+  }
+
+  // Move booking to awaiting_players (from pending)
+  if (booking.status === "pending") {
+    await db
+      .update(bookingsTable)
+      .set({ status: "awaiting_players" })
+      .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.status, "pending")));
+  }
+
+  // Find linked game and move to awaiting_players
+  const [game] = await db
+    .select()
+    .from(gamesTable)
+    .where(eq(gamesTable.bookingId, booking.id));
+
+  if (game && game.status === "pending_payment") {
+    await db
+      .update(gamesTable)
+      .set({ status: "awaiting_players" })
+      .where(and(eq(gamesTable.id, game.id), eq(gamesTable.status, "pending_payment")));
+  }
+
+  // Aggregate paid participant count
+  const allParticipants = game
+    ? await db
+        .select({ paymentStatus: gameParticipantsTable.paymentStatus })
+        .from(gameParticipantsTable)
+        .where(and(
+          eq(gameParticipantsTable.gameId, game.id),
+          eq(gameParticipantsTable.status, "joined"),
+        ))
+    : [];
+  const paidSlots = allParticipants.filter(p => p.paymentStatus === "paid").length;
+
+  res.json({
+    bookingId: booking.id,
+    gameId: game?.id ?? null,
+    shareToken: booking.splitInviteToken ?? null,
+    pricePerSlot: Number(booking.pricePerSlot ?? 0),
+    totalSlots: booking.totalSlots ?? 1,
+    paidSlots,
+    totalPrice: Number(booking.totalPrice),
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    sport: game?.sport ?? null,
+    isPublic: game?.visibility === "public",
+  });
+});
+
 // ─── GET /api/bookings/share/:token ──────────────────────────────────────────
 
 router.get("/bookings/share/:token", async (req, res): Promise<void> => {
