@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, facilitiesTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtPricingTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -48,7 +48,9 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
   const mStart = monthStart();
   const wStart = weekStart();
 
-  const [todayBookings, weeklyBookings, recentBookings, monthlyStats, facilityRow] = await Promise.all([
+  const todayDow = new Date().getDay();
+
+  const [todayBookings, weeklyBookings, recentBookings, monthlyStats, facilityRow, pricingRows] = await Promise.all([
     db.select({
       id: bookingsTable.id,
       courtId: bookingsTable.courtId,
@@ -130,7 +132,25 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
           .where(eq(facilitiesTable.id, facilityId))
           .limit(1)
       : Promise.resolve([]),
+
+    db
+      .select({
+        startTime: courtPricingTable.startTime,
+        price: courtPricingTable.price,
+      })
+      .from(courtPricingTable)
+      .where(
+        and(
+          eq(courtPricingTable.courtId, courtId),
+          eq(courtPricingTable.dayOfWeek, todayDow),
+        )
+      ),
   ]);
+
+  const todayPricing: Record<string, number> = {};
+  for (const row of pricingRows) {
+    todayPricing[row.startTime] = Number(row.price);
+  }
 
   res.json({
     court: {
@@ -143,6 +163,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       isIndoor: court.isIndoor,
       imageUrl: court.imageUrl,
     },
+    todayPricing,
     facility: (facilityRow as any[])[0] ?? null,
     monthlyRevenue: Math.max(0, Number(monthlyStats[0]?.grossRevenue ?? 0) - Number(monthlyStats[0]?.refundedTotal ?? 0)),
     monthlyGrossRevenue: Number(monthlyStats[0]?.grossRevenue ?? 0),

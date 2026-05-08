@@ -24,7 +24,6 @@ export interface CreateCourtBody {
   accessInstructions?: string | null;
   condition?: CreateCourtBodyCondition;
   facilityId: number;
-  peakPricePerHour?: number | null;
   rentableItems?: string | null;
   workingHours?: string | null;
   amenityPhotos?: string | null;

@@ -67,8 +67,7 @@ function formatPriceLabel(price: number, unit?: string) {
   return `${price}€ / 30 min`;
 }
 
-function formatCourtPrice(price: number, peakPrice?: number) {
-  if (peakPrice != null && price === peakPrice) return `${price}€ / 1hr`;
+function formatCourtPrice(price: number) {
   return `${price}€ / 30 min`;
 }
 
@@ -1359,19 +1358,6 @@ export default function CourtDetail() {
             {/* Membership Plans */}
             <CourtMembershipSection courtId={court.id} />
 
-            {/* Peak Pricing info */}
-            {court.peakPricePerHour && (
-              <div className="flex items-start gap-3 p-4 rounded-xl border border-yellow-400/30 bg-yellow-400/5">
-                <Zap className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm">Dinamiška kainodara</p>
-                  <p className="text-sm text-muted-foreground">
-                    Off-peak: <strong className="text-foreground">{formatCourtPrice(court.pricePerHour)}</strong>&nbsp;·&nbsp;
-                    Peak (Pir–Pen 17–22): <strong className="text-yellow-400">{formatCourtPrice(court.peakPricePerHour)}</strong>
-                  </p>
-                </div>
-              </div>
-            )}
 
             <Separator />
 
@@ -1594,13 +1580,6 @@ export default function CourtDetail() {
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mb-2">
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary inline-block" /> Pasirinkta</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-muted-foreground/20 inline-block" /> Užimta</span>
-                  {court.peakPricePerHour && (
-                    <span className="flex items-center gap-1">
-                      <span className="w-3 h-3 rounded-sm bg-yellow-400/20 border border-yellow-400/40 inline-block" />
-                      <Zap className="w-2.5 h-2.5 text-yellow-400" />
-                      Peak
-                    </span>
-                  )}
                 </div>
 
                 {availabilityLoading ? (
@@ -1627,7 +1606,6 @@ export default function CourtDetail() {
                       const isRangeStart = idx === rangeStart;
                       const isRangeEnd = idx === rangeEnd;
 
-                      const isPeak = court.peakPricePerHour != null && slot.price >= court.peakPricePerHour;
                       return (
                         <button
                           key={idx}
@@ -1642,14 +1620,11 @@ export default function CourtDetail() {
                             ? "bg-muted/30 text-muted-foreground/40 border-transparent cursor-not-allowed line-through"
                             : isSelected
                               ? "bg-primary text-primary-foreground border-primary shadow-md scale-[0.97]"
-                              : isPeak
-                                ? "bg-yellow-400/10 text-foreground border-yellow-400/40 hover:border-yellow-400 hover:bg-yellow-400/20 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
-                                : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/10 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+                              : "bg-background text-foreground border-border hover:border-primary hover:bg-primary/10 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
                           }`}
                         >
                           <div className="text-center leading-tight">
                             <div className={`flex items-center justify-center gap-0.5 ${isRangeStart || isRangeEnd ? "font-bold" : ""}`}>
-                              {isPeak && !isSelected && <Zap className="w-2.5 h-2.5 text-yellow-400 shrink-0" />}
                               {slot.startTime}
                             </div>
                             <div className={`mt-0.5 flex items-center justify-center gap-0.5 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>

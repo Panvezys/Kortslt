@@ -511,9 +511,6 @@ components:
           nullable: true
         pricePerHour:
           type: number
-        peakPricePerHour:
-          type: number
-          nullable: true
         rentableItems:
           type: string
           nullable: true
@@ -634,9 +631,6 @@ components:
           enum: [excellent, good, fair]
         facilityId:
           type: integer
-        peakPricePerHour:
-          type: number
-          nullable: true
         rentableItems:
           type: string
           nullable: true

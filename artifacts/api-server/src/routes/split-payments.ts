@@ -36,12 +36,6 @@ function toMin(t: string): number {
   return h * 60 + m;
 }
 
-function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
-  const m = toMin(startTime);
-  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-  return isWeekday && m >= 17 * 60 && m < 22 * 60;
-}
-
 function slotsBetween(startTime: string, endTime: string): string[] {
   const slots: string[] = [];
   let cur = toMin(startTime);
@@ -124,18 +118,11 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
 
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
-  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
 
   const slots = slotsBetween(startTime, endTime);
   let courtPrice = 0;
   for (const slotStart of slots) {
-    if (pricingMap.has(slotStart)) {
-      courtPrice += pricingMap.get(slotStart)!;
-    } else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) {
-      courtPrice += peakSlotPrice;
-    } else {
-      courtPrice += defaultSlotPrice;
-    }
+    courtPrice += pricingMap.has(slotStart) ? pricingMap.get(slotStart)! : defaultSlotPrice;
   }
 
   const totalPrice = courtPrice;

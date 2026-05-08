@@ -52,7 +52,6 @@ export interface Court {
   latitude?: number | null;
   longitude?: number | null;
   pricePerHour: number;
-  peakPricePerHour?: number | null;
   rentableItems?: string | null;
   imageUrl?: string;
   ownerUserId?: string | null;
@@ -118,7 +117,6 @@ export interface CreateCourtBody {
   accessInstructions?: string | null;
   condition?: CreateCourtBodyCondition;
   facilityId: number;
-  peakPricePerHour?: number | null;
   rentableItems?: string | null;
   workingHours?: string | null;
   amenityPhotos?: string | null;

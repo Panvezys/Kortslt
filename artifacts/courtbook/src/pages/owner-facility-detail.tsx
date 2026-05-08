@@ -129,7 +129,6 @@ const courtSchema = z.object({
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
   pricePerHour: z.coerce.number().min(1),
-  peakPricePerHour: z.coerce.number().optional(),
   imageUrl: z.string().optional(),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
@@ -1055,7 +1054,7 @@ export default function OwnerFacilityDetail() {
     resolver: zodResolver(courtSchema),
     defaultValues: {
       name: "", type: "tennis", description: "",
-      pricePerHour: 20, peakPricePerHour: undefined,
+      pricePerHour: 20,
       imageUrl: "",
       isIndoor: false, maxPlayers: 4, amenities: [],
       socialFacebook: "", socialInstagram: "", socialWhatsapp: "", socialWebsite: "",

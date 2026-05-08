@@ -123,10 +123,6 @@ const courtSchema = z.object({
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
   pricePerHour: z.coerce.number().min(1),
-  peakPricePerHour: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
-    z.number().min(0).optional(),
-  ),
   imageUrl: z.string().optional(),
   isIndoor: z.boolean().default(false),
   maxPlayers: z.coerce.number().min(2),
@@ -244,7 +240,6 @@ export default function CourtCreatePage() {
       type: "tennis",
       description: "",
       pricePerHour: 20,
-      peakPricePerHour: undefined,
       imageUrl: "",
       isIndoor: false,
       maxPlayers: 4,
@@ -279,7 +274,6 @@ export default function CourtCreatePage() {
       type: c.type ?? "tennis",
       description: c.description ?? "",
       pricePerHour: Number(c.pricePerHour ?? 20),
-      peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
       imageUrl: c.imageUrl ?? "",
       isIndoor: !!c.isIndoor,
       maxPlayers: Number(c.maxPlayers ?? 4),
@@ -420,7 +414,6 @@ export default function CourtCreatePage() {
     surfaceSpeed: "info",
     surfaceBounce: "info",
     pricePerHour: "schedule",
-    peakPricePerHour: "pricing",
     maxPlayers: "amenities",
     isIndoor: "amenities",
     hasSmartLock: "amenities",
@@ -431,7 +424,6 @@ export default function CourtCreatePage() {
     name: "Aikštelės pavadinimas",
     type: "Sporto šaka",
     pricePerHour: "Numatytoji kaina",
-    peakPricePerHour: "Piko valandų kaina",
     maxPlayers: "Maks. žaidėjai",
     description: "Aprašymas",
     imageUrl: "Pagrindinė nuotrauka",
@@ -844,26 +836,6 @@ export default function CourtCreatePage() {
 
                 {formTab === "pricing" && (
                   <div className="space-y-4">
-                    <div className="rounded-xl border p-4">
-                      <FormField control={form.control} name="peakPricePerHour" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-1.5">
-                            <Euro className="w-3.5 h-3.5 text-amber-500" /> Piko valandų kaina (€/val) — neprivaloma
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number" min="0" step="0.5"
-                              placeholder="Palikite tuščią, jei nėra atskiros piko kainos"
-                              value={field.value ?? ""}
-                              onChange={(e) => field.onChange(e.target.value === "" ? undefined : e.target.value)}
-                            />
-                          </FormControl>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Naudojama kaip nuoroda už piko valandas (pvz., vakarais ar savaitgaliais).
-                          </p>
-                        </FormItem>
-                      )} />
-                    </div>
                     <div>
                       <p className="font-semibold text-sm mb-1">Kainoraštis pagal laiką</p>
                       <p className="text-xs text-muted-foreground">

@@ -41,11 +41,6 @@ function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
-function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
-  const m = toMin(startTime);
-  const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
-  return isWeekday && m >= 17 * 60 && m < 22 * 60;
-}
 function slotsBetween(startTime: string, endTime: string): string[] {
   const start = toMin(startTime);
   const end = toMin(endTime);
@@ -1371,12 +1366,9 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
     .where(and(eq(courtPricingTable.courtId, Number(courtId)), eq(courtPricingTable.dayOfWeek, dayOfWeek)));
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
-  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
   let courtPrice = 0;
   for (const slotStart of slotsBetween(bookingStart, bookingEnd)) {
-    if (pricingMap.has(slotStart)) courtPrice += pricingMap.get(slotStart)!;
-    else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) courtPrice += peakSlotPrice;
-    else courtPrice += defaultSlotPrice;
+    courtPrice += pricingMap.has(slotStart) ? pricingMap.get(slotStart)! : defaultSlotPrice;
   }
 
   // Atomic conflict check + double insert (booking + game), under per-(court,date) advisory lock

@@ -43,7 +43,7 @@ interface StripeConnectStatus {
   payoutsEnabled?: boolean;
 }
 
-interface OwnerCourt { id: number; name: string; type: string; facilityId?: number }
+interface OwnerCourt { id: number; name: string; type: string; facilityId?: number; pricePerHour?: number; todayPricing?: Record<string, number> }
 
 interface OwnerBooking {
   id: number;
@@ -118,8 +118,22 @@ function getSlotKind(
 
 // ── Slot Cell ─────────────────────────────────────────────────────────────────
 
+function getSlotPrice(
+  hour: number,
+  pricePerHour: number | undefined,
+  todayPricing: Record<string, number> | undefined,
+): number {
+  const defaultHalf = (pricePerHour ?? 0) / 2;
+  if (!todayPricing) return defaultHalf;
+  const h0 = `${String(hour).padStart(2, "0")}:00`;
+  const h30 = `${String(hour).padStart(2, "0")}:30`;
+  // Return the first custom slot price found, else default
+  return todayPricing[h0] ?? todayPricing[h30] ?? defaultHalf;
+}
+
 function SlotCell({
   courtId, hour, todayBookings, blockedSlots, onFreeClick, onBookingClick,
+  pricePerHour, todayPricing,
 }: {
   courtId: number;
   hour: number;
@@ -127,6 +141,8 @@ function SlotCell({
   blockedSlots: BlockedSlot[];
   onFreeClick: (courtId: number, hour: number) => void;
   onBookingClick: (booking: OwnerBooking) => void;
+  pricePerHour?: number;
+  todayPricing?: Record<string, number>;
 }) {
   const { kind, booking, blocked } = getSlotKind(courtId, hour, todayBookings, blockedSlots);
 
@@ -157,12 +173,18 @@ function SlotCell({
       </div>
     );
   }
+  const slotPrice = getSlotPrice(hour, pricePerHour, todayPricing);
   return (
     <div
       onClick={() => onFreeClick(courtId, hour)}
-      className="h-10 rounded border border-dashed border-border/40 hover:bg-muted/40 cursor-pointer transition-colors group flex items-center justify-center"
+      className="h-10 rounded border border-dashed border-border/40 hover:bg-muted/40 cursor-pointer transition-colors group flex flex-col items-center justify-center gap-0"
     >
-      <Plus className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+      <Plus className="h-2.5 w-2.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+      {slotPrice > 0 && (
+        <span className="text-[9px] text-muted-foreground/40 group-hover:text-muted-foreground/70 leading-none">
+          {slotPrice % 1 === 0 ? slotPrice : slotPrice.toFixed(1)}€
+        </span>
+      )}
     </div>
   );
 }
@@ -675,6 +697,8 @@ export default function OwnerDashboard() {
                                     blockedSlots={todayBlockedSlots}
                                     onFreeClick={handleFreeClick}
                                     onBookingClick={setSelectedBooking}
+                                    pricePerHour={c.pricePerHour}
+                                    todayPricing={c.todayPricing}
                                   />
                                 </div>
                               ))}

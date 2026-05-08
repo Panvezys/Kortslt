@@ -77,12 +77,6 @@ export function hoursBeforeStart(date: string, startTime: string): number {
   return (vilniusLocalToUtcMs(date, startTime) - Date.now()) / (1000 * 60 * 60);
 }
 
-function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-  const [h] = startTime.split(":").map(Number);
-  return h >= 17 && h < 22;
-}
-
 function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -235,18 +229,11 @@ router.post("/bookings", async (req, res): Promise<void> => {
 
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
-  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
 
   const slots = slotsBetween(reqStart, reqEnd);
   let courtPrice = 0;
   for (const slotStart of slots) {
-    if (pricingMap.has(slotStart)) {
-      courtPrice += pricingMap.get(slotStart)!;
-    } else if (peakSlotPrice != null && isPeakSlot(slotStart, dayOfWeek)) {
-      courtPrice += peakSlotPrice;
-    } else {
-      courtPrice += defaultSlotPrice;
-    }
+    courtPrice += pricingMap.has(slotStart) ? pricingMap.get(slotStart)! : defaultSlotPrice;
   }
 
   const durationMinutes = reqEndMin - reqStartMin;

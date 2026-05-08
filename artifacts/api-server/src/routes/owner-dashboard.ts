@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, or, and, inArray, gte, lte, sql } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtBlockedSlotsTable, facilitiesTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtBlockedSlotsTable, courtPricingTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -68,7 +68,9 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
 
   const courtIds = courts.map(c => c.id);
 
-  const [todayBookings, todayBlockedSlots, recentBookings, monthlyStats] = await Promise.all([
+  const todayDow = new Date().getDay();
+
+  const [todayBookings, todayBlockedSlots, recentBookings, monthlyStats, pricingRows] = await Promise.all([
     db
       .select({
         id: bookingsTable.id,
@@ -146,11 +148,32 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
           lte(bookingsTable.date, today),
         )
       ),
+
+    db
+      .select({
+        courtId: courtPricingTable.courtId,
+        startTime: courtPricingTable.startTime,
+        price: courtPricingTable.price,
+      })
+      .from(courtPricingTable)
+      .where(
+        and(
+          inArray(courtPricingTable.courtId, courtIds),
+          eq(courtPricingTable.dayOfWeek, todayDow),
+        )
+      ),
   ]);
 
   const grossRevenue = Number(monthlyStats[0]?.grossRevenue ?? 0);
   const refundedTotal = Number(monthlyStats[0]?.refundedTotal ?? 0);
   const netRevenue = Math.max(0, grossRevenue - refundedTotal);
+
+  // Build per-court pricing map: courtId → (startTime → price)
+  const courtPricingMap: Record<number, Record<string, number>> = {};
+  for (const row of pricingRows) {
+    if (!courtPricingMap[row.courtId]) courtPricingMap[row.courtId] = {};
+    courtPricingMap[row.courtId][row.startTime] = Number(row.price);
+  }
 
   res.json({
     facility: facilityInfo ?? null,
@@ -160,6 +183,8 @@ router.get("/owner/dashboard", requireAuth, async (req, res): Promise<void> => {
       type: c.type,
       facilityId: c.facilityId,
       workingHours: c.workingHours,
+      pricePerHour: Number(c.pricePerHour),
+      todayPricing: courtPricingMap[c.id] ?? {},
     })),
     todayBookings: todayBookings.map(b => ({
       ...b,

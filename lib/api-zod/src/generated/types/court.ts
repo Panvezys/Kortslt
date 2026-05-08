@@ -20,7 +20,6 @@ export interface Court {
   latitude?: number | null;
   longitude?: number | null;
   pricePerHour: number;
-  peakPricePerHour?: number | null;
   rentableItems?: string | null;
   imageUrl?: string;
   ownerUserId?: string | null;

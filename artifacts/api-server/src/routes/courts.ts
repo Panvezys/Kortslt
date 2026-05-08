@@ -39,7 +39,6 @@ function formatCourt(c: CourtRow, facility: FacilityRow | null) {
     ownerUserId: facility?.ownerUserId ?? undefined,
     ownershipDocUrl: facility?.ownershipDocUrl ?? undefined,
     pricePerHour: Number(c.pricePerHour),
-    peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
     rentableItems: c.rentableItems ?? undefined,
     description: c.description ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
@@ -76,7 +75,6 @@ function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
     latitude: facility?.latitude ?? undefined,
     longitude: facility?.longitude ?? undefined,
     pricePerHour: Number(c.pricePerHour),
-    peakPricePerHour: c.peakPricePerHour != null ? Number(c.peakPricePerHour) : undefined,
     rentableItems: c.rentableItems ?? undefined,
     imageUrl: c.imageUrl ?? undefined,
     ownerUserId: facility?.ownerUserId ?? undefined,
@@ -114,13 +112,6 @@ async function getFacilitiesMap(facilityIds: number[]): Promise<Map<number, Faci
   const unique = [...new Set(facilityIds)];
   const rows = await db.select().from(facilitiesTable).where(inArray(facilitiesTable.id, unique));
   return new Map(rows.map(f => [f.id, f]));
-}
-
-/** Returns true if the given time slot (HH:MM) falls in peak hours: Mon–Fri 17:00–22:00 */
-function isPeakSlot(startTime: string, dayOfWeek: number): boolean {
-  if (dayOfWeek === 0 || dayOfWeek === 6) return false; // weekend
-  const [h] = startTime.split(":").map(Number);
-  return h >= 17 && h < 22;
 }
 
 /** Parse "HH:MM" → total minutes */
@@ -325,7 +316,6 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       type: parsed.data.type,
       description: parsed.data.description ?? null,
       pricePerHour: String(parsed.data.pricePerHour),
-      peakPricePerHour: parsed.data.peakPricePerHour != null ? String(parsed.data.peakPricePerHour) : null,
       rentableItems: parsed.data.rentableItems ?? null,
       imageUrl: parsed.data.imageUrl ?? null,
       amenities: parsed.data.amenities ?? [],
@@ -424,7 +414,7 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
       ...safeFields,
       ...extraFields,
       pricePerHour: String(body.data.pricePerHour),
-      peakPricePerHour: body.data.peakPricePerHour != null ? String(body.data.peakPricePerHour) : null,
+
       rentableItems: body.data.rentableItems ?? null,
       amenities: body.data.amenities ?? [],
       condition: (body.data.condition ?? "good") as string,
@@ -564,7 +554,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
 
   const pricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
-  const peakSlotPrice = court.peakPricePerHour != null ? Number(court.peakPricePerHour) / 2 : null;
 
   const allSlots = generateSlots(openTime, closeTime).map(({ startTime, endTime }) => {
     const isBooked = existingBookings.some(
@@ -574,15 +563,8 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
       b => b.startTime <= startTime && b.endTime > startTime
     );
 
-    // Slot price: custom pricing > peak pricing > default
-    let price: number;
-    if (pricingMap.has(startTime)) {
-      price = pricingMap.get(startTime)!;
-    } else if (peakSlotPrice != null && isPeakSlot(startTime, dayOfWeek)) {
-      price = peakSlotPrice;
-    } else {
-      price = defaultSlotPrice;
-    }
+    // Slot price: custom pricing > default
+    const price = pricingMap.has(startTime) ? pricingMap.get(startTime)! : defaultSlotPrice;
 
     return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
   });

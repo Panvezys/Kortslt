@@ -5,7 +5,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  X, ArrowLeft, CalendarDays, ExternalLink, Ban,
+  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus,
 } from "lucide-react";
 import { SportPill } from "@/components/sport-icon";
 import { OwnerLayout } from "@/components/owner-layout";
@@ -56,6 +56,7 @@ interface CourtStats {
     id: number; name: string; type: string; status: string;
     pricePerHour: number; facilityId: number | null; isIndoor: boolean | null; imageUrl: string | null;
   };
+  todayPricing: Record<string, number>;
   facility: { id: number; name: string } | null;
   monthlyRevenue: number;
   monthlyBookingCount: number;
@@ -178,6 +179,90 @@ function StatCard({ label, value, sub, color = "text-primary" }: {
   );
 }
 
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function TodayGrid({
+  todayBookings,
+  pricePerHour,
+  todayPricing,
+}: {
+  todayBookings: Booking[];
+  pricePerHour: number;
+  todayPricing: Record<string, number>;
+}) {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const defaultHalf = pricePerHour / 2;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <CalendarDays className="w-4 h-4 text-primary" />
+        <h3 className="font-semibold text-sm">Šiandien — grafikas</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[360px] max-h-[340px] overflow-y-auto">
+          {HOURS.map(hour => {
+            const slotStart = `${String(hour).padStart(2, "0")}:00`;
+            const slotStart30 = `${String(hour).padStart(2, "0")}:30`;
+            const slotEnd = `${String(hour + 1).padStart(2, "0")}:00`;
+
+            const booking = todayBookings.find(b => {
+              const bStart = toMin(b.startTime);
+              const bEnd = toMin(b.endTime);
+              return bStart <= hour * 60 && bEnd > hour * 60 && ["confirmed","pending","blocked"].includes(b.status);
+            });
+
+            const isNow = hour === currentHour;
+            const isPast = hour < currentHour;
+
+            // Per-slot price for display: check :00 first, then :30
+            const slotPrice = todayPricing[slotStart] ?? todayPricing[slotStart30] ?? defaultHalf;
+
+            return (
+              <div
+                key={hour}
+                className={`flex items-center border-b border-border/40 last:border-0 px-3 py-1.5 gap-3 min-h-[44px] ${isNow ? "bg-primary/5" : isPast ? "bg-muted/20" : ""}`}
+              >
+                <span className={`text-xs tabular-nums font-mono w-10 shrink-0 ${isNow ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                  {slotStart}
+                </span>
+                {booking ? (
+                  <div className={`flex-1 rounded px-2 py-1 text-xs font-medium border ${
+                    booking.status === "confirmed"
+                      ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                      : booking.status === "pending"
+                        ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                        : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                  }`}>
+                    <span className="truncate block">{booking.customerName}</span>
+                    <span className="text-[10px] opacity-70">{booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)} · {fmtPrice(booking.totalPrice)}</span>
+                  </div>
+                ) : (
+                  <div className={`flex-1 flex items-center justify-between rounded border border-dashed border-border/40 px-2 py-1 ${isPast ? "opacity-40" : ""}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Plus className="w-3 h-3 text-muted-foreground/40" />
+                      <span className="text-[11px] text-muted-foreground/50">{slotStart}–{slotEnd}</span>
+                    </div>
+                    {slotPrice > 0 && (
+                      <span className="text-[10px] text-muted-foreground/50 font-medium">
+                        {slotPrice % 1 === 0 ? slotPrice : slotPrice.toFixed(1)}€
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WeeklyCalendar({ weeklyBookings }: { weeklyBookings: Booking[] }) {
   const weekDates = getWeekDates();
   const today = todayStr();
@@ -291,7 +376,7 @@ export default function OwnerCourtDashboard() {
     );
   }
 
-  const { court, facility, monthlyRevenue, monthlyBookingCount, todayBookings, weeklyBookings, recentBookings } = data;
+  const { court, facility, monthlyRevenue, monthlyBookingCount, todayBookings, weeklyBookings, recentBookings, todayPricing } = data;
 
   const displayedBookings =
     bookingsTab === "today" ? todayBookings :
@@ -357,6 +442,13 @@ export default function OwnerCourtDashboard() {
               color="text-blue-500"
             />
           </div>
+
+          {/* Today's schedule grid */}
+          <TodayGrid
+            todayBookings={todayBookings}
+            pricePerHour={court.pricePerHour}
+            todayPricing={todayPricing ?? {}}
+          />
 
           {/* Weekly calendar */}
           <WeeklyCalendar weeklyBookings={weeklyBookings} />
