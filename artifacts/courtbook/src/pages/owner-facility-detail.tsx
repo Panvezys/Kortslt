@@ -1379,6 +1379,14 @@ export default function OwnerFacilityDetail() {
                       </div>
                     )}
 
+                    <div className="mb-3">
+                      <Button asChild variant="outline" size="sm" className="h-8 w-full gap-1 text-xs">
+                        <Link href={`/owner/facility/${id}/court/${court.id}/edit`}>
+                          <Edit2 className="w-3.5 h-3.5" /> Redaguoti
+                        </Link>
+                      </Button>
+                    </div>
+
                     <div className="mt-auto space-y-2">
                       {/* Online/offline toggle */}
                       {isActiveOrHidden && (
