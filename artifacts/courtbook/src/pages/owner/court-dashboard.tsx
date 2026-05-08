@@ -5,7 +5,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus,
+  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus, Phone,
 } from "lucide-react";
 import { SportPill } from "@/components/sport-icon";
 import { OwnerLayout } from "@/components/owner-layout";
@@ -80,6 +80,118 @@ const SLOTS = Array.from({ length: 28 }, (_, i) => {
 function addThirty(t: string): string {
   const m = toMin(t) + 30;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+}
+
+function ManualBookingModal({
+  open, onClose, courtId, preStartTime,
+}: {
+  open: boolean;
+  onClose: () => void;
+  courtId: number;
+  preStartTime?: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const today = todayStr();
+
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [date, setDate] = useState(today);
+  const [startHour, setStartHour] = useState(() => preStartTime ?? "08:00");
+  const [endHour, setEndHour] = useState(() => preStartTime ? addThirty(preStartTime) : "08:30");
+  const [note, setNote] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      customFetch(`${API_URL}/owner/bookings/manual`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtId,
+          customerName,
+          customerEmail: customerEmail || `manual-${Date.now()}@korts.lt`,
+          customerPhone: customerPhone || undefined,
+          date,
+          startTime: startHour,
+          endTime: endHour,
+          note: note || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Rezervacija sukurta" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onClose();
+      setCustomerName(""); setCustomerEmail(""); setCustomerPhone(""); setNote("");
+    },
+    onError: (e: any) => toast({
+      title: "Klaida",
+      description: e?.data?.error || e?.message || "Nepavyko sukurti rezervacijos",
+      variant: "destructive",
+    }),
+  });
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Rankinė rezervacija</h2>
+        <p className="text-sm text-muted-foreground mb-5">Sukurkite rezervaciją už klientą (patvirtinta iš karto).</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Kliento vardas *</label>
+            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Vardas Pavardė" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">El. paštas</label>
+            <input value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="vardas@email.com" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Telefonas</label>
+            <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+370 600 00000" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Data</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
+              <select value={endHour} onChange={e => setEndHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pastaba</label>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Pvz. telefonu gautas…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Atšaukti</Button>
+          <Button
+            className="flex-1"
+            disabled={!customerName || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Saugoma…" : "Išsaugoti"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BlockCourtModal({
@@ -347,6 +459,8 @@ export default function OwnerCourtDashboard() {
   const [, navigate] = useLocation();
   const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
   const [blockOpen, setBlockOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
 
   const { data, isLoading, error } = useQuery<CourtStats>({
     queryKey: ["owner-court-stats", courtId],
@@ -405,18 +519,27 @@ export default function OwnerCourtDashboard() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
-              size="sm" variant="outline" className="gap-1.5 text-xs"
+              size="sm" variant="outline" className="gap-1.5 text-xs h-8"
               onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Viešas</span>
             </Button>
             <Button
-              size="sm" variant="outline" className="gap-1.5 text-xs border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+              size="sm" variant="outline" className="gap-1.5 text-xs h-8"
               onClick={() => setBlockOpen(true)}
             >
               <Ban className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Blokuoti</span>
+              <span className="hidden sm:inline">Blokuoti kortą</span>
+              <span className="sm:hidden">Blokuoti</span>
+            </Button>
+            <Button
+              size="sm" className="gap-1.5 text-xs h-8"
+              onClick={() => { setManualPreStartTime(undefined); setManualOpen(true); }}
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Rankinė rezervacija</span>
+              <span className="sm:hidden">Rankinė</span>
             </Button>
           </div>
         </header>
@@ -501,6 +624,12 @@ export default function OwnerCourtDashboard() {
         </div>
       </div>
 
+      <ManualBookingModal
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        courtId={Number(courtId)}
+        preStartTime={manualPreStartTime}
+      />
       <BlockCourtModal
         open={blockOpen}
         onClose={() => setBlockOpen(false)}
