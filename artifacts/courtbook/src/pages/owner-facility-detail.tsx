@@ -1379,13 +1379,15 @@ export default function OwnerFacilityDetail() {
                       </div>
                     )}
 
-                    <div className="mb-3">
-                      <Button asChild variant="outline" size="sm" className="h-8 w-full gap-1 text-xs">
-                        <Link href={`/owner/facility/${id}/court/${court.id}/edit`}>
-                          <Edit2 className="w-3.5 h-3.5" /> Redaguoti
-                        </Link>
-                      </Button>
-                    </div>
+                    {facility?.verificationStatus !== "pending_verification" && (
+                      <div className="mb-3">
+                        <Button asChild variant="outline" size="sm" className="h-8 w-full gap-1 text-xs">
+                          <Link href={`/owner/facility/${id}/court/${court.id}/edit`}>
+                            <Edit2 className="w-3.5 h-3.5" /> Redaguoti
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
 
                     <div className="mt-auto space-y-2">
                       {/* Online/offline toggle */}
@@ -1432,7 +1434,15 @@ export default function OwnerFacilityDetail() {
                                       disabled={isDisabled}
                                       onClick={() => {
                                         customFetch(`${API_URL}/courts/${court.id}/submit-review`, { method: "POST" })
-                                          .then(() => { queryClient.invalidateQueries({ queryKey: ["facility-courts", id] }); toast({ title: "Pateikta peržiūrai ✓" }); })
+                                          .then(() => {
+                                            queryClient.setQueryData(["facility-courts", id], (old: any) =>
+                                              Array.isArray(old)
+                                                ? old.map((c: any) => c.id === court.id ? { ...c, status: "pending_review" } : c)
+                                                : old
+                                            );
+                                            queryClient.invalidateQueries({ queryKey: ["facility-courts", id] });
+                                            toast({ title: "Pateikta peržiūrai ✓" });
+                                          })
                                           .catch((err: any) => toast({ title: err?.message ?? "Klaida", variant: "destructive" }));
                                       }}
                                     >
