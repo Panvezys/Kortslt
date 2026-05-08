@@ -63,6 +63,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
     db.select({
       id: bookingsTable.id,
       courtId: bookingsTable.courtId,
+      bookerUserId: bookingsTable.bookerUserId,
       customerName: bookingsTable.customerName,
       customerEmail: bookingsTable.customerEmail,
       customerPhone: bookingsTable.customerPhone,
@@ -71,6 +72,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       endTime: bookingsTable.endTime,
       totalPrice: bookingsTable.totalPrice,
       status: bookingsTable.status,
+      rentedItems: bookingsTable.rentedItems,
       createdAt: bookingsTable.createdAt,
     })
       .from(bookingsTable)
@@ -84,6 +86,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
     db.select({
       id: bookingsTable.id,
       courtId: bookingsTable.courtId,
+      bookerUserId: bookingsTable.bookerUserId,
       customerName: bookingsTable.customerName,
       customerEmail: bookingsTable.customerEmail,
       customerPhone: bookingsTable.customerPhone,
@@ -92,6 +95,7 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       endTime: bookingsTable.endTime,
       totalPrice: bookingsTable.totalPrice,
       status: bookingsTable.status,
+      rentedItems: bookingsTable.rentedItems,
       createdAt: bookingsTable.createdAt,
     })
       .from(bookingsTable)

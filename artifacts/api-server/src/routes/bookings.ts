@@ -835,7 +835,7 @@ router.post("/owner/bookings/block", requireAuth, async (req, res): Promise<void
 const ManualBookingBody = z.object({
   courtId: z.number().int(),
   customerName: z.string().min(1),
-  customerEmail: z.string().email(),
+  customerEmail: z.string().email().optional().or(z.literal("")).transform(v => v || ""),
   customerPhone: z.string().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),

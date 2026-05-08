@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -80,9 +80,9 @@ interface CourtStats {
 }
 
 interface Booking {
-  id: number; courtId: number; customerName: string; customerEmail: string;
+  id: number; courtId: number; bookerUserId?: string | null; customerName: string; customerEmail: string;
   customerPhone?: string | null; date: string; startTime: string; endTime: string;
-  totalPrice: number; status: string; createdAt: string;
+  totalPrice: number; status: string; rentedItems?: string | null; createdAt: string;
 }
 
 // 30-min slots 08:00 → 21:30  (28 slots)
@@ -113,9 +113,18 @@ function ManualBookingModal({
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [date, setDate] = useState(preDate ?? today);
-  const [startHour, setStartHour] = useState(() => preStartTime ?? "08:00");
-  const [endHour, setEndHour] = useState(() => preStartTime ? addThirty(preStartTime) : "08:30");
+  const [startHour, setStartHour] = useState(preStartTime ?? "08:00");
+  const [endHour, setEndHour] = useState(preStartTime ? addThirty(preStartTime) : "08:30");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setDate(preDate ?? today);
+      setStartHour(preStartTime ?? "08:00");
+      setEndHour(preStartTime ? addThirty(preStartTime) : "08:30");
+      setCustomerName(""); setCustomerEmail(""); setCustomerPhone(""); setNote("");
+    }
+  }, [open]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -125,8 +134,8 @@ function ManualBookingModal({
         body: JSON.stringify({
           courtId,
           customerName,
-          customerEmail: customerEmail || `manual-${Date.now()}@korts.lt`,
-          customerPhone: customerPhone || undefined,
+          customerEmail: customerEmail.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
           date,
           startTime: startHour,
           endTime: endHour,
@@ -530,8 +539,27 @@ function WeekGrid({
   );
 }
 
-function BookingInfoModal({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+function BookingInfoModal({ booking, onClose, courtId, onCancelled }: {
+  booking: Booking; onClose: () => void; courtId: number; onCancelled?: () => void;
+}) {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const canCancel = ["confirmed", "pending", "blocked"].includes(booking.status);
+  const note = booking.rentedItems ?? null;
+  const hasEmail = booking.customerEmail && !booking.customerEmail.startsWith("manual-");
+
+  const cancelMutation = useMutation({
+    mutationFn: () => customFetch(`${API_URL}/bookings/${booking.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: booking.status === "blocked" ? "Laikas atblokuotas" : "Rezervacija atšaukta" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onCancelled?.();
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.data?.error || e?.message || "Nepavyko atšaukti", variant: "destructive" }),
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -543,7 +571,7 @@ function BookingInfoModal({ booking, onClose }: { booking: Booking; onClose: () 
         <p className="text-sm text-muted-foreground mb-4">{booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)}</p>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Klientas</span><span className="font-medium">{booking.customerName}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">El. paštas</span><span className="font-medium truncate max-w-[60%] text-right">{booking.customerEmail}</span></div>
+          {hasEmail && <div className="flex justify-between"><span className="text-muted-foreground">El. paštas</span><span className="font-medium truncate max-w-[60%] text-right">{booking.customerEmail}</span></div>}
           {booking.customerPhone && <div className="flex justify-between"><span className="text-muted-foreground">Telefonas</span><span className="font-medium">{booking.customerPhone}</span></div>}
           <div className="flex justify-between"><span className="text-muted-foreground">Data</span><span className="font-medium">{booking.date}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Laikas</span><span className="font-medium">{booking.startTime.slice(0,5)} – {booking.endTime.slice(0,5)}</span></div>
@@ -554,12 +582,32 @@ function BookingInfoModal({ booking, onClose }: { booking: Booking; onClose: () 
               {STATUS_LT[booking.status] ?? booking.status}
             </Badge>
           </div>
+          {note && (
+            <div className="pt-1 border-t border-border/40">
+              <p className="text-xs text-muted-foreground mb-0.5">Pastaba</p>
+              <p className="text-sm">{note.startsWith("Pastaba: ") ? note.slice(9) : note}</p>
+            </div>
+          )}
         </div>
-        <div className="flex gap-2 mt-5">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
-          <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
-            Pilna peržiūra
-          </Button>
+        <div className="flex flex-col gap-2 mt-5">
+          {canCancel && (
+            <Button
+              variant="destructive"
+              className="w-full text-sm"
+              disabled={cancelMutation.isPending}
+              onClick={() => cancelMutation.mutate()}
+            >
+              {cancelMutation.isPending ? "Atšaukiama…" : booking.status === "blocked" ? "Atblokuoti laiką" : "Atšaukti rezervaciją"}
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
+            {booking.status !== "blocked" && (
+              <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
+                Pilna peržiūra
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -845,12 +893,11 @@ export default function OwnerCourtDashboard() {
       </div>
 
       {selectedBooking && (
-        <BookingInfoModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+        <BookingInfoModal booking={selectedBooking} courtId={Number(courtId)} onClose={() => setSelectedBooking(null)} />
       )}
       <ManualBookingModal
-        key={`${manualPreDate ?? ""}-${manualPreStartTime ?? ""}`}
         open={manualOpen}
-        onClose={() => setManualOpen(false)}
+        onClose={() => { setManualOpen(false); setManualPreStartTime(undefined); setManualPreDate(undefined); }}
         courtId={Number(courtId)}
         preStartTime={manualPreStartTime}
         preDate={manualPreDate}
