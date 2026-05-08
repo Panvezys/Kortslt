@@ -1,10 +1,10 @@
 /**
  * Open Matches routes
  *
- * GET /api/matches/open — public feed of split bookings with visibility='public'
+ * GET /api/matches/open — unified feed: split-payment booked matches + casual community games
  */
 import { Router, type IRouter } from "express";
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { and, eq, sql, inArray, isNull } from "drizzle-orm";
 import {
   db,
   bookingsTable,
@@ -23,15 +23,15 @@ router.get("/matches/open", async (req, res): Promise<void> => {
     const maxRows = Math.min(parseInt(limit ?? "60", 10) || 60, 100);
     const userSkill = skillLevel != null && skillLevel !== "" ? parseFloat(skillLevel) : null;
 
-    const conditions: ReturnType<typeof eq>[] = [
+    // ── 1. Booked matches (split-payment games linked to a real court booking) ──
+    const bookedConditions: any[] = [
       eq(gamesTable.visibility, "public"),
       eq(gamesTable.status, "awaiting_players"),
     ];
+    if (sport && sport !== "all") bookedConditions.push(eq(gamesTable.sport, sport));
+    if (city) bookedConditions.push(eq(gamesTable.city, city));
 
-    if (sport && sport !== "all") conditions.push(eq(gamesTable.sport, sport) as any);
-    if (city) conditions.push(eq(gamesTable.city, city) as any);
-
-    const rows = await db
+    const bookedRows = await db
       .select({
         game: gamesTable,
         booking: bookingsTable,
@@ -42,17 +42,38 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       .innerJoin(bookingsTable, eq(gamesTable.bookingId, bookingsTable.id))
       .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
       .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-      .where(and(...(conditions as any[])))
+      .where(and(...bookedConditions))
       .orderBy(bookingsTable.date, bookingsTable.startTime)
       .limit(maxRows);
 
-    // Apply date filter (bookings.date is a text column YYYY-MM-DD)
-    let filtered = rows;
-    if (date) filtered = rows.filter(r => r.booking.date === date);
+    // ── 2. Casual community games (no court booking) ──
+    const casualConditions: any[] = [
+      eq(gamesTable.visibility, "public"),
+      eq(gamesTable.status, "open"),
+      eq(gamesTable.isPrivate, false),
+      isNull(gamesTable.bookingId),
+    ];
+    if (sport && sport !== "all") casualConditions.push(eq(gamesTable.sport, sport));
+    if (city) casualConditions.push(eq(gamesTable.city, city));
 
-    // Apply optional skill-level filter
+    const casualRows = await db
+      .select({ game: gamesTable })
+      .from(gamesTable)
+      .where(and(...casualConditions))
+      .orderBy(gamesTable.datetime)
+      .limit(maxRows);
+
+    // ── 3. Apply date filter ──
+    let filteredBooked = bookedRows;
+    let filteredCasual = casualRows;
+    if (date) {
+      filteredBooked = bookedRows.filter(r => r.booking.date === date);
+      filteredCasual = casualRows.filter(r => String(r.game.datetime).startsWith(date));
+    }
+
+    // ── 4. Apply optional skill filter to booked matches ──
     if (userSkill != null && !isNaN(userSkill)) {
-      filtered = filtered.filter(r => {
+      filteredBooked = filteredBooked.filter(r => {
         const min = r.game.minSkillLevel;
         const max = r.game.maxSkillLevel;
         if (min != null && userSkill < min) return false;
@@ -61,11 +82,14 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       });
     }
 
-    // Aggregate participant counts per game
-    const gameIds = filtered.map(r => r.game.id);
-    const participantCounts = new Map<number, { paid: number; pending: number }>();
+    // ── 5. Aggregate participant counts for all games ──
+    const allGameIds = [
+      ...filteredBooked.map(r => r.game.id),
+      ...filteredCasual.map(r => r.game.id),
+    ];
+    const participantCounts = new Map<number, { paid: number; pending: number; joined: number }>();
 
-    if (gameIds.length > 0) {
+    if (allGameIds.length > 0) {
       const participantRows = await db
         .select({
           gameId: gameParticipantsTable.gameId,
@@ -75,26 +99,40 @@ router.get("/matches/open", async (req, res): Promise<void> => {
         .from(gameParticipantsTable)
         .where(and(
           eq(gameParticipantsTable.status, "joined"),
-          inArray(gameParticipantsTable.gameId, gameIds),
+          inArray(gameParticipantsTable.gameId, allGameIds),
         ))
         .groupBy(gameParticipantsTable.gameId, gameParticipantsTable.paymentStatus);
 
       for (const row of participantRows) {
-        const existing = participantCounts.get(row.gameId) ?? { paid: 0, pending: 0 };
+        const existing = participantCounts.get(row.gameId) ?? { paid: 0, pending: 0, joined: 0 };
         const c = parseInt(row.count, 10);
         if (row.paymentStatus === "paid") existing.paid += c;
         else existing.pending += c;
+        existing.joined += c;
         participantCounts.set(row.gameId, existing);
       }
     }
 
-    const result = filtered.map(r => {
+    // ── 6. Build booked match items ──
+    const bookedItems = filteredBooked.map(r => {
       const { game, booking, court, facility } = r;
-      const counts = participantCounts.get(game.id) ?? { paid: 0, pending: 0 };
+      const counts = participantCounts.get(game.id) ?? { paid: 0, pending: 0, joined: 0 };
       const total = booking.totalSlots ?? game.playersNeeded;
       const slotsLeft = Math.max(0, total - counts.paid - counts.pending);
+      const datetime = `${booking.date}T${booking.startTime}:00`;
       return {
+        kind: "booked" as const,
         gameId: game.id,
+        sport: game.sport,
+        matchType: game.matchType,
+        visibility: game.visibility,
+        creatorName: game.creatorName,
+        creatorUserId: game.creatorUserId,
+        description: game.description ?? null,
+        datetime,
+        minSkillLevel: game.minSkillLevel ?? null,
+        maxSkillLevel: game.maxSkillLevel ?? null,
+        // Booked-only
         bookingId: booking.id,
         token: booking.splitInviteToken ?? null,
         courtName: court?.name ?? "",
@@ -105,25 +143,74 @@ router.get("/matches/open", async (req, res): Promise<void> => {
         date: booking.date,
         startTime: booking.startTime,
         endTime: booking.endTime,
-        sport: game.sport,
-        matchType: game.matchType,
-        visibility: game.visibility,
-        minSkillLevel: game.minSkillLevel ?? null,
-        maxSkillLevel: game.maxSkillLevel ?? null,
         pricePerSlot: Number(booking.pricePerSlot ?? 0),
         totalPrice: Number(booking.totalPrice),
         totalSlots: total,
         paidSlots: counts.paid,
         slotsLeft,
-        creatorName: game.creatorName,
-        creatorUserId: game.creatorUserId,
-        description: game.description ?? null,
-        datetime: game.datetime,
+        // Casual-only (null for booked)
+        city: facility?.city ?? null,
+        placeName: null as string | null,
+        skillLevel: null as string | null,
+        durationMinutes: null as number | null,
+        joinedCount: null as number | null,
+        playersNeeded: null as number | null,
+        isPrivate: false,
         createdAt: game.createdAt.toISOString(),
       };
     });
 
-    res.json({ matches: result, total: result.length });
+    // ── 7. Build casual game items ──
+    const casualItems = filteredCasual.map(r => {
+      const { game } = r;
+      const counts = participantCounts.get(game.id) ?? { paid: 0, pending: 0, joined: 0 };
+      const slotsLeft = Math.max(0, (game.playersNeeded ?? 2) - counts.joined);
+      return {
+        kind: "casual" as const,
+        gameId: game.id,
+        sport: game.sport,
+        matchType: game.matchType,
+        visibility: game.visibility,
+        creatorName: game.creatorName,
+        creatorUserId: game.creatorUserId,
+        description: game.description ?? null,
+        datetime: String(game.datetime),
+        minSkillLevel: null as number | null,
+        maxSkillLevel: null as number | null,
+        // Booked-only (null for casual)
+        bookingId: null as number | null,
+        token: null as string | null,
+        courtName: null as string | null,
+        courtId: null as number | null,
+        facilityName: null as string | null,
+        facilityCity: null as string | null,
+        courtImageUrl: null as string | null,
+        date: null as string | null,
+        startTime: null as string | null,
+        endTime: null as string | null,
+        pricePerSlot: null as number | null,
+        totalPrice: null as number | null,
+        totalSlots: null as number | null,
+        paidSlots: null as number | null,
+        slotsLeft,
+        // Casual-only
+        city: game.city ?? null,
+        placeName: game.placeName ?? null,
+        skillLevel: game.skillLevel ?? null,
+        durationMinutes: game.durationMinutes ?? null,
+        joinedCount: counts.joined,
+        playersNeeded: game.playersNeeded ?? null,
+        isPrivate: game.isPrivate ?? false,
+        createdAt: game.createdAt.toISOString(),
+      };
+    });
+
+    // ── 8. Merge and sort by datetime ascending ──
+    const allItems = [...bookedItems, ...casualItems].sort((a, b) =>
+      new Date(a.datetime).getTime() - new Date(b.datetime).getTime(),
+    );
+
+    res.json({ matches: allItems, total: allItems.length });
   } catch (err) {
     logger.error({ err }, "GET /api/matches/open failed");
     res.status(500).json({ error: "Nepavyko gauti mačų sąrašo" });

@@ -240,7 +240,9 @@ function Router() {
       <Route path="/coaches" component={CoachesPage} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
-      <Route path="/games" component={GamesPage} />
+      <Route path="/games">
+        <Redirect to="/matches" />
+      </Route>
       <Route path="/games/guide" component={GamesGuidePage} />
       <Route path="/games/:id" component={GameDetailPage} />
       <Route path="/messages" component={MessagesPage} />

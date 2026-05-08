@@ -390,7 +390,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
                 <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
                 <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
-                <NavLink href="/games" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Žaidimai</NavLink>
+                <NavLink href="/matches" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Mačai</NavLink>
                 <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
               </nav>
             )}
@@ -446,9 +446,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Trophy className="w-4 h-4" />
                 <span>Turnyrai</span>
               </Link>
-              <Link href="/games" className={mobileNavCls("/games")}>
+              <Link href="/matches" className={mobileNavCls("/matches")}>
                 <Gamepad2 className="w-4 h-4" />
-                <span>Žaidimai</span>
+                <span>Mačai</span>
               </Link>
             </nav>
           )}
@@ -527,8 +527,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { href: "/courts", label: "Rasti aikštelę" },
                   { href: "/coaches", label: "Treneriai" },
                   { href: "/tournaments", label: "Turnyrai" },
-                  { href: "/games", label: "Žaidimai" },
-                  { href: "/matches", label: "Atviri mačai" },
+                  { href: "/matches", label: "Mačai" },
                   { href: "/list-your-court", label: "Pridėti aikštelę" },
                   { href: "/bookings", label: "Mano rezervacijos" },
                   { href: "/profile", label: "Profilis" },
