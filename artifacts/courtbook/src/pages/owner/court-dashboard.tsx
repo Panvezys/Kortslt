@@ -71,8 +71,16 @@ interface Booking {
   totalPrice: number; status: string; createdAt: string;
 }
 
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 8);
-function hhmm(h: number) { return `${String(h).padStart(2, "0")}:00`; }
+// 30-min slots 08:00 → 21:30  (28 slots)
+const SLOTS = Array.from({ length: 28 }, (_, i) => {
+  const m = 8 * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+});
+
+function addThirty(t: string): string {
+  const m = toMin(t) + 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+}
 
 function BlockCourtModal({
   open, onClose, courtId,
@@ -85,8 +93,8 @@ function BlockCourtModal({
   const queryClient = useQueryClient();
   const today = todayStr();
   const [date, setDate] = useState(today);
-  const [startHour, setStartHour] = useState(hhmm(8));
-  const [endHour, setEndHour] = useState(hhmm(9));
+  const [startHour, setStartHour] = useState("08:00");
+  const [endHour, setEndHour] = useState("08:30");
   const [notes, setNotes] = useState("");
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
 
@@ -135,14 +143,15 @@ function BlockCourtModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
-              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
               <select value={endHour} onChange={e => { setEndHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.filter(h => h > Number(startHour.split(":")[0])).map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
               </select>
             </div>
           </div>
@@ -194,7 +203,7 @@ function TodayGrid({
   todayPricing: Record<string, number>;
 }) {
   const now = new Date();
-  const currentHour = now.getHours();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
   const defaultHalf = pricePerHour / 2;
 
   return (
@@ -205,30 +214,28 @@ function TodayGrid({
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[360px] max-h-[340px] overflow-y-auto">
-          {HOURS.map(hour => {
-            const slotStart = `${String(hour).padStart(2, "0")}:00`;
-            const slotStart30 = `${String(hour).padStart(2, "0")}:30`;
-            const slotEnd = `${String(hour + 1).padStart(2, "0")}:00`;
+          {SLOTS.map(slot => {
+            const slotMin = toMin(slot);
+            const slotEnd = addThirty(slot);
 
             const booking = todayBookings.find(b => {
               const bStart = toMin(b.startTime);
               const bEnd = toMin(b.endTime);
-              return bStart <= hour * 60 && bEnd > hour * 60 && ["confirmed","pending","blocked"].includes(b.status);
+              return bStart <= slotMin && bEnd > slotMin && ["confirmed", "pending", "blocked"].includes(b.status);
             });
 
-            const isNow = hour === currentHour;
-            const isPast = hour < currentHour;
+            const isNow = nowMin >= slotMin && nowMin < slotMin + 30;
+            const isPast = slotMin + 30 <= nowMin;
 
-            // Per-slot price for display: check :00 first, then :30
-            const slotPrice = todayPricing[slotStart] ?? todayPricing[slotStart30] ?? defaultHalf;
+            const slotPrice = todayPricing[slot] ?? defaultHalf;
 
             return (
               <div
-                key={hour}
-                className={`flex items-center border-b border-border/40 last:border-0 px-3 py-1.5 gap-3 min-h-[44px] ${isNow ? "bg-primary/5" : isPast ? "bg-muted/20" : ""}`}
+                key={slot}
+                className={`flex items-center border-b border-border/40 last:border-0 px-3 py-1.5 gap-3 min-h-[36px] ${isNow ? "bg-primary/5" : isPast ? "bg-muted/20" : ""}`}
               >
                 <span className={`text-xs tabular-nums font-mono w-10 shrink-0 ${isNow ? "text-primary font-bold" : "text-muted-foreground"}`}>
-                  {slotStart}
+                  {slot}
                 </span>
                 {booking ? (
                   <div className={`flex-1 rounded px-2 py-1 text-xs font-medium border ${
@@ -239,13 +246,13 @@ function TodayGrid({
                         : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
                   }`}>
                     <span className="truncate block">{booking.customerName}</span>
-                    <span className="text-[10px] opacity-70">{booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)} · {fmtPrice(booking.totalPrice)}</span>
+                    <span className="text-[10px] opacity-70">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {fmtPrice(booking.totalPrice)}</span>
                   </div>
                 ) : (
                   <div className={`flex-1 flex items-center justify-between rounded border border-dashed border-border/40 px-2 py-1 ${isPast ? "opacity-40" : ""}`}>
                     <div className="flex items-center gap-1.5">
                       <Plus className="w-3 h-3 text-muted-foreground/40" />
-                      <span className="text-[11px] text-muted-foreground/50">{slotStart}–{slotEnd}</span>
+                      <span className="text-[11px] text-muted-foreground/50">{slot}–{slotEnd}</span>
                     </div>
                     {slotPrice > 0 && (
                       <span className="text-[10px] text-muted-foreground/50 font-medium">

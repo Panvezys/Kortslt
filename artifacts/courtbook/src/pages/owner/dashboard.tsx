@@ -18,7 +18,11 @@ import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
 
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 8); // 08–22
+// 30-min slots 08:00 → 21:30  (28 slots)
+const SLOTS = Array.from({ length: 28 }, (_, i) => {
+  const m = 8 * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+});
 
 function todayStr() {
   const d = new Date();
@@ -30,8 +34,9 @@ function toMin(t: string): number {
   return h * 60 + m;
 }
 
-function hhmm(hour: number): string {
-  return `${String(hour).padStart(2, "0")}:00`;
+function addThirty(t: string): string {
+  const m = toMin(t) + 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -89,12 +94,12 @@ interface DashboardData {
 
 function getSlotKind(
   courtId: number,
-  hour: number,
+  startTime: string,
   todayBookings: OwnerBooking[],
   blockedSlots: BlockedSlot[],
 ): { kind: "confirmed" | "pending" | "blocked" | "free"; booking?: OwnerBooking; blocked?: BlockedSlot } {
-  const slotStart = hour * 60;
-  const slotEnd = (hour + 1) * 60;
+  const slotStart = toMin(startTime);
+  const slotEnd = slotStart + 30;
 
   for (const b of todayBookings) {
     if (b.courtId !== courtId) continue;
@@ -119,32 +124,28 @@ function getSlotKind(
 // ── Slot Cell ─────────────────────────────────────────────────────────────────
 
 function getSlotPrice(
-  hour: number,
+  startTime: string,
   pricePerHour: number | undefined,
   todayPricing: Record<string, number> | undefined,
 ): number {
   const defaultHalf = (pricePerHour ?? 0) / 2;
-  if (!todayPricing) return defaultHalf;
-  const h0 = `${String(hour).padStart(2, "0")}:00`;
-  const h30 = `${String(hour).padStart(2, "0")}:30`;
-  // Return the first custom slot price found, else default
-  return todayPricing[h0] ?? todayPricing[h30] ?? defaultHalf;
+  return todayPricing?.[startTime] ?? defaultHalf;
 }
 
 function SlotCell({
-  courtId, hour, todayBookings, blockedSlots, onFreeClick, onBookingClick,
+  courtId, startTime, todayBookings, blockedSlots, onFreeClick, onBookingClick,
   pricePerHour, todayPricing,
 }: {
   courtId: number;
-  hour: number;
+  startTime: string;
   todayBookings: OwnerBooking[];
   blockedSlots: BlockedSlot[];
-  onFreeClick: (courtId: number, hour: number) => void;
+  onFreeClick: (courtId: number, startTime: string) => void;
   onBookingClick: (booking: OwnerBooking) => void;
   pricePerHour?: number;
   todayPricing?: Record<string, number>;
 }) {
-  const { kind, booking, blocked } = getSlotKind(courtId, hour, todayBookings, blockedSlots);
+  const { kind, booking, blocked } = getSlotKind(courtId, startTime, todayBookings, blockedSlots);
 
   if (kind === "confirmed") {
     return (
@@ -173,10 +174,10 @@ function SlotCell({
       </div>
     );
   }
-  const slotPrice = getSlotPrice(hour, pricePerHour, todayPricing);
+  const slotPrice = getSlotPrice(startTime, pricePerHour, todayPricing);
   return (
     <div
-      onClick={() => onFreeClick(courtId, hour)}
+      onClick={() => onFreeClick(courtId, startTime)}
       className="h-10 rounded border border-dashed border-border/40 hover:bg-muted/40 cursor-pointer transition-colors group flex flex-col items-center justify-center gap-0"
     >
       <Plus className="h-2.5 w-2.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
@@ -192,13 +193,13 @@ function SlotCell({
 // ── Manual Booking Modal ──────────────────────────────────────────────────────
 
 function ManualBookingModal({
-  open, onClose, courts, preCourtId, preHour,
+  open, onClose, courts, preCourtId, preStartTime,
 }: {
   open: boolean;
   onClose: () => void;
   courts: OwnerCourt[];
   preCourtId?: number;
-  preHour?: number;
+  preStartTime?: string;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -209,8 +210,8 @@ function ManualBookingModal({
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [date, setDate] = useState(today);
-  const [startHour, setStartHour] = useState<string>(() => preHour != null ? hhmm(preHour) : hhmm(8));
-  const [endHour, setEndHour] = useState<string>(() => preHour != null ? hhmm(preHour + 1) : hhmm(9));
+  const [startHour, setStartHour] = useState<string>(() => preStartTime ?? "08:00");
+  const [endHour, setEndHour] = useState<string>(() => preStartTime ? addThirty(preStartTime) : "08:30");
   const [note, setNote] = useState("");
 
   const mutation = useMutation({
@@ -279,14 +280,15 @@ function ManualBookingModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
-              <select value={startHour} onChange={e => setStartHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
               <select value={endHour} onChange={e => setEndHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.filter(h => h > Number(startHour.split(":")[0])).map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
               </select>
             </div>
           </div>
@@ -313,14 +315,14 @@ function ManualBookingModal({
 // ── Block Court Modal ─────────────────────────────────────────────────────────
 
 function BlockCourtModal({
-  open, onClose, courts, preCourtId, preDate, preHour,
+  open, onClose, courts, preCourtId, preDate, preStartTime,
 }: {
   open: boolean;
   onClose: () => void;
   courts: OwnerCourt[];
   preCourtId?: number;
   preDate?: string;
-  preHour?: number;
+  preStartTime?: string;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -328,8 +330,8 @@ function BlockCourtModal({
 
   const [courtId, setCourtId] = useState<string>(() => String(preCourtId ?? courts[0]?.id ?? ""));
   const [date, setDate] = useState(preDate ?? today);
-  const [startHour, setStartHour] = useState(() => preHour != null ? hhmm(preHour) : hhmm(8));
-  const [endHour, setEndHour] = useState(() => preHour != null ? hhmm(preHour + 1) : hhmm(9));
+  const [startHour, setStartHour] = useState(() => preStartTime ?? "08:00");
+  const [endHour, setEndHour] = useState(() => preStartTime ? addThirty(preStartTime) : "08:30");
   const [notes, setNotes] = useState("");
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
 
@@ -388,14 +390,15 @@ function BlockCourtModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
-              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
               <select value={endHour} onChange={e => { setEndHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
-                {HOURS.filter(h => h > Number(startHour.split(":")[0])).map(h => <option key={h} value={hhmm(h)}>{hhmm(h)}</option>)}
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
               </select>
             </div>
           </div>
@@ -465,7 +468,7 @@ export default function OwnerDashboard() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualPreCourtId, setManualPreCourtId] = useState<number | undefined>();
-  const [manualPreHour, setManualPreHour] = useState<number | undefined>();
+  const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
 
@@ -528,15 +531,12 @@ export default function OwnerDashboard() {
 
   // ── Occupancy calculation ──
   const occupancyPerCourt = useMemo(() => {
-    const totalHours = HOURS.length;
+    const totalMinutes = SLOTS.length * 30; // 28 × 30 = 840 min
     return courts.map(court => {
-      const bookedHours = todayBookings
-        .filter(b => b.courtId === court.id)
-        .reduce((acc, b) => {
-          const dur = (toMin(b.endTime) - toMin(b.startTime)) / 60;
-          return acc + dur;
-        }, 0);
-      return { court, pct: Math.min(100, Math.round((bookedHours / totalHours) * 100)) };
+      const bookedMinutes = todayBookings
+        .filter(b => b.courtId === court.id && ["confirmed", "pending", "blocked"].includes(b.status))
+        .reduce((acc, b) => acc + (toMin(b.endTime) - toMin(b.startTime)), 0);
+      return { court, pct: Math.min(100, Math.round((bookedMinutes / totalMinutes) * 100)) };
     });
   }, [courts, todayBookings]);
 
@@ -544,9 +544,9 @@ export default function OwnerDashboard() {
     ? Math.round(occupancyPerCourt.reduce((acc, o) => acc + o.pct, 0) / courts.length)
     : 0;
 
-  function handleFreeClick(courtId: number, hour: number) {
+  function handleFreeClick(courtId: number, startTime: string) {
     setManualPreCourtId(courtId);
-    setManualPreHour(hour);
+    setManualPreStartTime(startTime);
     setManualOpen(true);
   }
 
@@ -640,7 +640,7 @@ export default function OwnerDashboard() {
                         <span className="hidden sm:inline">Blokuoti kortą</span>
                         <span className="sm:hidden">Blokuoti</span>
                       </Button>
-                      <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreHour(undefined); setManualOpen(true); }}>
+                      <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreStartTime(undefined); setManualOpen(true); }}>
                         <Phone className="h-3 w-3" />
                         <span className="hidden sm:inline">Rankinė rezervacija</span>
                         <span className="sm:hidden">Rankinė</span>
@@ -677,22 +677,24 @@ export default function OwnerDashboard() {
 
                       {/* Time rows */}
                       <div className="max-h-[400px] overflow-y-auto">
-                        {HOURS.map(hour => {
-                          const isNowHour = hour === today.getHours();
+                        {SLOTS.map(slot => {
+                          const nowMin = today.getHours() * 60 + today.getMinutes();
+                          const slotMin = toMin(slot);
+                          const isNowSlot = nowMin >= slotMin && nowMin < slotMin + 30;
                           return (
                             <div
-                              key={hour}
-                              className={`grid border-b border-border/50 last:border-b-0 ${isNowHour ? "bg-primary/5" : ""}`}
+                              key={slot}
+                              className={`grid border-b border-border/50 last:border-b-0 ${isNowSlot ? "bg-primary/5" : ""}`}
                               style={{ gridTemplateColumns: `64px repeat(${courts.length}, 1fr)` }}
                             >
-                              <div className={`px-2 py-1 flex items-center justify-end text-xs tabular-nums font-mono shrink-0 ${isNowHour ? "text-primary font-bold" : "text-muted-foreground"}`}>
-                                {hhmm(hour)}
+                              <div className={`px-2 py-1 flex items-center justify-end text-xs tabular-nums font-mono shrink-0 ${isNowSlot ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                                {slot}
                               </div>
                               {courts.map(c => (
                                 <div key={c.id} className="px-1 py-1">
                                   <SlotCell
                                     courtId={c.id}
-                                    hour={hour}
+                                    startTime={slot}
                                     todayBookings={todayBookings}
                                     blockedSlots={todayBlockedSlots}
                                     onFreeClick={handleFreeClick}
@@ -925,7 +927,7 @@ export default function OwnerDashboard() {
         onClose={() => setManualOpen(false)}
         courts={courts}
         preCourtId={manualPreCourtId}
-        preHour={manualPreHour}
+        preStartTime={manualPreStartTime}
       />
       <BlockCourtModal
         open={blockOpen}
