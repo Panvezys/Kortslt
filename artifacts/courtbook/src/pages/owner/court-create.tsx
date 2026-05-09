@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateCourt, useUpdateCourt, useSetCourtPricing, customFetch, getListCourtsQueryKey,
   useGetCourt, useGetCourtPricing, getGetCourtQueryKey, getGetCourtPricingQueryKey,
+  useGetCourtPriceOverrides, useSetCourtPriceOverrides, getGetCourtPriceOverridesQueryKey,
 } from "@workspace/api-client-react";
 import { OwnerLayout } from "@/components/owner-layout";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ import { z } from "zod";
 import {
   ChevronLeft, Euro, Clock3, Lightbulb, ShoppingBag, ShowerHead, DoorOpen,
   Droplets, Car, Bath, Wifi, Coffee, HeartPulse, Thermometer, Wind, Lock,
-  Flame, Plus, X, Images, Upload, Loader2, MapPin, RotateCcw,
+  Flame, Plus, X, Images, Upload, Loader2, MapPin, RotateCcw, CalendarClock, Zap, Trash2,
 } from "lucide-react";
 import { CourtImageUpload } from "@/components/court-image-upload";
 import { SPORT_LABELS } from "@/components/sport-icon";
@@ -196,6 +197,20 @@ export default function CourtCreatePage() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
+  // Bulk apply state
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkFromTime, setBulkFromTime] = useState("08:00");
+  const [bulkToTime, setBulkToTime] = useState("22:00");
+  const [bulkDays, setBulkDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+
+  // Date override state
+  const [overrideDate, setOverrideDate] = useState("");
+  const [overridePrice, setOverridePrice] = useState("");
+  const [overrideFromTime, setOverrideFromTime] = useState("08:00");
+  const [overrideToTime, setOverrideToTime] = useState("22:00");
+  // local map: date → (startTime → price)
+  const [dateOverrides, setDateOverrides] = useState<Record<string, Record<string, number>>>({});
+
   // Photo gallery: local file buffer uploaded after court creation
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
   const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
@@ -338,6 +353,21 @@ export default function CourtCreatePage() {
     setPriceMap(map);
   }, [isEdit, editingPricing]);
 
+  const { data: editingOverrides } = useGetCourtPriceOverrides(editingCourtId ?? 0, {
+    query: { enabled: isEdit && !!editingCourtId, queryKey: getGetCourtPriceOverridesQueryKey(editingCourtId ?? 0) },
+  });
+  const setOverridesMutation = useSetCourtPriceOverrides();
+
+  useEffect(() => {
+    if (!isEdit || !editingOverrides?.overrides) return;
+    const map: Record<string, Record<string, number>> = {};
+    for (const o of editingOverrides.overrides as any[]) {
+      if (!map[o.date]) map[o.date] = {};
+      map[o.date][o.startTime] = Number(o.price);
+    }
+    setDateOverrides(map);
+  }, [isEdit, editingOverrides]);
+
   const handleAmenityPhotoUpload = async (amenityId: string, file: File) => {
     setUploadingAmenity(amenityId);
     try {
@@ -401,6 +431,61 @@ export default function CourtCreatePage() {
       for (const k of Array.from(next.keys())) {
         if (k.startsWith(`${day}:`)) next.delete(k);
       }
+      return next;
+    });
+  };
+
+  // Bulk apply: set a single price across selected days and time range
+  const applyBulkPrice = () => {
+    const price = parseFloat(bulkPrice);
+    if (isNaN(price) || price < 0) return;
+    const toM = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const fromMin = toM(bulkFromTime);
+    const toMin2 = toM(bulkToTime);
+    setPriceMap((prev) => {
+      const next = new Map(prev);
+      for (const day of bulkDays) {
+        const dayHours = workingHoursState[String(day)] ?? { open: "08:00", close: "22:00", closed: false };
+        if (dayHours.closed) continue;
+        const daySlots = generateSlotsRange(dayHours.open, dayHours.close);
+        for (const slot of daySlots) {
+          const slotMin = toM(slot);
+          if (slotMin >= fromMin && slotMin < toMin2) {
+            next.set(`${day}:${slot}`, price);
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  // Date override helpers
+  const applyDateOverride = () => {
+    if (!overrideDate) return;
+    const price = parseFloat(overridePrice);
+    if (isNaN(price) || price < 0) return;
+    const toM = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const fromMin = toM(overrideFromTime);
+    const toMin2 = toM(overrideToTime);
+    const slots = generateSlotsRange(overrideFromTime, overrideToTime);
+    setDateOverrides((prev) => {
+      const next = { ...prev };
+      if (!next[overrideDate]) next[overrideDate] = {};
+      const datePrices = { ...next[overrideDate] };
+      for (const slot of slots) {
+        const slotMin = toM(slot);
+        if (slotMin >= fromMin && slotMin < toMin2) {
+          datePrices[slot] = price;
+        }
+      }
+      next[overrideDate] = datePrices;
+      return next;
+    });
+  };
+  const removeDateOverride = (date: string) => {
+    setDateOverrides((prev) => {
+      const next = { ...prev };
+      delete next[date];
       return next;
     });
   };
@@ -546,13 +631,26 @@ export default function CourtCreatePage() {
           const dayOfWeek = parseInt(dayStr);
           if (!isNaN(dayOfWeek) && startTime) entries.push({ dayOfWeek, startTime, price });
         });
-        if (entries.length > 0) {
-          await setPricing.mutateAsync({
+        await setPricing.mutateAsync({
+          id: newCourtId,
+          data: { entries },
+        });
+      } catch { /* pricing failure should not block save */ }
+
+      // Persist date overrides (one PUT per unique date)
+      try {
+        const datesWithOverrides = Object.keys(dateOverrides);
+        for (const date of datesWithOverrides) {
+          const slots = dateOverrides[date];
+          const overrideEntries = Object.entries(slots).map(([startTime, price]) => ({
+            date, startTime, price,
+          }));
+          await setOverridesMutation.mutateAsync({
             id: newCourtId,
-            data: { entries },
+            data: { date, overrides: overrideEntries },
           });
         }
-      } catch { /* pricing failure should not block save */ }
+      } catch { /* override failure should not block save */ }
 
       // Upload gallery photos sequentially
       if (galleryFiles.length > 0) {
@@ -835,14 +933,77 @@ export default function CourtCreatePage() {
                 )}
 
                 {formTab === "pricing" && (
-                  <div className="space-y-4">
+                  <div className="space-y-5">
+                    {/* Section header */}
                     <div>
-                      <p className="font-semibold text-sm mb-1">Kainoraštis pagal laiką</p>
+                      <p className="font-semibold text-sm mb-0.5">Savaitinis šablonas</p>
                       <p className="text-xs text-muted-foreground">
-                        Nustatykite kainą kiekvienam 30 min. tarpui. Numatytoji kaina: <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min.
+                        Numatytoji kaina (bazinė): <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min. Tarpai paryškinti mėlyna — custom kaina.
                       </p>
                     </div>
 
+                    {/* ── Bulk Apply panel ─────────────────────────────────── */}
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm">Masinis kainų taikymas</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Kaina (€/30 min)</label>
+                          <Input type="number" min="0" step="0.5" placeholder="pvz. 10" value={bulkPrice}
+                            onChange={(e) => setBulkPrice(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Nuo</label>
+                          <select value={bulkFromTime} onChange={(e) => setBulkFromTime(e.target.value)}
+                            className="w-full h-8 text-sm border rounded-md px-2 bg-background">
+                            {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Iki</label>
+                          <select value={bulkToTime} onChange={(e) => setBulkToTime(e.target.value)}
+                            className="w-full h-8 text-sm border rounded-md px-2 bg-background">
+                            {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <Button type="button" size="sm" className="w-full h-8 text-xs gap-1.5"
+                            disabled={!bulkPrice || parseFloat(bulkPrice) < 0 || bulkDays.length === 0}
+                            onClick={applyBulkPrice}>
+                            <Zap className="w-3 h-3" /> Taikyti
+                          </Button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1.5 block">Dienoms</label>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {DAYS_SHORT.map((label, i) => {
+                            const dh = (overrideHours ? workingHoursState : facilityHoursDisplay)[String(i)];
+                            const closed = dh?.closed === true;
+                            const selected = bulkDays.includes(i);
+                            return (
+                              <button key={i} type="button" disabled={closed}
+                                onClick={() => setBulkDays(prev => selected ? prev.filter(d => d !== i) : [...prev, i])}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${closed ? "opacity-30 cursor-not-allowed" : selected ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/50"}`}>
+                                {label}
+                              </button>
+                            );
+                          })}
+                          <button type="button" onClick={() => setBulkDays([0,1,2,3,4,5,6])}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border hover:border-primary/50 transition-all">
+                            Visos
+                          </button>
+                          <button type="button" onClick={() => setBulkDays([])}
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border hover:border-primary/50 transition-all">
+                            Išvalyti
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Weekly template grid ─────────────────────────────── */}
                     <div className="flex gap-1.5 flex-wrap">
                       {DAYS_FULL.map((_, i) => {
                         const dh = (overrideHours ? workingHoursState : facilityHoursDisplay)[String(i)];
@@ -899,9 +1060,81 @@ export default function CourtCreatePage() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Pakeisti kainas galima paspaudus ant tarpo.{" "}
-                      {isEdit ? "Pakeitimai bus išsaugoti paspaudus mygtką \"Išsaugoti pakeitimus\"." : "Pakeitimai bus išsaugoti sukūrus aikštelę."}
+                      Paspaudę ant tarpo galite keisti individualią kainą.{" "}
+                      {isEdit ? "Pakeitimai išsaugomi paspaudus mygtką \"Išsaugoti pakeitimus\"." : "Pakeitimai išsaugomi sukūrus aikštelę."}
                     </p>
+
+                    {/* ── Date-specific overrides ──────────────────────────── */}
+                    <div className="rounded-xl border p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarClock className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-sm">Konkrečios datos išimtys</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Nustatykite skirtingą kainą konkrečiai datai (pvz. švenčių dienoms). Datos išimtis turi aukščiausią prioritetą.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Data</label>
+                          <Input type="date" value={overrideDate} onChange={(e) => setOverrideDate(e.target.value)}
+                            className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Kaina (€/30 min)</label>
+                          <Input type="number" min="0" step="0.5" placeholder="pvz. 15" value={overridePrice}
+                            onChange={(e) => setOverridePrice(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Nuo–Iki</label>
+                          <div className="flex items-center gap-1">
+                            <select value={overrideFromTime} onChange={(e) => setOverrideFromTime(e.target.value)}
+                              className="flex-1 h-8 text-xs border rounded-md px-1 bg-background">
+                              {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            <span className="text-xs text-muted-foreground">–</span>
+                            <select value={overrideToTime} onChange={(e) => setOverrideToTime(e.target.value)}
+                              className="flex-1 h-8 text-xs border rounded-md px-1 bg-background">
+                              {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex items-end">
+                          <Button type="button" size="sm" variant="outline" className="w-full h-8 text-xs gap-1.5"
+                            disabled={!overrideDate || !overridePrice}
+                            onClick={applyDateOverride}>
+                            <Plus className="w-3 h-3" /> Pridėti
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* List of added overrides */}
+                      {Object.keys(dateOverrides).length > 0 && (
+                        <div className="space-y-1.5 mt-1">
+                          {Object.entries(dateOverrides).sort(([a], [b]) => a.localeCompare(b)).map(([date, slots]) => {
+                            const slotCount = Object.keys(slots).length;
+                            const prices = Object.values(slots);
+                            const minP = Math.min(...prices);
+                            const maxP = Math.max(...prices);
+                            const priceStr = minP === maxP ? `${minP.toFixed(2)}€` : `${minP.toFixed(2)}–${maxP.toFixed(2)}€`;
+                            const times = Object.keys(slots).sort();
+                            const rangeStr = times.length > 0 ? `${times[0]}–${times[times.length - 1]}` : "";
+                            const dateLabel = new Date(date + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "short", day: "numeric", month: "short" });
+                            return (
+                              <div key={date} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-muted/40 border text-sm">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-medium">{dateLabel}</span>
+                                  <span className="text-xs text-muted-foreground">{rangeStr} · {slotCount} tarpai · {priceStr}</span>
+                                </div>
+                                <button type="button" onClick={() => removeDateOverride(date)}
+                                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

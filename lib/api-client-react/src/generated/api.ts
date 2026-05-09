@@ -33,9 +33,11 @@ import type {
   ListBookingsParams,
   ListCourtsParams,
   PopularCourt,
+  PriceOverridesResponse,
   PricingSchedule,
   RefundPreview,
   Review,
+  SetPriceOverridesBody,
   SetPricingBody,
   StatsSummary,
 } from "./api.schemas";
@@ -848,6 +850,182 @@ export const useSetCourtPricing = <
   TContext
 > => {
   return useMutation(getSetCourtPricingMutationOptions(options));
+};
+
+/**
+ * @summary Get specific-date price overrides for a court
+ */
+export const getGetCourtPriceOverridesUrl = (id: number) => {
+  return `/api/courts/${id}/price-overrides`;
+};
+
+export const getCourtPriceOverrides = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PriceOverridesResponse> => {
+  return customFetch<PriceOverridesResponse>(getGetCourtPriceOverridesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCourtPriceOverridesQueryKey = (id: number) => {
+  return [`/api/courts/${id}/price-overrides`] as const;
+};
+
+export const getGetCourtPriceOverridesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCourtPriceOverrides>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPriceOverrides>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCourtPriceOverridesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCourtPriceOverrides>>
+  > = ({ signal }) => getCourtPriceOverrides(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCourtPriceOverrides>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCourtPriceOverridesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCourtPriceOverrides>>
+>;
+export type GetCourtPriceOverridesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get specific-date price overrides for a court
+ */
+
+export function useGetCourtPriceOverrides<
+  TData = Awaited<ReturnType<typeof getCourtPriceOverrides>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCourtPriceOverrides>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCourtPriceOverridesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set specific-date price overrides for a court (owner only)
+ */
+export const getSetCourtPriceOverridesUrl = (id: number) => {
+  return `/api/courts/${id}/price-overrides`;
+};
+
+export const setCourtPriceOverrides = async (
+  id: number,
+  setPriceOverridesBody: SetPriceOverridesBody,
+  options?: RequestInit,
+): Promise<PriceOverridesResponse> => {
+  return customFetch<PriceOverridesResponse>(getSetCourtPriceOverridesUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setPriceOverridesBody),
+  });
+};
+
+export const getSetCourtPriceOverridesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCourtPriceOverrides>>,
+    TError,
+    { id: number; data: BodyType<SetPriceOverridesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setCourtPriceOverrides>>,
+  TError,
+  { id: number; data: BodyType<SetPriceOverridesBody> },
+  TContext
+> => {
+  const mutationKey = ["setCourtPriceOverrides"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setCourtPriceOverrides>>,
+    { id: number; data: BodyType<SetPriceOverridesBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setCourtPriceOverrides(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetCourtPriceOverridesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setCourtPriceOverrides>>
+>;
+export type SetCourtPriceOverridesMutationBody =
+  BodyType<SetPriceOverridesBody>;
+export type SetCourtPriceOverridesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set specific-date price overrides for a court (owner only)
+ */
+export const useSetCourtPriceOverrides = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setCourtPriceOverrides>>,
+    TError,
+    { id: number; data: BodyType<SetPriceOverridesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setCourtPriceOverrides>>,
+  TError,
+  { id: number; data: BodyType<SetPriceOverridesBody> },
+  TContext
+> => {
+  return useMutation(getSetCourtPriceOverridesMutationOptions(options));
 };
 
 /**

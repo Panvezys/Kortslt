@@ -522,10 +522,19 @@ function WeekGrid({
                       <div key={day} className="px-0.5 py-0.5">
                         <div
                           onClick={() => !isPast && onFreeClick(day, slot)}
-                          className={`h-7 rounded border border-dashed border-border/30 transition-colors ${
+                          className={`h-7 rounded border border-dashed border-border/30 transition-colors flex flex-col items-center justify-center gap-0 ${
                             isToday && slotMin >= (now.getHours() * 60 + now.getMinutes() - 30) && slotMin < (now.getHours() * 60 + now.getMinutes() + 30) ? "bg-primary/5" : ""
-                          } ${isPast ? "opacity-25" : "cursor-pointer hover:bg-muted/40"}`}
-                        />
+                          } ${isPast ? "opacity-25" : "cursor-pointer hover:bg-muted/40 group"}`}
+                        >
+                          {(() => {
+                            const p = todayPricing[slot] ?? (pricePerHour / 2);
+                            return p > 0 ? (
+                              <span className="text-[8px] text-muted-foreground/40 group-hover:text-muted-foreground/70 leading-none tabular-nums">
+                                {p % 1 === 0 ? p : p.toFixed(1)}€
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
                     );
                   })}

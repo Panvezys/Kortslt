@@ -122,6 +122,25 @@ export interface CreateCourtBody {
   amenityPhotos?: string | null;
 }
 
+export interface PriceOverrideEntry {
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:MM */
+  startTime: string;
+  price: number;
+}
+
+export interface PriceOverridesResponse {
+  courtId: number;
+  overrides: PriceOverrideEntry[];
+}
+
+export interface SetPriceOverridesBody {
+  /** YYYY-MM-DD — the specific date to replace overrides for */
+  date: string;
+  overrides: PriceOverrideEntry[];
+}
+
 export interface TimeSlot {
   startTime: string;
   endTime: string;

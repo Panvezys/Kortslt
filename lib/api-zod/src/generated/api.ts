@@ -374,6 +374,55 @@ export const SetCourtPricingResponse = zod.object({
 });
 
 /**
+ * @summary Get specific-date price overrides for a court
+ */
+export const GetCourtPriceOverridesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCourtPriceOverridesResponse = zod.object({
+  courtId: zod.number(),
+  overrides: zod.array(
+    zod.object({
+      date: zod.string().describe("YYYY-MM-DD"),
+      startTime: zod.string().describe("HH:MM"),
+      price: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Set specific-date price overrides for a court (owner only)
+ */
+export const SetCourtPriceOverridesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetCourtPriceOverridesBody = zod.object({
+  date: zod
+    .string()
+    .describe("YYYY-MM-DD — the specific date to replace overrides for"),
+  overrides: zod.array(
+    zod.object({
+      date: zod.string().describe("YYYY-MM-DD"),
+      startTime: zod.string().describe("HH:MM"),
+      price: zod.number(),
+    }),
+  ),
+});
+
+export const SetCourtPriceOverridesResponse = zod.object({
+  courtId: zod.number(),
+  overrides: zod.array(
+    zod.object({
+      date: zod.string().describe("YYYY-MM-DD"),
+      startTime: zod.string().describe("HH:MM"),
+      price: zod.number(),
+    }),
+  ),
+});
+
+/**
  * @summary List all cities that have courts
  */
 export const ListCitiesResponseItem = zod.string();

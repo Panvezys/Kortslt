@@ -224,6 +224,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/PricingSchedule"
 
+  /courts/{id}/price-overrides:
+    get:
+      operationId: getCourtPriceOverrides
+      tags: [courts]
+      summary: Get specific-date price overrides for a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Price overrides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceOverridesResponse"
+    put:
+      operationId: setCourtPriceOverrides
+      tags: [courts]
+      summary: Set specific-date price overrides for a court (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPriceOverridesBody"
+      responses:
+        "200":
+          description: Overrides updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceOverridesResponse"
+
   /courts/cities:
     get:
       operationId: listCities
@@ -647,6 +689,49 @@ components:
         - isIndoor
         - maxPlayers
         - facilityId
+
+    PriceOverrideEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        startTime:
+          type: string
+          description: "HH:MM"
+        price:
+          type: number
+      required:
+        - date
+        - startTime
+        - price
+
+    PriceOverridesResponse:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOverrideEntry"
+      required:
+        - courtId
+        - overrides
+
+    SetPriceOverridesBody:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD — the specific date to replace overrides for
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOverrideEntry"
+      required:
+        - date
+        - overrides
 
     AvailabilityResponse:
       type: object
