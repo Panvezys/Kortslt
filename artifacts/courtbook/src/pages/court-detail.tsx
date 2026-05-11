@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe, Lock, RotateCcw } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe, Lock, RotateCcw, Link2 } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -394,8 +394,25 @@ export default function CourtDetail() {
     } catch { return null; }
   }, []);
 
+  const { data: linkedGame } = useQuery<{
+    id: number; sport: string; datetime: string; durationMinutes: number;
+    playersNeeded: number; matchType?: string;
+    participants: { userName: string }[];
+  }>({
+    queryKey: ["linked-game-context", linkGameId],
+    queryFn: () => fetch(`${API}/games/${linkGameId}`).then(r => r.json()),
+    enabled: !!linkGameId,
+    staleTime: 60_000,
+  });
+
   const [splitEnabled, setSplitEnabled] = useState(() => !!linkGameId);
   const [splitCount, setSplitCount] = useState(4);
+
+  useEffect(() => {
+    if (linkedGame?.playersNeeded && linkGameId) {
+      setSplitCount(linkedGame.playersNeeded);
+    }
+  }, [linkedGame, linkGameId]);
   const [splitPending, setSplitPending] = useState(false);
   const [isPublicMatch, setIsPublicMatch] = useState(false);
   const [splitMatchType, setSplitMatchType] = useState<"casual" | "competitive">("casual");
@@ -1593,6 +1610,54 @@ export default function CourtDetail() {
 
               <div className="p-5 space-y-5 md:overflow-y-auto md:flex-1 md:min-h-0">
 
+              {/* Match Context Card — shown only in link-game / upgrade mode */}
+              {linkGameId && (
+                <div className="rounded-xl border border-primary/25 bg-primary/5 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <Link2 className="w-3.5 h-3.5" />
+                      Susietas su maču
+                    </div>
+                    <Link href={`/matches/${linkGameId}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      ← Grįžti į mačą
+                    </Link>
+                  </div>
+
+                  {linkedGame ? (
+                    <>
+                      <p className="text-sm font-semibold leading-snug">
+                        {SPORT_LABELS[linkedGame.sport] ?? linkedGame.sport}
+                        {linkedGame.matchType === "competitive" && (
+                          <span className="ml-1.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-full px-1.5 py-0.5">
+                            Reitinginis
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          {(() => {
+                            const start = new Date(linkedGame.datetime);
+                            const end = new Date(start.getTime() + linkedGame.durationMinutes * 60_000);
+                            const pad = (n: number) => String(n).padStart(2, "0");
+                            return `${pad(start.getHours())}:${pad(start.getMinutes())} – ${pad(end.getHours())}:${pad(end.getMinutes())}`;
+                          })()}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3 shrink-0" />
+                          {linkedGame.participants?.length ?? 0}/{linkedGame.playersNeeded} žaidėjai
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="h-4 w-2/3 bg-muted/50 rounded animate-pulse" />
+                      <div className="h-3 w-full bg-muted/40 rounded animate-pulse" />
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Step 1: Date */}
               <div>
                 <p className="text-sm font-semibold mb-2 flex items-center gap-2">
@@ -2112,7 +2177,7 @@ export default function CourtDetail() {
                         className="button-primary h-10 px-5 font-semibold gap-2 shrink-0"
                         disabled={isPending || splitPending}
                       >
-                        {(isPending || splitPending) ? "…" : linkGameId ? "Patvirtinti ir priskirti mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
+                        {(isPending || splitPending) ? "…" : linkGameId ? "Užsakyti šiam mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
                       </Button>
                     ) : (
                       <Button onClick={() => setGuestCheckoutOpen(true)} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
@@ -2225,7 +2290,7 @@ export default function CourtDetail() {
                 className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
                 disabled={isPending || splitPending}
               >
-                {(isPending || splitPending) ? "…" : linkGameId ? "Patvirtinti ir priskirti mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
+                {(isPending || splitPending) ? "…" : linkGameId ? "Užsakyti šiam mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
               </Button>
             ) : (
               <Button

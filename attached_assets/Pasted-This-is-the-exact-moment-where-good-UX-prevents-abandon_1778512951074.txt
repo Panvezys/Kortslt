@@ -1,0 +1,47 @@
+This is the exact moment where good UX prevents abandoned carts. When a user is in "Upgrade Mode," their mental state is different than someone just browsing for a random court. They are on a mission to fulfill a specific commitment to their players.
+
+If the page looks identical to a standard booking, they will hesitate and wonder, "Wait, is this going to charge me normally or attach to my match?"
+
+Here is the SaaS best-practice layout for the Court Reservation Side Panel when linkGameId is present.
+
+The Ideal Layout: The "Contextual Sidebar"
+You should keep the standard layout (Court photos and description on the left, sticky reservation panel on the right). However, when linkGameId is present, the top of the reservation panel should transform.
+
+Instead of just saying "Užsakyti aikštelę", it should display a "Match Context Card" right above the calendar/time picker.
+
+What specific information should be shown in that card?
+Do not show the raw Match ID (users don't care about database numbers). Show this:
+
+The "Linked" Status Icon: A small link icon or a green checkmark indicating "Susietas su maču" (Linked to match).
+
+Match Title: E.g., "Rytinis Padelio Mačas" or "Tenisas (Ieško kompanijos)".
+
+Player Status: E.g., "3/4 žaidėjai prisijungę" (Crucial for reminding them how the split payment will divide).
+
+Original Time Window: E.g., "Planuojamas laikas: 12:00 - 16:00" (This acts as a visual guide so they know which time slots to select on the calendar below).
+
+Escape Hatch (Back Link): A small "Atšaukti ir grįžti į mačą" (Cancel and return to match) link that takes them back to /matches/[id] if they change their mind.
+
+How the rest of the panel changes
+Hidden Fields: Hide any toggles that ask "Make this public?" or "Select Level." You already know this from the match.
+
+The Action Button: Changes from "Apmokėti" (Pay) to "Užsakyti šiam mačui" (Book for this match).
+
+How to build this with Claude Code right now
+Since your /courts page already reads the linkGameId, we just need to fetch the basic game info and display it nicely in the sidebar.
+
+Paste this exact prompt into your Claude terminal:
+
+Plaintext
+Let's upgrade the UX of the court reservation sidebar in `court-detail.tsx` when a user is in "Upgrade Mode". 
+
+Please implement a "Match Context Card" in the booking side panel:
+
+1. Data Fetching: If `linkGameId` is present, use TanStack query (or customFetch) to fetch the basic details of that specific game (Title/Sport, Date, Start/End time, and current player count).
+2. The Context Card UI: Render a styled card at the very top of the sticky reservation sidebar (above the date/time selectors) ONLY when `linkGameId` is present.
+   - Design: Use a subtle background (like bg-blue-50/10 or a light border) to make it distinct.
+   - Content: Show a link icon, the Match Title, the original planned time (as a guide for the user), and the player count (e.g., "Žaidėjai: 2/4").
+   - Escape Hatch: Add a subtle text link at the top or bottom of this card saying "Grįžti į mačą" that links back to `/matches/${linkGameId}`.
+3. Clean the Panel: Ensure any "Create Game" specific inputs (like visibility toggles or skill level sliders) are completely hidden in this mode.
+4. Button Text: Change the final submit button text to "Užsakyti šiam mačui" so the user feels confident the court is being attached to their game.
+This acts as a "receipt" before they even pay. It tells the user: "We know who you are, we know why you are here, just pick the time and we will connect the dots."
