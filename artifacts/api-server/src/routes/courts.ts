@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, inArray, or, sql } from "drizzle-orm";
-import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable, courtPriceOverridesTable } from "@workspace/db";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable } from "@workspace/db";
 import { asc, desc } from "drizzle-orm";
 import {
   ListCourtsQueryParams,
@@ -528,68 +528,6 @@ router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// ── Price overrides (specific-date exceptions) ────────────────────────────────
-
-router.get("/courts/:id/price-overrides", async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  if (!id) { res.status(400).json({ error: "Invalid court id" }); return; }
-
-  const overrides = await db
-    .select()
-    .from(courtPriceOverridesTable)
-    .where(eq(courtPriceOverridesTable.courtId, id));
-
-  res.json({
-    courtId: id,
-    overrides: overrides.map(o => ({ date: o.date, startTime: o.startTime, price: Number(o.price) })),
-  });
-});
-
-router.put("/courts/:id/price-overrides", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(String(req.params.id), 10);
-  if (!id) { res.status(400).json({ error: "Invalid court id" }); return; }
-
-  const { date, overrides } = req.body as { date: string; overrides: Array<{ date: string; startTime: string; price: number }> };
-  if (!date || !Array.isArray(overrides)) {
-    res.status(400).json({ error: "date and overrides array required" });
-    return;
-  }
-
-  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, id));
-  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
-
-  const facility = await getFacility(court.facilityId);
-  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
-  // Replace all overrides for this specific date
-  await db.delete(courtPriceOverridesTable).where(
-    and(eq(courtPriceOverridesTable.courtId, id), eq(courtPriceOverridesTable.date, date))
-  );
-
-  if (overrides.length > 0) {
-    await db.insert(courtPriceOverridesTable).values(
-      overrides.map(o => ({
-        courtId: id,
-        date: o.date,
-        startTime: o.startTime,
-        price: String(o.price),
-      }))
-    );
-  }
-
-  const allOverrides = await db
-    .select()
-    .from(courtPriceOverridesTable)
-    .where(eq(courtPriceOverridesTable.courtId, id));
-
-  res.json({
-    courtId: id,
-    overrides: allOverrides.map(o => ({ date: o.date, startTime: o.startTime, price: Number(o.price) })),
-  });
-});
 
 router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   const params = GetCourtAvailabilityParams.safeParse(req.params);
@@ -614,7 +552,7 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
 
   const dayOfWeek = new Date(date + "T00:00:00").getDay();
 
-  const [pricingEntries, dateOverrides, existingBookings, blockedSlots] = await Promise.all([
+  const [pricingEntries, existingBookings, blockedSlots] = await Promise.all([
     db
       .select()
       .from(courtPricingTable)
@@ -622,15 +560,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
         and(
           eq(courtPricingTable.courtId, params.data.id),
           eq(courtPricingTable.dayOfWeek, dayOfWeek)
-        )
-      ),
-    db
-      .select()
-      .from(courtPriceOverridesTable)
-      .where(
-        and(
-          eq(courtPriceOverridesTable.courtId, params.data.id),
-          eq(courtPriceOverridesTable.date, date)
         )
       ),
     db
@@ -690,7 +619,6 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
   }
 
   const weeklyPricingMap = new Map(pricingEntries.map(e => [e.startTime, Number(e.price)]));
-  const overrideMap = new Map(dateOverrides.map(e => [e.startTime, Number(e.price)]));
   const defaultSlotPrice = Number(court.pricePerHour) / 2;
 
   const allSlots = generateSlots(openTime, closeTime).map(({ startTime, endTime }) => {
@@ -701,12 +629,10 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
       b => b.startTime <= startTime && b.endTime > startTime
     );
 
-    // Slot price priority: date override > weekly template > base rate fallback
-    const price = overrideMap.has(startTime)
-      ? overrideMap.get(startTime)!
-      : weeklyPricingMap.has(startTime)
-        ? weeklyPricingMap.get(startTime)!
-        : defaultSlotPrice;
+    // Slot price priority: weekly template > base rate fallback
+    const price = weeklyPricingMap.has(startTime)
+      ? weeklyPricingMap.get(startTime)!
+      : defaultSlotPrice;
 
     return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
   });
