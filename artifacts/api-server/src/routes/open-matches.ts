@@ -4,7 +4,7 @@
  * GET /api/matches/open — unified feed: split-payment booked matches + casual community games
  */
 import { Router, type IRouter } from "express";
-import { and, eq, sql, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, sql, inArray, isNull } from "drizzle-orm";
 import {
   db,
   bookingsTable,
@@ -12,6 +12,7 @@ import {
   facilitiesTable,
   gamesTable,
   gameParticipantsTable,
+  userRatingsTable,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
 
@@ -23,10 +24,14 @@ router.get("/matches/open", async (req, res): Promise<void> => {
     const maxRows = Math.min(parseInt(limit ?? "60", 10) || 60, 100);
     const userSkill = skillLevel != null && skillLevel !== "" ? parseFloat(skillLevel) : null;
 
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const nowIso = new Date().toISOString();
+
     // ── 1. Booked matches (split-payment games linked to a real court booking) ──
     const bookedConditions: any[] = [
       eq(gamesTable.visibility, "public"),
       eq(gamesTable.status, "awaiting_players"),
+      gte(bookingsTable.date, today),
     ];
     if (sport && sport !== "all") bookedConditions.push(eq(gamesTable.sport, sport));
     if (city) bookedConditions.push(eq(gamesTable.city, city));
@@ -52,6 +57,7 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       eq(gamesTable.status, "open"),
       eq(gamesTable.isPrivate, false),
       isNull(gamesTable.bookingId),
+      gte(gamesTable.datetime, nowIso),
     ];
     if (sport && sport !== "all") casualConditions.push(eq(gamesTable.sport, sport));
     if (city) casualConditions.push(eq(gamesTable.city, city));
@@ -82,7 +88,22 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       });
     }
 
-    // ── 5. Aggregate participant counts for all games ──
+    // ── 5. Fetch creator ELO ratings per sport ──
+    const creatorSportPairs = [
+      ...filteredBooked.map(r => ({ userId: r.game.creatorUserId, sport: r.game.sport })),
+      ...filteredCasual.map(r => ({ userId: r.game.creatorUserId, sport: r.game.sport })),
+    ];
+    const uniqueCreatorIds = [...new Set(creatorSportPairs.map(p => p.userId))];
+    const creatorEloMap = new Map<string, number>(); // key: "userId::sport"
+    if (uniqueCreatorIds.length > 0) {
+      const ratingRows = await db
+        .select({ userId: userRatingsTable.userId, sportSlug: userRatingsTable.sportSlug, elo: userRatingsTable.elo })
+        .from(userRatingsTable)
+        .where(inArray(userRatingsTable.userId, uniqueCreatorIds));
+      for (const r of ratingRows) creatorEloMap.set(`${r.userId}::${r.sportSlug}`, r.elo);
+    }
+
+    // ── 7. Aggregate participant counts for all games ──
     const allGameIds = [
       ...filteredBooked.map(r => r.game.id),
       ...filteredCasual.map(r => r.game.id),
@@ -113,7 +134,7 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       }
     }
 
-    // ── 6. Build booked match items ──
+    // ── 8. Build booked match items ──
     const bookedItems = filteredBooked.map(r => {
       const { game, booking, court, facility } = r;
       const counts = participantCounts.get(game.id) ?? { paid: 0, pending: 0, joined: 0 };
@@ -156,11 +177,12 @@ router.get("/matches/open", async (req, res): Promise<void> => {
         joinedCount: null as number | null,
         playersNeeded: null as number | null,
         isPrivate: false,
+        creatorElo: creatorEloMap.get(`${game.creatorUserId}::${game.sport}`) ?? null,
         createdAt: game.createdAt.toISOString(),
       };
     });
 
-    // ── 7. Build casual game items ──
+    // ── 9. Build casual game items ──
     const casualItems = filteredCasual.map(r => {
       const { game } = r;
       const counts = participantCounts.get(game.id) ?? { paid: 0, pending: 0, joined: 0 };
@@ -201,11 +223,12 @@ router.get("/matches/open", async (req, res): Promise<void> => {
         joinedCount: counts.joined,
         playersNeeded: game.playersNeeded ?? null,
         isPrivate: game.isPrivate ?? false,
+        creatorElo: creatorEloMap.get(`${game.creatorUserId}::${game.sport}`) ?? null,
         createdAt: game.createdAt.toISOString(),
       };
     });
 
-    // ── 8. Merge and sort by datetime ascending ──
+    // ── 10. Merge and sort by datetime ascending ──
     const allItems = [...bookedItems, ...casualItems].sort((a, b) =>
       new Date(a.datetime).getTime() - new Date(b.datetime).getTime(),
     );

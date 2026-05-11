@@ -842,7 +842,11 @@ export default function GameDetailPage() {
                       size="sm"
                       className="gap-1.5"
                       onClick={() => {
-                        try { sessionStorage.setItem("linkGameId", String(data.id)); } catch { /* ignore */ }
+                        try {
+                          sessionStorage.setItem("linkGameId", String(data.id));
+                          // Store the game's date so the court booking calendar pre-selects it
+                          if (data.datetime) sessionStorage.setItem("linkGameDate", data.datetime.split("T")[0]);
+                        } catch { /* ignore */ }
                         setLocation(`/courts?linkGameId=${data.id}`);
                       }}
                     >

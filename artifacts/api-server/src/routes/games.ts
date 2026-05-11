@@ -168,10 +168,55 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   const ratingKey = (uid: string, sport: string) => `${uid}::${sport}`;
   const ratingMap = new Map(ratings.map(r => [ratingKey(r.userId, r.sportSlug), r.elo]));
 
+  // Fetch booking/court/facility info for games that have a booking
+  const bookingGameIds = games.filter(g => g.bookingId != null).map(g => g.id);
+  type BookingRow = {
+    gameId: number;
+    bookingId: number;
+    courtName: string | null;
+    facilityName: string | null;
+    facilityCity: string | null;
+    courtImageUrl: string | null;
+    date: string | null;
+    startTime: string | null;
+    endTime: string | null;
+    pricePerSlot: number | null;
+    totalSlots: number | null;
+  };
+  const bookingInfoMap = new Map<number, BookingRow>();
+  if (bookingGameIds.length > 0) {
+    const bookingRows = await db
+      .select({
+        gameId: gamesTable.id,
+        bookingId: bookingsTable.id,
+        courtName: courtsTable.name,
+        facilityName: facilitiesTable.name,
+        facilityCity: facilitiesTable.city,
+        courtImageUrl: courtsTable.imageUrl,
+        date: bookingsTable.date,
+        startTime: bookingsTable.startTime,
+        endTime: bookingsTable.endTime,
+        pricePerSlot: bookingsTable.pricePerSlot,
+        totalSlots: bookingsTable.totalSlots,
+      })
+      .from(gamesTable)
+      .innerJoin(bookingsTable, eq(gamesTable.bookingId, bookingsTable.id))
+      .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+      .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(inArray(gamesTable.id, bookingGameIds));
+    for (const row of bookingRows) {
+      bookingInfoMap.set(row.gameId, {
+        ...row,
+        pricePerSlot: row.pricePerSlot != null ? Number(row.pricePerSlot) : null,
+      });
+    }
+  }
+
   const out = games.map(g => {
     const participants = participantsByGame.get(g.id) ?? [];
     const result = resultByGame.get(g.id) ?? null;
     const myTeam = myTeamMap.get(g.id) ?? null;
+    const booking = bookingInfoMap.get(g.id) ?? null;
 
     // Determine win/loss/draw for this user
     let myResult: "win" | "loss" | "draw" | null = null;
@@ -187,12 +232,25 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
       sport: g.sport,
       city: g.city,
       placeName: g.placeName,
+      description: g.description ?? null,
+      isPrivate: g.isPrivate,
       datetime: formatDateTime(g.datetime),
       status: g.status,
       matchType: g.matchType,
       playersNeeded: g.playersNeeded,
+      isCreator: g.creatorUserId === userId,
       myTeam,
       myResult,
+      bookingId: booking?.bookingId ?? null,
+      courtName: booking?.courtName ?? null,
+      facilityName: booking?.facilityName ?? null,
+      facilityCity: booking?.facilityCity ?? null,
+      courtImageUrl: booking?.courtImageUrl ?? null,
+      date: booking?.date ?? null,
+      startTime: booking?.startTime ?? null,
+      endTime: booking?.endTime ?? null,
+      pricePerSlot: booking?.pricePerSlot ?? null,
+      totalSlots: booking?.totalSlots ?? null,
       result: result ? {
         scoreTeamA: result.scoreTeamA,
         scoreTeamB: result.scoreTeamB,

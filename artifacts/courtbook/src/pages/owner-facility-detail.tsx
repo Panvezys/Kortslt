@@ -5,7 +5,7 @@ import { OwnerLayout } from "@/components/owner-layout";
 import { CourtIcon, SportIcon, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
 import {
   useListCourts, useCreateCourt, useUpdateCourt, useDeleteCourt, getListCourtsQueryKey,
-  useGetCourtPricing, useSetCourtPricing, customFetch,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Plus, Edit2, Trash2, Euro, RotateCcw, CalendarClock,
+  Plus, Edit2, Trash2, Euro,
   AlertTriangle, Clock3, ShoppingBag, Lightbulb, ShowerHead, DoorOpen,
   Droplets, X, Trophy, UserPlus, UserMinus, MessageSquare, Send,
   ArrowLeft, ChevronRight, Images, Upload, Users,
@@ -25,7 +25,7 @@ import {
   Thermometer, Wind, Lock, Flame, Building2, QrCode, Download,
   Printer, MapPin, ChevronDown, Phone, Mail, Shield, ShieldCheck, Loader2,
   Star, Search, UserCheck, XCircle, LayoutDashboard, Settings, LogOut, Menu,
-  BarChart3, Camera, MoreVertical,
+  BarChart3, Camera, MoreVertical, CalendarClock,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -233,155 +233,6 @@ function BlockedSlotsModal({ courtId, onClose }: { courtId: number; onClose: () 
   );
 }
 
-function PricingEditor({ courtId, defaultPrice, workingHours, onClose }: { courtId: number; defaultPrice: number; workingHours?: string | null; onClose: () => void }) {
-  const { toast } = useToast();
-  const [selectedDay, setSelectedDay] = useState(1);
-  const defaultSlotPrice = defaultPrice / 2;
-  const { data: pricing, isLoading } = useGetCourtPricing(courtId);
-  const setPricing = useSetCourtPricing();
-  const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-
-  useEffect(() => {
-    if (pricing) {
-      const map = new Map<string, number>();
-      pricing.entries.forEach((e: any) => map.set(`${e.dayOfWeek}:${e.startTime}`, e.price));
-      setPriceMap(map);
-    }
-  }, [pricing]);
-
-  const isDayClosed = (day: number) => {
-    const slots = slotsForDayFromJson(workingHours, day);
-    return slots !== null && slots.length === 0;
-  };
-
-  const daySlotsActive = slotsForDayFromJson(workingHours, selectedDay) ?? TIME_SLOTS;
-  const selectedDayClosed = isDayClosed(selectedDay);
-
-  const getPrice = (day: number, startTime: string) => {
-    const key = `${day}:${startTime}`;
-    return priceMap.has(key) ? priceMap.get(key)! : defaultSlotPrice;
-  };
-  const startEdit = (day: number, startTime: string) => {
-    setEditingKey(`${day}:${startTime}`);
-    setEditValue(getPrice(day, startTime).toString());
-  };
-  const commitEdit = () => {
-    if (!editingKey) return;
-    const price = parseFloat(editValue);
-    if (!isNaN(price) && price >= 0) {
-      setPriceMap(prev => { const next = new Map(prev); next.set(editingKey, price); return next; });
-    }
-    setEditingKey(null);
-  };
-  const resetDay = (day: number) => {
-    setPriceMap(prev => { const next = new Map(prev); TIME_SLOTS.forEach(s => next.delete(`${day}:${s}`)); return next; });
-  };
-  const handleSave = async () => {
-    const entries: { dayOfWeek: number; startTime: string; price: number }[] = [];
-    priceMap.forEach((price, key) => {
-      const [dayStr, startTime] = key.split(":");
-      const dayOfWeek = parseInt(dayStr);
-      if (!isNaN(dayOfWeek) && startTime) entries.push({ dayOfWeek, startTime, price });
-    });
-    try {
-      await setPricing.mutateAsync({ id: courtId, data: { entries } });
-      toast({ title: "Kainos išsaugotos" });
-      onClose();
-    } catch { toast({ title: "Klaida išsaugant", variant: "destructive" }); }
-  };
-
-  if (isLoading) return <div className="space-y-3 p-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Nustatykite kainą kiekvienam 30 min. laiko tarpui. Numatytoji kaina: <strong>{defaultSlotPrice.toFixed(2)}€</strong> / 30 min.</p>
-      <div className="flex gap-1.5 flex-wrap">
-        {DAYS.map((day, i) => {
-          const closed = isDayClosed(i);
-          return (
-            <button key={i} type="button" onClick={() => !closed && setSelectedDay(i)}
-              disabled={closed}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${closed ? "opacity-40 cursor-not-allowed border-border bg-muted text-muted-foreground line-through" : selectedDay === i ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"}`}
-            >{DAY_SHORT[i]}</button>
-          );
-        })}
-      </div>
-      <div className="border rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
-          <span className="text-sm font-semibold">{DAYS[selectedDay]}</span>
-          {!selectedDayClosed && (
-            <button type="button" onClick={() => resetDay(selectedDay)} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              <RotateCcw className="w-3.5 h-3.5" /> Atstatyti numatytąją
-            </button>
-          )}
-        </div>
-        {selectedDayClosed ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">Ši diena uždaryta pagal darbo valandas</div>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-px bg-border max-h-72 overflow-y-auto">
-            {daySlotsActive.map(startTime => {
-              const key = `${selectedDay}:${startTime}`;
-              const isEditing = editingKey === key;
-              const price = getPrice(selectedDay, startTime);
-              const isCustom = priceMap.has(key);
-              return (
-                <div key={startTime}
-                  className={`bg-card p-2 flex flex-col items-center gap-0.5 cursor-pointer hover:bg-primary/5 transition-colors ${isEditing ? "bg-primary/10 ring-1 ring-primary" : ""}`}
-                  onClick={() => !isEditing && startEdit(selectedDay, startTime)}>
-                  <span className="text-xs text-muted-foreground font-medium">{startTime}</span>
-                  {isEditing ? (
-                    <input autoFocus type="number" value={editValue} min={0} step={0.5}
-                      onChange={e => setEditValue(e.target.value)} onBlur={commitEdit}
-                      onKeyDown={e => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditingKey(null); }}
-                      className="w-full text-center text-xs font-bold bg-transparent border-0 outline-none p-0 text-primary"
-                      onClick={e => e.stopPropagation()} />
-                  ) : (
-                    <span className={`text-sm font-bold flex items-center gap-0.5 ${isCustom ? "text-primary" : "text-foreground"}`}>
-                      <Euro className="w-3 h-3" />{price.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      <div className="flex gap-3 justify-end pt-2">
-        <Button variant="outline" onClick={onClose}>Atšaukti</Button>
-        <Button onClick={handleSave} disabled={setPricing.isPending}>{setPricing.isPending ? "Išsaugoma..." : "Išsaugoti kainas"}</Button>
-      </div>
-    </div>
-  );
-}
-
-function CourtPricingField({
-  value,
-  onChange,
-  pricingCourtId,
-  onOpenPricing,
-}: {
-  value: number;
-  onChange: (value: number) => void;
-  pricingCourtId: number | null;
-  onOpenPricing: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        min={1}
-        step={0.5}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-      />
-      <Button type="button" variant="outline" onClick={onOpenPricing} disabled={pricingCourtId !== null}>
-        Grafikas
-      </Button>
-    </div>
-  );
-}
 
 function FreeBookingDialog({ courtId, open, onClose }: { courtId: number | null; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
@@ -988,9 +839,6 @@ export default function OwnerFacilityDetail() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [mapKey, setMapKey] = useState(0);
-  const [pricingCourtId, setPricingCourtId] = useState<number | null>(null);
-  const [pricingDefaultPrice, setPricingDefaultPrice] = useState(20);
-  const [pricingWorkingHours, setPricingWorkingHours] = useState<string | null>(null);
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
   const [freeBookingCourtId, setFreeBookingCourtId] = useState<number | null>(null);
@@ -1001,10 +849,6 @@ export default function OwnerFacilityDetail() {
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemStock, setNewItemStock] = useState("");
   const [formTab, setFormTab] = useState<"info" | "schedule" | "amenities" | "media" | "contact">("info");
-  const [localPricingMap, setLocalPricingMap] = useState<Map<string, number>>(new Map());
-  const [pricingDay, setPricingDay] = useState(1);
-  const [pricingEditKey, setPricingEditKey] = useState<string | null>(null);
-  const [pricingEditValue, setPricingEditValue] = useState("");
   const [workingHoursState, setWorkingHoursState] = useState<WorkingHoursMap>(defaultWorkingHours());
   const [amenityPhotos, setAmenityPhotos] = useState<Record<string, string>>({});
   const [uploadingAmenity, setUploadingAmenity] = useState<string | null>(null);
@@ -1036,20 +880,6 @@ export default function OwnerFacilityDetail() {
   const createCourt = useCreateCourt();
   const updateCourt = useUpdateCourt();
   const deleteCourt = useDeleteCourt();
-  const setPricingMutation = useSetCourtPricing();
-
-  const { data: editingPricing } = useGetCourtPricing(editingId ?? 0);
-
-  useEffect(() => {
-    if (editingId && editingPricing?.entries) {
-      const map = new Map<string, number>();
-      editingPricing.entries.forEach((e: any) => map.set(`${e.dayOfWeek}:${e.startTime}`, e.price));
-      setLocalPricingMap(map);
-    } else if (!editingId) {
-      setLocalPricingMap(new Map());
-    }
-  }, [editingId, editingPricing]);
-
   const form = useForm<CourtFormValues>({
     resolver: zodResolver(courtSchema),
     defaultValues: {
@@ -1062,19 +892,6 @@ export default function OwnerFacilityDetail() {
     },
   });
 
-
-  const savePricingForCourt = async (courtId: number) => {
-    if (localPricingMap.size === 0) return;
-    const entries: { dayOfWeek: number; startTime: string; price: number }[] = [];
-    localPricingMap.forEach((price, key) => {
-      const [dayStr, startTime] = key.split(":");
-      const dayOfWeek = parseInt(dayStr);
-      if (!isNaN(dayOfWeek) && startTime) entries.push({ dayOfWeek, startTime, price });
-    });
-    if (entries.length > 0) {
-      await setPricingMutation.mutateAsync({ id: courtId, data: { entries } });
-    }
-  };
 
   const onSubmit = async (data: CourtFormValues) => {
     try {
@@ -1105,11 +922,9 @@ export default function OwnerFacilityDetail() {
 
       if (editingId) {
         await updateCourt.mutateAsync({ id: editingId, data: payload as any });
-        await savePricingForCourt(editingId);
         toast({ title: "Aikštelė atnaujinta" });
       } else {
-        const newCourt = await createCourt.mutateAsync({ data: payload as any });
-        await savePricingForCourt((newCourt as any).id);
+        await createCourt.mutateAsync({ data: payload as any });
         toast({ title: "Aikštelė sukurta — laukia patvirtinimo" });
       }
       setIsDialogOpen(false);

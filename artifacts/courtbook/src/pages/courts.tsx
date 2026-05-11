@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { useSearch } from "wouter";
+import { useState, useEffect, useMemo } from "react";
+import { useSearch, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { useListCourts, useListCities } from "@workspace/api-client-react";
 import { CourtCard } from "@/components/court-card";
@@ -12,11 +13,42 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation, ArrowUpDown } from "lucide-react";
+import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation, ArrowUpDown, Calendar, Clock, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { ListCourtsType } from "@workspace/api-client-react";
 import { useT } from "@/lib/i18n";
 import { SportIcon, sportColor } from "@/components/sport-icon";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+function makeTimeSlots(from = "07:00", to = "22:00") {
+  const slots: string[] = [];
+  const [fh, fm] = from.split(":").map(Number);
+  const [th, tm] = to.split(":").map(Number);
+  let cur = fh * 60 + fm;
+  const end = th * 60 + tm;
+  while (cur < end) {
+    slots.push(`${String(Math.floor(cur / 60)).padStart(2, "0")}:${String(cur % 60).padStart(2, "0")}`);
+    cur += 30;
+  }
+  return slots;
+}
+const TIME_SLOTS = makeTimeSlots();
+const DURATION_OPTIONS = [
+  { label: "30 min", value: 30 },
+  { label: "1 val.", value: 60 },
+  { label: "1.5 val.", value: 90 },
+  { label: "2 val.", value: 120 },
+  { label: "2.5 val.", value: 150 },
+  { label: "3 val.", value: 180 },
+];
+
+function addMins(t: string, mins: number): string {
+  const [h, m] = t.split(":").map(Number);
+  const total = h * 60 + m + mins;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 type ViewMode = "list" | "map";
 
@@ -52,10 +84,12 @@ const HERO_IMAGES = [
 export default function Courts() {
   const t = useT();
   const searchStr = useSearch();
+  const [, setLocation] = useLocation();
   const _qp = new URLSearchParams(searchStr.replace(/^\?/, ""));
   const initialType = (_qp.get("type") as ListCourtsType | null) ?? null;
   const initialName = _qp.get("name") ?? "";
   const initialCity = _qp.get("city") ?? "";
+  const linkGameId = _qp.get("linkGameId") ? parseInt(_qp.get("linkGameId")!) : null;
 
   const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
   const sportLT: Record<string, string> = {
@@ -79,6 +113,63 @@ export default function Courts() {
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // ── Link-game mode (booking a court for an existing match) ──────────────────
+  const [linkDate, setLinkDate] = useState<string>(() => {
+    try { return sessionStorage.getItem("linkGameDate") ?? ""; } catch { return ""; }
+  });
+  const [linkStartTime, setLinkStartTime] = useState<string>(() => {
+    try { return sessionStorage.getItem("linkGameStartTime") ?? ""; } catch { return ""; }
+  });
+  const [linkDurationMins, setLinkDurationMins] = useState(60);
+  const linkEndTime = useMemo(() => linkStartTime ? addMins(linkStartTime, linkDurationMins) : "", [linkStartTime, linkDurationMins]);
+
+  const { data: gameData } = useQuery<{ id: number; sport: string; datetime: string; durationMinutes: number; city: string }>({
+    queryKey: ["game-for-link", linkGameId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/games/${linkGameId}`);
+      if (!r.ok) throw new Error("Not found");
+      return r.json();
+    },
+    enabled: !!linkGameId,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!gameData) return;
+    const dt = new Date(gameData.datetime);
+    if (!linkDate) {
+      setLinkDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
+    }
+    if (!linkStartTime) {
+      setLinkStartTime(`${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes() < 30 ? "00" : "30")}`);
+    }
+    setLinkDurationMins(gameData.durationMinutes ?? 60);
+  }, [gameData]);
+
+  useEffect(() => {
+    if (!linkGameId) return;
+    try {
+      if (linkDate) sessionStorage.setItem("linkGameDate", linkDate);
+      if (linkStartTime) sessionStorage.setItem("linkGameStartTime", linkStartTime);
+      if (linkEndTime) sessionStorage.setItem("linkGameEndTime", linkEndTime);
+    } catch { /* ignore */ }
+  }, [linkGameId, linkDate, linkStartTime, linkEndTime]);
+
+  const { data: availData, isLoading: availLoading } = useQuery<{ availableCourtIds: number[] }>({
+    queryKey: ["courts-avail-for-slot", linkDate, linkStartTime, linkEndTime],
+    queryFn: async () => {
+      const p = new URLSearchParams({ date: linkDate, startTime: linkStartTime, endTime: linkEndTime });
+      if (gameData?.sport) p.set("sport", gameData.sport);
+      const r = await fetch(`${API}/courts/available-for-slot?${p}`);
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    enabled: !!linkGameId && !!linkDate && !!linkStartTime && !!linkEndTime,
+    staleTime: 30_000,
+  });
+
+  const availableIdSet = availData ? new Set(availData.availableCourtIds) : null;
 
   const handleNearbyList = () => {
     if (nearbyMode) {
@@ -173,6 +264,7 @@ export default function Courts() {
 
   const sortedCourts = filteredCourts ? [...filteredCourts]
     .filter(c => activeSports.has(c.type))
+    .filter(c => !availableIdSet || availableIdSet.has(c.id))
     .sort((a, b) => {
       if (sortBy === "favorites_first") {
         const aFav = favoriteIds.has(a.id) ? 0 : 1;
@@ -584,6 +676,81 @@ export default function Courts() {
 
           {/* Main Content */}
           <main className="flex-1 w-full min-w-0">
+
+            {/* ── Link-game banner ───────────────────────────────────────── */}
+            {linkGameId && (
+              <div className="mb-5 rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setLocation(`/matches/${linkGameId}`)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />Grįžti į mačą
+                    </button>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="text-sm font-semibold text-foreground">Rezervuoti kortą šiam mačui</span>
+                  </div>
+                  {linkDate && linkStartTime && linkEndTime && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {linkDate} · {linkStartTime}–{linkEndTime}
+                      {availableIdSet && (
+                        <span className="ml-1 text-muted-foreground">· {availableIdSet.size} laisv{availableIdSet.size === 1 ? "as kortas" : "i kortai"}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />Data
+                    </Label>
+                    <Input
+                      type="date"
+                      value={linkDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={e => setLinkDate(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />Pradžia
+                    </Label>
+                    <Select value={linkStartTime} onValueChange={setLinkStartTime}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pasirinkite laiką" /></SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {TIME_SLOTS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />Trukmė
+                    </Label>
+                    <Select value={String(linkDurationMins)} onValueChange={v => setLinkDurationMins(Number(v))}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DURATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {availLoading && linkDate && linkStartTime && (
+                  <p className="text-xs text-muted-foreground">Tikrinama prieinamumas…</p>
+                )}
+                {availData && !availLoading && (
+                  <p className="text-xs text-muted-foreground">
+                    Rodomi tik kortai, kurie laisvi <strong>{linkStartTime}–{linkEndTime}</strong> laiku {linkDate}.
+                    {availableIdSet?.size === 0 && " Nėra laisvų kortų šiuo metu — pabandykite kitu laiku."}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Desktop view toggle + count */}
             <div className="hidden md:flex mb-6 justify-between items-center gap-3">
               <h2 className="text-base font-semibold text-muted-foreground shrink-0">

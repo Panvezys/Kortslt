@@ -1,0 +1,11 @@
+We need to polish the "Upgrade to Booked Match" flow to prevent UX loops and state errors. 
+
+Please review the court booking/checkout UI and the backend payment routes, and implement these 3 rules:
+
+1. Host-Only Booking: On the `game-detail` page, ensure the "Užsakyti aikštelę šiam žaidimui" button is strictly only visible to the user who created the match (isHost / isOwner).
+2. UI "Upgrade Mode": In the court checkout component (e.g., `court-detail` or `checkout` form), check for the presence of `linkGameId` (from URL or sessionStorage). 
+   - IF `linkGameId` exists: Hide all inputs related to creating a new game (Visibility toggle, Level selector, etc.). Change the submit button text to "Patvirtinti ir priskirti mačui" (Confirm & Assign to Match).
+   - IF `linkGameId` exists, allow the user to select either Split Payment OR Full Payment.
+3. Backend Loop Prevention: In BOTH standard `payments.ts` and `split-payments.ts` checkout routes:
+   - If `linkGameId` is passed in the body, absolutely DO NOT create a new game in the database. 
+   - Instead, attach the new `bookingId`, `facilityId`, and `courtId` to the existing game via an UPDATE query, and adjust the game status appropriately.

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
@@ -297,9 +297,31 @@ export default function CourtDetail() {
   const t = useT();
   const { locale } = useI18n();
 
-  const [date, setDate] = useState<Date>(new Date());
+  const [date, setDate] = useState<Date>(() => {
+    try {
+      const stored = sessionStorage.getItem("linkGameDate");
+      if (stored) {
+        sessionStorage.removeItem("linkGameDate");
+        const [y, m, d] = stored.split("-").map(Number);
+        if (y && m && d) return new Date(y, m - 1, d);
+      }
+    } catch { /* ignore */ }
+    return new Date();
+  });
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
   const [selectedEnd, setSelectedEnd] = useState<number | null>(null);
+
+  // Auto-select the slot range from sessionStorage when availability loads (link-game mode)
+  const pendingLinkStart = useRef<string | null>(null);
+  const pendingLinkEnd = useRef<string | null>(null);
+  useEffect(() => {
+    try {
+      const s = sessionStorage.getItem("linkGameStartTime");
+      const e = sessionStorage.getItem("linkGameEndTime");
+      if (s) { pendingLinkStart.current = s; sessionStorage.removeItem("linkGameStartTime"); }
+      if (e) { pendingLinkEnd.current = e; sessionStorage.removeItem("linkGameEndTime"); }
+    } catch { /* ignore */ }
+  }, []);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
 
   const dateStr = format(date, "yyyy-MM-dd");
@@ -561,6 +583,20 @@ export default function CourtDetail() {
   };
 
   const slots = availability?.slots ?? [];
+  // True when at least one slot remains after filtering out past slots on today's date.
+  // Prevents rendering an empty grid (no visible buttons, no "no slots" message) when
+  // the user views today and all slots have already passed.
+  const hasVisibleSlots = (() => {
+    if (!slots.length) return false;
+    const _now = new Date();
+    const isToday =
+      date.getFullYear() === _now.getFullYear() &&
+      date.getMonth() === _now.getMonth() &&
+      date.getDate() === _now.getDate();
+    if (!isToday) return true;
+    const nowStr = _now.toTimeString().slice(0, 5);
+    return slots.some(s => s.startTime > nowStr);
+  })();
 
   const availableEquipment: Array<{ name: string; pricePerSlot: number; stock: number }> = useMemo(() => {
     try {
@@ -733,6 +769,7 @@ export default function CourtDetail() {
           body: JSON.stringify({
             bookingId: booking.id,
             ...(isGuest ? { managementToken: mgmtToken } : {}),
+            ...(linkGameId ? { linkGameId } : {}),
             successUrl,
             cancelUrl: `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`,
           }),
@@ -756,6 +793,7 @@ export default function CourtDetail() {
           body: JSON.stringify({
             bookingId: booking.id,
             ...(isGuest ? { managementToken: mgmtToken } : {}),
+            ...(linkGameId ? { linkGameId } : {}),
           }),
         });
         if (!resp.ok) throw new Error("Confirm failed");
@@ -1602,7 +1640,7 @@ export default function CourtDetail() {
                       <Skeleton key={i} className="h-9 w-full rounded-md" />
                     ))}
                   </div>
-                ) : slots.length > 0 ? (
+                ) : hasVisibleSlots ? (
                   <div className="grid grid-cols-4 gap-1">
                     {slots.map((slot, idx) => {
                       const selectedDate = new Date(date);
@@ -1852,7 +1890,8 @@ export default function CourtDetail() {
                         <span className="font-bold text-primary">{(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €</span>
                       </div>
 
-                      {/* Public match sub-toggle */}
+                      {/* Public match sub-toggle — hidden when upgrading an existing game */}
+                      {!linkGameId && (
                       <div className="border-t pt-2 space-y-2">
                         <button
                           type="button"
@@ -1913,6 +1952,7 @@ export default function CourtDetail() {
                           </div>
                         )}
                       </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2057,7 +2097,7 @@ export default function CourtDetail() {
                         className="button-primary h-10 px-5 font-semibold gap-2 shrink-0"
                         disabled={isPending || splitPending}
                       >
-                        {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
+                        {(isPending || splitPending) ? "…" : linkGameId ? "Patvirtinti ir priskirti mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
                       </Button>
                     ) : (
                       <Button onClick={() => setGuestCheckoutOpen(true)} className="button-primary h-10 px-5 font-semibold gap-2 shrink-0" disabled={isPending}>
@@ -2170,7 +2210,7 @@ export default function CourtDetail() {
                 className="button-primary h-11 px-6 font-semibold gap-2 shrink-0"
                 disabled={isPending || splitPending}
               >
-                {(isPending || splitPending) ? "…" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
+                {(isPending || splitPending) ? "…" : linkGameId ? "Patvirtinti ir priskirti mačui" : splitEnabled ? "Mokėti dalį" : recurringEnabled ? `${recurringWeeks}× Rezervuoti` : "Rezervuoti"}
               </Button>
             ) : (
               <Button

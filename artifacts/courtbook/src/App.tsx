@@ -50,6 +50,7 @@ import SettingsPage from "@/pages/settings";
 import RanksPage from "@/pages/ranks";
 import JoinBookingPage from "@/pages/join-booking";
 import OpenMatchesPage from "@/pages/open-matches";
+import MyMatchesPage from "@/pages/my-matches";
 
 const AdminDashboard = lazy(() => import("@/pages/admin"));
 const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
@@ -243,6 +244,7 @@ function Router() {
       <Route path="/games/:id">
         {(params) => <Redirect to={`/matches/${params.id}`} />}
       </Route>
+      <Route path="/matches/mine" component={MyMatchesPage} />
       <Route path="/matches/:id" component={GameDetailPage} />
       <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />

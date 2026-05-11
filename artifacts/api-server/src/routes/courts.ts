@@ -337,6 +337,71 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
   res.status(201).json(formatCourt(court, facility));
 });
 
+// GET /courts/available-for-slot?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM&sport=tennis
+// Returns court IDs that have no confirmed/blocked booking conflicts in the requested window.
+router.get("/courts/available-for-slot", async (req, res): Promise<void> => {
+  const { date, startTime, endTime, sport } = req.query as Record<string, string | undefined>;
+  if (!date || !startTime || !endTime) {
+    res.status(400).json({ error: "date, startTime, endTime are required" });
+    return;
+  }
+
+  const courtConditions: ReturnType<typeof eq>[] = [
+    or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active"))!,
+  ];
+  if (sport && sport !== "all") courtConditions.push(eq(courtsTable.type, sport));
+
+  const allCourts = await db
+    .select({ id: courtsTable.id })
+    .from(courtsTable)
+    .where(and(...courtConditions));
+
+  if (!allCourts.length) {
+    res.json({ availableCourtIds: [] });
+    return;
+  }
+
+  const courtIds = allCourts.map(c => c.id);
+
+  const [conflictBookings, conflictBlocked] = await Promise.all([
+    db
+      .select({ courtId: bookingsTable.courtId })
+      .from(bookingsTable)
+      .where(and(
+        inArray(bookingsTable.courtId, courtIds),
+        eq(bookingsTable.date, date),
+        sql`${bookingsTable.startTime} < ${endTime}`,
+        sql`${bookingsTable.endTime} > ${startTime}`,
+        or(
+          eq(bookingsTable.status, "confirmed"),
+          eq(bookingsTable.status, "blocked"),
+          eq(bookingsTable.status, "awaiting_players"),
+          and(
+            eq(bookingsTable.status, "pending"),
+            sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
+          )
+        )
+      )),
+    db
+      .select({ courtId: courtBlockedSlotsTable.courtId })
+      .from(courtBlockedSlotsTable)
+      .where(and(
+        inArray(courtBlockedSlotsTable.courtId, courtIds),
+        eq(courtBlockedSlotsTable.date, date),
+        sql`${courtBlockedSlotsTable.startTime} < ${endTime}`,
+        sql`${courtBlockedSlotsTable.endTime} > ${startTime}`,
+      )),
+  ]);
+
+  const conflictIds = new Set([
+    ...conflictBookings.map(b => b.courtId),
+    ...conflictBlocked.map(b => b.courtId),
+  ]);
+
+  const availableCourtIds = courtIds.filter(id => !conflictIds.has(id));
+  res.json({ availableCourtIds });
+});
+
 router.get("/courts/:id", async (req, res): Promise<void> => {
   const params = GetCourtParams.safeParse(req.params);
   if (!params.success) {
