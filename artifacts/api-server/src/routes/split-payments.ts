@@ -354,7 +354,14 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
         .where(eq(gameParticipantsTable.id, hostParticipant.id));
       if (linkGameId) {
         await db.update(gamesTable)
-          .set({ bookingId: booking.id, facilityId: facility?.id ?? null, courtId, status: "awaiting_players" })
+          .set({
+            bookingId: booking.id,
+            facilityId: facility?.id ?? null,
+            courtId,
+            status: "awaiting_players",
+            datetime: `${booking.date}T${booking.startTime}:00`,
+            durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
+          })
           .where(eq(gamesTable.id, linkGameId));
       } else {
         await db.update(gamesTable)
@@ -456,6 +463,8 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
         facilityId: courtRow?.facilityId ?? null,
         courtId: courtRow?.courtId ?? booking.courtId,
         status: "awaiting_players",
+        datetime: `${booking.date}T${booking.startTime}:00`,
+        durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
       })
       .where(eq(gamesTable.id, linkGameId));
     const [updated] = await db.select().from(gamesTable).where(eq(gamesTable.id, linkGameId));

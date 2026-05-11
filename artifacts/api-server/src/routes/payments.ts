@@ -99,6 +99,7 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
       const [game] = await db.select({ creatorUserId: gamesTable.creatorUserId })
         .from(gamesTable).where(eq(gamesTable.id, linkGameId));
       if (game && game.creatorUserId === booking.bookerUserId) {
+        const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
         await db.update(gamesTable)
           .set({
             bookingId: booking.id,
@@ -106,6 +107,8 @@ router.post("/payments/create-checkout", async (req, res): Promise<void> => {
             facilityId: facility?.id ?? null,
             placeName: court?.name ?? null,
             city: facility?.city ?? "",
+            datetime: `${booking.date}T${booking.startTime}:00`,
+            durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
           })
           .where(eq(gamesTable.id, linkGameId));
       }
@@ -259,6 +262,7 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     const [game] = await db.select({ creatorUserId: gamesTable.creatorUserId })
       .from(gamesTable).where(eq(gamesTable.id, linkGameId));
     if (game && game.creatorUserId === booking.bookerUserId) {
+      const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
       await db.update(gamesTable)
         .set({
           bookingId: booking.id,
@@ -266,6 +270,8 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
           facilityId: rows[0].facilityId ?? null,
           placeName: rows[0].courtName ?? null,
           city: rows[0].courtCity ?? "",
+          datetime: `${booking.date}T${booking.startTime}:00`,
+          durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
         })
         .where(eq(gamesTable.id, linkGameId));
     }

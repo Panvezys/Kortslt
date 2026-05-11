@@ -116,11 +116,11 @@ export default function Courts() {
 
   // ── Link-game mode (booking a court for an existing match) ──────────────────
   const [linkDate, setLinkDate] = useState<string>(() => {
+    const urlDate = _qp.get("date") ?? "";
+    if (urlDate) return urlDate;
     try { return sessionStorage.getItem("linkGameDate") ?? ""; } catch { return ""; }
   });
-  const [linkStartTime, setLinkStartTime] = useState<string>(() => {
-    try { return sessionStorage.getItem("linkGameStartTime") ?? ""; } catch { return ""; }
-  });
+  const [linkStartTime, setLinkStartTime] = useState<string>("");
   const [linkDurationMins, setLinkDurationMins] = useState(60);
   const linkEndTime = useMemo(() => linkStartTime ? addMins(linkStartTime, linkDurationMins) : "", [linkStartTime, linkDurationMins]);
 
@@ -137,14 +137,11 @@ export default function Courts() {
 
   useEffect(() => {
     if (!gameData) return;
-    const dt = new Date(gameData.datetime);
     if (!linkDate) {
+      const dt = new Date(gameData.datetime);
       setLinkDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
     }
-    if (!linkStartTime) {
-      setLinkStartTime(`${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes() < 30 ? "00" : "30")}`);
-    }
-    setLinkDurationMins(gameData.durationMinutes ?? 60);
+    // Do not auto-set start time — user picks freely within the date
   }, [gameData]);
 
   useEffect(() => {
