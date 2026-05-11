@@ -600,10 +600,12 @@ export default function GameDetailPage() {
 
   const del = useMutation({
     mutationFn: () => customFetch(`${API}/games/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Žaidimas panaikintas" });
+    onSuccess: async () => {
+      await qc.refetchQueries({ queryKey: ["open-matches"] });
+      toast({ title: "Žaidimas ištrintas", description: "Dalyviai buvo informuoti." });
       setLocation("/matches");
     },
+    onError: (e: any) => toast({ title: "Nepavyko ištrinti žaidimo", description: e?.message, variant: "destructive" }),
   });
 
   const [chatInput, setChatInput] = useState("");
@@ -795,12 +797,42 @@ export default function GameDetailPage() {
             <Show when="signed-in">
               {isCreator ? (
                 <>
-                  <CancelGameDialog
-                    gameId={id}
-                    hasBooking={!!data.bookingId}
-                    onConfirmed={() => del.mutateAsync()}
-                    pending={del.isPending}
-                  />
+                  {!data.bookingId ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="gap-1.5" disabled={del.isPending}>
+                          <Trash2 className="w-4 h-4" />Ištrinti žaidimą
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Ištrinti žaidimą?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {data.joinedCount > 1
+                              ? `${data.joinedCount - 1} ${data.joinedCount - 1 === 1 ? "žaidėjas gaus" : "žaidėjai gaus"} pranešimą apie žaidimo atšaukimą.`
+                              : "Šis žaidimas bus visam laikui ištrintas."}{" "}
+                            Šio veiksmo atšaukti negalima.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Atšaukti</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => del.mutate()}
+                          >
+                            Ištrinti
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
+                    <CancelGameDialog
+                      gameId={id}
+                      hasBooking={!!data.bookingId}
+                      onConfirmed={() => del.mutateAsync()}
+                      pending={del.isPending}
+                    />
+                  )}
 
                   {isEnded && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
                   <InviteSection gameId={id} />
