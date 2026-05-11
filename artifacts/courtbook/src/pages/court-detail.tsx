@@ -359,7 +359,20 @@ export default function CourtDetail() {
   const [guestCheckoutSubmitting, setGuestCheckoutSubmitting] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [pendingGuestData, setPendingGuestData] = useState<{ customerName: string; customerEmail: string; customerPhone?: string } | null>(null);
-  const [splitEnabled, setSplitEnabled] = useState(false);
+  const linkGameId = useMemo(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("linkGameId");
+      if (fromUrl) return parseInt(fromUrl, 10);
+      const fromSession = sessionStorage.getItem("linkGameId");
+      if (fromSession) {
+        sessionStorage.removeItem("linkGameId");
+        return parseInt(fromSession, 10);
+      }
+      return null;
+    } catch { return null; }
+  }, []);
+
+  const [splitEnabled, setSplitEnabled] = useState(() => !!linkGameId);
   const [splitCount, setSplitCount] = useState(4);
   const [splitPending, setSplitPending] = useState(false);
   const [isPublicMatch, setIsPublicMatch] = useState(false);
@@ -806,6 +819,7 @@ export default function CourtDetail() {
           isPublic: isPublicMatch,
           matchType: splitMatchType,
           ...(isPublicMatch && { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill }),
+          ...(linkGameId ? { linkGameId } : {}),
         }),
       });
       if (!resp.ok) {

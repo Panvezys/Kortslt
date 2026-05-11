@@ -68,6 +68,8 @@ const SplitCheckoutBody = z.object({
   minSkillLevel: z.number().min(0).max(10).optional(),
   maxSkillLevel: z.number().min(0).max(10).optional(),
   matchType: z.enum(["casual", "competitive"]).optional().default("casual"),
+  // Upgrade flow: link an existing casual game instead of creating a new one
+  linkGameId: z.number().int().positive().optional(),
 });
 
 router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void> => {
@@ -82,6 +84,7 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
     courtId, date, startTime, endTime, totalSlots, sport, skillLevel, description,
     customerName, customerEmail, customerPhone,
     isPublic, minSkillLevel, maxSkillLevel, matchType,
+    linkGameId,
   } = parsed.data;
 
   const reqStartMin = toMin(startTime);
@@ -198,42 +201,76 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
     splitInviteToken,
   }).returning();
 
-  // ── Create linked game ────────────────────────────────────────────────────
-  const [game] = await db.insert(gamesTable).values({
-    creatorUserId: userId,
-    creatorName: customerName,
-    creatorEmail: customerEmail,
-    sport,
-    city: facility?.city ?? "",
-    placeName: facility?.name ?? court.name,
-    facilityId: facility?.id ?? null,
-    courtId,
-    bookingId: booking.id,
-    playersNeeded: totalSlots,
-    skillLevel: skillLevel ?? "any",
-    datetime,
-    durationMinutes,
-    description: description ?? null,
-    status: "pending_payment",
-    matchType: matchType ?? "casual",
-    isPrivate: !isPublic,
-    visibility: isPublic ? "public" : "private",
-    minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
-    maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
-    requiresApproval: false,
-    teamCount: 2,
-  }).returning();
+  // ── Create or reuse linked game ───────────────────────────────────────────
+  let gameId: number;
+  if (linkGameId) {
+    // Upgrade flow: skip game creation; the existing game will be updated after payment confirms.
+    gameId = linkGameId;
+  } else {
+    const [newGame] = await db.insert(gamesTable).values({
+      creatorUserId: userId,
+      creatorName: customerName,
+      creatorEmail: customerEmail,
+      sport,
+      city: facility?.city ?? "",
+      placeName: facility?.name ?? court.name,
+      facilityId: facility?.id ?? null,
+      courtId,
+      bookingId: booking.id,
+      playersNeeded: totalSlots,
+      skillLevel: skillLevel ?? "any",
+      datetime,
+      durationMinutes,
+      description: description ?? null,
+      status: "pending_payment",
+      matchType: matchType ?? "casual",
+      isPrivate: !isPublic,
+      visibility: isPublic ? "public" : "private",
+      minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
+      maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
+      requiresApproval: false,
+      teamCount: 2,
+    }).returning();
+    gameId = newGame.id;
+  }
 
   // ── Add host as participant (pending payment) ─────────────────────────────
-  const [hostParticipant] = await db.insert(gameParticipantsTable).values({
-    gameId: game.id,
-    userId,
-    userName: customerName,
-    userEmail: customerEmail,
-    status: "joined",
-    source: "join_request",
-    paymentStatus: "pending",
-  }).returning();
+  // For the upgrade flow, update the existing host participant to track payment;
+  // for the normal flow, insert a fresh record.
+  let hostParticipant: typeof gameParticipantsTable.$inferSelect;
+  if (linkGameId) {
+    const [existing] = await db
+      .select()
+      .from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, linkGameId), eq(gameParticipantsTable.userId, userId)));
+    if (existing) {
+      [hostParticipant] = await db
+        .update(gameParticipantsTable)
+        .set({ paymentStatus: "pending" })
+        .where(eq(gameParticipantsTable.id, existing.id))
+        .returning();
+    } else {
+      [hostParticipant] = await db.insert(gameParticipantsTable).values({
+        gameId: linkGameId,
+        userId,
+        userName: customerName,
+        userEmail: customerEmail,
+        status: "joined",
+        source: "join_request",
+        paymentStatus: "pending",
+      }).returning();
+    }
+  } else {
+    [hostParticipant] = await db.insert(gameParticipantsTable).values({
+      gameId,
+      userId,
+      userName: customerName,
+      userEmail: customerEmail,
+      status: "joined",
+      source: "join_request",
+      paymentStatus: "pending",
+    }).returning();
+  }
 
   // ── Create Stripe checkout for host's share ───────────────────────────────
   const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
@@ -275,7 +312,11 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
       mode: "payment",
       success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
-      metadata: { bookingId: String(booking.id), splitParticipantId: String(hostParticipant.id) },
+      metadata: {
+        bookingId: String(booking.id),
+        splitParticipantId: String(hostParticipant.id),
+        ...(linkGameId ? { linkGameId: String(linkGameId) } : {}),
+      },
       customer_email: customerEmail,
       locale: "lt",
     };
@@ -311,15 +352,23 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
       await db.update(gameParticipantsTable)
         .set({ stripeSessionId: mockId, paymentStatus: "paid" })
         .where(eq(gameParticipantsTable.id, hostParticipant.id));
-      await db.update(gamesTable)
-        .set({ status: "awaiting_players" })
-        .where(eq(gamesTable.id, game.id));
+      if (linkGameId) {
+        await db.update(gamesTable)
+          .set({ bookingId: booking.id, facilityId: facility?.id ?? null, courtId, status: "awaiting_players" })
+          .where(eq(gamesTable.id, linkGameId));
+      } else {
+        await db.update(gamesTable)
+          .set({ status: "awaiting_players" })
+          .where(eq(gamesTable.id, gameId));
+      }
       checkoutUrl = `${successUrl}&session_id=${mockId}`;
     } else {
       logger.error({ err }, "Failed to create Stripe session for split checkout");
-      // Rollback: cancel booking + delete game
-      await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, booking.id));
-      await db.delete(gamesTable).where(eq(gamesTable.id, game.id));
+      if (!linkGameId) {
+        // Rollback only applies when we created a new game
+        await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, booking.id));
+        await db.delete(gamesTable).where(eq(gamesTable.id, gameId));
+      }
       res.status(500).json({ error: "Failed to create payment session" });
       return;
     }
@@ -328,7 +377,7 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   res.status(201).json({
     url: checkoutUrl,
     bookingId: booking.id,
-    gameId: game.id,
+    gameId,
     shareToken: splitInviteToken,
     pricePerSlot,
     totalPrice,
@@ -353,7 +402,8 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
   if (!booking) { res.status(404).json({ error: "Booking not found for session" }); return; }
   if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
 
-  // Verify Stripe payment (skip for mocks)
+  // Verify Stripe payment and read metadata (skip for mocks)
+  let linkGameId: number | null = null;
   if (!sessionId.startsWith("mock_")) {
     try {
       const stripe = await getUncachableStripeClient();
@@ -362,6 +412,8 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
         res.status(402).json({ error: "Payment not completed" });
         return;
       }
+      const lgId = session.metadata?.linkGameId;
+      if (lgId) linkGameId = parseInt(lgId, 10);
     } catch (err) {
       logger.error({ err }, "Stripe retrieve session error in confirm-split");
     }
@@ -388,17 +440,39 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
       .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.status, "pending")));
   }
 
-  // Find linked game and move to awaiting_players
-  const [game] = await db
-    .select()
-    .from(gamesTable)
-    .where(eq(gamesTable.bookingId, booking.id));
-
-  if (game && game.status === "pending_payment") {
+  // Find linked game and transition it
+  let game: typeof gamesTable.$inferSelect | undefined;
+  if (linkGameId) {
+    // Upgrade flow: update the pre-existing casual game
+    const [courtRow] = await db
+      .select({ facilityId: facilitiesTable.id, courtId: courtsTable.id })
+      .from(courtsTable)
+      .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(eq(courtsTable.id, booking.courtId));
     await db
       .update(gamesTable)
-      .set({ status: "awaiting_players" })
-      .where(and(eq(gamesTable.id, game.id), eq(gamesTable.status, "pending_payment")));
+      .set({
+        bookingId: booking.id,
+        facilityId: courtRow?.facilityId ?? null,
+        courtId: courtRow?.courtId ?? booking.courtId,
+        status: "awaiting_players",
+      })
+      .where(eq(gamesTable.id, linkGameId));
+    const [updated] = await db.select().from(gamesTable).where(eq(gamesTable.id, linkGameId));
+    game = updated;
+  } else {
+    // Normal flow: find the game that was created alongside this booking
+    const [found] = await db
+      .select()
+      .from(gamesTable)
+      .where(eq(gamesTable.bookingId, booking.id));
+    if (found && found.status === "pending_payment") {
+      await db
+        .update(gamesTable)
+        .set({ status: "awaiting_players" })
+        .where(and(eq(gamesTable.id, found.id), eq(gamesTable.status, "pending_payment")));
+    }
+    game = found;
   }
 
   // Aggregate paid participant count

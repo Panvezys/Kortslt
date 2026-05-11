@@ -33,7 +33,6 @@ import CoachesPage from "@/pages/coaches";
 import TournamentsPage from "@/pages/tournaments";
 import TournamentDetail from "@/pages/tournament-detail";
 import ListYourCourt from "@/pages/list-your-court";
-import GamesPage from "@/pages/games";
 import GameDetailPage from "@/pages/game-detail";
 import GamesGuidePage from "@/pages/games-guide";
 import MessagesPage from "@/pages/messages";
@@ -240,11 +239,11 @@ function Router() {
       <Route path="/coaches" component={CoachesPage} />
       <Route path="/tournaments" component={TournamentsPage} />
       <Route path="/tournaments/:id" component={TournamentDetail} />
-      <Route path="/games">
-        <Redirect to="/matches" />
-      </Route>
       <Route path="/games/guide" component={GamesGuidePage} />
-      <Route path="/games/:id" component={GameDetailPage} />
+      <Route path="/games/:id">
+        {(params) => <Redirect to={`/matches/${params.id}`} />}
+      </Route>
+      <Route path="/matches/:id" component={GameDetailPage} />
       <Route path="/messages" component={MessagesPage} />
       <Route path="/list-your-court" component={ListYourCourt} />
       <Route path="/faq" component={FAQPage} />

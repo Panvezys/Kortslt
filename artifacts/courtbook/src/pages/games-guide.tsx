@@ -199,7 +199,7 @@ export default function GamesGuidePage() {
                 className="font-semibold text-base px-8 h-12 rounded-xl gap-2"
                 style={{ background: "#C5E041", color: "#132D4C" }}
               >
-                <Link href="/games">
+                <Link href="/matches">
                   Eiti į žaidimus
                   <ArrowRight className="h-4 w-4" />
                 </Link>

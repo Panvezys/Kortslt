@@ -47,8 +47,8 @@ router.get("/matches/open", async (req, res): Promise<void> => {
       .limit(maxRows);
 
     // ── 2. Casual community games (no court booking) ──
+    // isPrivate is the authoritative privacy field; visibility may be stale on older rows.
     const casualConditions: any[] = [
-      eq(gamesTable.visibility, "public"),
       eq(gamesTable.status, "open"),
       eq(gamesTable.isPrivate, false),
       isNull(gamesTable.bookingId),

@@ -65,7 +65,7 @@ export default function RanksPage() {
       <div className="container mx-auto px-4 py-10 max-w-3xl">
         <div className="flex items-center gap-3 mb-8">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/games"><ArrowLeft className="w-5 h-5" /></Link>
+            <Link href="/matches"><ArrowLeft className="w-5 h-5" /></Link>
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Rango sistema</h1>

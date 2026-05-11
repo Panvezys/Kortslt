@@ -602,7 +602,7 @@ export default function GameDetailPage() {
     mutationFn: () => customFetch(`${API}/games/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast({ title: "Žaidimas panaikintas" });
-      setLocation("/games");
+      setLocation("/matches");
     },
   });
 
@@ -653,7 +653,7 @@ export default function GameDetailPage() {
           <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h1 className="text-xl font-bold mb-2">Žaidimas nerastas</h1>
           <p className="text-muted-foreground mb-6">Galbūt buvo panaikintas arba nuoroda neteisinga.</p>
-          <Button asChild><Link href="/games">Grįžti į žaidimus</Link></Button>
+          <Button asChild><Link href="/matches">Grįžti į žaidimus</Link></Button>
         </div>
       </Layout>
     );
@@ -662,8 +662,8 @@ export default function GameDetailPage() {
   const isCreator = !!data.isCreator;
   const isParticipant = data.isJoined && !isCreator;
   const shareUrl = data.isPrivate && data.inviteToken
-    ? `${window.location.origin}${BASE}/games/${data.id}?token=${data.inviteToken}`
-    : `${window.location.origin}${BASE}/games/${data.id}`;
+    ? `${window.location.origin}${BASE}/matches/${data.id}?token=${data.inviteToken}`
+    : `${window.location.origin}${BASE}/matches/${data.id}`;
 
   const copyShare = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -689,7 +689,7 @@ export default function GameDetailPage() {
     <Layout>
       <div className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
         <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
-          <Link href="/games"><ArrowLeft className="w-4 h-4 mr-1.5"/>Visi žaidimai</Link>
+          <Link href="/matches"><ArrowLeft className="w-4 h-4 mr-1.5"/>Visi žaidimai</Link>
         </Button>
 
         {/* ─── Host-Pays-All split-cost banner (booked Korts.lt court) ─── */}
@@ -804,6 +804,20 @@ export default function GameDetailPage() {
 
                   {isEnded && !result && <ReportResultDialog gameId={id} isCreator={isCreator} result={result} sport={data.sport} />}
                   <InviteSection gameId={id} />
+                  {!data.bookingId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        try { sessionStorage.setItem("linkGameId", String(data.id)); } catch { /* ignore */ }
+                        setLocation(`/courts?linkGameId=${data.id}`);
+                      }}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Užsakyti aikštelę šiam žaidimui
+                    </Button>
+                  )}
                 </>
               ) : data.isJoined ? (
                 <Button variant="outline" size="sm" onClick={() => leave.mutate()} disabled={leave.isPending}>

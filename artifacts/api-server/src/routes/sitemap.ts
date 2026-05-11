@@ -47,7 +47,7 @@ const STATIC_ROUTES: Array<Pick<UrlEntry, "loc" | "changefreq" | "priority">> = 
   { loc: "/courts",         changefreq: "daily",   priority: 0.9 },
   { loc: "/coaches",        changefreq: "daily",   priority: 0.8 },
   { loc: "/tournaments",    changefreq: "daily",   priority: 0.7 },
-  { loc: "/games",          changefreq: "daily",   priority: 0.7 },
+  { loc: "/matches",        changefreq: "daily",   priority: 0.7 },
   { loc: "/games/guide",    changefreq: "monthly", priority: 0.5 },
   { loc: "/owners",         changefreq: "monthly", priority: 0.6 },
   { loc: "/become-owner",   changefreq: "monthly", priority: 0.6 },
@@ -120,7 +120,7 @@ router.get("/sitemap.xml", async (req: Request, res: Response): Promise<void> =>
       ...games
         .filter((g) => g.status === "open")
         .map((g) => ({
-          loc: `/games/${g.id}`,
+          loc: `/matches/${g.id}`,
           changefreq: "daily" as const,
           priority: 0.4,
         })),

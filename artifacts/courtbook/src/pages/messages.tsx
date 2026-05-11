@@ -109,7 +109,7 @@ function MessagesPanel({ otherUserId, otherUserName, otherUserImageUrl, ctxType,
             {otherUserName}
           </button>
           {ctxType === "game" && ctxId && (
-            <Link href={`/games/${ctxId}`} className="text-xs text-primary hover:underline block">Apie žaidimą #{ctxId}</Link>
+            <Link href={`/matches/${ctxId}`} className="text-xs text-primary hover:underline block">Apie žaidimą #{ctxId}</Link>
           )}
         </div>
       </div>

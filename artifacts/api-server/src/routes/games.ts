@@ -346,6 +346,7 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
     durationMinutes: durationMinutes ?? 60,
     description: description ?? null,
     isPrivate: !!isPrivate,
+    visibility: isPrivate ? "private" : "public",
     requiresApproval: !!requiresApproval,
     teamCount: teamCount ? Math.max(2, Math.min(6, Number(teamCount))) : 2,
     inviteToken,
@@ -577,7 +578,7 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
         "game_cancelled",
         "Žaidimas atšauktas",
         `${sportLabel} žaidimas ${gameDate} (${g.city}) buvo atšauktas organizatoriaus.`,
-        "/games",
+        "/matches",
       );
     }
   }
@@ -653,7 +654,7 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
       "game_join_request",
       `${userName} nori prisijungti prie jūsų žaidimo`,
       `${userName} prašo prisijungti prie ${sportLabel} žaidimo ${gameDate}. Peržiūrėkite prašymą.`,
-      `/games/${id}`,
+      `/matches/${id}`,
     );
     res.json({ ok: true, status: "pending" }); return;
   }
@@ -672,7 +673,7 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
       "game_join_request",
       `${userName} prisijungė prie jūsų žaidimo`,
       `${userName} prisijungė prie ${sportLabel} žaidimo ${gameDate}.`,
-      `/games/${id}`,
+      `/matches/${id}`,
     );
   }
 
@@ -715,7 +716,7 @@ router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<vo
       "game_join_rejected",
       "Prašymas prisijungti atmestas",
       `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo atmestas.`,
-      `/games/${id}`,
+      `/matches/${id}`,
     );
     res.json({ ok: true, action: "rejected" }); return;
   }
@@ -975,7 +976,7 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
         "result_confirmation",
         "Patvirtinkite žaidimo rezultatą",
         `${g.creatorName} paskelbė žaidimo rezultatą: ${teamAScore}:${teamBScore}. Patvirtinkite per 24h.`,
-        `/games/${id}`,
+        `/matches/${id}`,
       );
     }
   }
@@ -1018,7 +1019,7 @@ router.post("/games/:id/verify", requireAuth, async (req, res): Promise<void> =>
       "result_disputed",
       "Žaidimo rezultatas ginčijamas",
       `${participation.userName} nesutinka su žaidimo rezultatu ${result.scoreTeamA}:${result.scoreTeamB}.`,
-      `/games/${id}`,
+      `/matches/${id}`,
     );
     res.json({ status: "disputed" }); return;
   }
@@ -1092,8 +1093,8 @@ router.post("/games/:id/invite", requireAuth, async (req, res): Promise<void> =>
 
   // Send invitation email
   const joinLink = g.isPrivate
-    ? `${process.env.SITE_URL || "https://korts.lt"}/games/${id}?token=${g.inviteToken}`
-    : `${process.env.SITE_URL || "https://korts.lt"}/games/${id}`;
+    ? `${process.env.SITE_URL || "https://korts.lt"}/matches/${id}?token=${g.inviteToken}`
+    : `${process.env.SITE_URL || "https://korts.lt"}/matches/${id}`;
 
   await sendMatchInviteEmail(email, name ?? email, g.creatorName, g.sport, new Date(g.datetime), joinLink);
 
@@ -1440,6 +1441,7 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
         durationMinutes: durationMinutes ?? dur,
         description: description ?? null,
         isPrivate: !!isPrivate,
+        visibility: !!isPrivate ? "private" : "public",
         requiresApproval: !!requiresApproval,
         teamCount: teamCount ? Math.max(2, Math.min(6, Number(teamCount))) : 2,
         inviteToken,
@@ -1600,7 +1602,7 @@ export async function applyResultElo(gameResultId: number): Promise<void> {
       "elo_update",
       `ELO pasikeitė: ${sign}${change.delta}`,
       `Žaidimas (${g.sport}) baigtas. Reitingas: ${change.oldElo} → ${change.newElo} (${sign}${change.delta}).`,
-      `/games/${g.id}`,
+      `/matches/${g.id}`,
     );
   }
 }

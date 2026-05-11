@@ -166,7 +166,7 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
   if (!enabled) return null;
   if (ctxType === "game") {
     const name = data?.sport ? `Žaidimas · ${data.city ?? ""}` : `Žaidimas #${ctxId}`;
-    return { label: name, href: `/games/${ctxId}`, Icon: UsersIcon };
+    return { label: name, href: `/matches/${ctxId}`, Icon: UsersIcon };
   }
   if (ctxType === "court") {
     return { label: data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`, href: `/courts/${ctxId}`, Icon: MapPin };
@@ -394,7 +394,7 @@ function GameChatView({
           </div>
         </div>
         <Link
-          href={`/games/${game.id}`}
+          href={`/matches/${game.id}`}
           className="block px-3 pb-2 -mt-1"
         >
           <div className="inline-flex items-center gap-1.5 text-[11px] font-medium bg-primary/10 text-primary px-2 py-1 rounded-md hover:bg-primary/15 transition-colors max-w-full">

@@ -287,7 +287,7 @@ function SportEloSection({ userId, sport, currentElo }: { userId: string; sport:
     if (!payload.gameId || !last5Set.has(index)) return <g key={`dot-${index}`} />;
     const color = payload.delta > 0 ? "#22c55e" : payload.delta < 0 ? "#ef4444" : "#94a3b8";
     return (
-      <g key={`dot-${index}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/games/${payload.gameId}`)}>
+      <g key={`dot-${index}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/matches/${payload.gameId}`)}>
         <circle cx={cx} cy={cy} r={7} fill={color} stroke="hsl(var(--background))" strokeWidth={2} />
         {payload.delta !== 0 && (
           <text x={cx} y={cy - 13} textAnchor="middle" fontSize={9} fill={color} fontWeight="700">
@@ -733,7 +733,7 @@ function GamesHistory({ userId }: { userId: string }) {
         <Gamepad2 className="w-10 h-10 opacity-20" />
         <p className="text-sm">Dar nėra žaidimų</p>
         <Button size="sm" variant="outline" asChild>
-          <Link href="/games">
+          <Link href="/matches">
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Rasti žaidimą
           </Link>
@@ -763,7 +763,7 @@ function GamesHistory({ userId }: { userId: string }) {
     };
 
     return (
-      <Link href={`/games/${g.id}`} key={g.id}>
+      <Link href={`/matches/${g.id}`} key={g.id}>
         <div className="px-5 py-4 flex gap-3 items-start hover:bg-muted/30 transition-colors cursor-pointer">
           {/* Sport icon */}
           <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"

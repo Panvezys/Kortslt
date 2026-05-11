@@ -179,7 +179,7 @@ function CasualGameCard({ m }: { m: FeedItem }) {
   const isRated = m.matchType === "rated";
 
   return (
-    <Link href={`/games/${m.gameId}`}>
+    <Link href={`/matches/${m.gameId}`}>
       <div className="group relative rounded-2xl border border-border hover:border-primary/40 hover:shadow-lg transition-all overflow-hidden cursor-pointer bg-card/80">
         <div className={`h-1.5 ${isRated ? "bg-gradient-to-r from-purple-500 to-purple-400" : "bg-gradient-to-r from-emerald-500 to-emerald-400"}`} />
 
@@ -362,15 +362,15 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       });
       return res;
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       if ("redirectUrl" in (result as any)) {
         window.location.href = (result as { redirectUrl: string }).redirectUrl;
         return;
       }
-      qc.invalidateQueries({ queryKey: ["open-matches"] });
+      await qc.refetchQueries({ queryKey: ["open-matches"] });
       toast({ title: "Žaidimas sukurtas!", description: "Galite pasidalinti nuoroda su draugais." });
       onOpenChange(false);
-      setLocation(`/games/${(result as { id: number }).id}`);
+      setLocation(`/matches/${(result as { id: number }).id}`);
     },
     onError: (e: any) => {
       toast({ title: "Nepavyko sukurti", description: e?.message ?? "Klaida", variant: "destructive" });
@@ -605,7 +605,6 @@ export default function UnifiedMatchesPage() {
       if (!r.ok) throw new Error("Nepavyko gauti mačų");
       return r.json();
     },
-    staleTime: 30_000,
   });
 
   const allItems = data?.matches ?? [];

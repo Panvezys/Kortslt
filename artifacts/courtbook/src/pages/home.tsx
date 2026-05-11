@@ -1091,7 +1091,7 @@ export default function Home() {
                 <Building2 className="h-3.5 w-3.5" />
                 Tapkite partneriu
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
+              <h2 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5 text-white">
                 Turite sportinę aikštelę?
                 <br />
                 <span className="text-primary">Uždirbkite daugiau.</span>
