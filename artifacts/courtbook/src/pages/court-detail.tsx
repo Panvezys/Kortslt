@@ -1689,9 +1689,24 @@ export default function CourtDetail() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center p-4 bg-muted rounded-xl text-sm text-muted-foreground flex flex-col items-center">
-                    <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
-                    Šiai dienai laisvų laikų nėra.
+                  <div className="text-center p-4 bg-muted rounded-xl text-sm text-muted-foreground flex flex-col items-center gap-2">
+                    <AlertCircle className="w-8 h-8 opacity-50" />
+                    <span>Šiai dienai laisvų laikų nėra.</span>
+                    {linkGameId ? (
+                      <span className="text-xs">
+                        Šis kortas gali būti uždarytas pasirinktą dieną. Pabandykite kita data arba{" "}
+                        <button
+                          type="button"
+                          className="underline hover:text-foreground transition-colors"
+                          onClick={() => navigate(`/courts?linkGameId=${linkGameId}&date=${dateStr}`)}
+                        >
+                          pasirinkite kitą kortą
+                        </button>
+                        .
+                      </span>
+                    ) : (
+                      <span className="text-xs">Pabandykite pasirinkti kitą datą.</span>
+                    )}
                   </div>
                 )}
               </div>

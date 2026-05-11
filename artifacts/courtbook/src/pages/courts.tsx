@@ -147,6 +147,7 @@ export default function Courts() {
   useEffect(() => {
     if (!linkGameId) return;
     try {
+      sessionStorage.setItem("linkGameId", String(linkGameId));
       if (linkDate) sessionStorage.setItem("linkGameDate", linkDate);
       if (linkStartTime) sessionStorage.setItem("linkGameStartTime", linkStartTime);
       if (linkEndTime) sessionStorage.setItem("linkGameEndTime", linkEndTime);
