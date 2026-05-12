@@ -24,8 +24,6 @@ import {
 import { requireAuth, getCurrentUserId } from "../lib/auth";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
-import { sendSplitBookingCreatedEmail, sendSplitPlayerJoinedEmail, sendSplitParticipantConfirmationEmail } from "../lib/email";
-import { sendNotification } from "../lib/notify";
 import { z } from "zod";
 import crypto from "node:crypto";
 
@@ -402,15 +400,13 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
   const sessionId = String(req.body?.sessionId ?? "");
   if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
 
-  // Find the booking (and court) by stripeSessionId
-  const rows = await db
-    .select({ booking: bookingsTable, court: courtsTable })
+  // Find the booking by stripeSessionId
+  const [booking] = await db
+    .select()
     .from(bookingsTable)
-    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .where(eq(bookingsTable.stripeSessionId, sessionId));
 
-  if (!rows[0]) { res.status(404).json({ error: "Booking not found for session" }); return; }
-  const { booking, court } = rows[0];
+  if (!booking) { res.status(404).json({ error: "Booking not found for session" }); return; }
   if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
 
   // Verify Stripe payment and read metadata (skip for mocks)
@@ -443,15 +439,12 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
       .where(eq(gameParticipantsTable.id, participant.id));
   }
 
-  // Move booking to awaiting_players (from pending) — track if this is a fresh transition
-  let justTransitioned = false;
+  // Move booking to awaiting_players (from pending)
   if (booking.status === "pending") {
-    const updated = await db
+    await db
       .update(bookingsTable)
       .set({ status: "awaiting_players" })
-      .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.status, "pending")))
-      .returning();
-    justTransitioned = updated.length > 0;
+      .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.status, "pending")));
   }
 
   // Find linked game and transition it
@@ -503,36 +496,6 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
     : [];
   const paidSlots = allParticipants.filter(p => p.paymentStatus === "paid").length;
 
-  // Send email + notification to host if this was a fresh game creation
-  if (justTransitioned && booking.bookerUserId && booking.splitInviteToken) {
-    const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
-    const base = process.env.BASE_PATH ?? "";
-    const shareLink = `${origin}${base}/join/${booking.splitInviteToken}`;
-
-    sendSplitBookingCreatedEmail({
-      hostName: booking.customerName,
-      hostEmail: booking.customerEmail,
-      courtName: court?.name ?? "Kortas",
-      courtId: booking.courtId,
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      pricePerSlot: Number(booking.pricePerSlot ?? 0),
-      totalPrice: Number(booking.totalPrice),
-      totalSlots: booking.totalSlots ?? 1,
-      shareLink,
-      bookingId: booking.id,
-    }).catch((err) => logger.error({ err }, "sendSplitBookingCreatedEmail failed"));
-
-    sendNotification(
-      booking.bookerUserId,
-      "split_player_joined",
-      "Žaidimas sukurtas!",
-      `Jūsų vieta aikštelėje ${court?.name ?? "kortas"} (${booking.date}) patvirtinta. Dalinkitės nuoroda su žaidėjais.`,
-      `/bookings/${booking.id}`,
-    ).catch(() => {});
-  }
-
   res.json({
     bookingId: booking.id,
     gameId: game?.id ?? null,
@@ -546,9 +509,6 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
     endTime: booking.endTime,
     sport: game?.sport ?? null,
     isPublic: game?.visibility === "public",
-    courtId: booking.courtId,
-    courtName: court?.name ?? null,
-    courtImageUrl: court?.imageUrl ?? null,
   });
 });
 
@@ -781,7 +741,7 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
   } catch (err: any) {
     if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
       const mockId = `mock_split_join_${booking.id}_${Date.now()}`;
-      await db.insert(gameParticipantsTable).values({
+      const [participant] = await db.insert(gameParticipantsTable).values({
         gameId: game.id,
         userId,
         userName,
@@ -790,7 +750,7 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
         source: "join_request",
         paymentStatus: "paid",
         stripeSessionId: mockId,
-      });
+      }).returning();
 
       // Check if all paid
       const allParticipants = await db
@@ -802,45 +762,6 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
       if (paidCount >= (booking.totalSlots ?? 1)) {
         await db.update(bookingsTable).set({ status: "confirmed" }).where(eq(bookingsTable.id, booking.id));
         await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, game.id));
-      }
-
-      // Notify host that someone joined
-      if (booking.bookerUserId) {
-        sendNotification(
-          booking.bookerUserId,
-          "split_player_joined",
-          `${userName} prisijungė prie jūsų žaidimo!`,
-          `Apmokėta: ${paidCount}/${booking.totalSlots ?? 1} vietų – ${court?.name ?? "kortas"}, ${booking.date}`,
-          `/bookings/${booking.id}`,
-        ).catch(() => {});
-
-        sendSplitPlayerJoinedEmail({
-          hostName: booking.customerName,
-          hostEmail: booking.customerEmail,
-          playerName: userName,
-          courtName: court?.name ?? "Kortas",
-          date: booking.date,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          paidSlots: paidCount,
-          totalSlots: booking.totalSlots ?? 1,
-          bookingId: booking.id,
-        }).catch((e) => logger.error({ e }, "sendSplitPlayerJoinedEmail failed"));
-      }
-
-      // Send confirmation to the invitee
-      if (userEmail) {
-        sendSplitParticipantConfirmationEmail({
-          playerName: userName,
-          playerEmail: userEmail,
-          courtName: court?.name ?? "Kortas",
-          courtId: booking.courtId,
-          date: booking.date,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          pricePerSlot: pricePerSlot,
-          bookingId: booking.id,
-        }).catch((e) => logger.error({ e }, "sendSplitParticipantConfirmationEmail failed"));
       }
 
       checkoutUrl = `${successUrl}&session_id=${mockId}`;

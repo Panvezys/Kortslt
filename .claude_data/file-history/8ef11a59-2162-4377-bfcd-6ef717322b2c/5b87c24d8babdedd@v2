@@ -102,8 +102,6 @@ function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: s
     totalPrice: Number(booking.totalPrice),
     refundAmount: Number(booking.refundAmount ?? 0),
     pricePerSlot: booking.pricePerSlot != null ? Number(booking.pricePerSlot) : undefined,
-    totalSlots: booking.totalSlots ?? undefined,
-    splitInviteToken: booking.splitInviteToken ?? undefined,
     rentedItems: booking.rentedItems ?? undefined,
     courtName: courtName ?? undefined,
     stripeSessionId: booking.stripeSessionId ?? undefined,

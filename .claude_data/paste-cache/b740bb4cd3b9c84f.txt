@@ -1,0 +1,9 @@
+Please refactor the Court Reservation Sidebar UI to reduce visual clutter and improve the grouping of settings. 
+
+Apply these specific Tailwind v4 UX patterns:
+
+1. Section Dividers: Wrap the three main feature blocks (Kartotinė rezervacija, Skaidyti mokėjimą, Ieškau žaidėjų) in a container with `space-y-4` and add a subtle `border-b pb-4` to each, or use a `divide-y divide-gray-100` container so they are clearly separated.
+2. Inset Expanded Panels: When a toggle is active (checked), its child configuration elements (e.g., the weeks dropdown, the player stepper, the level sliders, and friendly/ranked buttons) should be wrapped in a visually distinct "Inset Container". 
+   - Use `mt-3 p-3 bg-slate-50 rounded-md border border-slate-100 space-y-3` for this container to clearly group them under the toggle.
+3. Typography: Ensure helper text (like "Kiekvienas žaidėjas moka savo dalį...") is styled as `text-xs text-slate-500` to establish a clear hierarchy below the main toggle labels.
+4. Summary Sticky Footer: Ensure the bottom "SUVESTINĖ" and "Mokėti" button area has a solid white background with a `shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]` (or `border-t`) so it clearly floats above the scrolling content.

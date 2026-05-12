@@ -28,8 +28,6 @@ import { logger } from "../lib/logger";
 import {
   sendBookingConfirmationEmail,
   sendOwnerBookingNotificationEmail,
-  sendSplitPlayerJoinedEmail,
-  sendSplitParticipantConfirmationEmail,
 } from "../lib/email";
 import { sendNotification, sendAdminNotification } from "../lib/notify";
 import { isStripeAccountReady } from "../lib/facility-status";
@@ -268,8 +266,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     return;
   }
 
-  const paidParticipant = updatedParticipants[0]!;
-
   // Get game → booking context
   const [game] = await db.select().from(gamesTable).where(eq(gamesTable.id, participant.gameId));
   if (!game?.bookingId) {
@@ -297,58 +293,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   if (!bookingRows[0]) {
     logger.warn({ bookingId: game.bookingId }, "Webhook: split booking not found");
     return;
-  }
-
-  // Count paid slots for notification content
-  const paidCountRows = await db
-    .select({ count: sql<string>`count(*)` })
-    .from(gameParticipantsTable)
-    .where(and(
-      eq(gameParticipantsTable.gameId, game.id),
-      eq(gameParticipantsTable.status, "joined"),
-      eq(gameParticipantsTable.paymentStatus, "paid"),
-    ));
-  const paidCount = parseInt(paidCountRows[0]?.count ?? "0", 10);
-  const { booking, courtName } = bookingRows[0];
-  const playerName = paidParticipant.userName ?? paidParticipant.userEmail ?? "Žaidėjas";
-
-  // Notify host that a new player joined/paid
-  if (booking.bookerUserId) {
-    sendNotification(
-      booking.bookerUserId,
-      "split_player_joined",
-      `${playerName} prisijungė prie jūsų žaidimo!`,
-      `Apmokėta: ${paidCount}/${booking.totalSlots ?? 1} vietų – ${courtName ?? "kortas"}, ${booking.date}`,
-      `/bookings/${booking.id}`,
-    ).catch(() => {});
-
-    sendSplitPlayerJoinedEmail({
-      hostName: booking.customerName,
-      hostEmail: booking.customerEmail,
-      playerName,
-      courtName: courtName ?? "Kortas",
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      paidSlots: paidCount,
-      totalSlots: booking.totalSlots ?? 1,
-      bookingId: booking.id,
-    }).catch((err) => logger.error({ err }, "sendSplitPlayerJoinedEmail (webhook) failed"));
-  }
-
-  // Send confirmation email to the participant
-  if (paidParticipant.userEmail) {
-    sendSplitParticipantConfirmationEmail({
-      playerName,
-      playerEmail: paidParticipant.userEmail,
-      courtName: courtName ?? "Kortas",
-      courtId: bookingRows[0].courtId ?? booking.courtId,
-      date: booking.date,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      pricePerSlot: Number(booking.pricePerSlot ?? 0),
-      bookingId: booking.id,
-    }).catch((err) => logger.error({ err }, "sendSplitParticipantConfirmationEmail (webhook) failed"));
   }
 
   await maybeConfirmSplitBooking(game.bookingId, bookingRows[0]);
@@ -424,17 +368,6 @@ async function maybeConfirmSplitBooking(
     .where(eq(courtsTable.id, booking.courtId));
 
   logger.info({ bookingId, paidCount }, "Split booking fully paid — confirmed");
-
-  // Notify host that all slots are filled
-  if (booking.bookerUserId) {
-    sendNotification(
-      booking.bookerUserId,
-      "split_player_joined",
-      "Visi žaidėjai sumokėjo! 🎉",
-      `Jūsų rezervacija ${context.courtName ?? "kortas"} (${booking.date}) patvirtinta — visi ${booking.totalSlots} žaidėjai apmokėję.`,
-      `/bookings/${bookingId}`,
-    ).catch(() => {});
-  }
 
   // Send confirmation email to the host (booker)
   sendBookingConfirmationEmail({

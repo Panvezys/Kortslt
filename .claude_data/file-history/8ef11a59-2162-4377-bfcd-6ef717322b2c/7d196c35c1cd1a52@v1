@@ -29,8 +29,7 @@ type NotifType =
   | "result_confirmation"
   | "result_disputed"
   | "elo_update"
-  | "message"
-  | "split_player_joined";
+  | "message";
 
 const TYPE_TO_SETTING: Partial<Record<NotifType, keyof typeof notificationSettingsTable.$inferSelect>> = {
   game_join_request: "gameJoinRequest",

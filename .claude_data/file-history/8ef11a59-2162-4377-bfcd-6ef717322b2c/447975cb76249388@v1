@@ -18,12 +18,11 @@ const API_URL = `${BASE_URL}/api`;
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-  awaiting_players: "bg-blue-500/10 text-blue-600 border-blue-500/20",
   cancelled: "bg-destructive/10 text-destructive border-destructive/20",
   rejected: "bg-destructive/10 text-destructive border-destructive/20",
 };
 const STATUS_LT: Record<string, string> = {
-  confirmed: "Patvirtinta", pending: "Laukiama", awaiting_players: "Laukia žaidėjų", cancelled: "Atšaukta", rejected: "Atmesta",
+  confirmed: "Patvirtinta", pending: "Laukiama", cancelled: "Atšaukta", rejected: "Atmesta",
 };
 
 function todayStr() {
@@ -84,7 +83,6 @@ interface Booking {
   id: number; courtId: number; bookerUserId?: string | null; customerName: string; customerEmail: string;
   customerPhone?: string | null; date: string; startTime: string; endTime: string;
   totalPrice: number; status: string; rentedItems?: string | null; createdAt: string;
-  isSplit?: boolean; pricePerSlot?: number | null; totalSlots?: number | null;
 }
 
 // 30-min slots 08:00 → 21:30  (28 slots)
@@ -390,7 +388,7 @@ function TodayGrid({
             const booking = todayBookings.find(b => {
               const bStart = toMin(b.startTime);
               const bEnd = toMin(b.endTime);
-              return bStart <= slotMin && bEnd > slotMin && ["confirmed", "pending", "blocked", "awaiting_players"].includes(b.status);
+              return bStart <= slotMin && bEnd > slotMin && ["confirmed", "pending", "blocked"].includes(b.status);
             });
 
             const isNow = isToday && nowMin >= slotMin && nowMin < slotMin + 30;
@@ -412,14 +410,12 @@ function TodayGrid({
                     className={`flex-1 rounded px-2 py-1 text-xs font-medium border cursor-pointer transition-opacity hover:opacity-75 ${
                       booking.status === "confirmed"
                         ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-400/30"
-                        : booking.status === "awaiting_players"
-                          ? "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-400/30"
-                          : booking.status === "pending"
-                            ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
-                            : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                        : booking.status === "pending"
+                          ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                          : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
                     }`}
                   >
-                    <span className="truncate block">{booking.customerName}{booking.isSplit ? " 👥" : ""}</span>
+                    <span className="truncate block">{booking.customerName}</span>
                     <span className="text-[10px] opacity-70">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {fmtPrice(booking.totalPrice)}</span>
                   </div>
                 ) : (
@@ -504,7 +500,7 @@ function WeekGrid({
                     const booking = weeklyBookings.find(b => {
                       if (b.date !== day) return false;
                       return toMin(b.startTime) <= slotMin && toMin(b.endTime) > slotMin &&
-                        ["confirmed", "pending", "blocked", "awaiting_players"].includes(b.status);
+                        ["confirmed", "pending", "blocked"].includes(b.status);
                     });
                     if (booking) {
                       return (
@@ -513,12 +509,11 @@ function WeekGrid({
                             onClick={() => onBookingClick(booking)}
                             className={`h-7 rounded text-[9px] font-medium border cursor-pointer hover:opacity-75 transition-opacity flex items-center px-1 overflow-hidden ${
                               booking.status === "confirmed" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-400/30"
-                              : booking.status === "awaiting_players" ? "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-400/30"
                               : booking.status === "pending" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
                               : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
                             }`}
                           >
-                            <span className="truncate">{booking.customerName.split(" ")[0]}{booking.isSplit ? "👥" : ""}</span>
+                            <span className="truncate">{booking.customerName.split(" ")[0]}</span>
                           </div>
                         </div>
                       );
@@ -559,7 +554,7 @@ function BookingInfoModal({ booking, onClose, courtId, onCancelled }: {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const canCancel = ["confirmed", "pending", "blocked", "awaiting_players"].includes(booking.status);
+  const canCancel = ["confirmed", "pending", "blocked"].includes(booking.status);
   const note = booking.rentedItems ?? null;
   const hasEmail = booking.customerEmail && !booking.customerEmail.startsWith("manual-");
 
@@ -590,14 +585,6 @@ function BookingInfoModal({ booking, onClose, courtId, onCancelled }: {
           <div className="flex justify-between"><span className="text-muted-foreground">Data</span><span className="font-medium">{booking.date}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Laikas</span><span className="font-medium">{booking.startTime.slice(0,5)} – {booking.endTime.slice(0,5)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Kaina</span><span className="font-medium">€{booking.totalPrice.toFixed(2)}</span></div>
-          {booking.isSplit && booking.pricePerSlot != null && booking.totalSlots != null && (
-            <div className="rounded-lg bg-violet-500/10 border border-violet-400/20 px-2.5 py-2 text-xs">
-              <div className="text-violet-700 dark:text-violet-400 font-medium mb-0.5">👥 Bendras mokėjimas</div>
-              <div className="text-violet-600/80 dark:text-violet-400/70">
-                Vieta: €{Number(booking.pricePerSlot).toFixed(2)} · Iš viso vietų: {booking.totalSlots}
-              </div>
-            </div>
-          )}
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Statusas</span>
             <Badge variant={booking.status === "confirmed" ? "default" : booking.status === "cancelled" ? "destructive" : "secondary"}>
@@ -656,7 +643,6 @@ function WeeklyCalendar({ weeklyBookings }: { weeklyBookings: Booking[] }) {
           const isToday = date === today;
           const isPast = date < today;
           const confirmed = bookings.filter(b => b.status === "confirmed").length;
-          const awaitingPlayers = bookings.filter(b => b.status === "awaiting_players").length;
           const pending = bookings.filter(b => b.status === "pending").length;
           return (
             <div key={date} className={`rounded-xl p-2 text-center border transition-colors ${
@@ -671,11 +657,6 @@ function WeeklyCalendar({ weeklyBookings }: { weeklyBookings: Booking[] }) {
                   {confirmed > 0 && (
                     <div className="rounded bg-emerald-500/15 text-emerald-600 text-[10px] font-semibold px-1 py-0.5">
                       {confirmed} ✓
-                    </div>
-                  )}
-                  {awaitingPlayers > 0 && (
-                    <div className="rounded bg-violet-500/15 text-violet-600 text-[10px] font-semibold px-1 py-0.5">
-                      {awaitingPlayers} 👥
                     </div>
                   )}
                   {pending > 0 && (

@@ -24,9 +24,7 @@
     "voice-mode": 9,
     "feedback-command": 9,
     "frontend-design-plugin": 9,
-    "permissions": 11,
-    "rename-conversation": 11,
-    "custom-commands": 11
+    "permissions": 11
   },
   "promptQueueUseCount": 3,
   "cachedGrowthBookFeatures": {

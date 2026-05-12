@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Clock, XCircle, Star, MapPin, Calendar, ChevronRight, Image as ImageIcon, X, Loader2, Upload, Users, Filter } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, Star, MapPin, Calendar, ChevronRight, Image as ImageIcon, X, Loader2, Upload, Users } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -381,25 +381,9 @@ function BookingCard({
 
       {/* Split badge */}
       {booking.isSplit && (
-        <div className="flex items-start gap-1.5 text-xs rounded-lg bg-blue-500/10 border border-blue-400/20 px-2.5 py-2">
-          <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <div className="text-blue-700 dark:text-blue-400 font-medium">Bendras mokėjimas</div>
-            <div className="text-blue-600/80 dark:text-blue-400/70">
-              Jūsų dalis:{" "}
-              <span className="font-semibold">
-                {booking.pricePerSlot != null ? `€${Number(booking.pricePerSlot).toFixed(2)}` : "—"}
-              </span>
-              {" · "}Viso:{" "}
-              <span className="font-semibold">
-                €{Number(booking.totalPrice).toFixed(2)}
-              </span>
-              {" · "}Liko surinkti:{" "}
-              <span className="font-semibold text-orange-500 dark:text-orange-400">
-                €{Math.max(0, Number(booking.totalPrice) - Number(booking.pricePerSlot ?? 0)).toFixed(2)}
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center gap-1.5 text-xs text-blue-700 dark:text-blue-400">
+          <Users className="w-3.5 h-3.5" />
+          <span>Bendras mokėjimas · jūsų dalis {booking.pricePerSlot != null ? `€${Number(booking.pricePerSlot).toFixed(2)}` : ""} iš {booking.totalSlots ?? "?"} žaidėjų</span>
         </div>
       )}
 
@@ -448,7 +432,6 @@ export default function Bookings() {
   const t = useT();
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [sortKey, setSortKey] = useState<SortKey>("dateAsc");
-  const [splitOnly, setSplitOnly] = useState(false);
   const [ratingBooking, setRatingBooking] = useState<{
     id: number; courtName?: string; courtId: number; customerName: string;
   } | null>(null);
@@ -516,8 +499,7 @@ export default function Bookings() {
     return startMs(b) <= nowMs || b.status === "cancelled";
   });
 
-  const allDisplayed = tab === "upcoming" ? upcomingBookings : pastBookings;
-  const displayed = splitOnly ? allDisplayed.filter(b => (b as any).isSplit) : allDisplayed;
+  const displayed = tab === "upcoming" ? upcomingBookings : pastBookings;
 
   return (
     <Layout>
@@ -552,30 +534,17 @@ export default function Bookings() {
               Praeitos
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSplitOnly(v => !v)}
-              className={`flex items-center gap-1.5 h-9 px-3 rounded-md border text-sm font-medium transition-colors ${
-                splitOnly
-                  ? "bg-blue-500/20 border-blue-400/40 text-blue-700 dark:text-blue-400"
-                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              Bendros
-            </button>
-            <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
-              <SelectTrigger className="h-9 w-auto min-w-[180px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dateAsc">{t("bookings.sort.dateAsc")}</SelectItem>
-                <SelectItem value="dateDesc">{t("bookings.sort.dateDesc")}</SelectItem>
-                <SelectItem value="createdDesc">{t("bookings.sort.createdDesc")}</SelectItem>
-                <SelectItem value="createdAsc">{t("bookings.sort.createdAsc")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+            <SelectTrigger className="h-9 w-auto min-w-[180px] text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dateAsc">{t("bookings.sort.dateAsc")}</SelectItem>
+              <SelectItem value="dateDesc">{t("bookings.sort.dateDesc")}</SelectItem>
+              <SelectItem value="createdDesc">{t("bookings.sort.createdDesc")}</SelectItem>
+              <SelectItem value="createdAsc">{t("bookings.sort.createdAsc")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* List */}
@@ -590,17 +559,9 @@ export default function Bookings() {
             ))
           ) : displayed.length === 0 ? (
             <EmptyState
-              icon={splitOnly ? <Users className="w-10 h-10" /> : <Calendar className="w-10 h-10" />}
-              title={
-                splitOnly
-                  ? "Nėra bendrų rezervacijų"
-                  : tab === "upcoming" ? "Nėra ateinančių rezervacijų" : "Nėra praeities rezervacijų"
-              }
-              description={
-                splitOnly
-                  ? "Bendros (split) rezervacijos bus rodomos čia."
-                  : tab === "upcoming" ? "Rezervuokite aikštelę ir ji pasirodys čia." : "Jūsų praeitos rezervacijos bus rodomos čia."
-              }
+              icon={<Calendar className="w-10 h-10" />}
+              title={tab === "upcoming" ? "Nėra ateinančių rezervacijų" : "Nėra praeities rezervacijų"}
+              description={tab === "upcoming" ? "Rezervuokite aikštelę ir ji pasirodys čia." : "Jūsų praeitos rezervacijos bus rodomos čia."}
             />
           ) : (
             displayed.map((booking) => {

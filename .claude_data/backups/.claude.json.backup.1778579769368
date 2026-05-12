@@ -23,10 +23,7 @@
     "remote-control": 9,
     "voice-mode": 9,
     "feedback-command": 9,
-    "frontend-design-plugin": 9,
-    "permissions": 11,
-    "rename-conversation": 11,
-    "custom-commands": 11
+    "frontend-design-plugin": 9
   },
   "promptQueueUseCount": 3,
   "cachedGrowthBookFeatures": {
@@ -480,9 +477,9 @@
       ],
       "exampleFilesGeneratedAt": 1778499569213,
       "hasCompletedProjectOnboarding": true,
-      "lastHintSessionId": "8ef11a59-2162-4377-bfcd-6ef717322b2c",
-      "lastSessionFirstPrompt": "improve the booking confirmation page. The confirmation panel is a bit to the left. Make it at the center of the window. Add a share button so you could share the link using social media. Add total am",
-      "lastSessionModified": 1778579769367,
+      "lastHintSessionId": "78bc2b73-009f-47ce-8788-b884777de39c",
+      "lastSessionFirstPrompt": "Please refactor the Court Reservation Sidebar UI to reduce visual clutter and improve the grouping of settings.   Apply these specific Tailwind v4 UX patterns:  1. Section Dividers: Wrap the three mai",
+      "lastSessionModified": 1778571174318,
       "lastCost": 0,
       "lastAPIDuration": 0,
       "lastAPIDurationWithoutRetries": 0,

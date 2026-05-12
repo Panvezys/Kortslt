@@ -74,15 +74,12 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       status: bookingsTable.status,
       rentedItems: bookingsTable.rentedItems,
       createdAt: bookingsTable.createdAt,
-      isSplit: bookingsTable.isSplit,
-      pricePerSlot: bookingsTable.pricePerSlot,
-      totalSlots: bookingsTable.totalSlots,
     })
       .from(bookingsTable)
       .where(and(
         eq(bookingsTable.courtId, courtId),
         eq(bookingsTable.date, selectedDate),
-        inArray(bookingsTable.status, ["confirmed", "pending", "blocked", "awaiting_players"]),
+        inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.startTime),
 
@@ -100,16 +97,13 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
       status: bookingsTable.status,
       rentedItems: bookingsTable.rentedItems,
       createdAt: bookingsTable.createdAt,
-      isSplit: bookingsTable.isSplit,
-      pricePerSlot: bookingsTable.pricePerSlot,
-      totalSlots: bookingsTable.totalSlots,
     })
       .from(bookingsTable)
       .where(and(
         eq(bookingsTable.courtId, courtId),
         gte(bookingsTable.date, wStart),
         lte(bookingsTable.date, wEnd),
-        inArray(bookingsTable.status, ["confirmed", "pending", "blocked", "awaiting_players"]),
+        inArray(bookingsTable.status, ["confirmed", "pending", "blocked"]),
       ))
       .orderBy(bookingsTable.date, bookingsTable.startTime),
 
@@ -188,8 +182,8 @@ router.get("/owner/courts/:courtId/stats", requireAuth, async (req, res): Promis
     monthlyRefundedTotal: Number(monthlyStats[0]?.refundedTotal ?? 0),
     monthlyNetRevenue: Math.max(0, Number(monthlyStats[0]?.grossRevenue ?? 0) - Number(monthlyStats[0]?.refundedTotal ?? 0)),
     monthlyBookingCount: Number(monthlyStats[0]?.bookingCount ?? 0),
-    todayBookings: todayBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice), pricePerSlot: b.pricePerSlot != null ? Number(b.pricePerSlot) : undefined })),
-    weeklyBookings: weeklyBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice), pricePerSlot: b.pricePerSlot != null ? Number(b.pricePerSlot) : undefined })),
+    todayBookings: todayBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
+    weeklyBookings: weeklyBookings.map(b => ({ ...b, totalPrice: Number(b.totalPrice) })),
     recentBookings: recentBookings.map(b => ({
       ...b,
       totalPrice: Number(b.totalPrice),
