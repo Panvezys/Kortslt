@@ -250,14 +250,8 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       ...rows[0].booking,
       totalPrice: Number(rows[0].booking.totalPrice),
       refundAmount: Number(rows[0].booking.refundAmount ?? 0),
-      pricePerSlot: rows[0].booking.pricePerSlot != null ? Number(rows[0].booking.pricePerSlot) : undefined,
-      totalSlots: rows[0].booking.totalSlots ?? undefined,
-      splitInviteToken: rows[0].booking.splitInviteToken ?? undefined,
-      stripeSessionId: rows[0].booking.stripeSessionId ?? undefined,
-      stripeRefundId: rows[0].booking.stripeRefundId ?? undefined,
-      rentedItems: rows[0].booking.rentedItems ?? undefined,
-      courtName: rows[0].courtName ?? undefined,
       status: "confirmed",
+      rentedItems: rows[0].booking.rentedItems ?? undefined,
     }));
     return;
   }
@@ -324,10 +318,8 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
   res.json(ConfirmPaymentResponse.parse({
     ...booking,
     totalPrice: Number(booking.totalPrice),
+    // Postgres `numeric` returns a string; nullable text columns need to collapse to undefined for Zod `.optional()`.
     refundAmount: booking.refundAmount != null ? Number(booking.refundAmount) : undefined,
-    pricePerSlot: booking.pricePerSlot != null ? Number(booking.pricePerSlot) : undefined,
-    totalSlots: booking.totalSlots ?? undefined,
-    splitInviteToken: booking.splitInviteToken ?? undefined,
     stripeRefundId: booking.stripeRefundId ?? undefined,
     stripeSessionId: booking.stripeSessionId ?? undefined,
     stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,

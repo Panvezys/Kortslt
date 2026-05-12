@@ -253,11 +253,8 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       pricePerSlot: rows[0].booking.pricePerSlot != null ? Number(rows[0].booking.pricePerSlot) : undefined,
       totalSlots: rows[0].booking.totalSlots ?? undefined,
       splitInviteToken: rows[0].booking.splitInviteToken ?? undefined,
-      stripeSessionId: rows[0].booking.stripeSessionId ?? undefined,
-      stripeRefundId: rows[0].booking.stripeRefundId ?? undefined,
-      rentedItems: rows[0].booking.rentedItems ?? undefined,
-      courtName: rows[0].courtName ?? undefined,
       status: "confirmed",
+      rentedItems: rows[0].booking.rentedItems ?? undefined,
     }));
     return;
   }
