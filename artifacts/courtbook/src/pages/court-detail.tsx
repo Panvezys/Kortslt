@@ -1845,7 +1845,7 @@ export default function CourtDetail() {
                     <div className="flex items-center gap-2">
                       <RotateCcw className={`w-4 h-4 ${recurringEnabled ? "text-primary" : "text-muted-foreground"}`} />
                       <div className="text-left">
-                        <p className="text-sm font-medium">Kartotinė rezervacija</p>
+                        <p className="text-sm">Kartotinė rezervacija</p>
                         <p className="text-xs text-muted-foreground">Rezervuoti kas savaitę</p>
                       </div>
                     </div>
@@ -1983,30 +1983,30 @@ export default function CourtDetail() {
 
               {/* Split Payment toggle — only for paid bookings when signed in */}
               {selectedSlotRange && isSignedIn && selectedSlotRange.totalPrice > 0 && (
-                <div className="rounded-xl border overflow-hidden">
+                <div className="space-y-2">
                   <button
                     type="button"
                     onClick={() => setSplitEnabled(o => !o)}
-                    className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors text-left"
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-colors ${splitEnabled ? "bg-primary/5 border-primary/30" : "bg-muted/20 border-transparent hover:bg-muted/40"}`}
                   >
-                    <span className="text-sm font-semibold flex items-center gap-2">
-                      <Users className="w-4 h-4 text-primary" />
-                      Skaidyti mokėjimą
-                      {splitEnabled && (
-                        <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">
-                          {splitCount} žaid.
-                        </span>
-                      )}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <Users className={`w-4 h-4 ${splitEnabled ? "text-primary" : "text-muted-foreground"}`} />
+                      <div className="text-left">
+                        <p className="text-sm">Skaidyti mokėjimą</p>
+                        {splitEnabled && (
+                          <p className="text-xs text-muted-foreground">{splitCount} žaidėjų</p>
+                        )}
+                      </div>
+                    </div>
                     <span onClick={e => e.stopPropagation()}>
                       <Switch checked={splitEnabled} onCheckedChange={setSplitEnabled} />
                     </span>
                   </button>
                   {splitEnabled && (
-                    <div className="px-3 pb-3 border-t pt-2.5 space-y-2 bg-muted/10">
+                    <div className="px-3 pb-3 pt-2.5 space-y-2 rounded-xl border bg-muted/10">
                       <p className="text-xs text-muted-foreground">Kiekvienas žaidėjas moka savo dalį. Dalinkitės nuoroda po apmokėjimo.</p>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium flex-1">Žaidėjų skaičius</span>
+                        <span className="text-sm flex-1">Žaidėjų skaičius</span>
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -2036,7 +2036,7 @@ export default function CourtDetail() {
                           onClick={() => setIsPublicMatch(o => !o)}
                           className="w-full flex items-center justify-between text-sm hover:opacity-80 transition-opacity"
                         >
-                          <span className="font-medium flex items-center gap-2">
+                          <span className="flex items-center gap-2">
                             <Globe className="w-3.5 h-3.5 text-primary" />
                             Ieškau žaidėjų (Viešas mačas)
                           </span>
