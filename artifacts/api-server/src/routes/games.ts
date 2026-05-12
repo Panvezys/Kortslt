@@ -66,6 +66,8 @@ function formatGame(g: typeof gamesTable.$inferSelect, joinedCount = 0, isJoined
     courtId: g.courtId,
     playersNeeded: g.playersNeeded,
     skillLevel: g.skillLevel,
+    minSkillLevel: g.minSkillLevel ?? null,
+    maxSkillLevel: g.maxSkillLevel ?? null,
     datetime: new Date(g.datetime).toISOString(),
     durationMinutes: g.durationMinutes,
     description: g.description,
@@ -173,6 +175,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   type BookingRow = {
     gameId: number;
     bookingId: number;
+    courtId: number | null;
     courtName: string | null;
     facilityName: string | null;
     facilityCity: string | null;
@@ -189,6 +192,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
       .select({
         gameId: gamesTable.id,
         bookingId: bookingsTable.id,
+        courtId: courtsTable.id,
         courtName: courtsTable.name,
         facilityName: facilitiesTable.name,
         facilityCity: facilitiesTable.city,
@@ -242,6 +246,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
       myTeam,
       myResult,
       bookingId: booking?.bookingId ?? null,
+      courtId: booking?.courtId ?? null,
       courtName: booking?.courtName ?? null,
       facilityName: booking?.facilityName ?? null,
       facilityCity: booking?.facilityCity ?? null,
@@ -380,12 +385,15 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
   const {
     creatorName, creatorEmail, sport, city, placeName, facilityId, courtId,
     playersNeeded, skillLevel, datetime, durationMinutes, description, isPrivate,
-    matchType, requiresApproval, teamCount,
+    matchType, requiresApproval, teamCount, minSkillLevel, maxSkillLevel,
   } = req.body ?? {};
 
   if (!creatorName || !sport || !city || !datetime) {
     res.status(400).json({ error: "creatorName, sport, city, datetime required" }); return;
   }
+
+  const parsedMinElo = minSkillLevel != null && minSkillLevel !== "" ? parseFloat(String(minSkillLevel)) : null;
+  const parsedMaxElo = maxSkillLevel != null && maxSkillLevel !== "" ? parseFloat(String(maxSkillLevel)) : null;
 
   const inviteToken = isPrivate ? crypto.randomBytes(16).toString("hex") : null;
 
@@ -400,6 +408,8 @@ router.post("/games", requireAuth, async (req, res): Promise<void> => {
     courtId: courtId ?? null,
     playersNeeded: playersNeeded ?? 4,
     skillLevel: skillLevel ?? "any",
+    minSkillLevel: Number.isFinite(parsedMinElo) ? parsedMinElo : null,
+    maxSkillLevel: Number.isFinite(parsedMaxElo) ? parsedMaxElo : null,
     datetime,
     durationMinutes: durationMinutes ?? 60,
     description: description ?? null,
@@ -685,6 +695,20 @@ router.post("/games/:id/join", requireAuth, async (req, res): Promise<void> => {
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
   if (Number(countRow?.count ?? 0) >= g.playersNeeded) {
     res.status(400).json({ error: "Game is full" }); return;
+  }
+
+  // --- ELO range check ---
+  if ((g.minSkillLevel != null || g.maxSkillLevel != null) && g.creatorUserId !== userId) {
+    const [rating] = await db.select({ elo: userRatingsTable.elo })
+      .from(userRatingsTable)
+      .where(and(eq(userRatingsTable.userId, userId), eq(userRatingsTable.sportSlug, g.sport)));
+    const userElo = rating?.elo ?? 1200;
+    if (g.minSkillLevel != null && userElo < g.minSkillLevel) {
+      res.status(403).json({ error: `Jūsų ELO (${userElo}) per žemas šiam mačui (min ${g.minSkillLevel})`, code: "ELO_OUT_OF_RANGE" }); return;
+    }
+    if (g.maxSkillLevel != null && userElo > g.maxSkillLevel) {
+      res.status(403).json({ error: `Jūsų ELO (${userElo}) per aukštas šiam mačui (max ${g.maxSkillLevel})`, code: "ELO_OUT_OF_RANGE" }); return;
+    }
   }
 
   // --- Approval workflow ---
@@ -1383,7 +1407,7 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
     creatorName, creatorEmail, sport, city, placeName, playersNeeded, skillLevel,
     durationMinutes, description, isPrivate, matchType, requiresApproval, teamCount,
     courtId, bookingDate, bookingStart, bookingEnd, customerPhone,
-    successUrl, cancelUrl,
+    successUrl, cancelUrl, minSkillLevel: rawMinElo, maxSkillLevel: rawMaxElo,
   } = req.body ?? {};
 
   if (!creatorName || !creatorEmail || !sport || !city || !courtId || !bookingDate || !bookingStart || !bookingEnd || !successUrl || !cancelUrl) {
@@ -1482,6 +1506,8 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
       const inviteToken = isPrivate ? crypto.randomBytes(16).toString("hex") : null;
       const datetimeIso = new Date(`${bookingDate}T${bookingStart}:00`).toISOString();
       const dur = reqEndMin - reqStartMin;
+      const parsedMinEloC = rawMinElo != null && rawMinElo !== "" ? parseFloat(String(rawMinElo)) : null;
+      const parsedMaxEloC = rawMaxElo != null && rawMaxElo !== "" ? parseFloat(String(rawMaxElo)) : null;
 
       const [game] = await tx.insert(gamesTable).values({
         creatorUserId: userId,
@@ -1495,6 +1521,8 @@ router.post("/games/checkout", requireAuth, async (req, res): Promise<void> => {
         bookingId: booking.id,
         playersNeeded: playersNeeded ?? 4,
         skillLevel: skillLevel ?? "any",
+        minSkillLevel: Number.isFinite(parsedMinEloC) ? parsedMinEloC : null,
+        maxSkillLevel: Number.isFinite(parsedMaxEloC) ? parsedMaxEloC : null,
         datetime: datetimeIso,
         durationMinutes: durationMinutes ?? dur,
         description: description ?? null,

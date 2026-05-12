@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ interface MyGame {
   myTeam: string | null;
   myResult: "win" | "loss" | "draw" | null;
   bookingId: number | null;
+  courtId: number | null;
   courtName: string | null;
   facilityName: string | null;
   facilityCity: string | null;
@@ -101,6 +102,7 @@ function GameCard({ g }: { g: MyGame }) {
   const isBooked = g.bookingId != null;
   const isPast = new Date(g.datetime) < new Date();
   const participantCount = g.participants.length;
+  const [, navigate] = useLocation();
 
   return (
     <Link href={`/matches/${g.id}`}>
@@ -136,17 +138,36 @@ function GameCard({ g }: { g: MyGame }) {
               </div>
 
               {isBooked ? (
-                <p className="font-semibold text-sm truncate">{g.courtName}</p>
+                g.courtId ? (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${g.courtId}`); }}
+                    className="font-semibold text-sm truncate block hover:text-primary hover:underline transition-colors text-left"
+                  >
+                    {g.courtName}
+                  </button>
+                ) : (
+                  <p className="font-semibold text-sm truncate">{g.courtName}</p>
+                )
               ) : (
                 <p className="font-semibold text-sm truncate">
                   {g.city}{g.placeName ? ` · ${g.placeName}` : ""}
                 </p>
               )}
               {isBooked && (g.facilityName || g.facilityCity) && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <MapPin className="w-3 h-3 shrink-0" />
-                  {g.facilityName}{g.facilityCity ? `, ${g.facilityCity}` : ""}
-                </p>
+                g.courtId ? (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${g.courtId}`); }}
+                    className="text-xs text-muted-foreground flex items-center gap-1 hover:text-primary transition-colors text-left"
+                  >
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {g.facilityName}{g.facilityCity ? `, ${g.facilityCity}` : ""}
+                  </button>
+                ) : (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    {g.facilityName}{g.facilityCity ? `, ${g.facilityCity}` : ""}
+                  </p>
+                )
               )}
             </div>
 

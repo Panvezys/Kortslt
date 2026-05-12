@@ -16,13 +16,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
+import { DateCalendar } from "@/components/ui/date-calendar";
+import { format } from "date-fns";
+import { lt as ltLocale } from "date-fns/locale";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import {
   Calendar, Clock, MapPin, Plus, Trophy, Lock, Swords,
   Globe, Zap, Star, Euro, User, ChevronDown, Crown, History,
+  Map as MapIcon, List, CalendarDays,
 } from "lucide-react";
+import { MatchMap } from "@/components/match-map";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -68,6 +73,8 @@ interface FeedItem {
   joinedCount: number | null;
   playersNeeded: number | null;
   isPrivate: boolean;
+  lat: number | null;
+  lng: number | null;
   creatorElo: number | null;
   createdAt: string;
 }
@@ -141,7 +148,9 @@ function MatchCard({ m, isOwn }: { m: FeedItem; isOwn?: boolean }) {
   const isRated = m.matchType === "rated";
   const full = m.slotsLeft === 0;
   const [profileOpen, setProfileOpen] = useState(false);
+  const [, navigate] = useLocation();
   const openProfile = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setProfileOpen(true); }, []);
+  const openCourt = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${m.courtId}`); }, [m.courtId, navigate]);
 
   const joined = isCasual ? (m.joinedCount ?? 0) : (m.paidSlots ?? 0);
   const total = isCasual ? (m.playersNeeded ?? 2) : (m.totalSlots ?? 1);
@@ -263,7 +272,13 @@ function MatchCard({ m, isOwn }: { m: FeedItem; isOwn?: boolean }) {
             {locationLabel && (
               <div className="flex items-center gap-1.5">
                 <MapPin className="w-3 h-3 shrink-0" />
-                <span className="truncate">{locationLabel}</span>
+                {!isCasual && m.courtId ? (
+                  <button onClick={openCourt} className="truncate hover:text-primary hover:underline transition-colors text-left">
+                    {locationLabel}
+                  </button>
+                ) : (
+                  <span className="truncate">{locationLabel}</span>
+                )}
               </div>
             )}
           </div>
@@ -331,6 +346,7 @@ interface AvailabilitySlot { startTime: string; endTime: string; available: bool
 interface AvailabilityResp { slots: AvailabilitySlot[]; }
 type Venue = "self" | "korts";
 
+
 function CityMultiSelect({ options, selected, onChange }: { options: string[]; selected: string[]; onChange: (v: string[]) => void }) {
   const [open, setOpen] = useState(false);
   const toggle = (city: string) =>
@@ -385,6 +401,7 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [courtId, setCourtId] = useState<number | null>(null);
   const [bookingStart, setBookingStart] = useState<string>("");
   const [bookingEnd, setBookingEnd] = useState<string>("");
+  const [dateOpen, setDateOpen] = useState(false);
 
   const [form, setForm] = useState({
     sport: "tennis",
@@ -398,11 +415,22 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     description: "",
     isPrivate: false,
     matchType: "casual" as "casual" | "rated",
+    minElo: "" as string,
+    maxElo: "" as string,
   });
+
+  // The public courts API uses `type` (not `sport`) and only accepts the 6 sports
+  // in the generated Zod schema — other sports would cause a 400, so we omit the
+  // filter for them and let the user pick from all courts in that city.
+  const BOOKABLE_COURT_TYPES = ["tennis", "basketball", "padel", "football", "badminton", "squash"];
 
   const courtsQ = useQuery<CourtListItem[]>({
     queryKey: ["courts-for-game", form.sport, form.city],
-    queryFn: () => customFetch<CourtListItem[]>(`${API}/courts?sport=${encodeURIComponent(form.sport)}&city=${encodeURIComponent(form.city)}`),
+    queryFn: () => {
+      const qs = new URLSearchParams({ city: form.city });
+      if (BOOKABLE_COURT_TYPES.includes(form.sport)) qs.set("type", form.sport);
+      return customFetch<CourtListItem[]>(`${API}/courts?${qs.toString()}`);
+    },
     enabled: venue === "korts" && open,
   });
 
@@ -440,6 +468,8 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             placeName: form.placeName || null,
             playersNeeded: form.playersNeeded,
             skillLevel: form.skillLevel,
+            minSkillLevel: form.minElo !== "" ? parseFloat(form.minElo) : null,
+            maxSkillLevel: form.maxElo !== "" ? parseFloat(form.maxElo) : null,
             durationMinutes: toMin(bookingEnd) - toMin(bookingStart),
             description: form.description || null,
             isPrivate: form.isPrivate,
@@ -466,6 +496,8 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           placeName: form.placeName || null,
           playersNeeded: form.playersNeeded,
           skillLevel: form.skillLevel,
+          minSkillLevel: form.minElo !== "" ? parseFloat(form.minElo) : null,
+          maxSkillLevel: form.maxElo !== "" ? parseFloat(form.maxElo) : null,
           datetime,
           durationMinutes: form.durationMinutes,
           description: form.description || null,
@@ -531,6 +563,25 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                   {Object.entries(SKILL_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <Label className="text-sm font-semibold">ELO riba (neprivaloma)</Label>
+            <p className="text-xs text-muted-foreground">Nustatykite ELO reitingo ribas. Žaidėjai už ribų negalės prisijungti.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Min. ELO</Label>
+                <Input type="number" min={0} step={50} className="mt-1" placeholder="pvz. 1000"
+                  value={form.minElo}
+                  onChange={(e) => setForm(f => ({ ...f, minElo: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Max. ELO</Label>
+                <Input type="number" min={0} step={50} className="mt-1" placeholder="pvz. 1800"
+                  value={form.maxElo}
+                  onChange={(e) => setForm(f => ({ ...f, maxElo: e.target.value }))} />
+              </div>
             </div>
           </div>
 
@@ -633,11 +684,42 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Data</Label>
-                <Input type="date" className="mt-1" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} />
+                <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="mt-1 w-full justify-start font-normal">
+                      <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {format(new Date(form.date + "T00:00:00"), "d MMM yyyy", { locale: ltLocale })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-0 w-auto" align="start">
+                    <DateCalendar
+                      selected={new Date(form.date + "T00:00:00")}
+                      minDate={new Date()}
+                      onSelect={(d) => {
+                        setForm(f => ({ ...f, date: d.toISOString().slice(0, 10) }));
+                        setDateOpen(false);
+                      }}
+                      onClose={() => setDateOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
                 <Label>Laikas</Label>
-                <Input type="time" className="mt-1" value={form.time} onChange={(e) => setForm(f => ({ ...f, time: e.target.value }))} />
+                <Select value={form.time} onValueChange={(v) => setForm(f => ({ ...f, time: v }))}>
+                  <SelectTrigger className="mt-1 font-normal justify-start gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2).toString().padStart(2, "0");
+                      const m = i % 2 === 0 ? "00" : "30";
+                      const val = `${h}:${m}`;
+                      return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Trukmė (min)</Label>
@@ -650,8 +732,27 @@ function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           {venue === "korts" && (
             <div>
               <Label>Data</Label>
-              <Input type="date" className="mt-1" value={form.date}
-                onChange={(e) => { setForm(f => ({ ...f, date: e.target.value })); setBookingStart(""); setBookingEnd(""); }} />
+              <Popover open={dateOpen} onOpenChange={setDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="mt-1 w-full justify-start font-normal">
+                    <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {format(new Date(form.date + "T00:00:00"), "d MMM yyyy", { locale: ltLocale })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-auto" align="start">
+                  <DateCalendar
+                    selected={new Date(form.date + "T00:00:00")}
+                    minDate={new Date()}
+                    onSelect={(d) => {
+                      setForm(f => ({ ...f, date: d.toISOString().slice(0, 10) }));
+                      setBookingStart("");
+                      setBookingEnd("");
+                      setDateOpen(false);
+                    }}
+                    onClose={() => setDateOpen(false)}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           )}
 
@@ -701,6 +802,9 @@ export default function UnifiedMatchesPage() {
   const [sport, setSport] = useState("all");
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [dateFilter, setDateFilter] = useState("");
+  const [filterDateObj, setFilterDateObj] = useState<Date | undefined>(undefined);
+  const [filterDateOpen, setFilterDateOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isLoading } = useQuery<{ matches: FeedItem[]; total: number }>({
@@ -767,12 +871,12 @@ export default function UnifiedMatchesPage() {
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
           <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(19,45,76,0.4), rgba(19,45,76,0.3), rgba(19,45,76,0.85))" }} />
-          <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto">
+          <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto" style={{ color: "white" }}>
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-9 h-9 rounded-xl bg-primary/20 backdrop-blur-sm border border-primary/30 flex items-center justify-center">
                 <Globe className="w-4 h-4 text-primary" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow">Mačai</h1>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight drop-shadow" style={{ color: "white" }}>Mačai</h1>
             </div>
             <p className="text-white/80 text-sm max-w-xl drop-shadow-sm">
               Prisijunk prie atvirų mačų su kortu arba rask bendruomenės žaidimą. Sukurk savo ir pakvieskite žaidėjus.
@@ -799,19 +903,37 @@ export default function UnifiedMatchesPage() {
         </div>
 
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
-          {/* Feed type tabs */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button className={TAB_CLS(feedFilter === "all")} onClick={() => setFeedFilter("all")}>
-              Visi {allItems.length > 0 && <span className="ml-1 opacity-60 text-xs">({allItems.length})</span>}
-            </button>
-            <button className={TAB_CLS(feedFilter === "booked")} onClick={() => setFeedFilter("booked")}>
-              <Zap className="w-3.5 h-3.5 inline mr-1" />
-              Su kortu {bookedCount > 0 && <span className="ml-1 opacity-60 text-xs">({bookedCount})</span>}
-            </button>
-            <button className={TAB_CLS(feedFilter === "casual")} onClick={() => setFeedFilter("casual")}>
-              <User className="w-3.5 h-3.5 inline mr-1" />
-              Ieško kompanijos {casualCount > 0 && <span className="ml-1 opacity-60 text-xs">({casualCount})</span>}
-            </button>
+          {/* Feed type tabs + view toggle */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button className={TAB_CLS(feedFilter === "all")} onClick={() => setFeedFilter("all")}>
+                Visi {allItems.length > 0 && <span className="ml-1 opacity-60 text-xs">({allItems.length})</span>}
+              </button>
+              <button className={TAB_CLS(feedFilter === "booked")} onClick={() => setFeedFilter("booked")}>
+                <Zap className="w-3.5 h-3.5 inline mr-1" />
+                Su kortu {bookedCount > 0 && <span className="ml-1 opacity-60 text-xs">({bookedCount})</span>}
+              </button>
+              <button className={TAB_CLS(feedFilter === "casual")} onClick={() => setFeedFilter("casual")}>
+                <User className="w-3.5 h-3.5 inline mr-1" />
+                Ieško kompanijos {casualCount > 0 && <span className="ml-1 opacity-60 text-xs">({casualCount})</span>}
+              </button>
+            </div>
+            <div className="flex items-center border border-border rounded-lg overflow-hidden text-xs font-medium shrink-0">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`flex items-center gap-1.5 px-3 py-2 transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                title="Sąrašas"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode("map")}
+                className={`flex items-center gap-1.5 px-3 py-2 transition-colors border-l border-border ${viewMode === "map" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                title="Žemėlapis"
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -829,12 +951,36 @@ export default function UnifiedMatchesPage() {
 
               <CityMultiSelect options={cityOptions} selected={selectedCities} onChange={setSelectedCities} />
 
-              <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="h-9 text-sm" />
+              <Popover open={filterDateOpen} onOpenChange={setFilterDateOpen}>
+                <PopoverTrigger asChild>
+                  <button className="flex w-full items-center gap-2 bg-muted border border-border rounded-xl px-3 h-9 text-sm justify-between transition-colors hover:bg-muted/80">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" style={{ color: filterDateObj ? "#84cc16" : undefined }} />
+                      <span className="truncate text-foreground">
+                        {filterDateObj ? format(filterDateObj, "d MMM", { locale: ltLocale }) : "Data"}
+                      </span>
+                    </span>
+                    {filterDateObj && (
+                      <span
+                        onClick={e => { e.stopPropagation(); setFilterDateObj(undefined); setDateFilter(""); }}
+                        className="text-muted-foreground/60 hover:text-muted-foreground text-lg leading-none shrink-0"
+                      >×</span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-auto p-0">
+                  <DateCalendar
+                    selected={filterDateObj}
+                    onSelect={d => { setFilterDateObj(d); setDateFilter(format(d, "yyyy-MM-dd")); setFilterDateOpen(false); }}
+                    onClose={() => setFilterDateOpen(false)}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {(sport !== "all" || selectedCities.length > 0 || dateFilter) && (
               <div className="flex justify-end border-t pt-2">
-                <button onClick={() => { setSport("all"); setSelectedCities([]); setDateFilter(""); }}
+                <button onClick={() => { setSport("all"); setSelectedCities([]); setDateFilter(""); setFilterDateObj(undefined); }}
                   className="text-xs text-muted-foreground hover:text-destructive transition-colors">
                   Išvalyti filtrus
                 </button>
@@ -843,7 +989,9 @@ export default function UnifiedMatchesPage() {
           </div>
 
           {/* Results */}
-          {isLoading ? (
+          {viewMode === "map" ? (
+            <MatchMap matches={filtered} />
+          ) : isLoading ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
             </div>

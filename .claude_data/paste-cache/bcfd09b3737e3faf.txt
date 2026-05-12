@@ -1,0 +1,8 @@
+Please refactor the Chat UI on the Match Details page. Currently, the chat container stretches the full width of the screen and lacks structure.
+
+Apply these "Modern UI" improvements using Tailwind v4:
+1. Containment & Width: Wrap the chat interface in a distinct "Card" layout (white background, subtle border, rounded-lg). If the layout allows, constrain its width (e.g., max-w-4xl mx-auto) so it doesn't stretch infinitely on wide desktop screens.
+2. Fixed Height & Scroll: Give the message area a fixed height (e.g., h-[400px] or h-96) with `overflow-y-auto`. Messages should scroll inside the card, not stretch the whole page.
+3. Card Header: Create a distinct border-b header for the chat card containing the "Žaidimo pokalbiai" title and the "Tik dalyviams" badge. 
+4. Empty State: Improve the "Dar nėra žinučių" state. Center it in the fixed-height box, add a muted Lucide icon (like MessageSquare or MessageCircle), and use a slightly larger, muted text color.
+5. Input Area: Make the input field area stick to the bottom of the card with a `border-t`. Give the input field itself a soft gray background (bg-gray-50) to distinguish it from the white card background.

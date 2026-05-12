@@ -1,0 +1,931 @@
+import { useState, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
+import { useUser } from "@clerk/react";
+import { SafeShow as Show } from "@/lib/safeAuth";
+import { Layout } from "@/components/layout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
+import { UserProfileCard } from "@/components/user-profile-card";
+import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
+import {
+  Calendar, Clock, MapPin, Plus, Trophy, Lock, Swords,
+  Globe, Zap, Star, Euro, User, ChevronDown, Crown, History,
+} from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+const SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table-tennis", "volleyball", "hockey", "futsal", "floorball", "beach-volleyball", "golf", "bowling", "pickleball"];
+
+const SKILL_LABELS: Record<string, string> = {
+  any: "Bet koks", beginner: "Pradedantysis", intermediate: "Vidutinis", advanced: "Pažengęs",
+};
+
+type FeedKind = "booked" | "casual";
+
+interface FeedItem {
+  kind: FeedKind;
+  gameId: number;
+  sport: string;
+  matchType: string;
+  visibility: string;
+  creatorName: string;
+  creatorUserId: string;
+  description: string | null;
+  datetime: string;
+  minSkillLevel: number | null;
+  maxSkillLevel: number | null;
+  bookingId: number | null;
+  token: string | null;
+  courtName: string | null;
+  courtId: number | null;
+  facilityName: string | null;
+  facilityCity: string | null;
+  courtImageUrl: string | null;
+  date: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  pricePerSlot: number | null;
+  totalSlots: number | null;
+  paidSlots: number | null;
+  slotsLeft: number;
+  city: string | null;
+  placeName: string | null;
+  skillLevel: string | null;
+  durationMinutes: number | null;
+  joinedCount: number | null;
+  playersNeeded: number | null;
+  isPrivate: boolean;
+  creatorElo: number | null;
+  createdAt: string;
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr + (dateStr.length === 10 ? "T12:00:00" : ""));
+  return d.toLocaleDateString("lt-LT", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString("lt-LT", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function SkillBadge({ min, max, level }: { min?: number | null; max?: number | null; level?: string | null }) {
+  if (level && level !== "any") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/20">
+        <Star className="w-3 h-3" />{SKILL_LABELS[level] ?? level}
+      </span>
+    );
+  }
+  if (min == null && max == null) return null;
+  const label = min != null && max != null
+    ? `${min.toFixed(1)}–${max.toFixed(1)}`
+    : min != null ? `≥${min.toFixed(1)}`
+    : `≤${max!.toFixed(1)}`;
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/20">
+      <Star className="w-3 h-3" />{label}
+    </span>
+  );
+}
+
+function SlotDots({ filled, total, full }: { filled: number; total: number; full: boolean }) {
+  const visible = Math.min(total, 8);
+  const filledDots = full ? visible : Math.min(Math.round((filled / Math.max(total, 1)) * visible), visible);
+  return (
+    <div className="flex items-center gap-[3px]">
+      {Array.from({ length: visible }).map((_, i) => (
+        <div
+          key={i}
+          className={`w-2 h-2 rounded-full transition-colors ${
+            full
+              ? "bg-emerald-500"
+              : i < filledDots
+              ? "bg-primary"
+              : "bg-muted-foreground/20 border border-muted-foreground/20"
+          }`}
+        />
+      ))}
+      {total > 8 && (
+        <span className="text-[10px] text-muted-foreground ml-0.5">{filled}/{total}</span>
+      )}
+    </div>
+  );
+}
+
+// Lithuanian genitive form per sport slug for card titles
+const SPORT_GENITIVE: Record<string, string> = {
+  tennis: "Teniso", basketball: "Krepšinio", padel: "Padelio",
+  football: "Futbolo", badminton: "Badmintono", squash: "Skvošo",
+  "table-tennis": "Stalo teniso", golf: "Golfo", snooker: "Snukerio",
+  bowling: "Boulingo", volleyball: "Tinklinio", hockey: "Ledo ritulio",
+  futsal: "Futsalo", floorball: "Florbolо", "beach-volleyball": "Paplūdimio tinklinio",
+  pickleball: "Pickleball",
+};
+
+function MatchCard({ m, isOwn }: { m: FeedItem; isOwn?: boolean }) {
+  const isCasual = m.kind === "casual";
+  const isRated = m.matchType === "rated";
+  const full = m.slotsLeft === 0;
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [, navigate] = useLocation();
+  const openProfile = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setProfileOpen(true); }, []);
+  const openCourt = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${m.courtId}`); }, [m.courtId, navigate]);
+
+  const joined = isCasual ? (m.joinedCount ?? 0) : (m.paidSlots ?? 0);
+  const total = isCasual ? (m.playersNeeded ?? 2) : (m.totalSlots ?? 1);
+
+  // Left border accent: purple=rated, emerald=casual, blue=booked
+  const accentClass = isRated
+    ? "border-l-purple-500"
+    : isCasual
+    ? "border-l-emerald-500"
+    : "border-l-blue-500";
+
+  // Date/time strings
+  let dateLabel: string | null = null;
+  let timeLabel: string | null = null;
+  let locationLabel: string | null = null;
+
+  if (isCasual) {
+    const d = new Date(m.datetime);
+    dateLabel = d.toLocaleDateString("lt-LT", { weekday: "short", month: "2-digit", day: "2-digit" });
+    const start = d.toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" });
+    if (m.durationMinutes) {
+      const end = new Date(d.getTime() + m.durationMinutes * 60_000)
+        .toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" });
+      timeLabel = `${start} – ${end} (${m.durationMinutes} min)`;
+    } else {
+      timeLabel = start;
+    }
+    locationLabel = [m.city, m.placeName].filter(Boolean).join(", ");
+  } else {
+    if (m.date) {
+      const d = new Date(m.date + "T12:00:00");
+      dateLabel = d.toLocaleDateString("lt-LT", { weekday: "short", month: "2-digit", day: "2-digit" });
+    }
+    if (m.startTime && m.endTime) timeLabel = `${m.startTime} – ${m.endTime}`;
+    locationLabel = [m.facilityCity, m.facilityName].filter(Boolean).join(", ");
+  }
+
+  return (
+    <Link href={`/matches/${m.gameId}`}>
+      <div className={`group relative flex flex-col rounded-xl border border-border border-l-4 ${accentClass} bg-card hover:shadow-lg hover:bg-accent/30 transition-all cursor-pointer overflow-hidden ${full ? "opacity-70" : ""} ${isOwn ? "ring-1 ring-amber-400/40" : ""}`}>
+
+        {/* "Mano" ribbon */}
+        {isOwn && (
+          <div className="absolute top-0 right-0 z-10 overflow-hidden w-14 h-14 pointer-events-none">
+            <div className="absolute top-3 -right-4 rotate-45 bg-amber-500 text-white text-[8px] font-black tracking-widest px-5 py-px shadow">
+              MANO
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 flex flex-col gap-3 flex-1">
+
+          {/* ── Row 1: badges ── */}
+          <div className="flex items-center gap-1.5 flex-wrap pr-8">
+            <SportPill sport={m.sport} variant="subtle" size="sm" />
+            {isRated && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-400/20">
+                <Swords className="w-3 h-3" />Reitinginis
+              </span>
+            )}
+            {isCasual && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/20">
+                Nemokama
+              </span>
+            )}
+            <SkillBadge min={m.minSkillLevel} max={m.maxSkillLevel} level={m.skillLevel} />
+          </div>
+
+          {/* ── Row 2: main content ── */}
+          {isCasual ? (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-base leading-snug truncate group-hover:text-primary transition-colors">
+                  {(SPORT_GENITIVE[m.sport] ?? (SPORT_LABELS as Record<string, string>)[m.sport] ?? m.sport) + " mačas"}
+                </p>
+                {m.description && (
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-base leading-snug truncate group-hover:text-primary transition-colors">
+                  {m.facilityName || m.courtName}
+                </p>
+                {m.facilityName && m.courtName && (
+                  <p className="text-xs text-muted-foreground truncate">{m.courtName}</p>
+                )}
+                {m.description && (
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{m.description}</p>
+                )}
+              </div>
+              {m.pricePerSlot != null && (
+                <div className="shrink-0 text-right">
+                  <p className="text-xl font-extrabold text-primary leading-none">
+                    {m.pricePerSlot.toFixed(2)}<span className="text-sm font-semibold"> €</span>
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">/ žaid.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Row 3: metadata ── */}
+          <div className="space-y-1 text-xs text-muted-foreground">
+            {dateLabel && (
+              <div className="flex items-center gap-1.5">
+                <Calendar className="w-3 h-3 shrink-0" />
+                <span>{dateLabel}</span>
+              </div>
+            )}
+            {timeLabel && (
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3 h-3 shrink-0" />
+                <span>{timeLabel}</span>
+              </div>
+            )}
+            {locationLabel && (
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-3 h-3 shrink-0" />
+                {!isCasual && m.courtId ? (
+                  <button onClick={openCourt} className="truncate hover:text-primary hover:underline transition-colors text-left">
+                    {locationLabel}
+                  </button>
+                ) : (
+                  <span className="truncate">{locationLabel}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="flex items-center justify-between pt-2 border-t border-border/60 gap-2 mt-auto">
+            {/* Host — always shown on the left, opens profile modal on click */}
+            <button onClick={openProfile} className="flex items-center gap-1.5 min-w-0 group/host hover:text-primary transition-colors">
+              <User className="w-3 h-3 shrink-0 text-muted-foreground group-hover/host:text-primary transition-colors" />
+              <span className="text-xs text-muted-foreground truncate group-hover/host:text-primary group-hover/host:underline transition-colors">{m.creatorName}</span>
+              {m.creatorElo != null && (
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 shrink-0">{m.creatorElo}</span>
+              )}
+            </button>
+
+            {/* Slot dots + action button */}
+            <div className="flex items-center gap-2 shrink-0">
+              <SlotDots filled={joined} total={total} full={full} />
+              {full ? (
+                <Button size="sm" disabled className="h-7 px-3 text-xs font-semibold">
+                  Pilna
+                </Button>
+              ) : isOwn ? (
+                <Button size="sm" variant="outline" className="h-7 px-3 text-xs font-semibold border-amber-400/60 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
+                  Valdyti
+                </Button>
+              ) : isCasual ? (
+                <Button size="sm" className="h-7 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white border-0">
+                  Prisijungti
+                </Button>
+              ) : m.token ? (
+                <div onClick={e => e.stopPropagation()}>
+                  <Link href={`/join/${m.token}`}>
+                    <Button size="sm" className="h-7 px-3 text-xs font-semibold gap-1">
+                      <Euro className="w-3 h-3" />Prisijungti
+                    </Button>
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+        </div>
+      </div>
+      {profileOpen && (
+        <UserProfileCard
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          userId={m.creatorUserId}
+          userName={m.creatorName}
+        />
+      )}
+    </Link>
+  );
+}
+
+function toMin(t: string): number {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+interface CourtListItem { id: number; name: string; sport: string; city: string; pricePerHour: string | number; }
+interface AvailabilitySlot { startTime: string; endTime: string; available: boolean; price: number; }
+interface AvailabilityResp { slots: AvailabilitySlot[]; }
+type Venue = "self" | "korts";
+
+function CityMultiSelect({ options, selected, onChange }: { options: string[]; selected: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const toggle = (city: string) =>
+    onChange(selected.includes(city) ? selected.filter(c => c !== city) : [...selected, city]);
+  const label = selected.length === 0
+    ? "Visi miestai"
+    : selected.length === 1
+    ? selected[0]
+    : `${selected.length} miestai`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring">
+          <span className={selected.length === 0 ? "text-muted-foreground" : ""}>{label}</span>
+          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="start">
+        {options.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-2 py-1.5">Nėra duomenų</p>
+        ) : (
+          <div className="max-h-64 overflow-y-auto space-y-0.5">
+            {options.map(city => (
+              <label key={city} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer text-sm select-none">
+                <Checkbox checked={selected.includes(city)} onCheckedChange={() => toggle(city)} />
+                {city}
+              </label>
+            ))}
+          </div>
+        )}
+        {selected.length > 0 && (
+          <div className="border-t mt-1 pt-1">
+            <button onClick={() => { onChange([]); setOpen(false); }}
+              className="w-full text-xs text-muted-foreground hover:text-destructive px-2 py-1 text-left transition-colors">
+              Išvalyti pasirinkimą
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function CreateGameDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { user } = useUser();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [, setLocation] = useLocation();
+
+  const [venue, setVenue] = useState<Venue>("self");
+  const [courtId, setCourtId] = useState<number | null>(null);
+  const [bookingStart, setBookingStart] = useState<string>("");
+  const [bookingEnd, setBookingEnd] = useState<string>("");
+
+  const [form, setForm] = useState({
+    sport: "tennis",
+    city: "Vilnius",
+    placeName: "",
+    playersNeeded: 4,
+    skillLevel: "any",
+    date: new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10),
+    time: "18:00",
+    durationMinutes: 60,
+    description: "",
+    isPrivate: false,
+    matchType: "casual" as "casual" | "rated",
+    minElo: "" as string,
+    maxElo: "" as string,
+  });
+
+  const courtsQ = useQuery<CourtListItem[]>({
+    queryKey: ["courts-for-game", form.sport, form.city],
+    queryFn: () => customFetch<CourtListItem[]>(`${API}/courts?sport=${encodeURIComponent(form.sport)}&city=${encodeURIComponent(form.city)}`),
+    enabled: venue === "korts" && open,
+  });
+
+  const availabilityQ = useQuery<AvailabilityResp>({
+    queryKey: ["court-availability-for-game", courtId, form.date],
+    queryFn: () => customFetch<AvailabilityResp>(`${API}/courts/${courtId}/availability?date=${form.date}`),
+    enabled: venue === "korts" && courtId != null && open,
+  });
+
+  const selectedRangePrice = (() => {
+    if (venue !== "korts" || !bookingStart || !bookingEnd || !availabilityQ.data) return null;
+    const startM = toMin(bookingStart), endM = toMin(bookingEnd);
+    let total = 0;
+    for (const s of availabilityQ.data.slots) {
+      const sM = toMin(s.startTime);
+      if (sM >= startM && sM < endM) total += Number(s.price ?? 0);
+    }
+    return total;
+  })();
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (venue === "korts") {
+        if (!courtId || !bookingStart || !bookingEnd) throw new Error("Pasirinkite aikštę ir laiką");
+        const successUrl = `${window.location.origin}${BASE}/matches?payment=success`;
+        const cancelUrl = `${window.location.origin}${BASE}/matches?payment=cancelled`;
+        const resp = await customFetch<{ checkoutUrl: string; gameId: number; bookingId: number }>(`${API}/games/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            creatorName: user?.fullName || user?.firstName || "Žaidėjas",
+            creatorEmail: user?.emailAddresses[0]?.emailAddress,
+            sport: form.sport,
+            city: form.city,
+            placeName: form.placeName || null,
+            playersNeeded: form.playersNeeded,
+            skillLevel: form.skillLevel,
+            minSkillLevel: form.minElo !== "" ? parseFloat(form.minElo) : null,
+            maxSkillLevel: form.maxElo !== "" ? parseFloat(form.maxElo) : null,
+            durationMinutes: toMin(bookingEnd) - toMin(bookingStart),
+            description: form.description || null,
+            isPrivate: form.isPrivate,
+            matchType: form.matchType,
+            courtId,
+            bookingDate: form.date,
+            bookingStart,
+            bookingEnd,
+            successUrl,
+            cancelUrl,
+          }),
+        });
+        return { redirectUrl: resp.checkoutUrl } as { redirectUrl: string };
+      }
+      const datetime = new Date(`${form.date}T${form.time}:00`).toISOString();
+      const res = await customFetch<{ id: number }>(`${API}/games`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          creatorName: user?.fullName || user?.firstName || "Žaidėjas",
+          creatorEmail: user?.emailAddresses[0]?.emailAddress,
+          sport: form.sport,
+          city: form.city,
+          placeName: form.placeName || null,
+          playersNeeded: form.playersNeeded,
+          skillLevel: form.skillLevel,
+          minSkillLevel: form.minElo !== "" ? parseFloat(form.minElo) : null,
+          maxSkillLevel: form.maxElo !== "" ? parseFloat(form.maxElo) : null,
+          datetime,
+          durationMinutes: form.durationMinutes,
+          description: form.description || null,
+          isPrivate: form.isPrivate,
+          matchType: form.matchType,
+        }),
+      });
+      return res;
+    },
+    onSuccess: async (result) => {
+      if ("redirectUrl" in (result as any)) {
+        window.location.href = (result as { redirectUrl: string }).redirectUrl;
+        return;
+      }
+      await qc.refetchQueries({ queryKey: ["open-matches"] });
+      toast({ title: "Žaidimas sukurtas!", description: "Galite pasidalinti nuoroda su draugais." });
+      onOpenChange(false);
+      setLocation(`/matches/${(result as { id: number }).id}`);
+    },
+    onError: (e: any) => {
+      toast({ title: "Nepavyko sukurti", description: e?.message ?? "Klaida", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Sukurti naują žaidimą</DialogTitle>
+          <DialogDescription>Raskite partnerių tarp korts.lt bendruomenės.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setForm(f => ({ ...f, matchType: "casual" }))}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${form.matchType === "casual" ? "border-primary bg-primary/10" : "border-border hover:border-border/80"}`}>
+              <Trophy className="w-5 h-5" />
+              <span className="text-sm font-semibold">Laisvas</span>
+              <span className="text-xs text-muted-foreground">ELO nekinta</span>
+            </button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, matchType: "rated" }))}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all ${form.matchType === "rated" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-border/80"}`}>
+              <Swords className="w-5 h-5 text-purple-500" />
+              <span className="text-sm font-semibold">Reitinginis</span>
+              <span className="text-xs text-muted-foreground">ELO keisis</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Sporto šaka</Label>
+              <Select value={form.sport} onValueChange={(v) => setForm(f => ({ ...f, sport: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {SPORTS.map(s => <SelectItem key={s} value={s}>{(SPORT_LABELS as any)[s] ?? s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Lygis</Label>
+              <Select value={form.skillLevel} onValueChange={(v) => setForm(f => ({ ...f, skillLevel: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SKILL_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <Label className="text-sm font-semibold">ELO riba (neprivaloma)</Label>
+            <p className="text-xs text-muted-foreground">Nustatykite ELO reitingo ribas. Žaidėjai už ribų negalės prisijungti.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Min. ELO</Label>
+                <Input type="number" min={0} step={50} className="mt-1" placeholder="pvz. 1000"
+                  value={form.minElo}
+                  onChange={(e) => setForm(f => ({ ...f, minElo: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Max. ELO</Label>
+                <Input type="number" min={0} step={50} className="mt-1" placeholder="pvz. 1800"
+                  value={form.maxElo}
+                  onChange={(e) => setForm(f => ({ ...f, maxElo: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Miestas</Label>
+              <Input className="mt-1" placeholder="pvz. Vilnius" value={form.city}
+                onChange={(e) => { setForm(f => ({ ...f, city: e.target.value })); setCourtId(null); }} />
+            </div>
+            <div>
+              <Label>Vieta</Label>
+              {venue === "self" ? (
+                <Input className="mt-1" placeholder="pvz. Forum Palace aikštelės" value={form.placeName}
+                  onChange={(e) => setForm(f => ({ ...f, placeName: e.target.value }))} />
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">Pasirinkite Korts.lt aikštę žemiau.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setVenue("self"); setCourtId(null); }}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${venue === "self" ? "border-primary bg-primary/10" : "border-border hover:border-border/80"}`}>
+              <MapPin className="w-5 h-5" />
+              <span className="text-sm font-semibold">Sava vieta</span>
+              <span className="text-xs text-muted-foreground">Susitarta atskirai</span>
+            </button>
+            <button type="button" onClick={() => setVenue("korts")}
+              className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${venue === "korts" ? "border-primary bg-primary/10" : "border-border hover:border-border/80"}`}>
+              <Calendar className="w-5 h-5" />
+              <span className="text-sm font-semibold">Korts.lt aikštė</span>
+              <span className="text-xs text-muted-foreground">Apmokėsite dabar</span>
+            </button>
+          </div>
+
+          {venue === "korts" && (
+            <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <div>
+                <Label>Aikštė</Label>
+                {courtsQ.isLoading ? (
+                  <Skeleton className="h-10 mt-1" />
+                ) : (courtsQ.data?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">Nėra aikščių pasirinktam sportui ir miestui.</p>
+                ) : (
+                  <Select value={courtId ? String(courtId) : ""} onValueChange={(v) => { setCourtId(parseInt(v, 10)); setBookingStart(""); setBookingEnd(""); }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Pasirinkite aikštę" /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {courtsQ.data!.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name} — €{Number(c.pricePerHour).toFixed(2)}/h
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {courtId != null && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Pradžia</Label>
+                    {availabilityQ.isLoading ? <Skeleton className="h-10 mt-1" /> : (
+                      <Select value={bookingStart} onValueChange={(v) => { setBookingStart(v); if (bookingEnd && toMin(bookingEnd) <= toMin(v)) setBookingEnd(""); }}>
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="--:--" /></SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {(availabilityQ.data?.slots ?? []).filter(s => s.available).map(s => (
+                            <SelectItem key={s.startTime} value={s.startTime}>{s.startTime}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Pabaiga</Label>
+                    <Select value={bookingEnd} onValueChange={setBookingEnd} disabled={!bookingStart}>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="--:--" /></SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {(availabilityQ.data?.slots ?? []).filter(s => bookingStart && toMin(s.endTime) > toMin(bookingStart)).map(s => (
+                          <SelectItem key={s.endTime} value={s.endTime}>{s.endTime}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              {selectedRangePrice != null && (
+                <div className="rounded-md bg-background/60 border border-border p-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Aikštės kaina:</span>
+                    <span className="font-bold">€{selectedRangePrice.toFixed(2)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Apmokėsite visą sumą iš karto. Dalis vienam žaidėjui: <b>€{(selectedRangePrice / Math.max(1, form.playersNeeded)).toFixed(2)}</b>.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {venue === "self" && (
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Data</Label>
+                <Input type="date" className="mt-1" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Laikas</Label>
+                <Select value={form.time} onValueChange={(v) => setForm(f => ({ ...f, time: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-64">
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2).toString().padStart(2, "0");
+                      const m = i % 2 === 0 ? "00" : "30";
+                      const val = `${h}:${m}`;
+                      return <SelectItem key={val} value={val}>{val}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Trukmė (min)</Label>
+                <Input type="number" min={30} step={15} className="mt-1" value={form.durationMinutes}
+                  onChange={(e) => setForm(f => ({ ...f, durationMinutes: parseInt(e.target.value || "60", 10) }))} />
+              </div>
+            </div>
+          )}
+
+          {venue === "korts" && (
+            <div>
+              <Label>Data</Label>
+              <Input type="date" className="mt-1" value={form.date}
+                onChange={(e) => { setForm(f => ({ ...f, date: e.target.value })); setBookingStart(""); setBookingEnd(""); }} />
+            </div>
+          )}
+
+          <div>
+            <Label>Žaidėjų skaičius (iš viso)</Label>
+            <Input type="number" min={2} max={30} className="mt-1" value={form.playersNeeded}
+              onChange={(e) => setForm(f => ({ ...f, playersNeeded: parseInt(e.target.value || "4", 10) }))} />
+            <p className="text-xs text-muted-foreground mt-1">Įskaitant jus. Jūs prisijungsite automatiškai.</p>
+          </div>
+
+          <div>
+            <Label>Aprašymas (neprivaloma)</Label>
+            <Textarea className="mt-1" rows={3} placeholder="Apie žaidimą, taisykles, ką atsinešti..." value={form.description}
+              onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <Label className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Privatus žaidimas</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Nebus rodomas sąraše — tik per pakvietimo nuorodą.</p>
+            </div>
+            <Switch checked={form.isPrivate} onCheckedChange={(v) => setForm(f => ({ ...f, isPrivate: v }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Atšaukti</Button>
+          <Button onClick={() => create.mutate()}
+            disabled={create.isPending || (venue === "korts" && (!courtId || !bookingStart || !bookingEnd))}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold">
+            {create.isPending
+              ? (venue === "korts" ? "Nukreipiama į Stripe..." : "Kuriama...")
+              : (venue === "korts"
+                ? `Apmokėti ir sukurti${selectedRangePrice != null ? ` (€${selectedRangePrice.toFixed(2)})` : ""}`
+                : "Sukurti žaidimą")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type FeedFilter = "all" | "booked" | "casual";
+
+export default function UnifiedMatchesPage() {
+  const { user } = useUser();
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
+  const [sport, setSport] = useState("all");
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const { data, isLoading } = useQuery<{ matches: FeedItem[]; total: number }>({
+    queryKey: ["open-matches", sport, dateFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (sport && sport !== "all") params.set("sport", sport);
+      if (dateFilter) params.set("date", dateFilter);
+      const r = await fetch(`${API}/matches/open?${params.toString()}`);
+      if (!r.ok) throw new Error("Nepavyko gauti mačų");
+      return r.json();
+    },
+  });
+
+  const allItems = data?.matches ?? [];
+
+  // Derive available cities from the loaded data
+  const cityOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const m of allItems) {
+      const c = m.facilityCity || m.city;
+      if (c) seen.add(c);
+    }
+    return Array.from(seen).sort();
+  }, [allItems]);
+
+  const filtered = useMemo(() => {
+    let items = allItems;
+    if (feedFilter !== "all") items = items.filter(m => m.kind === feedFilter);
+    if (selectedCities.length > 0) {
+      items = items.filter(m => {
+        const c = m.facilityCity || m.city;
+        return c != null && selectedCities.includes(c);
+      });
+    }
+    return items;
+  }, [allItems, feedFilter, selectedCities]);
+
+  const bookedCount = allItems.filter(m => m.kind === "booked").length;
+  const casualCount = allItems.filter(m => m.kind === "casual").length;
+
+  const TAB_CLS = (active: boolean) =>
+    `px-4 py-2 rounded-full text-sm font-semibold transition-all border ${
+      active
+        ? "bg-primary text-primary-foreground border-primary"
+        : "bg-transparent text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+    }`;
+
+  return (
+    <Layout>
+      <div className="min-h-screen bg-background">
+        {/* Hero */}
+        <div className="relative h-48 sm:h-60 overflow-hidden">
+          <img
+            src="/coaches/coach_banner_2.webp"
+            srcSet="/coaches/coach_banner_2-480.webp 480w, /coaches/coach_banner_2-800.webp 800w, /coaches/coach_banner_2.webp 1200w"
+            sizes="100vw"
+            alt="Mačai"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            width={1200}
+            height={655}
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(19,45,76,0.4), rgba(19,45,76,0.3), rgba(19,45,76,0.85))" }} />
+          <div className="absolute inset-0 flex flex-col justify-end px-4 sm:px-8 pb-6 max-w-6xl mx-auto">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-xl bg-primary/20 backdrop-blur-sm border border-primary/30 flex items-center justify-center">
+                <Globe className="w-4 h-4 text-primary" />
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow">Mačai</h1>
+            </div>
+            <p className="text-white/80 text-sm max-w-xl drop-shadow-sm">
+              Prisijunk prie atvirų mačų su kortu arba rask bendruomenės žaidimą. Sukurk savo ir pakvieskite žaidėjus.
+            </p>
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <Show when="signed-in">
+                <Button size="sm" onClick={() => setCreateOpen(true)}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold border-0">
+                  <Plus className="w-3.5 h-3.5 mr-1.5" />Sukurti žaidimą
+                </Button>
+                <Button size="sm" asChild className="backdrop-blur-sm bg-white/15 hover:bg-white/25 text-white border border-white/30 font-semibold">
+                  <Link href="/matches/mine">
+                    <History className="w-3.5 h-3.5 mr-1.5" />Mano mačai
+                  </Link>
+                </Button>
+              </Show>
+              <Show when="signed-out">
+                <Button size="sm" asChild className="backdrop-blur-sm bg-white/20 hover:bg-white/30 text-white border border-white/30">
+                  <Link href="/sign-in">Prisijungti, kad sukurtum</Link>
+                </Button>
+              </Show>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
+          {/* Feed type tabs */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button className={TAB_CLS(feedFilter === "all")} onClick={() => setFeedFilter("all")}>
+              Visi {allItems.length > 0 && <span className="ml-1 opacity-60 text-xs">({allItems.length})</span>}
+            </button>
+            <button className={TAB_CLS(feedFilter === "booked")} onClick={() => setFeedFilter("booked")}>
+              <Zap className="w-3.5 h-3.5 inline mr-1" />
+              Su kortu {bookedCount > 0 && <span className="ml-1 opacity-60 text-xs">({bookedCount})</span>}
+            </button>
+            <button className={TAB_CLS(feedFilter === "casual")} onClick={() => setFeedFilter("casual")}>
+              <User className="w-3.5 h-3.5 inline mr-1" />
+              Ieško kompanijos {casualCount > 0 && <span className="ml-1 opacity-60 text-xs">({casualCount})</span>}
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-card border rounded-2xl p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Select value={sport} onValueChange={setSport}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Visos sporto šakos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Visos sporto šakos</SelectItem>
+                  {SPORTS.map(s => <SelectItem key={s} value={s}>{(SPORT_LABELS as any)[s] ?? s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <CityMultiSelect options={cityOptions} selected={selectedCities} onChange={setSelectedCities} />
+
+              <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="h-9 text-sm" />
+            </div>
+
+            {(sport !== "all" || selectedCities.length > 0 || dateFilter) && (
+              <div className="flex justify-end border-t pt-2">
+                <button onClick={() => { setSport("all"); setSelectedCities([]); setDateFilter(""); }}
+                  className="text-xs text-muted-foreground hover:text-destructive transition-colors">
+                  Išvalyti filtrus
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Results */}
+          {isLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+              <Globe className="w-12 h-12 text-muted-foreground/30" />
+              <div>
+                <p className="text-lg font-semibold text-muted-foreground">Nėra mačų</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Pabandykite pakeisti filtrus arba sukurkite savo žaidimą.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Show when="signed-in">
+                  <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+                    <Plus className="w-4 h-4" />Sukurti žaidimą
+                  </Button>
+                </Show>
+                <Button variant="outline" asChild>
+                  <Link href="/courts">Rasti aikštelę</Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Rodoma: <span className="font-semibold text-foreground">{filtered.length}</span> mačų
+              </p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.map(m => (
+                  <MatchCard key={`${m.kind}-${m.gameId}`} m={m} isOwn={!!user && m.creatorUserId === user.id} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {user && <CreateGameDialog open={createOpen} onOpenChange={setCreateOpen} />}
+    </Layout>
+  );
+}

@@ -1,0 +1,13 @@
+Let's upgrade the Global Chat Bubble widget (the inbox list view) to clearly distinguish between 1-on-1 direct messages and Match Group Chats.
+
+Please implement the following UI logic in the chat list component:
+
+1. Data Check: Check if the conversation thread has an associated `gameId` or `matchId` (or is of type 'match').
+2. Visual Rendering for Match Chats:
+   - Avatar: Replace the standard user avatar with a distinct Group/Sport icon (e.g., Lucide `Users` or `Trophy` icon) inside a rounded-full container with a brand-colored background (e.g., bg-primary/10 text-primary).
+   - Title: Display the Match Title or Sport name instead of a user's name.
+   - Badge/Indicator: Add a small, subtle badge (e.g., text-xs bg-gray-100 px-2 rounded-full) next to the title that says "Mačas" or shows the participant count.
+3. Visual Rendering for 1-on-1:
+   - Avatar: Show the standard other user's avatar/initials.
+   - Title: Show the other user's name.
+4. Preview Text: Both types should still show the latest message preview and timestamp below the title.
