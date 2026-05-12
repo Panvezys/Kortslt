@@ -2127,6 +2127,13 @@ export default function CourtDetail() {
                       <span className="font-medium">{equipmentTotal.toFixed(2)} €</span>
                     </div>
                   )}
+                  <CancellationTimeline
+                    hoursUntilStart={(() => {
+                      const now = new Date();
+                      const start = new Date(`${dateStr}T${selectedSlotRange.startTime}:00`);
+                      return (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    })()}
+                  />
                   <Separator className="my-1" />
                   {splitEnabled ? (
                     <>
