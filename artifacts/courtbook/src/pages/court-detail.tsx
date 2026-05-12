@@ -1589,6 +1589,63 @@ export default function CourtDetail() {
             {/* Coaches Section */}
             <CoachesSectionForCourt courtId={courtId} />
 
+            {/* Reviews */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Star className="w-4 h-4 text-primary" />
+                  Atsiliepimai
+                </h2>
+                {avgRating && (
+                  <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5">
+                    <span className="text-xl font-bold">{avgRating.toFixed(1)}</span>
+                    <div>
+                      <StarDisplay rating={avgRating} size="sm" />
+                      <p className="text-[10px] text-muted-foreground">{reviews?.length} atsiliepimai</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {!reviews || reviews.length === 0 ? (
+                <div className="flex items-center gap-3 py-3 px-4 bg-muted/30 rounded-xl border border-dashed text-muted-foreground text-sm">
+                  <Star className="w-4 h-4 shrink-0 text-muted-foreground/40" />
+                  <span>Dar nėra atsiliepimų.</span>
+                  <a href="/bookings" className="text-primary hover:underline ml-auto shrink-0 text-xs">Vertinti rezervaciją</a>
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="bg-card border rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-sm">{review.reviewerName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(new Date(review.createdAt), "yyyy-MM-dd")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <StarDisplay rating={review.rating} size="sm" />
+                          <span className="text-xs font-bold">{review.rating}.0</span>
+                        </div>
+                      </div>
+                      {review.reviewText && (
+                        <p className="text-muted-foreground text-sm leading-relaxed">{review.reviewText}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reviews && reviews.length > 0 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Norite palikti atsiliepimą? Eikite į{" "}
+                  <a href="/bookings" className="text-primary hover:underline">Mano rezervacijos</a>{" "}
+                  ir šalia patvirtintos rezervacijos spustelėkite „Vertinti".
+                </p>
+              )}
+            </div>
+
           </div>{/* end space-y-8 */}
           </div>{/* end md:col-span-2 */}
 
@@ -2197,63 +2254,6 @@ export default function CourtDetail() {
 
         </div>
 
-        {/* Reviews — full width, below booking widget */}
-        <div className="mt-8">
-          <Separator className="mb-6" />
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Star className="w-4 h-4 text-primary" />
-              Atsiliepimai
-            </h2>
-            {avgRating && (
-              <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5">
-                <span className="text-xl font-bold">{avgRating.toFixed(1)}</span>
-                <div>
-                  <StarDisplay rating={avgRating} size="sm" />
-                  <p className="text-[10px] text-muted-foreground">{reviews?.length} atsiliepimai</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {!reviews || reviews.length === 0 ? (
-            <div className="flex items-center gap-3 py-3 px-4 bg-muted/30 rounded-xl border border-dashed text-muted-foreground text-sm">
-              <Star className="w-4 h-4 shrink-0 text-muted-foreground/40" />
-              <span>Dar nėra atsiliepimų.</span>
-              <a href="/bookings" className="text-primary hover:underline ml-auto shrink-0 text-xs">Vertinti rezervaciją</a>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {reviews.map((review) => (
-                <div key={review.id} className="bg-card border rounded-xl p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="font-semibold text-sm">{review.reviewerName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(new Date(review.createdAt), "yyyy-MM-dd")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <StarDisplay rating={review.rating} size="sm" />
-                      <span className="text-xs font-bold">{review.rating}.0</span>
-                    </div>
-                  </div>
-                  {review.reviewText && (
-                    <p className="text-muted-foreground text-sm leading-relaxed">{review.reviewText}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {reviews && reviews.length > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Norite palikti atsiliepimą? Eikite į{" "}
-              <a href="/bookings" className="text-primary hover:underline">Mano rezervacijos</a>{" "}
-              ir šalia patvirtintos rezervacijos spustelėkite „Vertinti".
-            </p>
-          )}
-        </div>
 
         {/* Related courts carousel */}
         <RelatedCourtsCarousel currentCourtId={courtId} />
