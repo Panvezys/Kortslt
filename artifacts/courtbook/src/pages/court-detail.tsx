@@ -1849,7 +1849,9 @@ export default function CourtDetail() {
                         <p className="text-xs text-muted-foreground">Rezervuoti kas savaitę</p>
                       </div>
                     </div>
-                    <Switch checked={recurringEnabled} onCheckedChange={setRecurringEnabled} />
+                    <span onClick={e => e.stopPropagation()}>
+                      <Switch checked={recurringEnabled} onCheckedChange={setRecurringEnabled} />
+                    </span>
                   </button>
                   {recurringEnabled && (
                     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-primary/5 border-primary/20 text-sm">
@@ -1996,7 +1998,9 @@ export default function CourtDetail() {
                         </span>
                       )}
                     </span>
-                    <Switch checked={splitEnabled} onCheckedChange={setSplitEnabled} />
+                    <span onClick={e => e.stopPropagation()}>
+                      <Switch checked={splitEnabled} onCheckedChange={setSplitEnabled} />
+                    </span>
                   </button>
                   {splitEnabled && (
                     <div className="px-3 pb-3 border-t pt-2.5 space-y-2 bg-muted/10">
@@ -2036,7 +2040,9 @@ export default function CourtDetail() {
                             <Globe className="w-3.5 h-3.5 text-primary" />
                             Ieškau žaidėjų (Viešas mačas)
                           </span>
-                          <Switch checked={isPublicMatch} onCheckedChange={setIsPublicMatch} />
+                          <span onClick={e => e.stopPropagation()}>
+                            <Switch checked={isPublicMatch} onCheckedChange={setIsPublicMatch} />
+                          </span>
                         </button>
                         {isPublicMatch && (
                           <div className="space-y-2 pl-5">
