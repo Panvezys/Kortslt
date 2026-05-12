@@ -1848,8 +1848,8 @@ export default function CourtDetail() {
                         <p className="text-xs text-muted-foreground">Rezervuoti kas savaitę</p>
                       </div>
                     </div>
-                    <span className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${recurringEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${recurringEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                    <span className={`w-9 h-5 rounded-full relative transition-colors shrink-0 overflow-hidden ${recurringEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${recurringEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                     </span>
                   </button>
                   {recurringEnabled && (
@@ -1997,8 +1997,8 @@ export default function CourtDetail() {
                         </span>
                       )}
                     </span>
-                    <span className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${splitEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${splitEnabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                    <span className={`w-9 h-5 rounded-full transition-colors relative shrink-0 overflow-hidden ${splitEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${splitEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                     </span>
                   </button>
                   {splitEnabled && (
@@ -2039,8 +2039,8 @@ export default function CourtDetail() {
                             <Globe className="w-3.5 h-3.5 text-primary" />
                             Ieškau žaidėjų (Viešas mačas)
                           </span>
-                          <span className={`w-8 h-4 rounded-full transition-colors relative shrink-0 ${isPublicMatch ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isPublicMatch ? "translate-x-4" : "translate-x-0.5"}`} />
+                          <span className={`w-8 h-4 rounded-full transition-colors relative shrink-0 overflow-hidden ${isPublicMatch ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isPublicMatch ? "translate-x-[17px]" : "translate-x-0.5"}`} />
                           </span>
                         </button>
                         {isPublicMatch && (
