@@ -5,9 +5,17 @@ import { BackButton } from "@/components/back-button";
 import {
   CheckCircle2, Calendar, Clock, MapPin, Phone, Mail,
   User, CreditCard, Loader2, XCircle, ExternalLink, Download,
-  Users, Copy, Check,
+  Users, Copy, Check, ChevronDown, CalendarCheck,
 } from "lucide-react";
+import { getSportLabel } from "@/components/sport-icon";
+import { resolveCourtImage } from "@/lib/imageUrl";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
@@ -20,6 +28,10 @@ interface BookingDetail {
   id: number;
   courtId: number;
   courtName?: string;
+  courtSport?: string;
+  facilityName?: string;
+  courtAddress?: string;
+  courtCity?: string;
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
@@ -199,10 +211,10 @@ export default function BookingDetail() {
         </div>
 
         {/* Court image */}
-        {court?.imageUrl && (
+        {resolveCourtImage(court?.imageUrl, court?.type) && (
           <div className="rounded-xl overflow-hidden mb-5 h-40 bg-muted">
             <img
-              src={court.imageUrl.startsWith("http") ? court.imageUrl : `${BASE}/${court.imageUrl}`}
+              src={resolveCourtImage(court?.imageUrl, court?.type)!}
               alt={courtName}
               className="w-full h-full object-cover"
             />
@@ -248,6 +260,15 @@ export default function BookingDetail() {
             <div>
               <p className="text-xs text-muted-foreground">Rezervavo</p>
               <p className="text-sm font-medium">{booking.customerName}</p>
+            </div>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <CalendarCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Rezervuota</p>
+              <p className="text-sm font-medium">
+                {format(new Date(booking.createdAt), "yyyy-MM-dd HH:mm", { locale: lt })}
+              </p>
             </div>
           </div>
         </div>
@@ -302,11 +323,16 @@ export default function BookingDetail() {
               <div className="px-4 py-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Žaidėjai</p>
                 {splitStatus.participants.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
-                    <span className="truncate text-sm">{p.userName ?? p.userEmail ?? `Žaidėjas ${i + 1}`}</span>
+                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{p.userName ?? p.userEmail ?? `Žaidėjas ${i + 1}`}</p>
+                      {p.userEmail && p.userName && (
+                        <p className="truncate text-xs text-muted-foreground">{p.userEmail}</p>
+                      )}
+                    </div>
                     {p.paymentStatus === "paid"
-                      ? <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0 text-xs">Sumokėta</Badge>
-                      : <Badge variant="secondary" className="text-xs">Laukiama</Badge>}
+                      ? <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0 text-xs shrink-0">Sumokėta</Badge>
+                      : <Badge variant="secondary" className="text-xs shrink-0">Laukiama</Badge>}
                   </div>
                 ))}
               </div>
@@ -380,14 +406,58 @@ export default function BookingDetail() {
             <ExternalLink className="w-4 h-4 mr-2" />
             Aikštelės puslapis
           </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => window.open(`${API}/bookings/${booking.id}/ics`, "_blank")}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Pridėti į kalendorių
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex-1">
+                <Calendar className="w-4 h-4 mr-2" />
+                Pridėti į kalendorių
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                const date = booking.date.split("T")[0].replace(/-/g, "");
+                const start = date + "T" + booking.startTime.slice(0, 5).replace(":", "") + "00";
+                const end = date + "T" + booking.endTime.slice(0, 5).replace(":", "") + "00";
+                const sportLabel = getSportLabel(booking.courtSport);
+                const courtLabel = booking.courtName ?? "Kortas";
+                const title = booking.facilityName
+                  ? `${sportLabel} – ${courtLabel}, ${booking.facilityName}`
+                  : `${sportLabel} – ${courtLabel}`;
+                const addressParts = [
+                  booking.courtAddress,
+                  booking.courtCity,
+                  "Lietuva",
+                ].filter(Boolean);
+                const location = addressParts.join(", ");
+                const siteUrl = "https://korts.lt";
+                const bookingUrl = `${siteUrl}/bookings/${booking.id}`;
+                const details = [
+                  `📅 Rezervacija #${booking.id}`,
+                  `🏟 Aikštelė: ${courtLabel}`,
+                  booking.facilityName ? `🏢 Objektas: ${booking.facilityName}` : null,
+                  `⚽ Sportas: ${sportLabel}`,
+                  `💶 Kaina: ${Number(booking.totalPrice).toFixed(2)} €`,
+                  `🔗 Peržiūrėti: ${bookingUrl}`,
+                ].filter(Boolean).join("\n");
+                const url =
+                  `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+                  `&text=${encodeURIComponent(title)}` +
+                  `&dates=${start}/${end}` +
+                  `&ctz=Europe%2FVilnius` +
+                  `&details=${encodeURIComponent(details)}` +
+                  `&location=${encodeURIComponent(location)}`;
+                window.open(url, "_blank");
+              }}>
+                <img src="https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png" className="w-4 h-4 mr-2 object-contain" alt="" />
+                Google Calendar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`${API}/bookings/${booking.id}/ics`, "_blank")}>
+                <Download className="w-4 h-4 mr-2" />
+                Apple Calendar (.ics)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </Layout>

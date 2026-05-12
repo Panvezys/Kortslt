@@ -1,14 +1,62 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db, bookingsTable, courtsTable, facilitiesTable } from "@workspace/db";
-import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { requireAuth, requireOwner, getCurrentUserId } from "../lib/auth";
 import { sendNotification } from "../lib/notify";
 import { sendCustomerCancellationEmail } from "../lib/email";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+/**
+ * GET /api/owner/bookings
+ *
+ * Facility-wide bookings list for owners/admins. Returns every booking on a
+ * court that belongs to a facility the caller owns. Used by the owner payments
+ * dashboard. Players use GET /api/bookings for their personal "my bookings"
+ * view.
+ */
+router.get("/owner/bookings", requireOwner, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(
+      inArray(
+        courtsTable.facilityId,
+        db.select({ id: facilitiesTable.id })
+          .from(facilitiesTable)
+          .where(eq(facilitiesTable.ownerUserId, userId)),
+      ),
+    );
+
+  res.json(rows.map(r => ({
+    id: r.booking.id,
+    courtId: r.booking.courtId,
+    courtName: r.courtName ?? undefined,
+    customerName: r.booking.customerName,
+    customerEmail: r.booking.customerEmail,
+    customerPhone: r.booking.customerPhone ?? undefined,
+    date: r.booking.date,
+    startTime: r.booking.startTime,
+    endTime: r.booking.endTime,
+    totalPrice: Number(r.booking.totalPrice),
+    refundAmount: Number(r.booking.refundAmount ?? 0),
+    status: r.booking.status,
+    isSplit: r.booking.isSplit,
+    totalSlots: r.booking.totalSlots ?? undefined,
+    pricePerSlot: r.booking.pricePerSlot != null ? Number(r.booking.pricePerSlot) : undefined,
+    rentedItems: r.booking.rentedItems ?? undefined,
+    stripeSessionId: r.booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: r.booking.stripePaymentIntentId ?? undefined,
+    stripeRefundId: r.booking.stripeRefundId ?? undefined,
+    createdAt: r.booking.createdAt,
+  })));
+});
 
 const ForceCancelBody = z.object({
   refundAmountCents: z.number().int().min(0),

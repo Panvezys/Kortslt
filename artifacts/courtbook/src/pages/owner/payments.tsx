@@ -72,7 +72,7 @@ export default function OwnerPayments() {
 
   const { data: allBookings, isLoading } = useQuery<BookingItem[]>({
     queryKey: ["owner-bookings-all", facilityId ?? "all"],
-    queryFn: () => customFetch<BookingItem[]>(`${API_URL}/bookings`),
+    queryFn: () => customFetch<BookingItem[]>(`${API_URL}/owner/bookings`),
     select: (data) => {
       const ownerCourtIds = new Set(dashData?.courts.map(c => c.id) ?? []);
       return (Array.isArray(data) ? data : [])

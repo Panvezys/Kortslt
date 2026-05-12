@@ -200,7 +200,7 @@ type BookingItem = {
   startTime: string;
   endTime: string;
   totalPrice: number;
-  status: "pending" | "confirmed" | "cancelled" | "awaiting_players";
+  status: "pending" | "confirmed" | "cancelled" | "awaiting_players" | "blocked" | "paid";
   createdAt?: string;
   refundAmount?: number;
   isSplit?: boolean;
@@ -301,11 +301,14 @@ function CancelBookingDialog({
   );
 }
 
-function getStatusBadge(status: string, t: ReturnType<typeof useT>, refundAmount?: number) {
+function getStatusBadge(status: string, t: ReturnType<typeof useT>, refundAmount?: number, isSplit?: boolean) {
   switch (status) {
     case "confirmed":
       return <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />{t("bookings.status.confirmed")}</Badge>;
     case "pending":
+      if (isSplit) {
+        return <Badge variant="secondary" className="bg-orange-500/20 text-orange-700 dark:text-orange-400 text-xs"><Clock className="w-3 h-3 mr-1" />Laukiama mokėjimo</Badge>;
+      }
       return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-xs"><Clock className="w-3 h-3 mr-1" />{t("bookings.status.pending")}</Badge>;
     case "awaiting_players":
       return <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs"><Users className="w-3 h-3 mr-1" />Laukiama žaidėjų</Badge>;
@@ -356,7 +359,7 @@ function BookingCard({
           </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {getStatusBadge(booking.status, t, booking.refundAmount)}
+          {getStatusBadge(booking.status, t, booking.refundAmount, booking.isSplit)}
           <ChevronRight className="w-4 h-4 text-muted-foreground/50" />
         </div>
       </div>
@@ -394,10 +397,19 @@ function BookingCard({
               <span className="font-semibold">
                 €{Number(booking.totalPrice).toFixed(2)}
               </span>
-              {" · "}Liko surinkti:{" "}
-              <span className="font-semibold text-orange-500 dark:text-orange-400">
-                €{Math.max(0, Number(booking.totalPrice) - Number(booking.pricePerSlot ?? 0)).toFixed(2)}
-              </span>
+              {" · "}
+              {booking.status === "confirmed" ? (
+                <span className="font-semibold text-green-600 dark:text-green-400">Visa suma surinkta ✓</span>
+              ) : booking.status === "pending" ? (
+                <span className="font-semibold text-orange-500 dark:text-orange-400">0/{booking.totalSlots} apmokėta</span>
+              ) : (
+                <>
+                  Liko surinkti:{" "}
+                  <span className="font-semibold text-orange-500 dark:text-orange-400">
+                    €{Math.max(0, Number(booking.totalPrice) - Number(booking.pricePerSlot ?? 0)).toFixed(2)}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -503,7 +515,7 @@ export default function Bookings() {
   })();
   const startMs = (b: typeof sorted[number]) => {
     const dt = new Date(b.date);
-    const [hh, mm] = (b.startTime ?? "00:00").split(":").map(Number);
+    const [hh, mm] = (b.endTime ?? b.startTime ?? "00:00").split(":").map(Number);
     dt.setHours(hh || 0, mm || 0, 0, 0);
     return dt.getTime();
   };
@@ -605,7 +617,7 @@ export default function Bookings() {
           ) : (
             displayed.map((booking) => {
               const startDt = new Date(booking.date);
-              const [sh, sm] = (booking.startTime ?? "00:00").split(":").map(Number);
+              const [sh, sm] = (booking.endTime ?? booking.startTime ?? "00:00").split(":").map(Number);
               startDt.setHours(sh || 0, sm || 0, 0, 0);
               const isUpcoming = startDt.getTime() > Date.now() && booking.status !== "cancelled";
               return (

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe, Lock, RotateCcw, Link2 } from "lucide-react";
+import { MapPin, Users, CheckCircle2, AlertCircle, Star, Clock, Euro, Phone, Navigation, ExternalLink, LogIn, ShoppingBag, Zap, CalendarDays, Trophy, Mail, Heart, Share2, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Images, UserPlus, Check, X, Camera, Copy, Trash2, Pencil, Globe, Lock, RotateCcw, Link2, Building2 } from "lucide-react";
 import { getAmenityMeta } from "@/lib/amenities";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1183,7 +1183,9 @@ export default function CourtDetail() {
                   {/* Badges */}
                   <div className="flex gap-2 items-center mb-2">
                     <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
-                    {court.isIndoor && <Badge variant="secondary">Indoor</Badge>}
+                    {court.isIndoor !== undefined && (
+                      <Badge variant="secondary">{court.isIndoor ? t("detail.indoor") : t("detail.outdoor")}</Badge>
+                    )}
                   </div>
 
                   {/* Review score above name */}
@@ -1210,6 +1212,17 @@ export default function CourtDetail() {
                     <span className="text-sm group-hover:underline">{court.address}, {court.city}</span>
                     <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                   </a>
+
+                  {/* Facility link */}
+                  {(court as any).facilityId && (court as any).facilityName && (
+                    <button
+                      onClick={() => setLocation(`/facilities/${(court as any).facilityId}`)}
+                      className="inline-flex items-center gap-1.5 mt-1.5 text-muted-foreground hover:text-primary transition-colors group"
+                    >
+                      <Building2 className="w-4 h-4 shrink-0 group-hover:text-primary" />
+                      <span className="text-sm group-hover:underline">{(court as any).facilityName}</span>
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-1.5 mt-1.5 text-sm text-muted-foreground">
                     <Users className="w-4 h-4" />
@@ -1287,7 +1300,6 @@ export default function CourtDetail() {
                 {(() => {
                   let amenityPhotosMap: Record<string, string> = {};
                   try { amenityPhotosMap = court.amenityPhotos ? JSON.parse(court.amenityPhotos) : {}; } catch {}
-                  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
                   return (
                     <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                       {court.amenities.map((amenity, i) => {
@@ -1298,7 +1310,7 @@ export default function CourtDetail() {
                           <button
                             key={i}
                             type="button"
-                            onClick={() => setAmenityPopup({ label, photoUrl: `${base}/${photoUrl}` })}
+                            onClick={() => setAmenityPopup({ label, photoUrl: resolveCourtImage(photoUrl) ?? "" })}
                             className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border bg-muted/30 text-center hover:border-primary hover:bg-primary/5 transition-all group relative"
                             title={`Žiūrėti nuotrauką: ${label}`}
                           >

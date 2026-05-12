@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, asc, inArray as inArrayDrizzle } from "drizzle-orm";
 import {
   db,
   facilitiesTable,
   courtsTable,
+  courtPhotosTable,
   userProfilesTable,
   bookingsTable,
   gamesTable,
@@ -105,6 +106,73 @@ router.get("/facilities", requireAuth, async (req, res): Promise<void> => {
   );
 
   res.json(facilitiesWithCourts);
+});
+
+// Public landing page for a facility — shows facility info + all active courts.
+router.get("/facilities/:id/public", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid facility ID" }); return; }
+
+  const [facility] = await db
+    .select({
+      id: facilitiesTable.id,
+      name: facilitiesTable.name,
+      city: facilitiesTable.city,
+      address: facilitiesTable.address,
+      description: facilitiesTable.description,
+      verificationStatus: facilitiesTable.verificationStatus,
+    })
+    .from(facilitiesTable)
+    .where(and(eq(facilitiesTable.id, id), eq(facilitiesTable.verificationStatus, "active")));
+
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+
+  const courts = await db
+    .select({
+      id: courtsTable.id,
+      name: courtsTable.name,
+      type: courtsTable.type,
+      pricePerHour: courtsTable.pricePerHour,
+      imageUrl: courtsTable.imageUrl,
+      isIndoor: courtsTable.isIndoor,
+      rating: courtsTable.rating,
+      maxPlayers: courtsTable.maxPlayers,
+      amenities: courtsTable.amenities,
+      surface: courtsTable.surface,
+    })
+    .from(courtsTable)
+    .where(and(
+      eq(courtsTable.facilityId, id),
+      eq(courtsTable.status, "active"),
+    ));
+
+  const courtIds = courts.map(c => c.id);
+  const photoMap = new Map<number, string[]>();
+  if (courtIds.length > 0) {
+    const photos = await db
+      .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+      .from(courtPhotosTable)
+      .where(inArrayDrizzle(courtPhotosTable.courtId, courtIds))
+      .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+    for (const p of photos) {
+      const arr = photoMap.get(p.courtId) ?? [];
+      if (arr.length < 3) arr.push(p.url);
+      photoMap.set(p.courtId, arr);
+    }
+  }
+
+  res.json({
+    ...facility,
+    description: facility.description ?? undefined,
+    courts: courts.map(c => ({
+      ...c,
+      pricePerHour: Number(c.pricePerHour),
+      imageUrl: c.imageUrl ?? undefined,
+      rating: c.rating ?? undefined,
+      surface: c.surface ?? undefined,
+      photos: photoMap.get(c.id) ?? [],
+    })),
+  });
 });
 
 router.get("/facilities/:id", requireAuth, async (req, res): Promise<void> => {

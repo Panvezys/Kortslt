@@ -36,7 +36,7 @@ export const gamesTable = pgTable("games", {
 export const gameParticipantsTable = pgTable("game_participants", {
   id: serial("id").primaryKey(),
   gameId: integer("game_id").notNull().references(() => gamesTable.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
+  userId: text("user_id"),
   userName: text("user_name").notNull(),
   userEmail: text("user_email"),
   team: text("team"),

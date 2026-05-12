@@ -15,7 +15,25 @@
       "Bash(node *)",
       "Bash(curl -s \"http://localhost:8080/api/matches/open\")",
       "Bash(python3 -c \"import sys, json; d = json.load\\(sys.stdin\\); print\\('total:', d['total']\\); print\\('booked:', sum\\(1 for m in d['matches'] if m['kind'] == 'booked'\\)\\); print\\('casual:', sum\\(1 for m in d['matches'] if m['kind'] == 'casual'\\)\\)\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -m 5 http://localhost:8080/api/health)",
+      "Bash(curl -s -m 5 http://localhost:5000/api/health)",
+      "Bash(curl -s -m 5 http://localhost:3000/api/health)",
+      "Bash(netstat -tlnp)",
+      "Bash(curl *)",
+      "Bash(env)",
+      "Bash(psql --version)",
+      "Bash(PORT=8080 fuser -k 8080/tcp)",
+      "Bash(PORT=8080 nohup node --enable-source-maps ./dist/index.mjs)",
+      "Bash(ps -p 117 -o pid,etime,cmd)",
+      "Bash(kill 289)",
+      "Bash(disown)",
+      "Bash(printenv RESEND_API_KEY)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(pkill -f \"dist/index.mjs\")",
+      "Bash(PORT=8080 node --enable-source-maps ./dist/index.mjs)",
+      "Bash(python3 -m json.tool)",
+      "Bash(printenv)"
     ]
   }
 }

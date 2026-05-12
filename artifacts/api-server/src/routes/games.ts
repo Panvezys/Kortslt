@@ -163,7 +163,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
   const resultByGame = new Map(results.map(r => [r.gameId, r]));
 
   // Get ELO ratings only for the relevant user IDs across these games
-  const allUserIds = [...new Set(allParticipants.map(p => p.userId))];
+  const allUserIds = [...new Set(allParticipants.map(p => p.userId).filter((id): id is string => id !== null))];
   const ratings = allUserIds.length > 0
     ? await db.select().from(userRatingsTable).where(inArray(userRatingsTable.userId, allUserIds))
     : [];
@@ -265,7 +265,7 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
         userId: p.userId,
         userName: p.userName,
         team: p.team,
-        elo: ratingMap.get(ratingKey(p.userId, g.sport)) ?? 1200,
+        elo: p.userId ? (ratingMap.get(ratingKey(p.userId, g.sport)) ?? 1200) : 1200,
       })),
     };
   });
@@ -354,12 +354,15 @@ router.get("/games/:id", async (req, res): Promise<void> => {
 
   // Fetch ELO ratings + reliability scores for participants
   const participantRatings = await Promise.all(
-    participants.map(p => db.select().from(userRatingsTable)
-      .where(and(eq(userRatingsTable.userId, p.userId), eq(userRatingsTable.sportSlug, g.sport)))
-      .limit(1).then(rows => ({ userId: p.userId, elo: rows[0]?.elo ?? 1200 })))
+    participants.map(p => {
+      if (!p.userId) return Promise.resolve({ userId: p.userId, elo: 1200 });
+      return db.select().from(userRatingsTable)
+        .where(and(eq(userRatingsTable.userId, p.userId), eq(userRatingsTable.sportSlug, g.sport)))
+        .limit(1).then(rows => ({ userId: p.userId, elo: rows[0]?.elo ?? 1200 }));
+    })
   );
   const ratingMap = new Map(participantRatings.map(r => [r.userId, r.elo]));
-  const reliabilityMap = await getReliabilityMap(participants.map(p => p.userId));
+  const reliabilityMap = await getReliabilityMap(participants.map(p => p.userId).filter((id): id is string => id !== null));
 
   const gameData = formatGame(g, participants.length, isJoined, isCreator);
   // Expose internal user IDs only to authenticated game participants, not public visitors
@@ -372,7 +375,7 @@ router.get("/games/:id", async (req, res): Promise<void> => {
     participants: participants.map(p => ({
       ...(isAuthenticatedParticipant ? formatParticipantWithId(p) : formatParticipant(p)),
       elo: ratingMap.get(p.userId) ?? 1200,
-      reliabilityScore: reliabilityMap.get(p.userId) ?? 100,
+      reliabilityScore: p.userId ? (reliabilityMap.get(p.userId) ?? 100) : 100,
       isOrganizer: p.userId === g.creatorUserId,
     })),
     pendingParticipants: pendingParticipants.map(p => formatParticipantWithId(p)),
@@ -445,7 +448,7 @@ router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
 
   const {
     sport, city, placeName, playersNeeded, skillLevel, datetime, durationMinutes,
-    description, status,
+    description,
   } = req.body ?? {};
 
   const [updated] = await db.update(gamesTable).set({
@@ -457,7 +460,6 @@ router.put("/games/:id", requireAuth, async (req, res): Promise<void> => {
     ...(datetime !== undefined && { datetime }),
     ...(durationMinutes !== undefined && { durationMinutes }),
     ...(description !== undefined && { description: description ?? null }),
-    ...(status !== undefined && { status }),
   }).where(eq(gamesTable.id, id)).returning();
 
   res.json(formatGame(updated, 0, false, true));
@@ -792,14 +794,15 @@ router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<vo
   if (action === "reject") {
     await db.update(gameParticipantsTable).set({ status: "rejected" })
       .where(eq(gameParticipantsTable.id, participantId));
-    // Notify applicant
-    await sendNotification(
-      participant.userId,
-      "game_join_rejected",
-      "Prašymas prisijungti atmestas",
-      `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo atmestas.`,
-      `/matches/${id}`,
-    );
+    if (participant.userId) {
+      await sendNotification(
+        participant.userId,
+        "game_join_rejected",
+        "Prašymas prisijungti atmestas",
+        `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo atmestas.`,
+        `/matches/${id}`,
+      );
+    }
     res.json({ ok: true, action: "rejected" }); return;
   }
 
@@ -820,14 +823,15 @@ router.post("/games/:id/approve-join", requireAuth, async (req, res): Promise<vo
     await db.update(gamesTable).set({ status: "full" }).where(eq(gamesTable.id, id));
   }
 
-  // Notify applicant of approval
-  await sendNotification(
-    participant.userId,
-    "game_join_approved",
-    "Prašymas prisijungti patvirtintas!",
-    `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo patvirtintas!`,
-    `/games/${id}`,
-  );
+  if (participant.userId) {
+    await sendNotification(
+      participant.userId,
+      "game_join_approved",
+      "Prašymas prisijungti patvirtintas!",
+      `Jūsų prašymas prisijungti prie ${sportLabel} žaidimo ${gameDate} buvo patvirtintas!`,
+      `/games/${id}`,
+    );
+  }
 
   res.json({ ok: true, action: "approved" });
 });
@@ -1052,7 +1056,7 @@ router.post("/games/:id/result", requireAuth, async (req, res): Promise<void> =>
     .where(and(eq(gameParticipantsTable.gameId, id), eq(gameParticipantsTable.status, "joined")));
 
   for (const p of participants) {
-    if (p.userId !== userId) {
+    if (p.userId && p.userId !== userId) {
       await sendNotification(
         p.userId,
         "result_confirmation",
@@ -1648,8 +1652,12 @@ export async function applyResultElo(gameResultId: number): Promise<void> {
   const effectiveTeamA = teamAPlayers.length ? teamAPlayers : unassigned.slice(0, Math.ceil(unassigned.length / 2));
   const effectiveTeamB = teamBPlayers.length ? teamBPlayers : unassigned.slice(Math.ceil(unassigned.length / 2));
 
-  const teamAWithElo = await Promise.all(effectiveTeamA.map(async p => ({ userId: p.userId, elo: (await getOrCreateRating(p.userId, g.sport)).elo })));
-  const teamBWithElo = await Promise.all(effectiveTeamB.map(async p => ({ userId: p.userId, elo: (await getOrCreateRating(p.userId, g.sport)).elo })));
+  const teamAWithElo = await Promise.all(
+    effectiveTeamA.filter(p => p.userId !== null).map(async p => ({ userId: p.userId!, elo: (await getOrCreateRating(p.userId!, g.sport)).elo }))
+  );
+  const teamBWithElo = await Promise.all(
+    effectiveTeamB.filter(p => p.userId !== null).map(async p => ({ userId: p.userId!, elo: (await getOrCreateRating(p.userId!, g.sport)).elo }))
+  );
 
   const winner: "A" | "B" | "draw" =
     result.scoreTeamA > result.scoreTeamB ? "A" :

@@ -180,6 +180,8 @@ export const BookingStatus = {
   confirmed: "confirmed",
   cancelled: "cancelled",
   awaiting_players: "awaiting_players",
+  blocked: "blocked",
+  paid: "paid",
 } as const;
 
 export interface Booking {

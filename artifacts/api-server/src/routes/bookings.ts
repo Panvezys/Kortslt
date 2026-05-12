@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, or, sql, ne } from "drizzle-orm";
+import { eq, and, or, sql, ne } from "drizzle-orm";
 import { db, bookingsTable, courtsTable, courtPricingTable, courtBlockedSlotsTable, facilitiesTable, waitlistsTable } from "@workspace/db";
 import { sendNotification } from "../lib/notify";
 import { sendCustomerCancellationEmail, sendOwnerCancellationEmail, sendWaitlistNotificationEmail } from "../lib/email";
@@ -147,19 +147,9 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-  } else if (role === "owner") {
-    // Owner can see bookings for courts they own directly OR for courts that
-    // belong to a facility they own (facility-inherited ownership).
-    conditions.push(
-      inArray(
-        courtsTable.facilityId,
-        db.select({ id: facilitiesTable.id })
-          .from(facilitiesTable)
-          .where(eq(facilitiesTable.ownerUserId, userId))
-      ),
-    );
-    query = query.where(and(...conditions));
   } else {
+    // "My bookings" — always scoped to the authenticated booker, regardless of
+    // role. Owners use GET /api/owner/bookings for the facility-wide view.
     conditions.push(eq(bookingsTable.bookerUserId, userId));
     query = query.where(and(...conditions));
   }
@@ -411,7 +401,15 @@ router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   const userId = getCurrentUserId(req)!;
 
   const rows = await db
-    .select({ booking: bookingsTable, courtName: courtsTable.name, facilityOwnerUserId: facilitiesTable.ownerUserId })
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtSport: courtsTable.type,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+      facilityName: facilitiesTable.name,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+    })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
@@ -422,7 +420,7 @@ router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, courtName, facilityOwnerUserId } = rows[0];
+  const { booking, courtName, courtSport, facilityOwnerUserId, facilityName, courtAddress, courtCity } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
   const isCourOwner = facilityOwnerUserId === userId;
@@ -432,7 +430,20 @@ router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetBookingResponse.parse(formatBooking(booking, courtName ?? undefined)));
+  const formatted = formatBooking(booking, courtName ?? undefined);
+  // managementToken is the sole credential for guest booking management — only return
+  // it to the booker themselves, never to court owners or admins.
+  if (!isBooker) {
+    delete (formatted as any).managementToken;
+  }
+
+  res.json(GetBookingResponse.parse({
+    ...formatted,
+    courtSport: courtSport ?? undefined,
+    facilityName: facilityName ?? undefined,
+    courtAddress: courtAddress ?? undefined,
+    courtCity: courtCity ?? undefined,
+  }));
 });
 
 router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
@@ -703,9 +714,11 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
     .select({
       booking: bookingsTable,
       courtName: courtsTable.name,
+      courtSport: courtsTable.type,
       courtId: courtsTable.id,
       courtAddress: facilitiesTable.address,
       courtCity: facilitiesTable.city,
+      facilityName: facilitiesTable.name,
       facilityOwnerUserId: facilitiesTable.ownerUserId,
     })
     .from(bookingsTable)
@@ -718,7 +731,7 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  const { booking, courtName, courtId, courtAddress, courtCity, facilityOwnerUserId } = rows[0];
+  const { booking, courtName, courtSport, courtId, courtAddress, courtCity, facilityName, facilityOwnerUserId } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
   const isCourtOwner = facilityOwnerUserId === userId;
@@ -737,6 +750,20 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
   const now = new Date();
   const dtstamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
+  const courtLabel = courtName ?? "Kortas";
+  const summary = facilityName
+    ? `${courtSport ?? "Sportas"} – ${courtLabel}, ${facilityName}`
+    : `${courtSport ?? "Sportas"} – ${courtLabel}`;
+  const locationParts = [courtAddress, courtCity, "Lietuva"].filter(Boolean);
+  const description = [
+    `Rezervacija #${booking.id} per korts.lt`,
+    `Aikštelė: ${courtLabel}`,
+    facilityName ? `Objektas: ${facilityName}` : null,
+    courtSport ? `Sportas: ${courtSport}` : null,
+    `Kaina: ${Number(booking.totalPrice).toFixed(2)} €`,
+    `Nuoroda: ${siteUrl}/bookings/${booking.id}`,
+  ].filter(Boolean).join("\\n");
+
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -748,10 +775,10 @@ router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => 
     `DTSTAMP:${dtstamp}`,
     `DTSTART;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.startTime)}`,
     `DTEND;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.endTime)}`,
-    `SUMMARY:Korto rezervacija – ${courtName ?? "Kortas"}`,
-    `DESCRIPTION:Rezervacija #${booking.id} per korts.lt\\n${siteUrl}/courts/${courtId}`,
-    `LOCATION:${courtAddress ?? ""}, ${courtCity ?? ""}, Lietuva`,
-    `URL:${siteUrl}/courts/${courtId}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${locationParts.join(", ")}`,
+    `URL:${siteUrl}/bookings/${booking.id}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
@@ -876,5 +903,24 @@ router.post("/owner/bookings/manual", requireAuth, async (req, res): Promise<voi
 
   res.status(201).json(formatBooking(booking, court.name));
 });
+
+// ─── Sweeper (called from cron) ──────────────────────────────────────────────
+// Cancels single-payer bookings that have been stuck in `pending` for > 15 min.
+// These rows are created by POST /bookings but never reach `confirmed` because
+// the user abandoned the Stripe checkout (or never even started it). Split
+// bookings transition out of `pending` via /payments/confirm-split — those are
+// covered by sweepStalePendingGames in routes/games.ts, so we exclude them here.
+export async function sweepAbandonedPendingBookings(): Promise<number> {
+  const cancelled = await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(and(
+      eq(bookingsTable.status, "pending"),
+      eq(bookingsTable.isSplit, false),
+      sql`${bookingsTable.createdAt} < NOW() - INTERVAL '15 minutes'`,
+    ))
+    .returning({ id: bookingsTable.id });
+  return cancelled.length;
+}
 
 export default router;

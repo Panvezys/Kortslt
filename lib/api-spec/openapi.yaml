@@ -829,7 +829,7 @@ components:
           type: number
         status:
           type: string
-          enum: [pending, confirmed, cancelled, awaiting_players]
+          enum: [pending, confirmed, cancelled, awaiting_players, blocked, paid]
         stripeSessionId:
           type: string
         refundAmount:

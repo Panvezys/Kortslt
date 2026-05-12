@@ -22,6 +22,7 @@ import {
 } from "@workspace/db";
 
 import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { getAuth } from "@clerk/express";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 import { sendSplitBookingCreatedEmail, sendSplitPlayerJoinedEmail, sendSplitParticipantConfirmationEmail } from "../lib/email";
@@ -206,7 +207,16 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   // ── Create or reuse linked game ───────────────────────────────────────────
   let gameId: number;
   if (linkGameId) {
-    // Upgrade flow: skip game creation; the existing game will be updated after payment confirms.
+    // Upgrade flow: verify the caller owns the game before linking it.
+    const [targetGame] = await db.select().from(gamesTable).where(eq(gamesTable.id, linkGameId));
+    if (!targetGame) {
+      res.status(404).json({ error: "Linked game not found" });
+      return;
+    }
+    if (targetGame.creatorUserId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     gameId = linkGameId;
   } else {
     const [newGame] = await db.insert(gamesTable).values({
@@ -398,7 +408,8 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
 // Called by booking-confirmed.tsx when ?split=1 is present.
 // Marks the host participant as paid, moves booking→awaiting_players, game→awaiting_players.
 
-router.post("/payments/confirm-split", async (req, res): Promise<void> => {
+router.post("/payments/confirm-split", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
   const sessionId = String(req.body?.sessionId ?? "");
   if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
 
@@ -412,6 +423,7 @@ router.post("/payments/confirm-split", async (req, res): Promise<void> => {
   if (!rows[0]) { res.status(404).json({ error: "Booking not found for session" }); return; }
   const { booking, court } = rows[0];
   if (!booking.isSplit) { res.status(400).json({ error: "Not a split booking" }); return; }
+  if (booking.bookerUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
 
   // Verify Stripe payment and read metadata (skip for mocks)
   let linkGameId: number | null = null;
@@ -617,9 +629,26 @@ router.get("/bookings/share/:token", async (req, res): Promise<void> => {
 
 // ─── POST /api/bookings/share/:token/checkout ─────────────────────────────────
 
-router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Promise<void> => {
-  const userId = getCurrentUserId(req)!;
+router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> => {
+  const { userId } = getAuth(req); // null for unauthenticated guests
   const token = String(req.params.token);
+
+  // Guests must supply name + email
+  const isGuest = !userId;
+  let guestName: string | null = null;
+  let guestEmail: string | null = null;
+  if (isGuest) {
+    guestName = (req.body?.guestName as string | undefined)?.trim() ?? null;
+    guestEmail = (req.body?.guestEmail as string | undefined)?.trim() ?? null;
+    if (!guestName || !guestEmail) {
+      res.status(400).json({ error: "Vardas ir el. paštas privalomi" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+      res.status(400).json({ error: "Neteisingas el. pašto adresas" });
+      return;
+    }
+  }
 
   const rows = await db
     .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
@@ -636,8 +665,8 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
   if (booking.status === "cancelled") { res.status(410).json({ error: "Booking was cancelled" }); return; }
   if (booking.status === "confirmed") { res.status(409).json({ error: "Booking fully paid" }); return; }
 
-  // Prevent host from joining again via invite link
-  if (booking.bookerUserId === userId) {
+  // Prevent authenticated host from joining again via invite link
+  if (!isGuest && booking.bookerUserId === userId) {
     res.status(409).json({ error: "Tu jau esi šio žaidimo organizatorius" });
     return;
   }
@@ -655,8 +684,8 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
       eq(gameParticipantsTable.status, "joined"),
     ));
 
-  // Skill level gate for public matches
-  if (game.visibility === "public" && (game.minSkillLevel != null || game.maxSkillLevel != null)) {
+  // Skill level gate for public matches (authenticated users only)
+  if (!isGuest && userId && game.visibility === "public" && (game.minSkillLevel != null || game.maxSkillLevel != null)) {
     const [sportProfile] = await db
       .select({ skillScore: userSportProfilesTable.skillScore })
       .from(userSportProfilesTable)
@@ -678,20 +707,21 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
     }
   }
 
-  // Check if user already has a slot (paid or pending)
-  const alreadyJoined = existingParticipants.find(p => p.userId === userId);
-  if (alreadyJoined) {
-    if (alreadyJoined.paymentStatus === "paid") {
-      res.status(409).json({ error: "Tu jau sumokėjai savo dalį" });
-    } else {
-      // Has a pending slot — re-use it, return the existing checkout URL via metadata
-      res.status(409).json({ error: "Turi laukiančią mokėjimo sesiją. Užbaik mokėjimą arba bandyk vėliau." });
+  // Check if authenticated user already has a slot (paid or pending)
+  if (!isGuest) {
+    const alreadyJoined = existingParticipants.find(p => p.userId === userId);
+    if (alreadyJoined) {
+      if (alreadyJoined.paymentStatus === "paid") {
+        res.status(409).json({ error: "Tu jau sumokėjai savo dalį" });
+      } else {
+        res.status(409).json({ error: "Turi laukiančią mokėjimo sesiją. Užbaik mokėjimą arba bandyk vėliau." });
+      }
+      return;
     }
-    return;
   }
 
   // Check slots available
-  const activePlayers = existingParticipants.length; // joined but may be pending or paid
+  const activePlayers = existingParticipants.length;
   if (activePlayers >= (booking.totalSlots ?? 1)) {
     res.status(409).json({ error: "Visos dalys jau užimtos" });
     return;
@@ -703,13 +733,14 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
   const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
   const base = process.env.BASE_PATH ?? "";
 
-  const userName = (req.body?.playerName as string | undefined) ?? "Žaidėjas";
-  const userEmail = (req.body?.playerEmail as string | undefined) ?? "";
+  const userName = isGuest ? guestName! : ((req.body?.playerName as string | undefined) ?? "Žaidėjas");
+  const userEmail = isGuest ? guestEmail! : ((req.body?.playerEmail as string | undefined) ?? "");
 
   const successUrl = `${origin}${base}/join/${token}?paid=1`;
   const cancelUrl = `${origin}${base}/join/${token}?cancelled=1`;
 
   let checkoutUrl: string;
+  let participant: typeof gameParticipantsTable.$inferSelect | undefined;
 
   try {
     const stripe = await getUncachableStripeClient();
@@ -726,9 +757,9 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
     }
 
     // Create participant first (so we have the id for metadata)
-    const [participant] = await db.insert(gameParticipantsTable).values({
+    [participant] = await db.insert(gameParticipantsTable).values({
       gameId: game.id,
-      userId,
+      userId: isGuest ? null : userId,
       userName,
       userEmail: userEmail || null,
       status: "joined",
@@ -781,16 +812,24 @@ router.post("/bookings/share/:token/checkout", requireAuth, async (req, res): Pr
   } catch (err: any) {
     if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
       const mockId = `mock_split_join_${booking.id}_${Date.now()}`;
-      await db.insert(gameParticipantsTable).values({
-        gameId: game.id,
-        userId,
-        userName,
-        userEmail: userEmail || null,
-        status: "joined",
-        source: "join_request",
-        paymentStatus: "paid",
-        stripeSessionId: mockId,
-      });
+      if (participant) {
+        // Participant was already inserted in the try block — update it to paid instead of
+        // inserting a duplicate row.
+        await db.update(gameParticipantsTable)
+          .set({ paymentStatus: "paid", stripeSessionId: mockId })
+          .where(eq(gameParticipantsTable.id, participant.id));
+      } else {
+        await db.insert(gameParticipantsTable).values({
+          gameId: game.id,
+          userId: isGuest ? null : userId,
+          userName,
+          userEmail: userEmail || null,
+          status: "joined",
+          source: "join_request",
+          paymentStatus: "paid",
+          stripeSessionId: mockId,
+        });
+      }
 
       // Check if all paid
       const allParticipants = await db

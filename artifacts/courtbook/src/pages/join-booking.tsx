@@ -4,9 +4,11 @@ import { useUser, useClerk } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, MapPin, Euro, Users, CheckCircle2, AlertCircle, Loader2, LogIn, Calendar } from "lucide-react";
+import { Clock, MapPin, Euro, Users, CheckCircle2, AlertCircle, Loader2, LogIn, Calendar, UserX } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -42,6 +44,11 @@ export default function JoinBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
 
+  // Guest mode state
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const isPaid = params.get("paid") === "1";
   const isCancelled = params.get("cancelled") === "1";
@@ -73,6 +80,35 @@ export default function JoinBookingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerName: name, playerEmail: email }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.error ?? "Nepavyko inicijuoti mokėjimo");
+      }
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Klaida", description: err.message ?? "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleGuestJoin = async () => {
+    if (!info || !token) return;
+    const name = guestName.trim();
+    const email = guestEmail.trim();
+    if (!name || !email) {
+      toast({ title: "Klaida", description: "Įveskite vardą ir el. paštą.", variant: "destructive" });
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const resp = await fetch(`${API}/bookings/share/${token}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestName: name, guestEmail: email }),
       });
       if (!resp.ok) {
         const data = await resp.json();
@@ -229,9 +265,11 @@ export default function JoinBookingPage() {
                 ? "Visi žaidėjai sumokėjo — rezervacija patvirtinta!"
                 : `Laukiama likusių ${info.totalSlots - info.paidSlots} žaidėjų mokėjimo.`}
             </p>
-            <Button variant="outline" className="w-full" onClick={() => navigate("/bookings")}>
-              Mano rezervacijos
-            </Button>
+            {isSignedIn && (
+              <Button variant="outline" className="w-full" onClick={() => navigate("/bookings")}>
+                Mano rezervacijos
+              </Button>
+            )}
           </div>
         ) : allPaid || noSlotsLeft ? (
           <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted border text-center">
@@ -243,15 +281,70 @@ export default function JoinBookingPage() {
         ) : !isLoaded ? (
           <div className="h-12 w-full bg-muted rounded-xl animate-pulse" />
         ) : !isSignedIn ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground text-center">
-              Prisijunk, kad sumokėtum savo dalį.
-            </p>
-            <Button className="button-primary w-full gap-2" onClick={() => openSignIn()}>
-              <LogIn className="w-4 h-4" />
-              Prisijungti ir mokėti
-            </Button>
-          </div>
+          guestMode ? (
+            /* Guest form */
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Įveskite savo duomenis mokėjimui. Patvirtinimas bus išsiųstas el. paštu.
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-name">Vardas</Label>
+                  <Input
+                    id="guest-name"
+                    placeholder="Jūsų vardas"
+                    value={guestName}
+                    onChange={e => setGuestName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-email">El. paštas</Label>
+                  <Input
+                    id="guest-email"
+                    type="email"
+                    placeholder="jusu@email.lt"
+                    value={guestEmail}
+                    onChange={e => setGuestEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                  />
+                </div>
+              </div>
+              <Button
+                className="button-primary w-full h-12 text-base font-semibold gap-2"
+                onClick={handleGuestJoin}
+                disabled={joining || !guestName.trim() || !guestEmail.trim()}
+              >
+                {joining ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Kraunama…</>
+                ) : (
+                  <><Euro className="w-4 h-4" /> Mokėti {info.pricePerSlot.toFixed(2)} €</>
+                )}
+              </Button>
+              <button
+                className="text-xs text-muted-foreground w-full text-center hover:text-foreground transition-colors"
+                onClick={() => setGuestMode(false)}
+              >
+                ← Atgal
+              </button>
+            </div>
+          ) : (
+            /* Sign-in or guest choice */
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground text-center">
+                Pasirinkite, kaip norite sumokėti savo dalį.
+              </p>
+              <Button className="button-primary w-full gap-2" onClick={() => openSignIn()}>
+                <LogIn className="w-4 h-4" />
+                Prisijungti
+              </Button>
+              <Button variant="outline" className="w-full gap-2" onClick={() => setGuestMode(true)}>
+                <UserX className="w-4 h-4" />
+                Tęsti be registracijos
+              </Button>
+            </div>
+          )
         ) : (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground text-center">

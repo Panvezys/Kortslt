@@ -1819,7 +1819,7 @@
         "source": "git-subdir",
         "url": "https://github.com/ServiceNow/sdk.git",
         "path": "providers/claude/plugin",
-        "ref": "main",
+        "ref": "master",
         "sha": "06adf37ca78c270a57f93e7b9dfbb7bf16e24611"
       },
       "homepage": "https://servicenow.github.io/sdk/"

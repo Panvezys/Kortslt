@@ -96,6 +96,7 @@ function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
     socialWebsite: c.socialWebsite ?? undefined,
     instantBookingEnabled: c.instantBookingEnabled ?? true,
     facilityId: c.facilityId,
+    facilityName: facility?.name ?? undefined,
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
     createdAt: c.createdAt,

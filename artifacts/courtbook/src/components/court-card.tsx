@@ -60,8 +60,8 @@ export function CourtCard({ court }: { court: Court }) {
     const extras = ((court as any).photos as string[] | undefined) ?? [];
     for (const p of extras) {
       if (!p) continue;
-      const resolved = p.startsWith("http") || p.startsWith("/") ? p : `${BASE}/${p}`;
-      if (!list.includes(resolved)) list.push(resolved);
+      const resolved = resolveCourtImage(p) ?? "";
+      if (resolved && !list.includes(resolved)) list.push(resolved);
       if (list.length >= 3) break;
     }
     return list;

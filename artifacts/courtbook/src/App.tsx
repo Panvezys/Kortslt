@@ -16,6 +16,7 @@ import { ClerkLoadFailureBanner } from "@/components/ClerkLoadFailureBanner";
 
 import Home from "@/pages/home";
 import Courts from "@/pages/courts";
+import FacilityPage from "@/pages/facility";
 import CourtDetail from "@/pages/court-detail";
 import Bookings from "@/pages/bookings";
 import BookingDetail from "@/pages/booking-detail";
@@ -211,6 +212,7 @@ function Router() {
       <Route path="/" component={HomeRoute} />
       <Route path="/courts" component={Courts} />
       <Route path="/courts/:id" component={CourtDetail} />
+      <Route path="/facilities/:id" component={FacilityPage} />
       <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
       <Route path="/guest/booking/:token" component={GuestBooking} />
