@@ -1068,7 +1068,7 @@ export default function CourtDetail() {
       )}
 
       <div className="container mx-auto px-4 pt-4 pb-24 md:pb-24">
-        <div className="grid md:grid-cols-3 gap-4 items-start">
+        <div className="grid md:grid-cols-3 gap-4">
 
           {/* Left column: Gallery + Court Info */}
           <div className="md:col-span-2 space-y-6">
