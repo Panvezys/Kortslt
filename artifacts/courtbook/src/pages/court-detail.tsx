@@ -25,6 +25,7 @@ import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useTheme } from "@/components/theme-provider";
 import { openChat } from "@/components/chat-bubble";
 import { GuestCheckoutDialog } from "@/components/guest-checkout-dialog";
+import { Switch } from "@/components/ui/switch";
 import { BookingSummaryDialog } from "@/components/booking-summary-dialog";
 import { SPORT_LABELS, SportPill } from "@/components/sport-icon";
 import { WeatherWidget } from "@/components/weather-widget";
@@ -1848,9 +1849,7 @@ export default function CourtDetail() {
                         <p className="text-xs text-muted-foreground">Rezervuoti kas savaitę</p>
                       </div>
                     </div>
-                    <span className={`w-9 h-5 rounded-full relative transition-colors shrink-0 overflow-hidden ${recurringEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${recurringEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-                    </span>
+                    <Switch checked={recurringEnabled} onCheckedChange={setRecurringEnabled} />
                   </button>
                   {recurringEnabled && (
                     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-primary/5 border-primary/20 text-sm">
@@ -1997,9 +1996,7 @@ export default function CourtDetail() {
                         </span>
                       )}
                     </span>
-                    <span className={`w-9 h-5 rounded-full transition-colors relative shrink-0 overflow-hidden ${splitEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${splitEnabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
-                    </span>
+                    <Switch checked={splitEnabled} onCheckedChange={setSplitEnabled} />
                   </button>
                   {splitEnabled && (
                     <div className="px-3 pb-3 border-t pt-2.5 space-y-2 bg-muted/10">
@@ -2039,9 +2036,7 @@ export default function CourtDetail() {
                             <Globe className="w-3.5 h-3.5 text-primary" />
                             Ieškau žaidėjų (Viešas mačas)
                           </span>
-                          <span className={`w-8 h-4 rounded-full transition-colors relative shrink-0 overflow-hidden ${isPublicMatch ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${isPublicMatch ? "translate-x-[17px]" : "translate-x-0.5"}`} />
-                          </span>
+                          <Switch checked={isPublicMatch} onCheckedChange={setIsPublicMatch} />
                         </button>
                         {isPublicMatch && (
                           <div className="space-y-2 pl-5">
