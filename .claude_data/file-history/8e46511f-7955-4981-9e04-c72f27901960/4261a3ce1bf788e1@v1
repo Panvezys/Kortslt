@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { desc, eq, or, and, inArray } from "drizzle-orm";
 import { db, messagesTable, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
-import { getAuth, clerkClient } from "@clerk/express";
+import { getAuth } from "@clerk/express";
 
 const router: IRouter = Router();
 
@@ -143,21 +143,10 @@ router.get("/courts/:id/messages", requireAuth, async (req, res): Promise<void> 
 router.post("/courts/:id/messages", requireAuth, async (req, res): Promise<void> => {
   const courtId = Number(req.params.id);
   const { userId: senderUserId } = getAuth(req);
-  const { body, threadUserId } = req.body ?? {};
-  if (Number.isNaN(courtId) || !body) {
+  const { senderName, senderEmail, body, threadUserId } = req.body ?? {};
+  if (Number.isNaN(courtId) || !senderName || !senderEmail || !body) {
     res.status(400).json({ error: "Missing required fields" });
     return;
-  }
-
-  // Resolve sender identity from Clerk — never trust client-supplied name/email.
-  let senderName = "Vartotojas";
-  let senderEmail = "";
-  try {
-    const clerkUser = await clerkClient.users.getUser(senderUserId!);
-    senderName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "Vartotojas";
-    senderEmail = clerkUser.emailAddresses[0]?.emailAddress ?? "";
-  } catch {
-    // Clerk unavailable (e.g. no CLERK_SECRET_KEY in dev) — proceed with defaults.
   }
 
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));

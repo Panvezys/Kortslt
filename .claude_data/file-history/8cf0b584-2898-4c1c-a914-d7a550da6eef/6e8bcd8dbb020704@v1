@@ -1,87 +1,25 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
-import { requireAuth, requireAdmin, requireOwner } from "../lib/auth";
+import { requireAuth, requireAdmin } from "../lib/auth";
 import { getAuth } from "@clerk/express";
 import { ADMIN_NOTIF_USER } from "../lib/notify";
-
-const OWNER_NOTIF_TYPES = [
-  "booking_created",
-  "booking_cancelled",
-  "court_approved",
-  "court_rejected",
-  "facility_approved",
-  "facility_rejected",
-  "coach_approved",
-  "coach_rejected",
-  "court_coach_approved",
-  "court_coach_rejected",
-  "coach_invite",
-  "coach_application",
-  "tournament_pending_review",
-  "tournament_approved",
-  "tournament_rejected",
-];
 
 const router: IRouter = Router();
 
 /** GET /notifications — fetch notifications for the authenticated user (newest first) */
 router.get("/notifications", requireAuth, async (req, res): Promise<void> => {
   const { userId } = getAuth(req);
-  const limit = Math.min(Number(req.query.limit) || 50, 200);
-  const offset = Number(req.query.offset) || 0;
 
   const rows = await db
     .select()
     .from(notificationsTable)
     .where(eq(notificationsTable.userId, userId!))
     .orderBy(desc(notificationsTable.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .limit(50);
 
   res.set("Cache-Control", "no-store");
   res.json(rows);
-});
-
-/** GET /owner/notifications — fetch owner-specific notifications for the authenticated owner */
-router.get("/owner/notifications", requireOwner, async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-  const limit = Math.min(Number(req.query.limit) || 100, 200);
-  const offset = Number(req.query.offset) || 0;
-
-  const rows = await db
-    .select()
-    .from(notificationsTable)
-    .where(
-      and(
-        eq(notificationsTable.userId, userId!),
-        inArray(notificationsTable.type, OWNER_NOTIF_TYPES),
-      )
-    )
-    .orderBy(desc(notificationsTable.createdAt))
-    .limit(limit)
-    .offset(offset);
-
-  res.set("Cache-Control", "no-store");
-  res.json(rows);
-});
-
-/** POST /owner/notifications/read-all — mark all owner-type notifications as read */
-router.post("/owner/notifications/read-all", requireOwner, async (req, res): Promise<void> => {
-  const { userId } = getAuth(req);
-
-  await db
-    .update(notificationsTable)
-    .set({ read: true })
-    .where(
-      and(
-        eq(notificationsTable.userId, userId!),
-        inArray(notificationsTable.type, OWNER_NOTIF_TYPES),
-        eq(notificationsTable.read, false),
-      )
-    );
-
-  res.json({ ok: true });
 });
 
 /** PATCH /notifications/:id/read — mark one notification as read (must belong to caller) */

@@ -1,0 +1,12 @@
+Let's patch the remaining High-severity vulnerabilities (VULN-05 and VULN-06).
+
+Phase 1: Fix VULN-05 (Data Leak in `payments.ts`)
+- In `POST /payments/confirm`, locate where the response is sent back to the client (both in the success branch and the idempotent "already confirmed" branch).
+- Ensure that `managementToken` is STRICTLY EXCLUDED from the JSON response payload. The guest should only receive this token via their secure confirmation email, never over an API response that can be polled using just the `sessionId`.
+
+Phase 2: Fix VULN-06 (Email Spoofing in `messages.ts`)
+- In `POST /courts/:id/messages`, stop trusting `senderEmail` and `senderName` from `req.body`.
+- Since this route requires authentication, retrieve the user's real email and name directly from the database (using `req.userId` to look up the `users` table) or via the Clerk Auth context/SDK.
+- Override the message payload with this trusted, server-side data before inserting it into the database so an attacker cannot spoof the reply-to address.
+
+Please implement these fixes, run the typechecker, and confirm when the patches are applied.

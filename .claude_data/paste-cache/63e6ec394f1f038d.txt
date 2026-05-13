@@ -1,0 +1,16 @@
+The backend is secure. Let's implement the "Claim Profile" growth loop to convert guest checkouts into registered users.
+
+Please build this in two phases:
+
+1. The Clerk Webhook (Backend Stitching):
+   - Create or update a webhook handler for Clerk (e.g., `POST /api/webhooks/clerk`). Ensure it uses `svix` to verify the webhook signature.
+   - Listen for the `user.created` event. Extract the new user's `id` and their primary `email_address`.
+   - Run a Drizzle `UPDATE` on the `game_participants` table: 
+     Set `user_id = {newClerkId}`, `guest_email = NULL`, and `guest_name = NULL` WHERE `guest_email = {newClerkEmail}`.
+   - (Optional: Do the same for the `bookings` table to link primary guest bookings).
+
+2. The Post-Payment UI (`success.tsx` or similar):
+   - On the payment success page, check if the user is unauthenticated (`userId === null`).
+   - If they are a guest, extract their email from the Stripe session (you may need to fetch the session details if you only have the ID).
+   - Render a "Claim Profile" section with a clean UI: "Mokėjimas sėkmingas! Sukurkite paskyrą, kad nereikėtų vesti duomenų kitą kartą."
+   - Embed the Clerk `<SignUp />` component inside this section, using the `initialValues` prop to pre-fill their email address so they only have to type a password.

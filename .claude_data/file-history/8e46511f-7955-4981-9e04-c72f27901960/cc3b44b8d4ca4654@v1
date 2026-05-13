@@ -4,14 +4,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import {
   CheckCircle2, Calendar, Clock, ArrowRight, Loader2, XCircle,
-  Users, Copy, Check, Globe, Share2, ExternalLink, CreditCard, UserPlus,
+  Users, Copy, Check, Globe, Share2, ExternalLink, CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { useSafeAuth } from "@/lib/safeAuth";
-import { SignUp } from "@clerk/react";
-
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -25,7 +21,6 @@ interface BookingInfo {
   endTime: string;
   totalPrice: number;
   customerName: string;
-  customerEmail?: string;
   status: string;
 }
 
@@ -131,86 +126,9 @@ function ShareButtons({ url, title }: { url: string; title: string }) {
   );
 }
 
-const signUpAppearance: React.ComponentProps<typeof SignUp>["appearance"] = {
-  variables: {
-    colorPrimary: "#84cc16",
-    colorBackground: "transparent",
-    colorText: "var(--foreground)",
-    colorInputBackground: "var(--muted)",
-    colorInputText: "var(--foreground)",
-    borderRadius: "0.75rem",
-    fontFamily: "inherit",
-    fontSize: "0.875rem",
-  },
-  elements: {
-    rootBox: "w-full",
-    card: "shadow-none border-0 p-0 bg-transparent w-full",
-    header: "hidden",
-    headerTitle: "hidden",
-    headerSubtitle: "hidden",
-    socialButtonsBlockButton:
-      "border border-border bg-muted hover:bg-muted/70 text-foreground rounded-xl h-10 font-medium transition-colors",
-    dividerLine: "bg-border",
-    dividerText: "text-muted-foreground text-xs",
-    formFieldLabel: "text-sm font-medium text-foreground text-left block",
-    formFieldInput:
-      "bg-muted border border-border rounded-xl h-10 text-foreground placeholder:text-muted-foreground focus:border-lime-500",
-    formButtonPrimary:
-      "bg-lime-500 hover:bg-lime-600 text-black font-semibold rounded-xl h-10 transition-colors",
-    footer: { display: "none" },
-    footerAction: { display: "none" },
-    formFieldSuccessText: "text-lime-600",
-    formFieldErrorText: "text-destructive text-xs",
-    alertText: "text-sm",
-  },
-};
-
-function ClaimProfileSection({ email }: { email: string }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="border border-primary/30 rounded-xl bg-primary/5 text-left overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors"
-      >
-        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-          <UserPlus className="w-4 h-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-semibold text-foreground">Sukurkite paskyrą</p>
-          <p className="text-xs text-muted-foreground truncate">
-            Sutaupykite laiką kitą kartą – duomenys bus užpildyti automatiškai
-          </p>
-        </div>
-        <span className="text-xs font-medium text-primary shrink-0">
-          {expanded ? "Uždaryti" : "Registruotis"}
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-5 pt-1 border-t border-primary/20">
-          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-            Mokėjimas sėkmingas! Sukurkite paskyrą, kad nereikėtų vesti duomenų kitą kartą
-            ir galėtumėte sekti visas savo rezervacijas vienoje vietoje.
-          </p>
-          <SignUp
-            routing="hash"
-            fallbackRedirectUrl={`${BASE}/bookings`}
-            initialValues={{ emailAddress: email }}
-            appearance={signUpAppearance}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function BookingConfirmed() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const { isLoaded: authLoaded, isSignedIn } = useSafeAuth();
   const params = new URLSearchParams(window.location.search);
   const bookingId = params.get("id");
   const sessionId = params.get("session_id");
@@ -535,11 +453,6 @@ export default function BookingConfirmed() {
                   🔑 <strong>Sandbox režimas:</strong> Naudotas testavimo mokėjimas. Realūs pinigai nenurašyti.
                 </div>
               ) : null}
-
-              {/* Claim Profile — shown to guests (not signed in) when Clerk is configured */}
-              {authLoaded && !isSignedIn && !!clerkPubKey && booking?.customerEmail && (
-                <ClaimProfileSection email={booking.customerEmail} />
-              )}
 
               <div className="flex gap-3">
                 <Button onClick={() => setLocation("/bookings")} className="flex-1 gap-2">

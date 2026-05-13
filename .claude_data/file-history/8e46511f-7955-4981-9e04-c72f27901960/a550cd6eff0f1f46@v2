@@ -266,7 +266,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       rentedItems: rows[0].booking.rentedItems ?? undefined,
       courtName: rows[0].courtName ?? undefined,
       status: "confirmed",
-      managementToken: undefined,
     }));
     return;
   }
@@ -342,7 +341,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
     rentedItems: booking.rentedItems ?? undefined,
     courtName: rows[0].courtName ?? undefined,
-    managementToken: undefined,
   }));
 });
 

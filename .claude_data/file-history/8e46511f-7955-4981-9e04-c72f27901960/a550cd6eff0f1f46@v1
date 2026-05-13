@@ -205,14 +205,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     return;
   }
 
-  // Authorization: for authenticated-user bookings, the caller must be the booker.
-  // Guest bookings (bookerUserId = null) are authorized by possession of the session ID.
-  const confirmCallerId = getCurrentUserId(req);
-  if (rows[0].booking.bookerUserId !== null && confirmCallerId !== rows[0].booking.bookerUserId) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
   let linkGameId: number | null = null;
   let stripePaymentIntentId: string | null = null;
   if (!sessionId.startsWith("mock_")) {
@@ -266,7 +258,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       rentedItems: rows[0].booking.rentedItems ?? undefined,
       courtName: rows[0].courtName ?? undefined,
       status: "confirmed",
-      managementToken: undefined,
     }));
     return;
   }
@@ -342,7 +333,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
     stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
     rentedItems: booking.rentedItems ?? undefined,
     courtName: rows[0].courtName ?? undefined,
-    managementToken: undefined,
   }));
 });
 

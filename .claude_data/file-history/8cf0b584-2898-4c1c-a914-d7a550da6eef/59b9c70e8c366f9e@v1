@@ -52,7 +52,6 @@ import RanksPage from "@/pages/ranks";
 import JoinBookingPage from "@/pages/join-booking";
 import OpenMatchesPage from "@/pages/open-matches";
 import MyMatchesPage from "@/pages/my-matches";
-import NotificationsPage from "@/pages/notifications";
 
 const AdminDashboard = lazy(() => import("@/pages/admin"));
 const AdminApprovalsPage = lazy(() => import("@/pages/admin/approvals"));
@@ -67,7 +66,6 @@ const OwnerCourtDashboard = lazy(() => import("@/pages/owner/court-dashboard"));
 const OwnerTournaments = lazy(() => import("@/pages/owner/tournaments"));
 const OwnerTournamentCreate = lazy(() => import("@/pages/owner/tournament-create"));
 const OwnerFacilityMessages = lazy(() => import("@/pages/owner-facility-messages"));
-const OwnerNotifications = lazy(() => import("@/pages/owner/notifications"));
 
 const queryClient = new QueryClient();
 
@@ -230,7 +228,6 @@ function Router() {
       <Route path="/owner/facility/:facilityId/court/:courtId/memberships" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtMemberships /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:facilityId/court/:courtId" component={() => <OwnerRoute><Suspense fallback={null}><OwnerCourtDashboard /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id/messages" component={() => <OwnerRoute><Suspense fallback={null}><OwnerFacilityMessages /></Suspense></OwnerRoute>} />
-      <Route path="/owner/notifications" component={() => <OwnerRoute><Suspense fallback={null}><OwnerNotifications /></Suspense></OwnerRoute>} />
       <Route path="/owner/facility/:id" component={OwnerFacilityDetailRoute} />
       <Route path="/owner" component={OwnerFacilitiesRoute} />
       <Route path="/profile" component={ProfileRoute} />
@@ -270,7 +267,6 @@ function Router() {
       <Route path="/become-coach" component={BecomeCoachPage} />
       <Route path="/become-owner" component={BecomeOwnerPage} />
       <Route path="/favorites" component={FavoritesRoute} />
-      <Route path="/notifications" component={NotificationsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />

@@ -27,9 +27,11 @@
     "frontend-design-plugin": 9,
     "permissions": 11,
     "rename-conversation": 11,
-    "custom-commands": 11
+    "custom-commands": 11,
+    "default-permission-mode-config": 14
   },
   "promptQueueUseCount": 3,
+  "btwUseCount": 1,
   "cachedGrowthBookFeatures": {
     "tengu_slate_harrier": "off",
     "tengu_maple_tide": false,

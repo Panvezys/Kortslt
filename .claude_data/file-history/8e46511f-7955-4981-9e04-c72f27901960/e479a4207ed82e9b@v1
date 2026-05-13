@@ -10,7 +10,6 @@ import { botPassthroughMiddleware } from "./middlewares/botPassthrough";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { handleStripeWebhook } from "./routes/stripe-webhook";
-import { handleClerkWebhook } from "./routes/clerk-webhook";
 import sitemapRouter from "./routes/sitemap";
 
 const app: Express = express();
@@ -114,17 +113,12 @@ if (fs.existsSync(frontendDist)) {
   }));
 }
 
-// ─── Webhook handlers — must be registered BEFORE express.json() ─────────────
-// Raw body (Buffer) is required by both Stripe and svix signature verification.
+// ─── Stripe webhook — must be registered BEFORE express.json() ───────────────
+// Standard Stripe webhook handler using stripe.webhooks.constructEvent.
 app.post(
   "/api/webhooks/stripe",
   express.raw({ type: "application/json" }),
   handleStripeWebhook,
-);
-app.post(
-  "/api/webhooks/clerk",
-  express.raw({ type: "application/json" }),
-  handleClerkWebhook,
 );
 // ─────────────────────────────────────────────────────────────────────────────
 

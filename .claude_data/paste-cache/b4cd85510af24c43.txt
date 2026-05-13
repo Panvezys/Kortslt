@@ -1,0 +1,13 @@
+Let's fix VULN-01 and VULN-04 immediately to secure the payment and booking integrity.
+
+Phase 1: Fix VULN-04 (TOCTOU Race Condition in `split-payments.ts`)
+- Refactor the slot checking and insertion logic (lines ~712-756) to use a database Transaction.
+- When checking `activePlayers` against `totalSlots`, you must lock the row to prevent concurrent reads. Use Drizzle's equivalent of a `FOR UPDATE` lock on the `games` or `bookings` row, or use an atomic update check (e.g., `UPDATE ... WHERE active_players < total_slots RETURNING *`).
+- Ensure that if the transaction fails or the slot is full, it safely aborts before creating a Stripe session.
+
+Phase 2: Fix VULN-01 (Unauthenticated Payment Confirmation in `payments.ts`)
+- Review `POST /payments/confirm`. 
+- If this endpoint is meant to be called by the client frontend (success page poll), it MUST have `requireAuth` middleware added, and it MUST verify that `req.userId` matches the `bookerUserId` of the booking associated with that `sessionId`.
+- If this endpoint is meant to be a Stripe Webhook, it MUST require and strictly validate the `stripe-signature` header using the Stripe SDK and webhook secret, failing immediately if the signature is invalid. 
+
+Please write the code for these fixes, run the typechecker, and let me know when they are applied.

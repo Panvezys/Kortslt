@@ -1,0 +1,11 @@
+Act as a Principal Security Engineer. I want you to perform a comprehensive security audit of my codebase, specifically targeting the API and backend logic.
+
+Please thoroughly read the files in the backend routes directory (e.g., `src/routes/` or similar), the database schema, and the Stripe webhook handlers.
+
+Search specifically for these vulnerabilities:
+1. IDOR (Insecure Direct Object Reference): Can a user modify, cancel, or view bookings/games that do not belong to them?
+2. Auth Bypasses: Are there any sensitive endpoints missing the Clerk authentication middleware or role checks (like the owner APIs)?
+3. Business Logic & Race Conditions: Can a user double-book a slot? Are Stripe webhooks verifying the signature correctly?
+4. Input Validation: Are any request bodies bypassing Zod validation before hitting the Drizzle ORM?
+
+Do not write code to fix these yet. Instead, output a prioritized Markdown task list of your findings, categorized by Severity (Critical, High, Medium, Low), explaining the attack vector for each.
