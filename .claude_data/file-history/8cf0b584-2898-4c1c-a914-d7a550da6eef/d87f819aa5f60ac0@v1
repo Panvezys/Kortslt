@@ -8,22 +8,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://korts.lt/" />
     <meta name="theme-color" content="#84cc16" />
     <meta name="description" content="Rask ir rezervuok sporto kortus visoje Lietuvoje." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="korts.lt" />
     <meta property="og:title" content="korts.lt" />
     <meta property="og:description" content="Rask ir rezervuok sporto kortus visoje Lietuvoje." />
-    <meta property="og:image" content="https://korts.lt/opengraph.jpg" />
+    <meta property="og:image" content="/opengraph.jpg" />
     <meta property="og:image:width" content="1024" />
     <meta property="og:image:height" content="538" />
-    <meta property="og:url" content="https://korts.lt/" />
+    <meta property="og:url" content="/" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="korts.lt" />
     <meta name="twitter:description" content="Rask ir rezervuok sporto kortus visoje Lietuvoje." />
-    <meta name="twitter:image" content="https://korts.lt/opengraph.jpg" />
+    <meta name="twitter:image" content="/opengraph.jpg" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="korts.lt" />

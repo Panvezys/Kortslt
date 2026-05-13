@@ -33,7 +33,13 @@
       "Bash(pkill -f \"dist/index.mjs\")",
       "Bash(PORT=8080 node --enable-source-maps ./dist/index.mjs)",
       "Bash(python3 -m json.tool)",
-      "Bash(printenv)"
+      "Bash(printenv)",
+      "Bash(fuser 8080/tcp)",
+      "Bash(awk 'NR>1 {printf \"Local: %s\\\\n\", $2}')",
+      "Bash(awk 'NR>1 { *)",
+      "Bash(awk 'NR>1')",
+      "Bash(kill 319)",
+      "Bash(PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)"
     ]
   }
 }

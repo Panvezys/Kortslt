@@ -24,7 +24,7 @@
     "remote-control": 9,
     "voice-mode": 9,
     "feedback-command": 9,
-    "frontend-design-plugin": 9,
+    "frontend-design-plugin": 16,
     "permissions": 11,
     "rename-conversation": 11,
     "custom-commands": 11,
