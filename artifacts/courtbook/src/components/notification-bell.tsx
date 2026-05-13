@@ -20,6 +20,46 @@ type Notif = {
   createdAt: string;
 };
 
+type TabId = "player" | "owner" | "coach";
+
+// Notification types that belong to owner context (business management)
+const OWNER_TYPE_SET = new Set([
+  "booking_created",
+  "booking_cancelled",
+  "court_approved",
+  "court_rejected",
+  "facility_approved",
+  "facility_rejected",
+  "coach_application",
+  "tournament_pending_review",
+  "tournament_approved",
+  "tournament_rejected",
+]);
+
+// Notification types that belong to coach context (career management)
+const COACH_TYPE_SET = new Set([
+  "coach_approved",
+  "coach_rejected",
+  "coach_invite",
+  "court_coach_approved",
+  "court_coach_rejected",
+]);
+
+function getNotifAudience(n: Notif): TabId {
+  const link = n.link ?? "";
+  if (link.startsWith("/owner")) return "owner";
+  if (link.startsWith("/coach")) return "coach";
+  if (OWNER_TYPE_SET.has(n.type)) return "owner";
+  if (COACH_TYPE_SET.has(n.type)) return "coach";
+  return "player";
+}
+
+function getDefaultTab(location: string, isOwner: boolean, isCoach: boolean): TabId {
+  if (isOwner && location.startsWith("/owner")) return "owner";
+  if (isCoach && location.startsWith("/coach/me")) return "coach";
+  return "player";
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -42,8 +82,22 @@ function typeIcon(type: string) {
     case "facility_rejected": return "🚫";
     case "coach_approved": return "✅";
     case "coach_rejected": return "🚫";
+    case "coach_invite": return "👤";
+    case "court_coach_approved": return "✅";
+    case "court_coach_rejected": return "🚫";
+    case "coach_application": return "📋";
     case "game_join_request": return "🏃";
     case "game_cancelled": return "🚫";
+    case "game_join_approved": return "✅";
+    case "game_join_rejected": return "🚫";
+    case "game_removed": return "🚫";
+    case "result_confirmation": return "🏆";
+    case "result_disputed": return "⚠️";
+    case "elo_update": return "📊";
+    case "split_player_joined": return "👥";
+    case "tournament_approved": return "✅";
+    case "tournament_rejected": return "🚫";
+    case "tournament_pending_review": return "🔔";
     case "admin_pending_review": return "🔔";
     default: return "🔔";
   }
@@ -52,24 +106,53 @@ function typeIcon(type: string) {
 export function NotificationBell() {
   const { user, isSignedIn } = useUser();
   const { getToken } = useAuth();
-  const { isAdmin } = useRole();
+  const { isAdmin, isOwner, isCoach } = useRole();
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [adminNotifs, setAdminNotifs] = useState<Notif[]>([]);
   const [open, setOpen] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const userId = user?.id ?? null;
 
-  const allNotifs = isAdmin
-    ? [...adminNotifs.filter(n => !notifs.some(u => u.id === n.id)), ...notifs].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
-    : notifs;
+  // Derive per-tab notification lists
+  const playerNotifs = notifs.filter(n => getNotifAudience(n) === "player");
+  const ownerNotifs = [
+    ...notifs.filter(n => getNotifAudience(n) === "owner"),
+    ...adminNotifs,
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const coachNotifs = notifs.filter(n => getNotifAudience(n) === "coach");
 
-  const previewNotifs = allNotifs.slice(0, 5);
+  // Unread counts per tab and total
+  const playerUnread = playerNotifs.filter(n => !n.read).length;
+  const ownerUnread = ownerNotifs.filter(n => !n.read).length;
+  const coachUnread = coachNotifs.filter(n => !n.read).length;
+  const totalUnread = playerUnread + ownerUnread + coachUnread;
 
-  const unread = allNotifs.filter(n => !n.read).length;
+  // Tabs — only show if user has more than just the player role
+  const availableTabs: TabId[] = ["player"];
+  if (isOwner) availableTabs.push("owner");
+  if (isCoach) availableTabs.push("coach");
+  const showTabs = availableTabs.length > 1;
+
+  const defaultTab = getDefaultTab(location, isOwner, isCoach);
+  const [activeTab, setActiveTab] = useState<TabId>(defaultTab);
+
+  // Reset active tab each time the popover opens, based on current page
+  useEffect(() => {
+    if (open) setActiveTab(getDefaultTab(location, isOwner, isCoach));
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tabNotifs = activeTab === "owner" ? ownerNotifs
+    : activeTab === "coach" ? coachNotifs
+    : playerNotifs;
+
+  const previewNotifs = tabNotifs.slice(0, 5);
+  const tabUnread = activeTab === "owner" ? ownerUnread
+    : activeTab === "coach" ? coachUnread
+    : playerUnread;
+
+  const seeAllHref = activeTab === "owner" ? "/owner/notifications" : "/notifications";
 
   const authFetch = useCallback(async (url: string, options?: RequestInit) => {
     const token = await getToken();
@@ -92,10 +175,6 @@ export function NotificationBell() {
       if (res.ok) setAdminNotifs(await res.json());
     } catch { /* silent */ }
   }, [authFetch]);
-
-  const refreshNotifications = useCallback(async () => {
-    await Promise.all([fetchNotifs(), isAdmin ? fetchAdminNotifs() : Promise.resolve()]);
-  }, [fetchNotifs, fetchAdminNotifs, isAdmin]);
 
   useEffect(() => {
     if (!userId) return;
@@ -126,19 +205,29 @@ export function NotificationBell() {
     } catch { /* silent */ }
   }
 
-  async function markAllRead() {
+  async function markTabAllRead() {
     if (!userId) return;
-    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-    setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
-      const calls: Promise<unknown>[] = [
-        authFetch(`/api/notifications/read-all`, { method: "POST" }),
-      ];
-      if (isAdmin) {
-        calls.push(authFetch(`/api/admin/notifications/read-all`, { method: "POST" }));
+      if (activeTab === "owner") {
+        setNotifs(prev => prev.map(n =>
+          getNotifAudience(n) === "owner" ? { ...n, read: true } : n
+        ));
+        setAdminNotifs(prev => prev.map(n => ({ ...n, read: true })));
+        const calls: Promise<unknown>[] = [
+          authFetch(`/api/owner/notifications/read-all`, { method: "POST" }),
+        ];
+        if (isAdmin) calls.push(authFetch(`/api/admin/notifications/read-all`, { method: "POST" }));
+        await Promise.all(calls);
+      } else {
+        const unread = tabNotifs.filter(n => !n.read && n.userId !== "__ADMIN__");
+        setNotifs(prev => {
+          const ids = new Set(unread.map(n => n.id));
+          return prev.map(n => ids.has(n.id) ? { ...n, read: true } : n);
+        });
+        await Promise.all(
+          unread.map(n => authFetch(`/api/notifications/${n.id}/read`, { method: "PATCH" }))
+        );
       }
-      await Promise.all(calls);
-      await refreshNotifications();
     } catch { /* silent */ }
   }
 
@@ -150,6 +239,18 @@ export function NotificationBell() {
 
   if (!isSignedIn) return null;
 
+  const TAB_LABELS: Record<TabId, string> = {
+    player: "Žaidėjas",
+    owner: "Savininkas",
+    coach: "Treneris",
+  };
+
+  const tabUnreadMap: Record<TabId, number> = {
+    player: playerUnread,
+    owner: ownerUnread,
+    coach: coachUnread,
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -158,27 +259,54 @@ export function NotificationBell() {
           className="relative flex items-center justify-center w-8 h-8 rounded-md border border-border hover:bg-accent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <Bell className="h-4 w-4 text-muted-foreground" />
-          {unread > 0 && (
+          {totalUnread > 0 && (
             <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground leading-none">
-              {unread > 9 ? "9+" : unread}
+              {totalUnread > 9 ? "9+" : totalUnread}
             </span>
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 p-0 overflow-hidden">
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <span className="text-sm font-semibold">Pranešimai</span>
-          {unread > 0 && (
+          {tabUnread > 0 && (
             <button
-              onClick={markAllRead}
+              onClick={markTabAllRead}
               className="text-xs text-primary hover:underline"
             >
-              Pažymėti visus kaip skaitytus
+              Pažymėti visus
             </button>
           )}
         </div>
-        <div className="max-h-[420px] overflow-y-auto">
-          {allNotifs.length === 0 ? (
+
+        {/* Tabs */}
+        {showTabs && (
+          <div className="flex border-b">
+            {availableTabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`relative flex-1 py-2 text-xs font-medium transition-colors ${
+                  activeTab === tab
+                    ? "text-primary border-b-2 border-primary -mb-px"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {TAB_LABELS[tab]}
+                {tabUnreadMap[tab] > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground leading-none">
+                    {tabUnreadMap[tab] > 9 ? "9+" : tabUnreadMap[tab]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Notification list */}
+        <div className="max-h-[380px] overflow-y-auto">
+          {previewNotifs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground text-sm gap-2">
               <Bell className="h-8 w-8 opacity-30" />
               <span>Pranešimų nėra</span>
@@ -203,25 +331,22 @@ export function NotificationBell() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>
-                  {n.link && (
-                    <p className="text-xs text-primary/70 mt-0.5 truncate">{n.link}</p>
-                  )}
                   <p className="text-[11px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
                 </div>
               </button>
             ))
           )}
         </div>
-        {allNotifs.length > 0 && (
-          <div className="border-t px-4 py-2">
-            <button
-              onClick={() => { setOpen(false); setLocation("/notifications"); }}
-              className="w-full text-center text-xs text-primary hover:underline py-1"
-            >
-              Peržiūrėti visus pranešimus
-            </button>
-          </div>
-        )}
+
+        {/* Footer */}
+        <div className="border-t px-4 py-2">
+          <button
+            onClick={() => { setOpen(false); setLocation(seeAllHref); }}
+            className="w-full text-center text-xs text-primary hover:underline py-1"
+          >
+            Peržiūrėti visus pranešimus
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
   );
