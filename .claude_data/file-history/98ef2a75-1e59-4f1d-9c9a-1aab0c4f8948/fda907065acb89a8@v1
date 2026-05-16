@@ -1,0 +1,879 @@
+import { useState, useEffect, useMemo } from "react";
+import { useSearch, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { Layout } from "@/components/layout";
+import { useListCourts, useListCities } from "@workspace/api-client-react";
+import { CourtCard } from "@/components/court-card";
+import { CourtMap } from "@/components/court-map";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Search, Map, List, SlidersHorizontal, X, ChevronLeft, ChevronRight, MapPin, Navigation, ArrowUpDown, Calendar, Clock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ListCourtsType } from "@workspace/api-client-react";
+import { useT } from "@/lib/i18n";
+import { SportIcon, sportColor } from "@/components/sport-icon";
+import { useFavoritesContext } from "@/lib/FavoritesContext";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+function makeTimeSlots(from = "07:00", to = "22:00") {
+  const slots: string[] = [];
+  const [fh, fm] = from.split(":").map(Number);
+  const [th, tm] = to.split(":").map(Number);
+  let cur = fh * 60 + fm;
+  const end = th * 60 + tm;
+  while (cur < end) {
+    slots.push(`${String(Math.floor(cur / 60)).padStart(2, "0")}:${String(cur % 60).padStart(2, "0")}`);
+    cur += 30;
+  }
+  return slots;
+}
+const TIME_SLOTS = makeTimeSlots();
+const DURATION_OPTIONS = [
+  { label: "30 min", value: 30 },
+  { label: "1 val.", value: 60 },
+  { label: "1.5 val.", value: 90 },
+  { label: "2 val.", value: 120 },
+  { label: "2.5 val.", value: 150 },
+  { label: "3 val.", value: 180 },
+];
+
+function addMins(t: string, mins: number): string {
+  const [h, m] = t.split(":").map(Number);
+  const total = h * 60 + m + mins;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+type ViewMode = "list" | "map";
+
+const PAGE_SIZE = 12;
+
+const NEARBY_KM = 30;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const surfaceKeys = ["clay", "hard", "carpet", "synthetic_grass", "artificial_grass", "natural_grass", "parquet", "rubber"] as const;
+
+const HERO_IMAGES = [
+  "courts/court_2_bernardinu",
+  "courts/padel/padel_court_indoor_1",
+  "courts/court_17_zalgiris",
+  "courts/football/football_futsal_court_2",
+  "courts/badminton/badminton_court_indoor_1",
+  "courts/squash/squash_court_1",
+  "courts/court_4_verkiai",
+  "courts/padel/padel_court_indoor_3",
+  "courts/court_3_lsc_vingis",
+  "courts/court_1_seb_arena",
+];
+
+export default function Courts() {
+  const t = useT();
+  const searchStr = useSearch();
+  const [, setLocation] = useLocation();
+  const _qp = new URLSearchParams(searchStr.replace(/^\?/, ""));
+  const initialType = (_qp.get("type") as ListCourtsType | null) ?? null;
+  const initialName = _qp.get("name") ?? "";
+  const initialCity = _qp.get("city") ?? "";
+  const linkGameId = _qp.get("linkGameId") ? parseInt(_qp.get("linkGameId")!) : null;
+
+  const ALL_SPORTS = ["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"];
+  const sportLT: Record<string, string> = {
+    tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+    table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris", bowling: "Boulingas",
+    football: "Futbolas", badminton: "Badmintonas", squash: "Skvoše",
+  };
+
+  const [search, setSearch] = useState(initialName);
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(initialCity ? new Set([initialCity]) : new Set());
+  const [surface, setSurface] = useState<string>("all");
+  const [isIndoorFilter, setIsIndoorFilter] = useState<"all" | "indoor" | "outdoor">("all");
+  const [maxPrice, setMaxPrice] = useState<number>(100);
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first">("default");
+  const { favoriteIds } = useFavoritesContext();
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [bgIdx, setBgIdx] = useState(0);
+  const [cityExpanded, setCityExpanded] = useState(false);
+  const [nearbyMode, setNearbyMode] = useState(false);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // ── Link-game mode (booking a court for an existing match) ──────────────────
+  const [linkDate, setLinkDate] = useState<string>(() => {
+    const urlDate = _qp.get("date") ?? "";
+    if (urlDate) return urlDate;
+    try { return sessionStorage.getItem("linkGameDate") ?? ""; } catch { return ""; }
+  });
+  const [linkStartTime, setLinkStartTime] = useState<string>("");
+  const [linkDurationMins, setLinkDurationMins] = useState(60);
+  const linkEndTime = useMemo(() => linkStartTime ? addMins(linkStartTime, linkDurationMins) : "", [linkStartTime, linkDurationMins]);
+
+  const { data: gameData } = useQuery<{ id: number; sport: string; datetime: string; durationMinutes: number; city: string }>({
+    queryKey: ["game-for-link", linkGameId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/games/${linkGameId}`);
+      if (!r.ok) throw new Error("Not found");
+      return r.json();
+    },
+    enabled: !!linkGameId,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!gameData) return;
+    if (!linkDate) {
+      const dt = new Date(gameData.datetime);
+      setLinkDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
+    }
+    // Do not auto-set start time — user picks freely within the date
+  }, [gameData]);
+
+  useEffect(() => {
+    if (!linkGameId) return;
+    try {
+      sessionStorage.setItem("linkGameId", String(linkGameId));
+      if (linkDate) sessionStorage.setItem("linkGameDate", linkDate);
+      if (linkStartTime) sessionStorage.setItem("linkGameStartTime", linkStartTime);
+      if (linkEndTime) sessionStorage.setItem("linkGameEndTime", linkEndTime);
+    } catch { /* ignore */ }
+  }, [linkGameId, linkDate, linkStartTime, linkEndTime]);
+
+  const { data: availData, isLoading: availLoading } = useQuery<{ availableCourtIds: number[] }>({
+    queryKey: ["courts-avail-for-slot", linkDate, linkStartTime, linkEndTime],
+    queryFn: async () => {
+      const p = new URLSearchParams({ date: linkDate, startTime: linkStartTime, endTime: linkEndTime });
+      if (gameData?.sport) p.set("sport", gameData.sport);
+      const r = await fetch(`${API}/courts/available-for-slot?${p}`);
+      if (!r.ok) throw new Error("Failed");
+      return r.json();
+    },
+    enabled: !!linkGameId && !!linkDate && !!linkStartTime && !!linkEndTime,
+    staleTime: 30_000,
+  });
+
+  const availableIdSet = availData ? new Set(availData.availableCourtIds) : null;
+
+  const handleNearbyList = () => {
+    if (nearbyMode) {
+      setNearbyMode(false);
+      setUserLocation(null);
+      setNearbyError(null);
+      return;
+    }
+    if (!navigator.geolocation) {
+      setNearbyError("Jūsų naršyklė nepalaiko geolokacijos.");
+      return;
+    }
+    setNearbyLoading(true);
+    setNearbyError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setNearbyMode(true);
+        setNearbyLoading(false);
+      },
+      (err) => {
+        setNearbyLoading(false);
+        setNearbyError(err.code === 1 ? "Leiskite prieigą prie vietos." : "Nepavyko nustatyti vietos.");
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  };
+
+  useEffect(() => {
+    const id = setInterval(() => setBgIdx(i => (i + 1) % HERO_IMAGES.length), 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const [page, setPage] = useState(1);
+  const [activeSports, setActiveSports] = useState<Set<string>>(
+    initialType && ALL_SPORTS.includes(initialType) ? new Set([initialType]) : new Set(ALL_SPORTS)
+  );
+
+  const toggleSport = (sport: string) => {
+    setActiveSports(prev => {
+      const next = new Set(prev);
+      if (next.has(sport)) {
+        next.delete(sport);
+      } else {
+        next.add(sport);
+      }
+      return next;
+    });
+  };
+  const allSportsActive = activeSports.size === ALL_SPORTS.length;
+
+  const toggleCity = (c: string) => {
+    setSelectedCities(prev => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c); else next.add(c);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCities, surface, isIndoorFilter, maxPrice, sortBy, activeSports]);
+
+  const { data: cities } = useListCities();
+
+  const querySurface = surface === "all" ? undefined : surface;
+  const queryIsIndoor = isIndoorFilter === "all" ? undefined : isIndoorFilter === "indoor";
+
+  const { data: courts, isLoading } = useListCourts({
+    surface: querySurface,
+    isIndoor: queryIsIndoor,
+    maxPrice,
+  });
+
+  // Sort cities by court count descending
+  const cityCounts = (courts ?? []).reduce<Record<string, number>>((acc, c) => {
+    if (c.city) acc[c.city] = (acc[c.city] ?? 0) + 1;
+    return acc;
+  }, {});
+  const sortedCities = (cities ?? []).slice().sort((a, b) => (cityCounts[b] ?? 0) - (cityCounts[a] ?? 0));
+
+  const filteredCourts = courts?.filter(c => {
+    const matchesSearch =
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.city ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.address ?? "").toLowerCase().includes(search.toLowerCase());
+    const matchesCity = selectedCities.size === 0 || (!!c.city && selectedCities.has(c.city));
+    const matchesNearby = !nearbyMode || !userLocation || (c.latitude != null && c.longitude != null && haversineKm(userLocation.lat, userLocation.lng, c.latitude, c.longitude) <= NEARBY_KM);
+    return matchesSearch && matchesCity && matchesNearby;
+  });
+
+  const sortedCourts = filteredCourts ? [...filteredCourts]
+    .filter(c => activeSports.has(c.type))
+    .filter(c => !availableIdSet || availableIdSet.has(c.id))
+    .sort((a, b) => {
+      if (sortBy === "favorites_first") {
+        const aFav = favoriteIds.has(a.id) ? 0 : 1;
+        const bFav = favoriteIds.has(b.id) ? 0 : 1;
+        return aFav - bFav;
+      }
+      if (sortBy === "rating_desc") return (b.rating ?? 0) - (a.rating ?? 0);
+      if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
+      if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
+      return 0;
+    }) : filteredCourts;
+
+  const totalCourts = sortedCourts?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCourts / PAGE_SIZE));
+  const pagedCourts = sortedCourts?.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const activeFilterCount = [
+    selectedCities.size > 0,
+    surface !== "all",
+    isIndoorFilter !== "all",
+    maxPrice < 100,
+    activeSports.size < ALL_SPORTS.length,
+    nearbyMode,
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setSelectedCities(new Set());
+    setSurface("all");
+    setIsIndoorFilter("all");
+    setMaxPrice(100);
+    setSearch("");
+    setSortBy("default");
+    setActiveSports(new Set(ALL_SPORTS));
+    setNearbyMode(false);
+    setUserLocation(null);
+    setNearbyError(null);
+  };
+
+  const sportFilterControls = (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šakos</Label>
+        <button
+          onClick={() => setActiveSports(allSportsActive ? new Set() : new Set(ALL_SPORTS))}
+          className="text-[10px] font-medium text-primary hover:underline"
+        >
+          {allSportsActive ? "Slėpti viską" : "Rodyti viską"}
+        </button>
+      </div>
+      <div className="space-y-1">
+        {ALL_SPORTS.map(sport => {
+          const active = activeSports.has(sport);
+          const color = sportColor[sport];
+          const count = (courts ?? []).filter(c => c.type === sport).length;
+          return (
+            <button
+              key={sport}
+              onClick={() => toggleSport(sport)}
+              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                active ? "bg-muted/60 hover:bg-muted" : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+              }`}
+            >
+              <div
+                className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                style={{ background: active ? color : "transparent", borderColor: color }}
+              >
+                <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+              </div>
+              <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                {sportLT[sport]}
+              </span>
+              <span className={`text-xs tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const filterControls = (
+    <div className="space-y-6">
+      {/* Nearby location button */}
+      <div>
+        <button
+          onClick={handleNearbyList}
+          disabled={nearbyLoading}
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+            nearbyMode
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border bg-muted/40 hover:bg-muted text-foreground"
+          } disabled:opacity-60`}
+        >
+          {nearbyLoading ? (
+            <svg className="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <Navigation className="h-4 w-4 shrink-0" />
+          )}
+          <span className="flex-1 text-left">
+            {nearbyMode ? `Netoliese (${NEARBY_KM} km) ✕` : "Ieškoti netoliese"}
+          </span>
+        </button>
+        {nearbyError && (
+          <p className="mt-1.5 text-xs text-destructive">{nearbyError}</p>
+        )}
+      </div>
+
+      {/* Sport filter (icon buttons) */}
+      {sportFilterControls}
+
+      {/* City — multi-select, sorted by court count */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.city")}</Label>
+          {selectedCities.size > 0 && (
+            <button
+              onClick={() => setSelectedCities(new Set())}
+              className="text-[10px] font-medium text-primary hover:underline"
+            >
+              Valyti ({selectedCities.size})
+            </button>
+          )}
+        </div>
+        <div className="space-y-1">
+          {(cityExpanded ? sortedCities : sortedCities.filter((c, i) => i < 5 || selectedCities.has(c))).map(c => {
+            const active = selectedCities.has(c);
+            const count = cityCounts[c] ?? 0;
+            return (
+              <button
+                key={c}
+                onClick={() => toggleCity(c)}
+                className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                  active ? "bg-primary/10 hover:bg-primary/15" : "opacity-60 hover:opacity-90 hover:bg-muted/40"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                    active ? "bg-primary border-primary" : "border-muted-foreground/40 bg-transparent"
+                  }`}
+                >
+                  {active && (
+                    <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                      <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+                <span className={`flex-1 font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                  {c}
+                </span>
+                <span className={`text-xs tabular-nums ${active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {sortedCities.length > 5 && (
+          <button
+            onClick={() => setCityExpanded(v => !v)}
+            className="mt-1 text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
+          >
+            {cityExpanded
+              ? "Rodyti mažiau ↑"
+              : `Rodyti daugiau (${sortedCities.length - 5}) ↓`}
+          </button>
+        )}
+      </div>
+
+      {/* Search */}
+      <div>
+        <Label htmlFor="search" className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.search")}</Label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="search"
+            placeholder={t("courts.filters.searchPlaceholder")}
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Indoor / Outdoor */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.location")}</Label>
+        <div className="flex rounded-md border overflow-hidden">
+          {(["all", "indoor", "outdoor"] as const).map(opt => (
+            <button
+              key={opt}
+              onClick={() => setIsIndoorFilter(opt)}
+              className={`flex-1 text-xs py-2.5 font-medium transition-colors ${isIndoorFilter === opt ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted text-muted-foreground"}`}
+            >
+              {opt === "all" ? t("courts.filters.all") : opt === "indoor" ? t("courts.filters.indoor") : t("courts.filters.outdoor")}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Surface */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("courts.filters.surface")}</Label>
+        <Select value={surface} onValueChange={setSurface}>
+          <SelectTrigger>
+            <SelectValue placeholder={t("courts.filters.allSurfaces")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("courts.filters.allSurfaces")}</SelectItem>
+            {surfaceKeys.map(key => (
+              <SelectItem key={key} value={key}>{t(`surfaces.${key}`)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Max Price */}
+      <div>
+        <Label className="mb-1.5 flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <span>{t("courts.filters.maxPrice")}</span>
+          <span className="text-primary font-bold normal-case text-sm">{maxPrice}€</span>
+        </Label>
+        <Slider
+          value={[maxPrice]}
+          onValueChange={(v) => setMaxPrice(v[0])}
+          max={100}
+          step={5}
+          className="my-3"
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>0€</span>
+          <span>100€+</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <Layout>
+      {/* Hero banner with rotating court photos */}
+      <div className="relative overflow-hidden border-b" style={{ minHeight: "180px" }}>
+        {HERO_IMAGES.map((img, i) => (
+          <img
+            key={img}
+            src={`${base}/${img}.webp`}
+            srcSet={`${base}/${img}-480.webp 480w, ${base}/${img}-800.webp 800w, ${base}/${img}.webp 1200w`}
+            sizes="100vw"
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "auto"}
+            decoding="async"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            style={{ opacity: i === bgIdx ? 1 : 0 }}
+          />
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/55 to-black/30" />
+        <div className="relative z-10 container mx-auto px-4 py-10 md:py-16" style={{ color: "white" }}>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-3 drop-shadow-md" style={{ color: "white" }}>
+            {t("courts.title")}
+          </h1>
+          <p className="text-white/80 max-w-2xl text-sm md:text-base leading-relaxed drop-shadow">
+            {t("courts.subtitle")}
+          </p>
+        </div>
+      </div>
+
+      {/* Mobile top bar: filters button + view toggle + sport chips */}
+      <div className="md:hidden sticky top-[7rem] z-30 border-b bg-background/95 backdrop-blur">
+        {/* Row 1: filters button + view toggle */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 flex-1"
+            onClick={() => setMobileFiltersOpen(true)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {t("courts.filters.title")}
+            {activeFilterCount > 0 && (
+              <Badge className="h-5 px-1.5 text-xs ml-1">{activeFilterCount}</Badge>
+            )}
+          </Button>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground px-2" onClick={resetFilters}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first") => setSortBy(v)}>
+            <SelectTrigger
+              className="h-8 w-auto px-2 gap-1 text-xs"
+              aria-label={t("courts.filters.sortDefault")}
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+              <SelectItem value="rating_desc">{t("courts.filters.sortRating")}</SelectItem>
+              <SelectItem value="favorites_first">{t("courts.filters.sortFavorites")}</SelectItem>
+              <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
+              <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex gap-1 rounded-md border p-0.5">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+            >
+              <Map className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        {/* Row 2: scrollable sport chips */}
+        <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 no-scrollbar">
+          <button
+            onClick={() => setActiveSports(allSportsActive ? new Set() : new Set(ALL_SPORTS))}
+            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+              allSportsActive ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            Visi
+          </button>
+          {ALL_SPORTS.map(sport => {
+            const active = activeSports.has(sport);
+            const color = sportColor[sport];
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                  active ? "border-transparent text-white" : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+                style={active ? { backgroundColor: color } : {}}
+              >
+                <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                {sportLT[sport]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mobile filter sheet */}
+      <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+        <SheetContent side="bottom" className="h-[85dvh] rounded-t-2xl flex flex-col">
+          <SheetHeader className="mb-4 flex-row items-center justify-between space-y-0">
+            <SheetTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              {t("courts.filters.title")}
+              {activeFilterCount > 0 && (
+                <Badge className="h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
+              )}
+            </SheetTitle>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={resetFilters}>
+                <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
+              </Button>
+            )}
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto py-1">{filterControls}</div>
+          <div className="shrink-0 border-t pt-4 pb-2">
+            <SheetClose asChild>
+              <Button className="w-full" size="lg">
+                {t("courts.found", { n: sortedCourts?.length ?? 0 })}
+              </Button>
+            </SheetClose>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <div className="container mx-auto px-4 py-6 md:py-8">
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+          {/* Filters Sidebar — desktop only */}
+          <aside className="hidden md:flex w-64 shrink-0 flex-col sticky top-24 max-h-[calc(100vh-7rem)] pr-1">
+            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {t("courts.filters.title")}
+                  {activeFilterCount > 0 && (
+                    <Badge className="ml-1 h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
+                  )}
+                </div>
+                {activeFilterCount > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={resetFilters}>
+                    <X className="h-3 w-3 mr-1" /> {t("courts.filters.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-6 overflow-y-auto flex-1 pb-20">
+              {filterControls}
+            </div>
+            <div className="sticky bottom-0 pt-4 mt-auto bg-background/95 backdrop-blur-sm">
+              <Button className="w-full h-11 rounded-xl shadow-lg" onClick={() => {}}>
+                {t("courts.found", { n: totalCourts })}
+              </Button>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 w-full min-w-0">
+
+            {/* ── Link-game banner ───────────────────────────────────────── */}
+            {linkGameId && (
+              <div className="mb-5 rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setLocation(`/matches/${linkGameId}`)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />Grįžti į mačą
+                    </button>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="text-sm font-semibold text-foreground">Rezervuoti kortą šiam mačui</span>
+                  </div>
+                  {linkDate && linkStartTime && linkEndTime && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {linkDate} · {linkStartTime}–{linkEndTime}
+                      {availableIdSet && (
+                        <span className="ml-1 text-muted-foreground">· {availableIdSet.size} laisv{availableIdSet.size === 1 ? "as kortas" : "i kortai"}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />Data
+                    </Label>
+                    <Input
+                      type="date"
+                      value={linkDate}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={e => setLinkDate(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />Pradžia
+                    </Label>
+                    <Select value={linkStartTime} onValueChange={setLinkStartTime}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pasirinkite laiką" /></SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {TIME_SLOTS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />Trukmė
+                    </Label>
+                    <Select value={String(linkDurationMins)} onValueChange={v => setLinkDurationMins(Number(v))}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DURATION_OPTIONS.map(o => <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {availLoading && linkDate && linkStartTime && (
+                  <p className="text-xs text-muted-foreground">Tikrinama prieinamumas…</p>
+                )}
+                {availData && !availLoading && (
+                  <p className="text-xs text-muted-foreground">
+                    Rodomi tik kortai, kurie laisvi <strong>{linkStartTime}–{linkEndTime}</strong> laiku {linkDate}.
+                    {availableIdSet?.size === 0 && " Nėra laisvų kortų šiuo metu — pabandykite kitu laiku."}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Desktop view toggle + count */}
+            <div className="hidden md:flex mb-6 justify-between items-center gap-3">
+              <h2 className="text-base font-semibold text-muted-foreground shrink-0">
+                {isLoading ? "..." : viewMode === "list" && totalPages > 1
+                  ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCourts)} / ${totalCourts}`
+                  : t("courts.found", { n: totalCourts })}
+              </h2>
+              <div className="flex items-center gap-2 ml-auto">
+                <Select value={sortBy} onValueChange={(v: "default" | "price_asc" | "price_desc" | "rating_desc" | "favorites_first") => setSortBy(v)}>
+                  <SelectTrigger className="h-8 text-xs w-48 gap-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t("courts.filters.sortDefault")}</SelectItem>
+                    <SelectItem value="rating_desc">{t("courts.filters.sortRating")}</SelectItem>
+                    <SelectItem value="favorites_first">{t("courts.filters.sortFavorites")}</SelectItem>
+                    <SelectItem value="price_asc">{t("courts.filters.sortPriceAsc")}</SelectItem>
+                    <SelectItem value="price_desc">{t("courts.filters.sortPriceDesc")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-1 rounded-md border p-0.5">
+                  <button
+                    onClick={() => setViewMode("list")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                  >
+                    <List className="h-3.5 w-3.5" /> {t("courts.listView")}
+                  </button>
+                  <button
+                    onClick={() => setViewMode("map")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+                  >
+                    <Map className="h-3.5 w-3.5" /> {t("courts.mapView")}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile result count */}
+            <div className="md:hidden mb-4 text-sm font-medium text-muted-foreground">
+              {isLoading ? "..." : viewMode === "list" && totalPages > 1
+                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalCourts)} / ${totalCourts}`
+                : t("courts.found", { n: totalCourts })}
+            </div>
+
+            {isLoading ? (
+              viewMode === "list" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="flex flex-col space-y-3">
+                      <Skeleton className="h-[200px] w-full rounded-xl" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Skeleton className="h-[400px] md:h-[600px] w-full rounded-xl" />
+              )
+            ) : viewMode === "map" ? (
+              <div className="h-[400px] md:h-[600px]">
+                <CourtMap courts={sortedCourts ?? []} activeSports={activeSports} />
+              </div>
+            ) : pagedCourts && pagedCourts.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  {pagedCourts.map(court => (
+                    <CourtCard key={court.id} court={court} />
+                  ))}
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-1 mt-8">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="h-9 w-9 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                      .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === "…" ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">…</span>
+                        ) : (
+                          <Button
+                            key={p}
+                            variant={page === p ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPage(p as number)}
+                            className="h-9 w-9 p-0 text-sm"
+                          >
+                            {p}
+                          </Button>
+                        )
+                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="h-9 w-9 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-16 border rounded-xl bg-muted/10 border-dashed">
+                <div className="text-4xl mb-4">🎾</div>
+                <h3 className="text-xl font-bold mb-2">{t("courts.noResults").split(".")[0]}</h3>
+                <p className="text-muted-foreground mb-4 px-4">{t("courts.noResults").split(".").slice(1).join(".").trim()}</p>
+                <Button variant="outline" onClick={resetFilters}>{t("courts.filters.reset")}</Button>
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
+    </Layout>
+  );
+}

@@ -1,0 +1,30 @@
+The Real-Time QA Protocol (How to break it before users do)
+WebSockets introduce a specific class of bugs that REST APIs don't have. You need to run these exact three tests in your Replit environment to ensure your integration is flawless.
+
+Test 1: The "React Strict Mode" Ghost (Duplicate Messages)
+How to test: Open a DM thread. Send a single message.
+
+What to look for: Does the message appear twice instantly on your screen, but only once in the database?
+
+Why it happens: In development, React StrictMode mounts components twice. If your socket listener isn't perfectly cleaned up in a useEffect return function (socket.off('new_message')), it will append the message to your React Query cache twice.
+
+Test 2: The Room Leak (Cross-Chat Contamination)
+How to test: 1. Open Game Chat A.
+2. Close Game Chat A and immediately open Game Chat B.
+3. Have a second browser window send a message in Game Chat A.
+
+What to look for: Does the message from Game A accidentally pop up in your Game B window?
+
+Why it happens: If your frontend component doesn't emit a leave_room event (or disconnect) when it unmounts, the server still thinks your socket is in Game A, flooding your client with irrelevant data.
+
+Test 3: The Multi-Tab Sync (The Inbox Badge)
+How to test: 1. Open Korts.lt in Tab 1 and Tab 2 (same user).
+2. Have someone send you a message.
+3. You should hear the chime and see the unread badge (1) in both tabs.
+4. Open the chat and read the message in Tab 1.
+
+What to look for: Does the unread badge automatically disappear in Tab 2 without you refreshing the page?
+
+Why it happens: State synchronization. Reading a message should trigger a backend event that invalidates the unread count query across all connected sockets for that user.
+
+Run through those three tests. Does the new_message event append cleanly, or are you seeing any duplication in the frontend cache when you hit send?

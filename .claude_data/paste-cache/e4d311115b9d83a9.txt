@@ -1,0 +1,27 @@
+The overall two-column architecture you have built here is excellent. Having the facility details on the left and a sticky booking widget on the right is the gold standard for conversion in marketplace platforms. It keeps the user anchored to the checkout process while they scroll through the photos and amenities.
+
+However, you are spot on about the "Dangos specifikacijos" (Surface Specifications) section. It is visually bloated and creates a technical debt issue if you are scaling the platform to support football, basketball, or volleyball alongside racket sports.
+
+Here is how we can optimize the layout and make the specs section fully dynamic for any sport.
+
+1. Fixing the "Surface Specifications" Bloat
+Those thick yellow progress bars for "Kamuoliuko greitis" (Ball speed) take up massive vertical space and look slightly out of proportion with the clean, minimal aesthetic of the rest of the page.
+
+The UI Fix: Condense this into a simple 2-column or 3-column grid of text-value pairs, or use subtle pill badges.
+
+The Architecture Fix: Rename the section to something universal, like "Techninės specifikacijos" (Technical Specifications) or "Aikštelės ypatybės" (Court Features).
+
+The Dynamic Data Model: The frontend needs a dynamic rendering map based on the sportType.
+
+Tenisas / Padelis: Danga (Surface), Greitis (Pace), Atšokimas (Bounce).
+
+Krepšinis: Dangos tipas (Medis/Asfaltas - Hardwood/Asphalt), Lankų aukštis (Hoop height - Standard/Adjustable), Matmenys (Dimensions - e.g., FIBA standard).
+
+Futbolas: Dangos tipas (Natūrali žolė / Dirbtinė 3G - Natural/Artificial), Formatas (Format - 5v5, 7v7, 11v11).
+
+2. Layout & Hierarchy Improvements
+Condense the Amenities (Patogumai): The large rectangular blocks for amenities (Prožektoriai, Dušai) push the map very far down the page. Switch these to a tight cluster of small, pill-shaped tags with icons next to the text. This will cut the height of this section in half.
+
+The "Jūsų rezervacijos" (Your Bookings) Block: In the right-hand sticky column, you have a list of the user's existing bookings directly below the time slots. This is visually competing with the main "Pasirinkite laiką" CTA. If a user is on this page, their sole focus should be selecting a new time slot. Move their past/upcoming bookings to their dedicated User Dashboard profile, or hide them behind a dropdown. The checkout sidebar should only contain things relevant to this specific transaction.
+
+Weather Widget: This is a brilliant touch for outdoor courts. Just ensure the logic dynamically updates the weather forecast based on the date selected in the calendar, rather than just showing today's weather.

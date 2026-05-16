@@ -1,0 +1,26 @@
+1. Reduce the "Badge Soup"
+Right now, the first card has five different badges ("Tenisas", "Dar nėra atsiliepimų", "Patvirtinta", "Lauko", "Guma"). This creates visual clutter and takes the user's eyes away from the price and the photo.
+
+The Fix: * Replace "Dar nėra atsiliepimų" (No reviews yet) with a simple grayed-out star icon and "0" or hide it entirely until a review exists.
+
+Turn "Patvirtinta" (Verified) into a small, simple blue checkmark next to the court title, rather than a full badge.
+
+Group the sport type ("Tenisas") with the surface type ("Lauko", "Guma") as subtle overlay tags on the image itself, keeping the white card space clean.
+
+2. Force Card Height Consistency
+Notice how the first card is significantly taller than the second and third cards? This is because of the amenities list (Prožektoriai, Persirengimo kambariai, etc.). When cards in a grid have different heights, it makes the UI feel messy and unbalanced.
+
+The Fix: Clamp the amenities list to a single row with hidden overflow, or strictly use icons without text for the card view. Alternatively, remove amenities from the search card entirely—users can look at amenities once they click into the Court Detail page.
+
+3. Reclaim the Hero Banner Space
+The dark banner at the top ("Raskite teniso, krepšinio...") looks nice, but on a functional search page, it pushes the actual results down below the fold.
+
+The Fix: On the homepage, a big banner is great. But once the user clicks "Rasti aikštelę" (Find a court) and lands on this specific route, remove the banner. Let the filters and the grid take up the absolute top of the page so they can see more results instantly.
+
+4. Simplify the Call to Action
+The massive green "Rezervuoti" button combined with the small eye icon feels a bit redundant.
+
+The Fix: In modern UI, the entire card should be a clickable link that takes you to the detail page. You can keep a smaller, more subtle "Rezervuoti" button, but you can safely drop the eye icon entirely.
+
+5. The Floating Filter Button
+There is a floating green "Rasta 3 aikštelių" button at the bottom left under the sidebar. If this is meant to apply filters, it should be pinned to the bottom of the filter sidebar (sticky) so it doesn't get lost if the user scrolls down a long list of sports.

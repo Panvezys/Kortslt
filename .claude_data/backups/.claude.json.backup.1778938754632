@@ -29,10 +29,10 @@
     "rename-conversation": 11,
     "custom-commands": 11,
     "default-permission-mode-config": 14,
-    "stripe-plugin": 16,
+    "stripe-plugin": 22,
     "ide-upsell-external-terminal": 20
   },
-  "promptQueueUseCount": 11,
+  "promptQueueUseCount": 12,
   "btwUseCount": 1,
   "cachedGrowthBookFeatures": {
     "tengu_kairos_cron_durable": false,
@@ -600,7 +600,7 @@
   "cachedExtraUsageDisabledReason": "org_level_disabled",
   "remoteControlUpsellSeenCount": 3,
   "feedbackSurveyState": {
-    "lastShownTime": 1778678185782
+    "lastShownTime": 1778921201025
   },
   "skillUsage": {
     "security-review": {

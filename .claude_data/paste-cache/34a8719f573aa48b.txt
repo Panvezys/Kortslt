@@ -1,0 +1,20 @@
+Let's optimize the Court Detail page layout to be more compact and support multiple sports dynamically.
+
+Please implement the following updates:
+
+1. Dynamic Technical Specifications: 
+   - Rename the "Dangos specifikacijos" section to "Techninės specifikacijos".
+   - Remove the large yellow progress bar UI for speed/bounce.
+   - Create a dynamic component that renders a compact grid of specs based on the court's `sport_type`. 
+   - Example mapping logic:
+     - If sport is 'tennis' or 'padel': Show Danga (Surface), Greitis (Pace - Slow/Medium/Fast text, no bars), Atšokimas (Bounce).
+     - If sport is 'basketball': Show Dangos tipas (Surface), Lankų aukštis (Hoop Height), Formatas (Format/Dimensions).
+     - If sport is 'football': Show Danga (Turf type), Formatas (Format).
+
+2. Condense Amenities ("Patogumai"): 
+   - Refactor the amenities list. Instead of large rectangular cards, render them as a dense flex-wrap list of small pill badges (e.g., `<Badge variant="secondary"><Icon className="w-3 h-3 mr-1" /> Prožektoriai</Badge>`). This should significantly reduce vertical height.
+
+3. Clean up the Booking Sidebar:
+   - Remove the "Jūsų rezervacijos" (Your Bookings) list from the right-hand booking widget. The sidebar should strictly be: Date Picker -> Weather -> Time Slots -> Action Button. 
+
+Run typechecks and ensure the layout is visually tighter.

@@ -1,0 +1,32 @@
+Here is exactly how the messaging logic should look across the three contexts, followed by a rigorous testing protocol to bulletproof your work.
+
+1. The Owner View (Facility Messages)
+For a facility owner, messaging is customer support. It needs to be highly contextual so they don't have to guess who they are talking to.
+
+Location: The owner needs a dedicated /owner/messages dashboard.
+
+The Layout: A split-pane view (List on the left, Chat on the right).
+
+The Critical Info: In the chat header, the owner MUST see the player's active booking status.
+
+Example Header: Arnas | Rezervacija: Gegužės 18, 15:30 (Apmokėta)
+
+If the player's booking was canceled (like in our Host Guarantee tests), the header should show a red Atšaukta badge. This prevents the owner from giving out door codes to people with canceled bookings.
+
+2. The Match View (Game Group Chat)
+Game chat is about quick coordination ("Aš vėluosiu 5 min", "Kas paima kamuoliukus?").
+
+Location: Inside the specific Game Detail page, usually below the player roster, or inside the "Games" tab of your global Floating Chat Bubble.
+
+The Layout: Standard left/right chat bubbles. Since it's a group chat, the sender's avatar and first name must appear above their left-aligned bubbles so people know who is speaking.
+
+System Messages (The Polish): Instead of just user texts, the backend should inject gray, centered system messages into the chat feed when state changes occur:
+
+"Arnas prisijungė prie mačo" (Arnas joined the match)
+
+"Mačas pilnas! Laukiama apmokėjimų." (Match is full! Waiting for payments.)
+
+3. The Player DM View
+This is the simplest one. Player-to-player chat should be accessible primarily through the Floating Chat Bubble so they can chat without losing their place while browsing courts.
+
+The Critical Info: If the DM was initiated from a specific Game or Court page, inject a "Context Card" as the first message so the recipient knows why a stranger is messaging them. (e.g., "Arnas rašo jums dėl mačo Vvvgg aikštelėje").

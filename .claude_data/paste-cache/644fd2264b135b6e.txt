@@ -1,0 +1,17 @@
+Yes, let's implement all 7 of these performance fixes. Please execute them carefully in the following phases:
+
+--- PHASE 1: React Query Optimization (Frontend) ---
+1. Remove the `useEffect` that calls `invalidateQueries` on mount in `home.tsx`.
+2. Update the `useGetStatsSummary`, `useGetPopularCourts`, `useListCourts`, and `FeaturedTournamentsSection` queries. 
+3. Remove `refetchOnMount: "always"` and set `staleTime: 300_000` (5 minutes) so the UI can safely use the cache during normal navigation.
+
+--- PHASE 2: Backend DB Optimization (Backend) ---
+1. Refactor the `/stats/summary` endpoint in `stats.ts`. 
+2. Stop awaiting 7 sequential queries. Use `Promise.all` to run independent queries concurrently, or combine the `count` queries using conditional aggregation to minimize database round-trips.
+
+--- PHASE 3: Bundle & Asset Splitting (Frontend) ---
+1. In `home.tsx`, lazy-load the `CourtMap` component using `React.lazy()` and wrap it in a `<Suspense>` boundary with a subtle fallback skeleton.
+2. Update `vite.config.ts` to split the `vendor` chunk. Group heavy dependencies logically (e.g., separate chunks for `@react-google-maps/api`, `@tanstack/react-query`, and `ui` libraries).
+3. Add `fetchpriority="high"` to the hero image to signal to the browser that it is the Largest Contentful Paint (LCP) element.
+
+Run typechecks after each phase and ensure the home page still renders correctly.

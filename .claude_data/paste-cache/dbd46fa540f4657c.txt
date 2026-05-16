@@ -1,0 +1,33 @@
+Let's upgrade the messaging transport layer from 15-second HTTP polling to real-time WebSockets using `socket.io`. We are running a standalone Express 5 backend (`artifacts/api-server/`) and a React/Vite SPA (`artifacts/courtbook/`).
+
+Please implement this in 4 distinct phases, preserving all existing DB `INSERT` logic.
+
+--- PHASE 1: Dependency & Server Setup (Backend) ---
+1. Install `socket.io` in the backend and `socket.io-client` in the frontend.
+2. In `artifacts/api-server/src/index.ts` (or where the HTTP server is created), initialize `socket.io` on the server instance.
+3. Configure CORS on the socket server to accept connections from the Vite dev server (and production static origin).
+4. Export the `io` instance so it can be imported into our route files.
+
+--- PHASE 2: Socket Auth & Room Logic (Backend) ---
+1. In the socket initialization block, add middleware to authenticate the socket connection (extract the `userId` from the handshake auth token/session).
+2. Listen for a `join_rooms` event from the client.
+3. When received, the socket should join:
+   - `inbox_${userId}` (For global unread chimes)
+   - `dm_${minId}_${maxId}` (For DMs - ensure IDs are sorted so both users join the same room string)
+   - `facility_${courtId}_${playerId}` (For owner/player chats)
+   - `game_${gameId}` (For active group chats)
+
+--- PHASE 3: Broadcast Triggers (Backend Routes) ---
+Locate the existing POST handlers for messages (`/dm/send`, `/courts/:id/messages`, `/games/:id/chat` inside `artifacts/api-server/src/routes/`).
+- Leave the database `INSERT` logic exactly as is.
+- Immediately after the successful DB insert, import the `io` instance and emit a `new_message` event to the specific room containing the newly saved message object.
+- Also emit an `unread_update` to the recipient's `inbox_${userId}` room to trigger the global bubble badge.
+
+--- PHASE 4: Client-Side Integration (Frontend SPA) ---
+1. Create a `WebSocketProvider` or a global `useSocket` hook in the React frontend. It should connect to the server when the user authenticates and emit the `join_rooms` event with their active contexts.
+2. Remove the 15-second `setInterval` polling in the Floating ChatBubble and the `/messages` Inbox component.
+3. Listen for `new_message` events. When received:
+   - Play the existing chime / show the desktop notification (if it's not from the current user).
+   - Optimistically append the new message to the active chat thread state (SWR/React Query/zustand) so the UI updates instantly.
+
+Run typechecks thoroughly. Ensure the Express server boots cleanly and the Vite proxy doesn't block the WebSocket upgrade requests.
