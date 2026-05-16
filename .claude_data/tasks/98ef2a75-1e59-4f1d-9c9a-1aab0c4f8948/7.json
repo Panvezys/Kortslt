@@ -1,0 +1,9 @@
+{
+  "id": "7",
+  "subject": "Frontend: join page — deadline, guarantee text, paid participants, image fallback",
+  "description": "Show deadline (game start - 2h), \"Organizer guarantees the reservation\" reassurance, first-name list of who has paid, and onError fallback on court thumbnail.",
+  "activeForm": "Updating join page UI",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

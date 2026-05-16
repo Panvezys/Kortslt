@@ -158,6 +158,7 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
       if (ctxType === "court") return customFetch<any>(`${API}/courts/${ctxId}`);
       if (ctxType === "facility") return customFetch<any>(`${API}/facilities/${ctxId}`);
       if (ctxType === "tournament") return customFetch<any>(`${API}/tournaments/${ctxId}`);
+      if (ctxType === "booking") return customFetch<any>(`${API}/bookings/${ctxId}`).catch(() => null);
       return null;
     },
     enabled,
@@ -176,6 +177,12 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
   }
   if (ctxType === "tournament") {
     return { label: data?.name ? `Turnyras · ${data.name}` : `Turnyras #${ctxId}`, href: `/tournaments/${ctxId}`, Icon: Trophy };
+  }
+  if (ctxType === "booking") {
+    const label = data
+      ? `Rez. #${ctxId} · ${data.courtName ?? ""} · ${data.date ?? ""} ${data.startTime ?? ""}–${data.endTime ?? ""}`.trim()
+      : `Rezervacija #${ctxId}`;
+    return { label, href: `/bookings/${ctxId}`, Icon: CalendarDays };
   }
   return null;
 }

@@ -1,0 +1,451 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useParams } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { OwnerLayout } from "@/components/owner-layout";
+import { useToast } from "@/hooks/use-toast";
+import { BackButton } from "@/components/back-button";
+import { Tag } from "lucide-react";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+// Grid constants
+const DAYS = [
+  { label: "Pr", dayOfWeek: 1 },
+  { label: "An", dayOfWeek: 2 },
+  { label: "Tr", dayOfWeek: 3 },
+  { label: "Ke", dayOfWeek: 4 },
+  { label: "Pe", dayOfWeek: 5 },
+  { label: "Še", dayOfWeek: 6 },
+  { label: "Se", dayOfWeek: 0 },
+];
+
+function generateTimes(): string[] {
+  const times: string[] = [];
+  for (let h = 6; h < 23; h++) {
+    for (const m of [0, 30]) {
+      times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return times;
+}
+
+const TIMES = generateTimes(); // 06:00 … 22:30
+
+type PricingEntry = { dayOfWeek: number; startTime: string; price: number };
+type PricingRule = { id?: number; type: string; price: number };
+
+function cellKey(dayOfWeek: number, time: string) {
+  return `${dayOfWeek}:${time}`;
+}
+
+function parseCellKey(k: string): { dayOfWeek: number; time: string } {
+  const colonIdx = k.indexOf(":");
+  return { dayOfWeek: Number(k.slice(0, colonIdx)), time: k.slice(colonIdx + 1) };
+}
+
+function fmtPrice(n: number): string {
+  const fixed = n.toFixed(2);
+  return fixed.endsWith(".00") ? String(Math.round(n)) : fixed;
+}
+
+function priceColor(price: number, base: number): string {
+  if (price === base) return "bg-muted/60 hover:bg-muted";
+  if (price < base) return "bg-emerald-500/20 hover:bg-emerald-500/30";
+  if (price <= base * 1.3) return "bg-amber-400/25 hover:bg-amber-400/35";
+  return "bg-rose-500/25 hover:bg-rose-500/35";
+}
+
+function priceTextColor(price: number, base: number): string {
+  if (price === base) return "text-muted-foreground";
+  if (price < base) return "text-emerald-600";
+  if (price <= base * 1.3) return "text-amber-600";
+  return "text-rose-600";
+}
+
+export default function CourtPricingPage() {
+  const { facilityId, courtId } = useParams<{ facilityId: string; courtId: string }>();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // ── Pricing grid state ───────────────────────────────────────────────────
+  // entries: map of "dayOfWeek:startTime" → price
+  const [entries, setEntries] = useState<Map<string, number>>(new Map());
+  const [basePrice, setBasePrice] = useState(10); // pricePerHour / 2
+
+  // ── Drag-to-select state ──────────────────────────────────────────────────
+  const [dragStart, setDragStart] = useState<{ d: number; t: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ d: number; t: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  // ── Edit panel state ──────────────────────────────────────────────────────
+  const [editPrice, setEditPrice] = useState("");
+
+  // ── Holiday rate state ────────────────────────────────────────────────────
+  const [holidayPrice, setHolidayPrice] = useState("");
+
+  // ── Fetch court info ──────────────────────────────────────────────────────
+  const { data: courtData } = useQuery({
+    queryKey: ["owner-court-pricing-info", courtId],
+    queryFn: async () => {
+      const d = await customFetch<{ court: { id: number; name: string; pricePerHour: number; facilityId: number | null } }>(`${API_URL}/owner/courts/${courtId}/stats`);
+      return d.court;
+    },
+    enabled: !!courtId,
+  });
+
+  // ── Fetch pricing grid ────────────────────────────────────────────────────
+  const { data: pricingData, isLoading: pricingLoading } = useQuery({
+    queryKey: ["court-pricing", courtId],
+    queryFn: () => customFetch<{ courtId: number; entries: PricingEntry[] }>(`${API_URL}/courts/${courtId}/pricing`),
+    enabled: !!courtId,
+  });
+
+  // ── Fetch pricing rules (holiday etc.) ───────────────────────────────────
+  const { data: rulesData } = useQuery({
+    queryKey: ["court-pricing-rules", courtId],
+    queryFn: () => customFetch<PricingRule[]>(`${API_URL}/courts/${courtId}/pricing-rules`),
+    enabled: !!courtId,
+  });
+
+  // Sync fetched data into local state
+  useEffect(() => {
+    if (courtData) {
+      setBasePrice(Number(courtData.pricePerHour) / 2);
+    }
+  }, [courtData]);
+
+  useEffect(() => {
+    if (pricingData) {
+      const m = new Map<string, number>();
+      for (const e of pricingData.entries) {
+        m.set(cellKey(e.dayOfWeek, e.startTime), e.price);
+      }
+      setEntries(m);
+    }
+  }, [pricingData]);
+
+  useEffect(() => {
+    if (rulesData) {
+      const holiday = rulesData.find(r => r.type === "holiday");
+      setHolidayPrice(holiday ? fmtPrice(holiday.price) : "");
+    }
+  }, [rulesData]);
+
+  // ── Derived selection rectangle ───────────────────────────────────────────
+  const selectedCells = useCallback((): Set<string> => {
+    const s = new Set<string>();
+    if (!dragStart) return s;
+    const end = dragEnd ?? dragStart;
+    const dMin = Math.min(dragStart.d, end.d);
+    const dMax = Math.max(dragStart.d, end.d);
+    const tMin = Math.min(dragStart.t, end.t);
+    const tMax = Math.max(dragStart.t, end.t);
+    for (let d = dMin; d <= dMax; d++) {
+      for (let t = tMin; t <= tMax; t++) {
+        s.add(cellKey(DAYS[d].dayOfWeek, TIMES[t]));
+      }
+    }
+    return s;
+  }, [dragStart, dragEnd]);
+
+  const sel = selectedCells();
+  const selCount = sel.size;
+
+  // ── Mouse handlers ────────────────────────────────────────────────────────
+  function handleCellMouseDown(dIdx: number, tIdx: number, e: React.MouseEvent) {
+    e.preventDefault();
+    setDragStart({ d: dIdx, t: tIdx });
+    setDragEnd({ d: dIdx, t: tIdx });
+    setIsDragging(true);
+  }
+
+  function handleCellMouseEnter(dIdx: number, tIdx: number) {
+    if (!isDragging) return;
+    setDragEnd({ d: dIdx, t: tIdx });
+  }
+
+  useEffect(() => {
+    function handleMouseUp() {
+      setIsDragging(false);
+    }
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, []);
+
+  // ── Apply price to selection ──────────────────────────────────────────────
+  function applyPrice() {
+    const p = parseFloat(editPrice.replace(",", "."));
+    if (isNaN(p) || p < 0) {
+      toast({ title: "Netinkama kaina", description: "Įveskite teigiamą skaičių.", variant: "destructive" });
+      return;
+    }
+    setEntries(prev => {
+      const next = new Map(prev);
+      for (const key of sel) {
+        if (p === basePrice) {
+          next.delete(key); // revert to default
+        } else {
+          next.set(key, p);
+        }
+      }
+      return next;
+    });
+    setDragStart(null);
+    setDragEnd(null);
+    setEditPrice("");
+  }
+
+  function clearSelection() {
+    setDragStart(null);
+    setDragEnd(null);
+    setEditPrice("");
+  }
+
+  function resetSelection() {
+    setEntries(prev => {
+      const next = new Map(prev);
+      for (const key of sel) next.delete(key);
+      return next;
+    });
+    clearSelection();
+  }
+
+  // ── Save grid mutation ────────────────────────────────────────────────────
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const gridEntries: PricingEntry[] = [];
+      for (const [key, price] of entries) {
+        const { dayOfWeek, time } = parseCellKey(key);
+        gridEntries.push({ dayOfWeek, startTime: time, price });
+      }
+      return customFetch(`${API_URL}/courts/${courtId}/pricing`, {
+        method: "PUT",
+        body: JSON.stringify({ entries: gridEntries }),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-pricing", courtId] });
+      toast({ title: "Kainos išsaugotos" });
+    },
+    onError: () => toast({ title: "Klaida saugant kainas", variant: "destructive" }),
+  });
+
+  // ── Save holiday rule mutation ─────────────────────────────────────────────
+  const saveHolidayMutation = useMutation({
+    mutationFn: async () => {
+      const p = parseFloat(holidayPrice.replace(",", "."));
+      const rules = isNaN(p) || holidayPrice.trim() === ""
+        ? []
+        : [{ type: "holiday", price: p }];
+      return customFetch(`${API_URL}/courts/${courtId}/pricing-rules`, {
+        method: "PUT",
+        body: JSON.stringify({ rules }),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["court-pricing-rules", courtId] });
+      toast({ title: "Šventinė kaina išsaugota" });
+    },
+    onError: () => toast({ title: "Klaida saugant šventinę kainą", variant: "destructive" }),
+  });
+
+  const facilityIdNum = Number(facilityId) || courtData?.facilityId || undefined;
+
+  return (
+    <OwnerLayout
+      facilityId={facilityIdNum}
+      facilityName={undefined}
+      title="Kainų valdymas"
+    >
+      <div className="flex flex-col min-h-0">
+        {/* Header */}
+        <header className="bg-card border-b border-border px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <BackButton historyBack fallbackTo={`/owner/facility/${facilityId}/court/${courtId}`} label="Atgal" />
+            <h1 className="font-bold text-base leading-tight">
+              {courtData?.name ?? "Aikštelė"} — Kainos
+            </h1>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+          >
+            {saveMutation.isPending ? "Saugoma…" : "Išsaugoti tvarkaraštį"}
+          </Button>
+        </header>
+
+        <div className="p-4 md:p-6 space-y-5">
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 text-xs items-center text-muted-foreground">
+            <span className="font-medium text-foreground">Spalvų reikšmės:</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-muted/60 border border-border" /> Numatytoji kaina</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/30" /> Žemesnė kaina</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-amber-400/25 border border-amber-400/40" /> Aukštesnė kaina (iki +30%)</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-rose-500/25 border border-rose-500/30" /> Piko kaina (&gt;+30%)</span>
+          </div>
+
+          {/* Holiday rate */}
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Tag className="w-4 h-4 text-primary" />
+              <h2 className="font-semibold text-sm">Šventinių dienų kaina</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Lietuvos valstybinių švenčių dienomis automatiškai taikoma ši kaina (už 30 min). Palik tuščią, jei švenčių dienomis nori naudoti standartines kainas.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder={`pvz. ${fmtPrice(basePrice * 1.5)}`}
+                  value={holidayPrice}
+                  onChange={e => setHolidayPrice(e.target.value)}
+                  className="w-36 pr-8 text-sm"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 text-xs"
+                onClick={() => saveHolidayMutation.mutate()}
+                disabled={saveHolidayMutation.isPending}
+              >
+                {saveHolidayMutation.isPending ? "Saugoma…" : "Išsaugoti"}
+              </Button>
+              {holidayPrice.trim() !== "" && (
+                <span className="text-xs text-muted-foreground">
+                  ≈ {fmtPrice(parseFloat(holidayPrice.replace(",", ".")) * 2)} €/val
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Selection action bar */}
+          {selCount > 0 && (
+            <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium">
+                Pasirinkta: <span className="text-primary">{selCount}</span> {selCount === 1 ? "laikas" : "laikai"}
+              </span>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    placeholder={`pvz. ${fmtPrice(basePrice)}`}
+                    value={editPrice}
+                    onChange={e => setEditPrice(e.target.value)}
+                    className="w-32 pr-8 text-sm h-8"
+                    onKeyDown={e => e.key === "Enter" && applyPrice()}
+                    autoFocus
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
+                </div>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">/ 30 min</span>
+                <Button size="sm" className="h-8 text-xs" onClick={applyPrice}>
+                  Taikyti
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={resetSelection}>
+                  Nustatyti iš naujo
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground" onClick={clearSelection}>
+                  Atšaukti
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Pricing grid */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="overflow-auto max-h-[600px]">
+              {pricingLoading ? (
+                <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+                  Kraunama…
+                </div>
+              ) : (
+                <div
+                  ref={gridRef}
+                  className="select-none"
+                  style={{ display: "grid", gridTemplateColumns: "3.5rem repeat(7, minmax(0, 1fr))" }}
+                  onMouseLeave={() => { if (isDragging) setIsDragging(false); }}
+                >
+                  {/* Header row */}
+                  <div className="sticky top-0 z-10 bg-card border-b border-r border-border" />
+                  {DAYS.map((day, dIdx) => (
+                    <div
+                      key={dIdx}
+                      className="sticky top-0 z-10 bg-card border-b border-border text-center py-2 text-xs font-semibold text-muted-foreground"
+                    >
+                      {day.label}
+                    </div>
+                  ))}
+
+                  {/* Time rows */}
+                  {TIMES.map((time, tIdx) => {
+                    const isHourMark = time.endsWith(":00");
+                    return [
+                      // Time label
+                      <div
+                        key={`lbl-${time}`}
+                        className={`sticky left-0 z-10 bg-card border-r border-border flex items-center justify-end pr-2 text-[10px] text-muted-foreground tabular-nums ${isHourMark ? "border-t border-border" : ""}`}
+                        style={{ height: 28 }}
+                      >
+                        {isHourMark ? time : ""}
+                      </div>,
+
+                      // Day cells
+                      ...DAYS.map((day, dIdx) => {
+                        const key = cellKey(day.dayOfWeek, time);
+                        const price = entries.get(key) ?? basePrice;
+                        const isSelected = sel.has(key);
+                        const cellColorClass = isSelected
+                          ? "bg-primary/20 hover:bg-primary/25"
+                          : priceColor(price, basePrice);
+                        const textColorClass = isSelected
+                          ? "text-primary font-semibold"
+                          : priceTextColor(price, basePrice);
+
+                        return (
+                          <div
+                            key={`${dIdx}-${time}`}
+                            className={`cursor-pointer transition-colors border-b border-border ${isHourMark ? "border-t border-border" : ""} ${dIdx === 0 ? "" : "border-l border-border"} ${cellColorClass}`}
+                            style={{ height: 28 }}
+                            onMouseDown={e => handleCellMouseDown(dIdx, tIdx, e)}
+                            onMouseEnter={() => handleCellMouseEnter(dIdx, tIdx)}
+                          >
+                            <div className={`flex items-center justify-center h-full text-[10px] tabular-nums leading-none ${textColorClass}`}>
+                              {entries.has(key) ? fmtPrice(price) : ""}
+                            </div>
+                          </div>
+                        );
+                      }),
+                    ];
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Spustelkite ir vilkite per langelius, kad pasirinktumėte laikus. Numatytoji kaina:{" "}
+            <strong>{fmtPrice(basePrice)} €</strong> / 30 min ({fmtPrice(basePrice * 2)} €/val).
+            Ląstelės be kainų naudoja numatytąją kainą.
+          </p>
+        </div>
+      </div>
+    </OwnerLayout>
+  );
+}

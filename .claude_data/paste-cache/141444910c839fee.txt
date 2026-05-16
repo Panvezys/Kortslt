@@ -1,0 +1,25 @@
+The current `sweepHostGuarantees` logic creates a severe UX and compliance issue by silently charging or refunding users without notification. We need to implement the communication layer for all three outcomes.
+
+Please update `sweepHostGuarantees` to trigger in-app notifications (and stub out email functions) for the following scenarios:
+
+1. Scenario A (Success - Host Charged):
+   - When the host's saved card is successfully charged for the missing amount.
+   - Create an in-app notification for the Host: 
+     - Title: "Rezervacija patvirtinta" (Reservation confirmed)
+     - Message: "Trūkstami žaidėjai neprisijungė. Nuo jūsų kortelės nuskaityta [Amount]€. Gero žaidimo!" (Missing players didn't join. Your card was charged [Amount]€. Have a good game!)
+
+2. Scenario B (Failure - Card Declined, Host Notified):
+   - When the off-session charge fails and the booking is cancelled.
+   - Create an in-app notification for the Host:
+     - Title: "Rezervacija atšaukta" (Reservation canceled)
+     - Message: "Nepavyko nuskaityti trūkstamos sumos ([Amount]€). Kortelė atmesta, rezervacija atšaukta." (Failed to charge the missing amount. Card declined, reservation canceled.)
+
+3. Scenario C (Failure - Participants Refunded):
+   - In the same failure block, loop through the participants who DID pay.
+   - Create an in-app notification for each paid participant:
+     - Title: "Rezervacija atšaukta" (Reservation canceled)
+     - Message: "Nesurinkus pilnos sumos, mačas atšauktas. Jūsų sumokėta dalis grąžinta." (Because the full amount wasn't collected, the match is canceled. Your paid share has been refunded.)
+
+Please integrate this using the existing database notifications schema. Also, create empty placeholder functions like `sendEmail(userId, template, data)` where the actual email logic will go, and leave a comment there.
+
+Run typechecks and confirm when the notification logic is integrated.

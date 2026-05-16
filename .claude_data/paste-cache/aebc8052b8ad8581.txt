@@ -1,0 +1,19 @@
+We have a critical business logic gap in the Split Booking lifecycle: Bookings stuck in `awaiting_players` block the court indefinitely if not fully funded. 
+
+Let's implement a "Drop Dead" cutoff sweeper to cancel these and refund the players.
+
+Phase 1: Backend Sweeper Logic
+- Create a new cron function `sweepStaleAwaitingPlayers()` alongside your existing `sweepStalePendingGames()`.
+- Logic: Find all bookings/games where `status == 'awaiting_players'` AND the game's `start_time` is less than 24 hours from `NOW()`.
+- For each found booking:
+  1. Update booking and game status to `cancelled`.
+  2. Retrieve all successful participant payment records for this booking.
+  3. Call the Stripe API to issue a refund (`stripe.refunds.create({ payment_intent: pi_id })`) for each paid participant.
+  4. (Optional but recommended) Log the cancellation and refunds.
+- Schedule this sweeper to run periodically (e.g., every 15 or 30 minutes).
+
+Phase 2: Frontend Urgency UI
+- On the `split-payment-invite.tsx` (Join Page) and the Confirmation Page, calculate the absolute deadline timestamp (Game Start Time minus 24 hours).
+- Display this explicitly to the user: "Būtina surinkti visą sumą iki [Deadline Time]. Priešingu atveju rezervacija bus atšaukta ir pinigai grąžinti." (The full amount must be collected by [Deadline Time]. Otherwise, the reservation will be canceled and money refunded.)
+
+Run typechecks and confirm when the sweeper and UI are implemented.

@@ -1,0 +1,18 @@
+Let's build the B2B Pricing Manager UI and add automated Holiday support to our pricing engine.
+
+Phase 1: Automated Holiday Logic (Backend)
+- Install the `date-holidays` npm package.
+- In the `resolvePriceForSlot` utility we created earlier, initialize `date-holidays` for Lithuania ('LT').
+- Update the "Pricing Waterfall": Before checking standard recurring rules, check `hd.isHoliday(slotDate)`. If it is a holiday, and the owner has a rule of type 'holiday', return that price. 
+- (Make sure the `pricing_rules` table supports a 'holiday' rule type).
+
+Phase 2: The Visual Grid UI (Frontend)
+- Create `CourtPricingManager.tsx` for the owner dashboard.
+- Build a CSS Grid representing a standard week (Columns: Pr to Se. Rows: 06:00 to 23:00 in 30-min steps).
+- Implement "Drag-to-Select" functionality: An owner should be able to click and drag across multiple cells to highlight a block of time.
+- Below or floating near the grid, add a quick-edit form: "Selected Slots: X. New Price: [input] €/h" and a "Apply" button.
+- Visually color-code the grid cells based on their current price (e.g., standard price is neutral, premium price is highlighted).
+
+Phase 3: The "Holiday Rate" Setting
+- Add a simple standalone input field above the grid: "Šventinių dienų kaina (€/h)" (Holiday Price). 
+- Saving this creates or updates the 'holiday' rule in the database.

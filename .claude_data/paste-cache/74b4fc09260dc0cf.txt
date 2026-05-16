@@ -1,0 +1,29 @@
+We need to refactor the main Owner Dashboard overview page (`/owner` or `Mano Objektai`) to improve space efficiency and UX as owners add more courts. 
+
+Please implement a "Horizontal Facility, Vertical Courts" architecture. Read the specifications carefully before writing the code.
+
+Phase 1: The Layout Architecture
+- The parent container should display Facilities side-by-side (horizontally). Use a Flexbox container with `flex-row`, `overflow-x-auto` (for horizontal scrolling if they have many facilities), and a `gap-6` or `gap-8`.
+- Each Facility acts as a vertical column/container (e.g., `min-w-[350px] max-w-[400px] flex-col`).
+- Inside each Facility column, the Courts must be stacked strictly vertically (`flex-col`, `gap-3`). Do not put courts side-by-side.
+
+Phase 2: The Facility Header (Column Top)
+- At the top of each Facility column, render a clean "Facility Card" or header section.
+- It must include: Facility Name (bold, h3), Address (muted text, map pin icon), and Facility Status (using a subtle background pill/badge like your existing 'Aktyvus' / 'Laukia patvirtinimo' badges).
+- Include an "+ Pridėti aikštelę" (+ Add Court) ghost button at the bottom of the facility header or court list.
+
+Phase 3: The Court Card (The Vertical List Items)
+- Below the facility header, map over its courts. Each court is a compact, horizontal-row styled card.
+- Visuals: White background, subtle gray border (`border-border`), rounded corners (`rounded-lg`), very light shadow on hover (`hover:shadow-sm`). It must be easy on the eyes and consistent with Korts.lt branding.
+- Left side of the card: Court Name (e.g., "Teniso kortas"), Sport Type Icon/Badge, and Status indicator (a small green/gray/yellow dot or pill).
+- Right side/Bottom of the card (Action Buttons). These should be small, secondary/ghost buttons to avoid visual clutter:
+  1. "Kainos" (Pricing icon) -> Link to the pricing manager we just built (`/owner/facility/:facilityId/court/:courtId/pricing`).
+  2. "Nustatymai" (Settings/Gear icon) -> Link to the court's settings and working hours (`/owner/facility/:facilityId/court/:courtId/settings`).
+  3. "Kalendorius" (Calendar icon) -> Link to the specific court's booking calendar to view or block time (`/owner/facility/:facilityId/court/:courtId/calendar`).
+
+Phase 4: Styling & Consistency Rules
+- Use the existing Tailwind utility classes from the project (e.g., `text-muted-foreground`, `bg-card`, `border-border`).
+- If a facility has no courts, show a clean empty state inside its column: "Nėra pridėtų aikštelių" with an "Add Court" button.
+- Ensure the focus states and hover states match the existing global styles (likely using your primary lime/green color sparingly for active states or primary buttons).
+
+Please refactor the component, run typechecks, and confirm when the new layout is applied.

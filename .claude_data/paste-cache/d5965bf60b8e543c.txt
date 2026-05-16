@@ -1,0 +1,35 @@
+We are overhauling the Split Payment architecture to use a "Host Guarantee" (Host Liable) model. The goal is to ensure facility owners never lose money on partially funded split bookings. 
+
+Please implement this across the stack in 5 distinct phases. Read all phases carefully before writing code.
+
+--- PHASE 1: Stripe & Backend Architecture ---
+1. Host Checkout Update: When the Host creates a split booking, update their Stripe Checkout Session payload. Add `payment_intent_data: { setup_future_usage: 'off_session' }` and ensure you are capturing the `customer_id`. This charges their initial share AND saves their card to their Stripe Customer object.
+2. The Enforcer Cron Job: Create a new function `sweepHostGuarantees()`. 
+   - Query: Find all bookings in `awaiting_players` status where the `game.start_time` is less than 2 hours away.
+   - Action: Calculate the `missing_amount` (Total Price - Sum of paid participant shares). 
+   - Execute: Use Stripe's `stripe.paymentIntents.create({ amount: missing_amount, customer: host_customer_id, payment_method: host_default_pm, confirm: true, off_session: true })`.
+   - Success: If the charge succeeds, update the booking to `confirmed` and game to `open`.
+   - Failure (Card Decline): If the charge fails, update booking to `cancelled`, trigger refunds for all participants who paid, and free up the court slot.
+
+--- PHASE 2: Host Creation & Confirmation UI ---
+1. Split Creation Warning: On the booking checkout page, when a user selects "Split Payment", add a highly visible warning box (e.g., yellow alert/callout): "Dėmesio: Jūs esate atsakingas už pilną sumą. Jei kiti žaidėjai neapmokės savo dalies likus 2 val. iki žaidimo, likusi suma bus nuskaityta nuo jūsų kortelės." (Attention: You are responsible for the full amount. If others don't pay 2 hours before the game, your card will be charged the remainder.)
+2. Host Confirmation Page: Update the progress tracker. Add a clear label: "Garantuota" (Guaranteed). Show a countdown timer or explicit text: "Trūkstama suma bus nuskaityta [Date/Time of deadline]".
+
+--- PHASE 3: Invitee Join Page (`split-payment-invite.tsx`) ---
+1. Social Proof: Fetch and display the first names or initials of players who have already paid (e.g., "[Host Name] pakvietė jus prisijungti"). Do NOT expose emails.
+2. Deadline Urgency: Display a countdown or exact time indicating when the invite expires (2 hours before game start). 
+3. Risk Reversal: Add muted text below the price: "Organizatorius garantuoja rezervaciją. Tiesiog apmokėkite savo dalį." (The organizer guarantees the reservation. Just pay your share.)
+4. Image Fallback: Ensure the court/facility avatar has an `onError` generic placeholder if the image fails to load.
+
+--- PHASE 4: Owner Dashboard Integration ---
+1. Calendar & Reservations List: Because split bookings are now guaranteed by the Host, owners do not need to stress about partial payments. In the Owner Dashboard (`/owner/...`), treat `awaiting_players` split bookings visually as secure. 
+2. Badging: On the court calendar and the reservation list, add a small, tidy badge next to these bookings that says "Dalinis (Garantuotas)" [Split (Guaranteed)] so the owner knows why multiple small Stripe payouts might appear for this single slot.
+
+--- PHASE 5: Testing & QA Protocol ---
+Before completing this task, please simulate and verify the following logic locally:
+1. Verify the Stripe Checkout Session correctly passes `setup_future_usage: 'off_session'`.
+2. Simulate the `sweepHostGuarantees` cron job on a mock database entry. Verify it correctly calculates the missing amount and triggers the Stripe API.
+3. Verify the fallback logic: if the off-session charge fails, the booking status goes to `cancelled` and the slot is freed.
+4. Ensure all UI components respect the global Tailwind design system (clean, muted borders, proper spacing, no visual clutter).
+
+Please execute these phases step-by-step and confirm when the Host Guarantee system is fully operational.

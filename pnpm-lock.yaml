@@ -196,6 +196,9 @@ importers:
       cors:
         specifier: ^2
         version: 2.8.6
+      date-holidays:
+        specifier: ^3.28.0
+        version: 3.28.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.18.0)(pg@8.20.0)
@@ -2083,6 +2086,10 @@ packages:
     resolution: {integrity: sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==}
     engines: {node: '>=10'}
 
+  astronomia@4.2.0:
+    resolution: {integrity: sha512-mTvpBGyXB80aSsDhAAiuwza5VqAyqmj5yzhjBrFhRy17DcWDzJrb8Vdl4Sm+g276S+mY7bk/5hi6akZ5RQFeHg==}
+    engines: {node: '>=12.0.0'}
+
   atomic-sleep@1.0.0:
     resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==}
     engines: {node: '>=8.0.0'}
@@ -2121,6 +2128,10 @@ packages:
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
+
+  caldate@2.0.5:
+    resolution: {integrity: sha512-JndhrUuDuE975KUhFqJaVR1OQkCHZqpOrJur/CFXEIEhWhBMjxO85cRSK8q4FW+B+yyPq6GYua2u4KvNzTcq0w==}
+    engines: {node: '>=12.0.0'}
 
   call-bind-apply-helpers@1.0.2:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
@@ -2262,6 +2273,18 @@ packages:
     resolution: {integrity: sha512-ndfJ/JxxMd3nw31uyKoY2naivF+r29V+Lc0svZxe1JvvIRmi8hUsrMvdOwgS1o6uBHmiz91geQ0ylPP0aj1VUA==}
     engines: {node: '>=12'}
 
+  date-bengali-revised@2.0.2:
+    resolution: {integrity: sha512-q9iDru4+TSA9k4zfm0CFHJj6nBsxP7AYgWC/qodK/i7oOIlj5K2z5IcQDtESfs/Qwqt/xJYaP86tkazd/vRptg==}
+    engines: {node: '>=12.0.0'}
+
+  date-chinese@2.1.4:
+    resolution: {integrity: sha512-WY+6+Qw92ZGWFvGtStmNQHEYpNa87b8IAQ5T8VKt4wqrn24lBXyyBnWI5jAIyy7h/KVwJZ06bD8l/b7yss82Ww==}
+    engines: {node: '>=12.0.0'}
+
+  date-easter@1.0.3:
+    resolution: {integrity: sha512-aOViyIgpM4W0OWUiLqivznwTtuMlD/rdUWhc5IatYnplhPiWrLv75cnifaKYhmQwUBLAMWLNG4/9mlLIbXoGBQ==}
+    engines: {node: '>=12.0.0'}
+
   date-fns-jalali@4.1.0-0:
     resolution: {integrity: sha512-hTIP/z+t+qKwBDcmmsnmjWTduxCg+5KfdqWQvb2X/8C9+knYY6epN/pfxdDuyVlSVeFz0sM5eEfwIUQ70U4ckg==}
 
@@ -2270,6 +2293,15 @@ packages:
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
+
+  date-holidays-parser@3.4.7:
+    resolution: {integrity: sha512-h09ZEtM6u5cYM6m1bX+1Ny9f+nLO9KVZUKNPEnH7lhbXYTfqZogaGTnhONswGeIJFF91UImIftS3CdM9HLW5oQ==}
+    engines: {node: '>=12.0.0'}
+
+  date-holidays@3.28.0:
+    resolution: {integrity: sha512-TNrzyzO5JWght5RLzKek8No1vme6vL3pnXl6LwWCPEPgENQiuXi/xvGIgOdmX8hWQml29SRn8sz3/BpNyAb/ew==}
+    engines: {node: '>=12.0.0'}
+    hasBin: true
 
   dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
@@ -2293,6 +2325,10 @@ packages:
 
   decimal.js-light@2.5.1:
     resolution: {integrity: sha512-qIMFpTMZmny+MMIitAB6D7iVPEorVw6YQRWkvarTkT4tBeSLLiHzcwj6q0MmYSFCiVpiqPJTJEYIrpcPzVEIvg==}
+
+  deepmerge@4.3.1:
+    resolution: {integrity: sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==}
+    engines: {node: '>=0.10.0'}
 
   depd@2.0.0:
     resolution: {integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==}
@@ -2749,6 +2785,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  jalaali-js@1.2.8:
+    resolution: {integrity: sha512-Jl/EwY84JwjW2wsWqeU4pNd22VNQ7EkjI36bDuLw31wH98WQW4fPjD0+mG7cdCK+Y8D6s9R3zLiQ3LaKu6bD8A==}
+
   jiti@2.6.1:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
@@ -2896,6 +2935,12 @@ packages:
 
   modern-screenshot@4.6.8:
     resolution: {integrity: sha512-GJkv/yWPOJTlxj1LZDU2k474cDyOWL+LVaqTdDWQwQ5d8zIuTz1892+1cV9V0ZpK6HYZFo/+BNLBbierO9d2TA==}
+
+  moment-timezone@0.5.48:
+    resolution: {integrity: sha512-f22b8LV1gbTO2ms2j2z13MuPogNoh5UzxL3nzNAYKGraILnbGc9NEE6dyiiiLv46DGRb8A4kg8UKWLjPthxBHw==}
+
+  moment@2.30.1:
+    resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
 
   motion-dom@12.35.1:
     resolution: {integrity: sha512-7n6r7TtNOsH2UFSAXzTkfzOeO5616v9B178qBIjmu/WgEyJK0uqwytCEhwKBTuM/HJA40ptAw7hLFpxtPAMRZQ==}
@@ -3089,6 +3134,10 @@ packages:
   postgres-interval@1.2.0:
     resolution: {integrity: sha512-9ZhXKM/rw350N1ovuWHbGxnGh/SNJ4cnxHiM0rxE4VN41wsg8P8zWn9hv/buK00RP4WvlOyr/RBDiptyxVbkZQ==}
     engines: {node: '>=0.10.0'}
+
+  prepin@1.0.3:
+    resolution: {integrity: sha512-0XL2hreherEEvUy0fiaGEfN/ioXFV+JpImqIzQjxk6iBg4jQ2ARKqvC4+BmRD8w/pnpD+lbxvh0Ub+z7yBEjvA==}
+    hasBin: true
 
   prettier@3.8.1:
     resolution: {integrity: sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==}
@@ -5167,6 +5216,8 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  astronomia@4.2.0: {}
+
   atomic-sleep@1.0.0: {}
 
   balanced-match@1.0.2: {}
@@ -5210,6 +5261,10 @@ snapshots:
       streamsearch: 1.1.0
 
   bytes@3.1.2: {}
+
+  caldate@2.0.5:
+    dependencies:
+      moment-timezone: 0.5.48
 
   call-bind-apply-helpers@1.0.2:
     dependencies:
@@ -5348,11 +5403,37 @@ snapshots:
 
   d3-timer@3.0.1: {}
 
+  date-bengali-revised@2.0.2: {}
+
+  date-chinese@2.1.4:
+    dependencies:
+      astronomia: 4.2.0
+
+  date-easter@1.0.3: {}
+
   date-fns-jalali@4.1.0-0: {}
 
   date-fns@3.6.0: {}
 
   date-fns@4.1.0: {}
+
+  date-holidays-parser@3.4.7:
+    dependencies:
+      astronomia: 4.2.0
+      caldate: 2.0.5
+      date-bengali-revised: 2.0.2
+      date-chinese: 2.1.4
+      date-easter: 1.0.3
+      deepmerge: 4.3.1
+      jalaali-js: 1.2.8
+      moment-timezone: 0.5.48
+
+  date-holidays@3.28.0:
+    dependencies:
+      date-holidays-parser: 3.4.7
+      js-yaml: 4.1.1
+      lodash: 4.18.1
+      prepin: 1.0.3
 
   dateformat@4.6.3: {}
 
@@ -5365,6 +5446,8 @@ snapshots:
       ms: 2.1.3
 
   decimal.js-light@2.5.1: {}
+
+  deepmerge@4.3.1: {}
 
   depd@2.0.0: {}
 
@@ -5735,6 +5818,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  jalaali-js@1.2.8: {}
+
   jiti@2.6.1: {}
 
   joycon@3.1.1: {}
@@ -5851,6 +5936,12 @@ snapshots:
   mitt@3.0.1: {}
 
   modern-screenshot@4.6.8: {}
+
+  moment-timezone@0.5.48:
+    dependencies:
+      moment: 2.30.1
+
+  moment@2.30.1: {}
 
   motion-dom@12.35.1:
     dependencies:
@@ -6069,6 +6160,8 @@ snapshots:
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
+
+  prepin@1.0.3: {}
 
   prettier@3.8.1: {}
 

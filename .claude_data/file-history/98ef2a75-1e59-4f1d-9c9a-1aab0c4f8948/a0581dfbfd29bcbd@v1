@@ -1,0 +1,370 @@
+import { useState, useEffect } from "react";
+import { useParams, useLocation } from "wouter";
+import { useUser, useClerk } from "@clerk/react";
+import { Layout } from "@/components/layout";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, MapPin, Euro, Users, CheckCircle2, AlertCircle, Loader2, LogIn, Calendar, UserX } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+interface SplitBookingInfo {
+  bookingId: number;
+  gameId: number | null;
+  courtName: string;
+  facilityName: string;
+  facilityCity: string;
+  courtImageUrl: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  totalPrice: number;
+  pricePerSlot: number;
+  totalSlots: number;
+  paidSlots: number;
+  slotsLeft: number;
+  bookingStatus: string;
+  sport: string | null;
+}
+
+export default function JoinBookingPage() {
+  const { token } = useParams<{ token: string }>();
+  const [, navigate] = useLocation();
+  const { user, isSignedIn, isLoaded } = useUser();
+  const { openSignIn } = useClerk();
+  const { toast } = useToast();
+
+  const [info, setInfo] = useState<SplitBookingInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [joining, setJoining] = useState(false);
+
+  // Guest mode state
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const isPaid = params.get("paid") === "1";
+  const isCancelled = params.get("cancelled") === "1";
+
+  useEffect(() => {
+    if (!token) { setError("Nuoroda neteisinga"); setLoading(false); return; }
+    fetch(`${API}/bookings/share/${token}`)
+      .then(r => {
+        if (r.status === 404) throw new Error("Kvietimo nuoroda nerasta arba nebegalioja.");
+        if (r.status === 410) throw new Error("Rezervacija atšaukta.");
+        if (!r.ok) throw new Error("Nepavyko gauti rezervacijos informacijos.");
+        return r.json();
+      })
+      .then((data: SplitBookingInfo) => setInfo(data))
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const handleJoin = async () => {
+    if (!isSignedIn || !user) { openSignIn(); return; }
+    if (!info || !token) return;
+
+    const email = user.primaryEmailAddress?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress ?? "";
+    const name = user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || email.split("@")[0] || "Žaidėjas";
+
+    setJoining(true);
+    try {
+      const resp = await fetch(`${API}/bookings/share/${token}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerName: name, playerEmail: email }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.error ?? "Nepavyko inicijuoti mokėjimo");
+      }
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Klaida", description: err.message ?? "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleGuestJoin = async () => {
+    if (!info || !token) return;
+    const name = guestName.trim();
+    const email = guestEmail.trim();
+    if (!name || !email) {
+      toast({ title: "Klaida", description: "Įveskite vardą ir el. paštą.", variant: "destructive" });
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const resp = await fetch(`${API}/bookings/share/${token}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestName: name, guestEmail: email }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.error ?? "Nepavyko inicijuoti mokėjimo");
+      }
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Klaida", description: err.message ?? "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Kraunama…</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <h1 className="text-xl font-bold">Nuoroda nebegalioja</h1>
+          <p className="text-muted-foreground text-sm">{error}</p>
+          <Button variant="outline" onClick={() => navigate("/")}>Grįžti į pradžią</Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!info) return null;
+
+  const allPaid = info.paidSlots >= info.totalSlots;
+  const noSlotsLeft = info.slotsLeft <= 0;
+
+  return (
+    <Layout>
+      <div className="max-w-md mx-auto px-4 py-8 space-y-6">
+
+        {/* Success banner */}
+        {isPaid && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-400/20 text-green-700 dark:text-green-400">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm">Mokėjimas gautas!</p>
+              <p className="text-xs opacity-80">Tavo dalis sėkmingai apmokėta.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Cancelled banner */}
+        {isCancelled && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-400/20 text-yellow-700 dark:text-yellow-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <p className="text-sm">Mokėjimas atšauktas. Vieta kol kas laisva — galite bandyti dar kartą.</p>
+          </div>
+        )}
+
+        {/* Header */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Mokėjimo pakvietimas</p>
+          <h1 className="text-2xl font-bold">{info.courtName}</h1>
+          <p className="text-muted-foreground flex items-center gap-1.5 text-sm mt-1">
+            <MapPin className="w-3.5 h-3.5" />
+            {info.facilityName}{info.facilityCity ? `, ${info.facilityCity}` : ""}
+          </p>
+        </div>
+
+        {/* Booking card */}
+        <div className="rounded-2xl border bg-card shadow-sm p-5 space-y-3">
+          {info.courtImageUrl && (
+            <img
+              src={info.courtImageUrl}
+              alt={info.courtName}
+              className="w-full h-36 object-cover rounded-xl mb-3"
+            />
+          )}
+
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4 text-primary shrink-0" />
+            <span className="font-medium">{info.date}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-primary shrink-0" />
+            <span className="font-medium">{info.startTime} – {info.endTime}</span>
+          </div>
+          {info.sport && (
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-primary shrink-0" />
+              <span className="capitalize">{info.sport}</span>
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Slot progress */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Apmokėta dalių</span>
+              <span className="font-semibold">{info.paidSlots} / {info.totalSlots}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="h-2 rounded-full bg-primary transition-all"
+                style={{ width: `${Math.round((info.paidSlots / info.totalSlots) * 100)}%` }}
+              />
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {Array.from({ length: info.totalSlots }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-xs font-bold ${
+                    i < info.paidSlots
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "bg-muted border-border text-muted-foreground"
+                  }`}
+                >
+                  {i < info.paidSlots ? "✓" : i + 1}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Price */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground">Jūsų dalis (1/{info.totalSlots})</p>
+              <p className="text-2xl font-bold text-primary flex items-center gap-1">
+                <Euro className="w-5 h-5" />{info.pricePerSlot.toFixed(2)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Visa kaina</p>
+              <p className="text-sm font-semibold">{info.totalPrice.toFixed(2)} €</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action area */}
+        {isPaid ? (
+          <div className="text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {allPaid
+                ? "Visi žaidėjai sumokėjo — rezervacija patvirtinta!"
+                : `Laukiama likusių ${info.totalSlots - info.paidSlots} žaidėjų mokėjimo.`}
+            </p>
+            {isSignedIn && (
+              <Button variant="outline" className="w-full" onClick={() => navigate("/bookings")}>
+                Mano rezervacijos
+              </Button>
+            )}
+          </div>
+        ) : allPaid || noSlotsLeft ? (
+          <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted border text-center">
+            <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground font-medium">
+              {allPaid ? "Visos dalys apmokėtos." : "Visos dalys jau užimtos."}
+            </p>
+          </div>
+        ) : !isLoaded ? (
+          <div className="h-12 w-full bg-muted rounded-xl animate-pulse" />
+        ) : !isSignedIn ? (
+          guestMode ? (
+            /* Guest form */
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Įveskite savo duomenis mokėjimui. Patvirtinimas bus išsiųstas el. paštu.
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-name">Vardas</Label>
+                  <Input
+                    id="guest-name"
+                    placeholder="Jūsų vardas"
+                    value={guestName}
+                    onChange={e => setGuestName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-email">El. paštas</Label>
+                  <Input
+                    id="guest-email"
+                    type="email"
+                    placeholder="jusu@email.lt"
+                    value={guestEmail}
+                    onChange={e => setGuestEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                  />
+                </div>
+              </div>
+              <Button
+                className="button-primary w-full h-12 text-base font-semibold gap-2"
+                onClick={handleGuestJoin}
+                disabled={joining || !guestName.trim() || !guestEmail.trim()}
+              >
+                {joining ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Kraunama…</>
+                ) : (
+                  <><Euro className="w-4 h-4" /> Mokėti {info.pricePerSlot.toFixed(2)} €</>
+                )}
+              </Button>
+              <button
+                className="text-xs text-muted-foreground w-full text-center hover:text-foreground transition-colors"
+                onClick={() => setGuestMode(false)}
+              >
+                ← Atgal
+              </button>
+            </div>
+          ) : (
+            /* Sign-in or guest choice */
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground text-center">
+                Pasirinkite, kaip norite sumokėti savo dalį.
+              </p>
+              <Button className="button-primary w-full gap-2" onClick={() => openSignIn()}>
+                <LogIn className="w-4 h-4" />
+                Prisijungti
+              </Button>
+              <Button variant="outline" className="w-full gap-2" onClick={() => setGuestMode(true)}>
+                <UserX className="w-4 h-4" />
+                Tęsti be registracijos
+              </Button>
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground text-center">
+              Mokėdamas patvirtini dalyvavimą. Grąžinimo sąlygos taikomos pagal bendrąsias taisykles.
+            </p>
+            <Button
+              className="button-primary w-full h-12 text-base font-semibold gap-2"
+              onClick={handleJoin}
+              disabled={joining}
+            >
+              {joining ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Kraunama…</>
+              ) : (
+                <><Euro className="w-4 h-4" /> Mokėti {info.pricePerSlot.toFixed(2)} €</>
+              )}
+            </Button>
+          </div>
+        )}
+
+      </div>
+    </Layout>
+  );
+}

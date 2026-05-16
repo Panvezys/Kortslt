@@ -1,0 +1,9 @@
+{
+  "id": "5",
+  "subject": "Frontend: host guarantee warning on court-detail split section",
+  "description": "When splitEnabled, show an amber warning box: \"If other players don't pay 2 hours before game start, the remaining amount will be charged to your card.\"",
+  "activeForm": "Adding host warning UI",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "Frontend: deadline + Garantuota badge on booking-confirmed split section",
+  "description": "Compute deadline (startTime - 2h) from splitInfo date/startTime. Show \"Garantuota\" badge and explicit deadline text in the confirmation card.",
+  "activeForm": "Updating booking-confirmed split UI",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -8,8 +8,11 @@ import { OwnerLayout } from "@/components/owner-layout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
+  Calendar,
   Loader2,
   MessageSquare,
   Send,
@@ -45,11 +48,21 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+interface LatestBooking {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+}
+
 interface OwnerThread {
   courtId: number;
   courtName: string;
   threadUserId: string;
   threadUserName: string;
+  threadUserImageUrl: string | null;
+  latestBooking: LatestBooking | null;
   lastMessage: { body: string; senderUserId: string; createdAt: string };
 }
 
@@ -111,23 +124,33 @@ function ThreadList({
             <button
               type="button"
               onClick={() => onSelect(t)}
-              className={`w-full text-left px-4 py-3 transition-colors ${
+              className={`w-full text-left px-4 py-3 transition-colors flex gap-3 ${
                 active ? "bg-primary/10" : "hover:bg-muted/60"
               }`}
             >
-              <div className="flex items-baseline justify-between gap-2 mb-0.5">
-                <span className="font-semibold text-sm truncate">
-                  {t.threadUserName}
-                </span>
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {format(parseISO(last.createdAt), "HH:mm · dd MMM")}
-                </span>
-              </div>
-              <div className="text-xs text-muted-foreground truncate mb-0.5">
-                {t.courtName}
-              </div>
-              <div className="text-xs text-foreground/80 truncate">
-                {last.body}
+              <Avatar className="h-10 w-10 shrink-0 mt-0.5">
+                {t.threadUserImageUrl && <AvatarImage src={t.threadUserImageUrl} alt={t.threadUserName} />}
+                <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
+                  {t.threadUserName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                  <span className="font-semibold text-sm truncate">{t.threadUserName}</span>
+                  <span className="text-[10px] text-muted-foreground shrink-0">
+                    {format(parseISO(last.createdAt), "HH:mm · dd MMM")}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground truncate mb-0.5">{t.courtName}</div>
+                {t.latestBooking && (
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal gap-1 border-primary/30 text-primary">
+                      <Calendar className="w-2.5 h-2.5" />
+                      {t.latestBooking.date} · {t.latestBooking.startTime}–{t.latestBooking.endTime}
+                    </Badge>
+                  </div>
+                )}
+                <div className="text-xs text-foreground/80 truncate">{last.body}</div>
               </div>
             </button>
           </li>
@@ -198,24 +221,31 @@ function OwnerChatPane({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+      <div className="flex items-start gap-3 px-4 py-3 border-b bg-card shrink-0">
         <button
           onClick={onBack}
-          className="md:hidden text-muted-foreground hover:text-foreground"
+          className="md:hidden text-muted-foreground hover:text-foreground mt-0.5"
           aria-label="Atgal"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <MessageSquare className="w-5 h-5 text-primary" />
-        </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-sm leading-tight truncate">
-            {thread.threadUserName}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {thread.courtName}
-          </p>
+        <Avatar className="h-10 w-10 shrink-0">
+          {thread.threadUserImageUrl && <AvatarImage src={thread.threadUserImageUrl} alt={thread.threadUserName} />}
+          <AvatarFallback className="bg-primary/15 text-primary font-semibold text-xs">
+            {thread.threadUserName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-sm leading-tight truncate">{thread.threadUserName}</p>
+          <p className="text-xs text-muted-foreground truncate">{thread.courtName}</p>
+          {thread.latestBooking && (
+            <div className="flex items-center gap-1 mt-1">
+              <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal gap-1 border-primary/30 text-primary">
+                <Calendar className="w-2.5 h-2.5" />
+                Rez. #{thread.latestBooking.id} · {thread.latestBooking.date} {thread.latestBooking.startTime}–{thread.latestBooking.endTime}
+              </Badge>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">

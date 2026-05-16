@@ -1,0 +1,14 @@
+Let's add "Defensive UI Overrides" for historical Split Bookings. Currently, if the backend sweeper fails and an `awaiting_players` booking passes its `game.start_time`, it shows up in the Past tab looking like an active, frozen checkout.
+
+Please implement a UI override for both the Booking List card and the Booking Detail page:
+
+1. The Condition: Create a helper logic check: `const isZombieBooking = status === 'awaiting_players' && new Date() > new Date(game.start_time)` (adjust based on your date libs).
+2. Booking List Card Update: If `isZombieBooking` is true:
+   - Override the top right badge: Change from blue "Laukiama žaidėjų" to a gray/red badge saying "Nepavyko" (Failed).
+   - Override the split info text: Instead of "Liko: Laikas baigėsi", show muted red text: "Mačas neįvyko" (Match did not occur).
+3. Booking Detail Page Update: If `isZombieBooking` is true:
+   - Override the top right badge to "Nepavyko".
+   - Gray out the "Bendras mokėjimas" (Split Payment) block (e.g., use `opacity-75` and grayscale utility classes on the progress bar and player status badges).
+   - Replace the "Liko surinkti: Laikas baigėsi" line with a standard alert/banner: "Ši rezervacija nebuvo sėkminga, nes laiku nebuvo surinkta pilna suma." (This reservation was unsuccessful because the full amount was not collected in time.)
+
+Run typechecks and verify the visual logic handles these historical edge cases gracefully.

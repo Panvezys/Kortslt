@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2,
-  Euro, Percent, CalendarDays, BanknoteIcon, ChevronLeft, ChevronRight,
+  Euro, Percent, CalendarDays, ChevronLeft, ChevronRight,
   Plus, Phone, X, CheckCircle2, Clock, BarChart3,
   ArrowUpRight, CreditCard, ExternalLink,
 } from "lucide-react";
@@ -34,6 +34,13 @@ function isoDate(d: Date): string {
 }
 function prevDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() - 1); return isoDate(d); }
 function nextDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + 1); return isoDate(d); }
+function addDays(s: string, n: number): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + n); return isoDate(d); }
+function mondayOf(s: string): string {
+  const d = new Date(s + "T12:00:00");
+  const dow = d.getDay();
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return isoDate(d);
+}
 function weekDays(s: string): string[] {
   const d = new Date(s + "T12:00:00");
   const dow = d.getDay();
@@ -53,13 +60,6 @@ function addThirty(t: string): string {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface StripeConnectStatus {
-  status: "not_connected" | "pending" | "active";
-  accountId: string | null;
-  chargesEnabled?: boolean;
-  payoutsEnabled?: boolean;
-}
 
 interface OwnerCourt { id: number; name: string; type: string; facilityId?: number; pricePerHour?: number; todayPricing?: Record<string, number> }
 
@@ -91,17 +91,13 @@ interface BlockedSlot {
   reason?: string | null;
 }
 
-interface WeeklyBookingEntry {
-  id: number; courtId: number; customerName: string;
-  date: string; startTime: string; endTime: string; totalPrice: number; status: string;
-}
-
 interface DashboardData {
   facility: { id: number; name: string } | null;
   courts: OwnerCourt[];
   todayBookings: OwnerBooking[];
   todayBlockedSlots: BlockedSlot[];
-  weeklyBookings?: WeeklyBookingEntry[];
+  weeklyBookings?: OwnerBooking[];
+  weeklyBlockedSlots?: BlockedSlot[];
   recentBookings: OwnerBooking[];
   monthlyRevenue: number;
   monthlyGrossRevenue?: number;
@@ -518,7 +514,7 @@ function BookingInfoModal({ booking, onClose, onCancelled }: { booking: OwnerBoo
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
             {booking.status !== "blocked" && (
-              <Button className="flex-1" onClick={() => { onClose(); navigate(`/bookings/${booking.id}`); }}>
+              <Button className="flex-1" onClick={() => { onClose(); navigate(`/owner/bookings/${booking.id}`); }}>
                 Pilna peržiūra
               </Button>
             )}
@@ -529,20 +525,18 @@ function BookingInfoModal({ booking, onClose, onCancelled }: { booking: OwnerBoo
   );
 }
 
-// ── Week schedule grid (multi-court, 7 days) ──────────────────────────────────
+// ── Week schedule grid (single court, 7 days) ────────────────────────────────
 
 const DAY_SHORT_LT = ["Pir", "Ant", "Tre", "Ket", "Pen", "Šeš", "Sek"];
 
 function WeekScheduleGrid({
-  days, courts, weeklyBookings, todayBookings, blockedSlots, isSelectedToday,
+  days, court, weeklyBookings, weeklyBlockedSlots,
   onDayClick, onFreeClick, onBookingClick,
 }: {
   days: string[];
-  courts: OwnerCourt[];
-  weeklyBookings: WeeklyBookingEntry[];
-  todayBookings: OwnerBooking[];
-  blockedSlots: BlockedSlot[];
-  isSelectedToday: boolean;
+  court: OwnerCourt;
+  weeklyBookings: OwnerBooking[];
+  weeklyBlockedSlots: BlockedSlot[];
   onDayClick: (date: string) => void;
   onFreeClick: (date: string, startTime: string) => void;
   onBookingClick: (b: OwnerBooking) => void;
@@ -550,11 +544,30 @@ function WeekScheduleGrid({
   const today = todayStr();
   const now = new Date();
 
+  // Pre-bucket bookings/blocked per day so slot render is O(1)
+  const bookingsByDay = useMemo(() => {
+    const m: Record<string, OwnerBooking[]> = {};
+    for (const b of weeklyBookings) { (m[b.date] ??= []).push(b); }
+    return m;
+  }, [weeklyBookings]);
+  const blockedByDay = useMemo(() => {
+    const m: Record<string, BlockedSlot[]> = {};
+    for (const bl of weeklyBlockedSlots) { (m[bl.date] ??= []).push(bl); }
+    return m;
+  }, [weeklyBlockedSlots]);
+
+  const colBg = (day: string) => {
+    if (day === today) return "bg-primary/[0.03]";
+    const dow = new Date(day + "T12:00:00").getDay();
+    return dow === 6 || dow === 0 ? "bg-muted/20" : "";
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <div style={{ minWidth: `${64 + 7 * 80}px` }}>
-        <div className="grid border-b border-border bg-muted/30" style={{ gridTemplateColumns: `64px repeat(7, 1fr)` }}>
-          <div className="px-2 py-2" />
+    <div>
+      <div>
+        {/* Day header */}
+        <div className="grid border-b border-border bg-muted/30" style={{ gridTemplateColumns: `40px repeat(7, 1fr)` }}>
+          <div className="px-1 py-2" />
           {days.map((day, i) => {
             const isToday = day === today;
             const isPast = day < today;
@@ -563,60 +576,71 @@ function WeekScheduleGrid({
               <button
                 key={day}
                 onClick={() => onDayClick(day)}
-                className={`px-1 py-2 text-center hover:bg-muted/50 transition-colors w-full ${isToday ? "bg-primary/5" : ""}`}
+                className={`px-1 py-2 text-center hover:bg-muted/50 transition-colors w-full border-l border-border/40 ${isToday ? "bg-primary/10" : colBg(day)}`}
               >
                 <p className={`text-[10px] font-semibold uppercase ${isToday ? "text-primary" : isPast ? "text-muted-foreground/40" : "text-muted-foreground"}`}>
                   {DAY_SHORT_LT[i]}
                 </p>
                 <p className={`text-xs font-bold ${isToday ? "text-primary" : isPast ? "text-muted-foreground/40" : "text-foreground"}`}>
-                  {parseInt(dd)}.{parseInt(mm)}
+                  {mm}-{dd}
                 </p>
               </button>
             );
           })}
         </div>
-        <div className="max-h-[400px] overflow-y-auto">
+
+        {/* Time rows */}
+        <div className="max-h-[480px] overflow-y-hidden hover:overflow-y-auto">
           {SLOTS.map(slot => {
             const slotMin = toMin(slot);
             const nowMin = now.getHours() * 60 + now.getMinutes();
+            const isNowRow = today >= days[0] && today <= days[6] && nowMin >= slotMin && nowMin < slotMin + 30;
             return (
-              <div key={slot} className="grid border-b border-border/40 last:border-0" style={{ gridTemplateColumns: `64px repeat(7, 1fr)` }}>
-                <div className="px-2 py-1 flex items-center justify-end text-[10px] tabular-nums font-mono text-muted-foreground shrink-0">
+              <div key={slot} className={`grid border-b border-border/40 last:border-0 ${isNowRow ? "bg-primary/5" : ""}`} style={{ gridTemplateColumns: `40px repeat(7, 1fr)` }}>
+                <div className={`px-1 py-1 flex items-center justify-end text-[9px] tabular-nums font-mono shrink-0 ${isNowRow ? "text-primary font-bold" : "text-muted-foreground"}`}>
                   {slot}
                 </div>
                 {days.map(day => {
                   const isToday = day === today;
                   const isPast = day < today || (isToday && slotMin + 30 <= nowMin);
-                  const dayBookings = isToday
-                    ? todayBookings.filter(b => { const bs = toMin(b.startTime), be = toMin(b.endTime); return bs <= slotMin && be > slotMin && ["confirmed","pending","blocked"].includes(b.status); })
-                    : weeklyBookings.filter(b => b.date === day && toMin(b.startTime) <= slotMin && toMin(b.endTime) > slotMin && ["confirmed","pending","blocked"].includes(b.status));
-                  const dayBlocked = isToday ? blockedSlots.filter(bl => { const bs = toMin(bl.startTime), be = toMin(bl.endTime); return bs <= slotMin && be > slotMin && bl.courtId; }) : [];
-                  const bookedCount = dayBookings.length + dayBlocked.length;
-                  const firstBooking = isToday && todayBookings.length > 0
-                    ? todayBookings.find(b => { const bs = toMin(b.startTime), be = toMin(b.endTime); return bs <= slotMin && be > slotMin && ["confirmed","pending","blocked"].includes(b.status); })
-                    : undefined;
+                  const { kind, booking, blocked } = getSlotKind(
+                    court.id, slot,
+                    bookingsByDay[day] ?? [],
+                    blockedByDay[day] ?? [],
+                  );
+                  const slotPrice = getSlotPrice(slot, court.pricePerHour, court.todayPricing);
                   return (
-                    <div key={day} className="px-0.5 py-0.5">
-                      {bookedCount > 0 ? (
+                    <div key={day} className={`px-0.5 py-0.5 border-l border-border/40 ${colBg(day)}`}>
+                      {kind === "confirmed" ? (
                         <div
-                          onClick={() => firstBooking && onBookingClick(firstBooking)}
-                          className={`h-7 rounded text-[9px] font-medium border flex items-center justify-center ${firstBooking ? "cursor-pointer hover:opacity-75 transition-opacity" : ""} ${
-                            firstBooking?.status === "confirmed" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-400/30"
-                            : firstBooking?.status === "pending" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
-                            : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
-                          }`}
+                          onClick={() => booking && onBookingClick(booking)}
+                          className="h-9 rounded bg-blue-500/15 border border-blue-400/30 hover:bg-blue-500/25 transition-colors flex items-center px-1.5 overflow-hidden cursor-pointer"
                         >
-                          {firstBooking ? (
-                            <span className="truncate px-1">{firstBooking.customerName.split(" ")[0]}</span>
-                          ) : (
-                            <span className="text-zinc-400">{bookedCount}×</span>
-                          )}
+                          <span className="text-[10px] text-blue-700 dark:text-blue-300 truncate font-medium">{booking?.customerName}</span>
+                        </div>
+                      ) : kind === "pending" ? (
+                        <div
+                          onClick={() => booking && onBookingClick(booking)}
+                          className="h-9 rounded bg-amber-400/20 border border-amber-400/40 hover:bg-amber-400/30 transition-colors flex items-center px-1.5 overflow-hidden cursor-pointer"
+                        >
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 truncate font-medium">{booking?.customerName}</span>
+                        </div>
+                      ) : kind === "blocked" ? (
+                        <div className="h-9 rounded bg-zinc-200 dark:bg-zinc-700/60 border border-zinc-300/50 dark:border-zinc-600/40 flex items-center px-1.5 overflow-hidden">
+                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate font-medium">{blocked?.reason || "Užblokuota"}</span>
                         </div>
                       ) : (
                         <div
                           onClick={() => !isPast && onFreeClick(day, slot)}
-                          className={`h-7 rounded border border-dashed border-border/25 transition-colors ${isToday && slotMin >= nowMin - 30 && slotMin < nowMin + 30 ? "bg-primary/5" : ""} ${isPast ? "opacity-20" : "cursor-pointer hover:bg-muted/40"}`}
-                        />
+                          className={`h-9 rounded border border-dashed border-border/40 transition-colors flex flex-col items-center justify-center gap-0 group ${isPast ? "opacity-20 pointer-events-none" : "cursor-pointer hover:bg-muted/40"}`}
+                        >
+                          <Plus className="h-2.5 w-2.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+                          {slotPrice > 0 && (
+                            <span className="text-[9px] text-muted-foreground/40 group-hover:text-muted-foreground/70 leading-none">
+                              {slotPrice % 1 === 0 ? slotPrice : slotPrice.toFixed(1)}€
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -624,6 +648,27 @@ function WeekScheduleGrid({
               </div>
             );
           })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border bg-muted/20 flex-wrap">
+          <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">Legenda:</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-400/40" />
+            <span className="text-[10px] text-muted-foreground">Patvirtinta</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-amber-400/20 border border-amber-400/40" />
+            <span className="text-[10px] text-muted-foreground">Laukiama</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-zinc-200 dark:bg-zinc-700/60 border border-zinc-300/50" />
+            <span className="text-[10px] text-muted-foreground">Užblokuota</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm border border-dashed border-border/60" />
+            <span className="text-[10px] text-muted-foreground">Laisva (spustelėkite)</span>
+          </div>
         </div>
       </div>
     </div>
@@ -640,9 +685,10 @@ export default function OwnerDashboard() {
   const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
   const [manualPreDate, setManualPreDate] = useState<string | undefined>();
   const [selectedBooking, setSelectedBooking] = useState<OwnerBooking | null>(null);
-  const [stripeLoading, setStripeLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [scheduleView, setScheduleView] = useState<"day" | "week">("day");
+  const [weekBase, setWeekBase] = useState(() => mondayOf(todayStr()));
+  const [weekCourtId, setWeekCourtId] = useState<number | null>(null);
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("lt-LT", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -652,6 +698,10 @@ export default function OwnerDashboard() {
     ? `${API_URL}/owner/dashboard?facilityId=${facilityId}&date=${selectedDate}`
     : `${API_URL}/owner/dashboard?date=${selectedDate}`;
 
+  const weekApiUrl = facilityId
+    ? `${API_URL}/owner/dashboard?facilityId=${facilityId}&date=${weekBase}`
+    : `${API_URL}/owner/dashboard?date=${weekBase}`;
+
   const { toast } = useToast();
 
   const { data, isLoading } = useQuery<DashboardData>({
@@ -660,9 +710,10 @@ export default function OwnerDashboard() {
     refetchInterval: 60_000,
   });
 
-  const { data: stripeStatus } = useQuery<StripeConnectStatus>({
-    queryKey: ["stripe-connect-status"],
-    queryFn: () => customFetch<StripeConnectStatus>(`${API_URL}/stripe/connect/status`),
+  const { data: weekData, isLoading: weekLoading } = useQuery<DashboardData>({
+    queryKey: ["owner-dashboard-week", facilityId ?? "all", weekBase],
+    queryFn: () => customFetch<DashboardData>(weekApiUrl),
+    enabled: scheduleView === "week",
     staleTime: 60_000,
   });
 
@@ -679,21 +730,21 @@ export default function OwnerDashboard() {
     }
   }, []);
 
-  const openStripeDashboard = async () => {
-    setStripeLoading(true);
-    try {
-      const r = await customFetch<{ url: string }>(`${API_URL}/stripe/connect`, { method: "POST" });
-      window.open(r.url, "_blank", "noopener,noreferrer");
-    } catch {
-      toast({ title: "Klaida atidarant Stripe", variant: "destructive" });
-    } finally {
-      setStripeLoading(false);
-    }
-  };
-
   const courts = data?.courts ?? [];
   const todayBookings = data?.todayBookings ?? [];
   const todayBlockedSlots = data?.todayBlockedSlots ?? [];
+  const weeklyBookings = weekData?.weeklyBookings ?? [];
+  const weeklyBlockedSlots = weekData?.weeklyBlockedSlots ?? [];
+  const weekDaysArr = weekDays(weekBase);
+  const effectiveWeekCourtId = weekCourtId ?? courts[0]?.id ?? null;
+  const weekCourt = courts.find(c => c.id === effectiveWeekCourtId) ?? courts[0] ?? null;
+  const weekLabel = weekDaysArr.length === 7
+    ? (() => {
+        const [, m1, d1] = weekDaysArr[0].split("-");
+        const [, m2, d2] = weekDaysArr[6].split("-");
+        return `${m1}-${d1} – ${m2}-${d2}`;
+      })()
+    : "";
   const recentBookings = data?.recentBookings ?? [];
   // Gross = totalPrice for confirmed + cancelled (every euro that passed checkout).
   // Net   = Gross − refunds issued from cancelled rows.
@@ -724,46 +775,6 @@ export default function OwnerDashboard() {
     setManualOpen(true);
   }
 
-  const STATS = [
-    {
-      label: "Pajamos šį mėnesį",
-      value: `€${grossRevenue.toLocaleString("lt-LT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
-      sub: refundedTotal > 0
-        ? `Bendros · −€${refundedTotal.toLocaleString("lt-LT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} grąžinta`
-        : "Bendros (su atšauktomis)",
-      up: true as boolean | null,
-      icon: Euro,
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
-    {
-      label: "Užimtumas šiandien",
-      value: `${overallOccupancy}%`,
-      sub: "Vidutinis visų kortų",
-      up: null as boolean | null,
-      icon: Percent,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    {
-      label: "Rezervacijos (mėn.)",
-      value: String(monthlyBookingCount),
-      sub: "Šį mėnesį",
-      up: null as boolean | null,
-      icon: CalendarDays,
-      color: "text-violet-500",
-      bg: "bg-violet-500/10",
-    },
-    {
-      label: "Kortų skaičius",
-      value: String(courts.length),
-      sub: "Viso paskyroje",
-      up: null as boolean | null,
-      icon: BanknoteIcon,
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-    },
-  ];
 
   return (
     <OwnerLayout facilityId={facilityId} facilityName={data?.facility?.name} title="Suvestinė">
@@ -775,34 +786,13 @@ export default function OwnerDashboard() {
           </p>
         </div>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-              {isLoading
-                ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)
-                : STATS.map(stat => (
-                  <div key={stat.label} className="bg-card border border-border rounded-2xl p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <p className="text-xs text-muted-foreground font-medium leading-tight">{stat.label}</p>
-                      <div className={`w-8 h-8 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
-                        <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                      </div>
-                    </div>
-                    <p className="text-2xl font-bold tracking-tight mb-1">{stat.value}</p>
-                    <p className={`text-xs flex items-center gap-1 ${stat.up === true ? "text-emerald-500" : "text-muted-foreground"}`}>
-                      {stat.up === true && <ArrowUpRight className="h-3 w-3" />}
-                      {stat.sub}
-                    </p>
-                  </div>
-                ))
-              }
-            </div>
 
             {/* Main grid */}
             <div className="flex flex-col xl:flex-row gap-5">
 
               {/* Schedule grid */}
               <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl overflow-hidden">
-                {/* Header: title + date nav + view tabs + actions */}
+                {/* Header: title + view tabs + nav + actions */}
                 <div className="flex flex-col gap-0 border-b border-border">
                   <div className="flex items-center justify-between px-4 py-2.5">
                     <div className="flex items-center gap-1.5">
@@ -828,7 +818,7 @@ export default function OwnerDashboard() {
                           <span className="hidden sm:inline">Blokuoti kortą</span>
                           <span className="sm:hidden">Blokuoti</span>
                         </Button>
-                        <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreStartTime(undefined); setManualPreDate(selectedDate); setManualOpen(true); }}>
+                        <Button size="sm" className="gap-1.5 text-xs h-8" onClick={() => { setManualPreCourtId(undefined); setManualPreStartTime(undefined); setManualPreDate(scheduleView === "week" ? weekBase : selectedDate); setManualOpen(true); }}>
                           <Phone className="h-3 w-3" />
                           <span className="hidden sm:inline">Rankinė rezervacija</span>
                           <span className="sm:hidden">Rankinė</span>
@@ -836,27 +826,61 @@ export default function OwnerDashboard() {
                       </div>
                     )}
                   </div>
-                  {/* Date nav bar */}
-                  <div className="flex items-center gap-1.5 px-4 pb-2.5">
-                    <button onClick={() => setSelectedDate(d => prevDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className={`text-xs font-medium tabular-nums ${isSelectedToday ? "text-primary" : "text-foreground"}`}>
-                      {new Date(selectedDate + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "long", day: "numeric", month: "long" })}
-                      {isSelectedToday ? " (šiandien)" : ""}
-                    </span>
-                    <button onClick={() => setSelectedDate(d => nextDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                    {!isSelectedToday && (
-                      <button onClick={() => setSelectedDate(todayStr())} className="text-[10px] text-primary hover:underline ml-1">
-                        šiandien
+
+                  {/* Day nav bar */}
+                  {scheduleView === "day" && (
+                    <div className="flex items-center gap-1.5 px-4 pb-2.5">
+                      <button onClick={() => setSelectedDate(d => prevDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
+                        <ChevronLeft className="w-4 h-4" />
                       </button>
-                    )}
-                  </div>
+                      <span className={`text-xs font-medium tabular-nums ${isSelectedToday ? "text-primary" : "text-foreground"}`}>
+                        {new Date(selectedDate + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "long", day: "numeric", month: "long" })}
+                        {isSelectedToday ? " (šiandien)" : ""}
+                      </span>
+                      <button onClick={() => setSelectedDate(d => nextDay(d))} className="p-1 rounded hover:bg-muted transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      {!isSelectedToday && (
+                        <button onClick={() => setSelectedDate(todayStr())} className="text-[10px] text-primary hover:underline ml-1">
+                          šiandien
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Week nav bar + court selector */}
+                  {scheduleView === "week" && (
+                    <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
+                      <button onClick={() => setWeekBase(d => addDays(d, -7))} className="p-1 rounded hover:bg-muted transition-colors">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className={`text-xs font-medium tabular-nums min-w-[120px] text-center ${weekBase === mondayOf(todayStr()) ? "text-primary" : "text-foreground"}`}>
+                        {weekLabel}
+                      </span>
+                      <button onClick={() => setWeekBase(d => addDays(d, 7))} className="p-1 rounded hover:bg-muted transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      {weekBase !== mondayOf(todayStr()) && (
+                        <button onClick={() => setWeekBase(mondayOf(todayStr()))} className="text-[10px] text-primary hover:underline">
+                          ši savaitė
+                        </button>
+                      )}
+                      {courts.length > 1 && (
+                        <select
+                          value={effectiveWeekCourtId ?? ""}
+                          onChange={e => setWeekCourtId(Number(e.target.value))}
+                          className="ml-auto border border-border rounded-md px-2 py-1 text-xs bg-background"
+                        >
+                          {courts.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {isLoading ? (
+                {(scheduleView === "day" ? isLoading : weekLoading) ? (
                   <div className="p-4 space-y-2">
                     {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}
                   </div>
@@ -865,17 +889,15 @@ export default function OwnerDashboard() {
                     <Building2 className="h-10 w-10 text-muted-foreground/30 mb-3" />
                     <p className="text-sm text-muted-foreground">Kortų nerasta. <a href={facilityId ? `${BASE_URL}/owner/facility/${facilityId}/court/new` : `${BASE_URL}/owner`} className="text-primary underline">Pridėkite kortą</a>.</p>
                   </div>
-                ) : scheduleView === "week" ? (
+                ) : scheduleView === "week" && weekCourt ? (
                   <WeekScheduleGrid
-                    days={weekDays(selectedDate)}
-                    courts={courts}
-                    weeklyBookings={data?.weeklyBookings ?? []}
-                    todayBookings={todayBookings}
-                    blockedSlots={todayBlockedSlots}
-                    isSelectedToday={isSelectedToday}
+                    days={weekDaysArr}
+                    court={weekCourt}
+                    weeklyBookings={weeklyBookings}
+                    weeklyBlockedSlots={weeklyBlockedSlots}
                     onDayClick={d => { setSelectedDate(d); setScheduleView("day"); }}
-                    onFreeClick={(date, startTime) => handleFreeClick(courts[0]?.id ?? 0, startTime, date)}
-                    onBookingClick={b => setSelectedBooking(b as OwnerBooking)}
+                    onFreeClick={(date, startTime) => handleFreeClick(weekCourt.id, startTime, date)}
+                    onBookingClick={b => setSelectedBooking(b)}
                   />
                 ) : (
                   <div className="overflow-x-auto">
@@ -895,7 +917,7 @@ export default function OwnerDashboard() {
                       </div>
 
                       {/* Time rows */}
-                      <div className="max-h-[400px] overflow-y-auto">
+                      <div className="max-h-[400px] overflow-y-hidden hover:overflow-y-auto">
                         {SLOTS.map(slot => {
                           const nowMin = today.getHours() * 60 + today.getMinutes();
                           const slotMin = toMin(slot);
@@ -1032,51 +1054,6 @@ export default function OwnerDashboard() {
                   )}
                 </div>
 
-                {/* Stripe status card */}
-                <div className="bg-card border border-border rounded-2xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CreditCard className="h-4 w-4 text-violet-500" />
-                    <h3 className="text-sm font-semibold">Stripe Būsena</h3>
-                  </div>
-                  {stripeStatus ? (
-                    <div className="space-y-3">
-                      <div>
-                        {stripeStatus.status === "active" ? (
-                          <Badge className="bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30 gap-1.5 text-xs">
-                            🟢 Aktyvus
-                          </Badge>
-                        ) : stripeStatus.status === "pending" ? (
-                          <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1.5 text-xs">
-                            🟡 Laukiama patvirtinimo
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-muted text-muted-foreground border-border gap-1.5 text-xs">
-                            ⚪ Neprijungta
-                          </Badge>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          {stripeStatus.status === "active" && "Mokėjimai ir išmokos įjungtos"}
-                          {stripeStatus.status === "pending" && "Baigkite Stripe registraciją"}
-                          {stripeStatus.status === "not_connected" && "Prijunkite Stripe priimti mokėjimams"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full gap-2 text-xs"
-                        disabled={stripeLoading}
-                        onClick={openStripeDashboard}
-                      >
-                        <CreditCard className="h-3.5 w-3.5" />
-                        Stripe suvestinė
-                        <ExternalLink className="h-3 w-3 ml-auto" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Skeleton className="h-16 rounded-lg" />
-                  )}
-                </div>
-
                 {/* Recent bookings */}
                 <div className="bg-card border border-border rounded-2xl flex-1 flex flex-col overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
@@ -1085,7 +1062,7 @@ export default function OwnerDashboard() {
                       Visi <ChevronRight className="h-3 w-3" />
                     </a>
                   </div>
-                  <div className="overflow-y-auto flex-1 divide-y divide-border/50">
+                  <div className="overflow-y-hidden hover:overflow-y-auto flex-1 divide-y divide-border/50">
                     {isLoading
                       ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="px-4 py-3"><Skeleton className="h-10 rounded-lg" /></div>)
                       : recentBookings.length === 0

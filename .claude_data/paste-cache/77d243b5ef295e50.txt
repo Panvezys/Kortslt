@@ -1,0 +1,32 @@
+This is a classic "Zombie Data" problem.
+
+What you are looking at in these screenshots are bookings that were created before we fixed the timezone bug and got the backend sweeper working. Because the sweeper failed to process them at the 2-hour mark, they just sat there indefinitely, eventually passing the game's start time and moving into the "Past" (Praėjusios) tab while still holding the active Laukiama žaidėjų (Awaiting players) status.
+
+With the new sweeper active, this state should technically never happen again. Moving forward, these will be caught 2 hours prior and flipped to either Patvirtinta (Confirmed) or Atšaukta (Canceled).
+
+However, your frontend must be defensively coded. If a server crashes, Stripe goes down, or a cron job fails to fire, the UI cannot show an active "Awaiting Players" badge for a game that happened yesterday. It confuses users and generates support tickets.
+
+Here is exactly how both the List and Detail pages should handle these "Zombie" bookings.
+
+1. How the "Visos rezervacijos" (List) should look
+If a booking is awaiting_players but the game is already in the past:
+
+The Badge: The blue Laukiama žaidėjų badge must be overridden to a gray or red badge saying Nepavyko (Failed) or Atšaukta (Canceled).
+
+The Text: The orange "Liko: Laikas baigėsi" should be replaced with a muted red text: "Mačas neįvyko" (Match did not occur).
+
+The Action: It should look visually "dead" (maybe slightly lower opacity) just like standard canceled bookings.
+
+2. How the Booking Detail page should look
+Right now (as seen in image_6fc57d.png), it looks like an active checkout page that is just frozen.
+
+The Header: The badge at the top right must say Nepavyko (Failed).
+
+The Split Block: The active blue progress bar and the green "Sumokėta" badges should be grayed out.
+
+The Warning: Below the player list, instead of "Liko surinkti: Laikas baigėsi", there should be a clear alert box: "Ši rezervacija nebuvo sėkminga, nes nebuvo surinkta pilna suma laiku." (This reservation was unsuccessful because the full amount was not collected in time.)
+
+The Implementation Prompt for Claude Code
+Let's tell Claude to build a Frontend Fallback Override for these edge cases so your UI never looks broken, even if the backend misses a beat.
+
+Paste this into your Replit terminal:

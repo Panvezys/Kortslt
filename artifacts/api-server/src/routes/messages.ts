@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq, or, and, inArray } from "drizzle-orm";
-import { db, messagesTable, courtsTable, notificationsTable, facilitiesTable } from "@workspace/db";
+import { db, messagesTable, courtsTable, notificationsTable, facilitiesTable, userProfilesTable, bookingsTable } from "@workspace/db";
 import { requireAuth } from "../lib/auth";
 import { getAuth, clerkClient } from "@clerk/express";
 
@@ -73,7 +73,7 @@ router.get("/messages/owner-inbox", requireAuth, async (req, res): Promise<void>
     threadMap.get(key)!.push(row);
   }
 
-  const threads = [...threadMap.entries()].map(([key, msgs]) => {
+  const rawThreads = [...threadMap.entries()].map(([key, msgs]) => {
     const [courtIdStr, threadUserId] = key.split("__");
     const courtId = Number(courtIdStr);
     const first = msgs[0];
@@ -85,6 +85,60 @@ router.get("/messages/owner-inbox", requireAuth, async (req, res): Promise<void>
       threadUserName: userSide.senderUserId !== ownerUserId ? userSide.senderName : (userSide.recipientEmail ?? "Vartotojas"),
       lastMessage: formatMsg(first),
       unread: 0,
+    };
+  });
+
+  // Fetch profile image URLs for all thread users
+  const threadUserIds = [...new Set(rawThreads.map(t => t.threadUserId))];
+  const profileRows = threadUserIds.length
+    ? await db.select({ userId: userProfilesTable.userId, imageUrl: userProfilesTable.imageUrl })
+        .from(userProfilesTable)
+        .where(inArray(userProfilesTable.userId, threadUserIds))
+    : [];
+  const imageMap = new Map(profileRows.map(p => [p.userId, p.imageUrl]));
+
+  // Fetch most-recent booking per (courtId, threadUserId) for booking context
+  const bookingRows = rawThreads.length
+    ? await db.select({
+        id: bookingsTable.id,
+        courtId: bookingsTable.courtId,
+        bookerUserId: bookingsTable.bookerUserId,
+        date: bookingsTable.date,
+        startTime: bookingsTable.startTime,
+        endTime: bookingsTable.endTime,
+        status: bookingsTable.status,
+      })
+        .from(bookingsTable)
+        .where(
+          and(
+            inArray(bookingsTable.courtId, courtIds),
+            inArray(bookingsTable.bookerUserId, threadUserIds as [string, ...string[]]),
+          ),
+        )
+        .orderBy(desc(bookingsTable.date))
+    : [];
+
+  // Build a map: `${courtId}__${userId}` → most recent booking
+  const bookingMap = new Map<string, typeof bookingRows[0]>();
+  for (const b of bookingRows) {
+    const key = `${b.courtId}__${b.bookerUserId}`;
+    if (!bookingMap.has(key)) bookingMap.set(key, b);
+  }
+
+  const threads = rawThreads.map(t => {
+    const bk = bookingMap.get(`${t.courtId}__${t.threadUserId}`);
+    return {
+      ...t,
+      threadUserImageUrl: imageMap.get(t.threadUserId) ?? null,
+      latestBooking: bk
+        ? {
+            id: bk.id,
+            date: bk.date,
+            startTime: bk.startTime,
+            endTime: bk.endTime,
+            status: bk.status,
+          }
+        : null,
     };
   });
 

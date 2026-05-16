@@ -1,0 +1,9 @@
+{
+  "id": "3",
+  "subject": "Backend: implement sweepHostGuarantees cron function",
+  "description": "Export sweepHostGuarantees() from split-payments.ts. Finds awaiting_players split bookings whose game starts within 2 hours. Calculates missing amount, charges host off-session via saved payment method. On success: confirm booking+game. On failure: cancel booking, refund paid participants. Add it to cron.ts.",
+  "activeForm": "Implementing guarantee sweeper",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

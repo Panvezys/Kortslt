@@ -39,7 +39,17 @@
       "Bash(awk 'NR>1 { *)",
       "Bash(awk 'NR>1')",
       "Bash(kill 319)",
-      "Bash(PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)"
+      "Bash(PORT=8080 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)",
+      "Bash(npx tsc *)",
+      "Bash(pkill -f \"index.mjs\")",
+      "Bash(echo \"PID: $!\")",
+      "Bash(awk -F: '$2 > 975 && $2 < 1060')",
+      "Bash(yes '')",
+      "Bash(python3 *)",
+      "Bash(PORT=8080 pnpm dev)",
+      "Bash(pkill -9 -f \"dist/index.mjs\")",
+      "Bash(awk '{print $5, $6, $7, $8, $9}')"
     ]
-  }
+  },
+  "enabledPlugins": {}
 }

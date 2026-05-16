@@ -1,0 +1,9 @@
+{
+  "id": "4",
+  "subject": "Backend: expose paidParticipants names on share endpoint",
+  "description": "Add paidParticipants: [{name: string}] (first names only, no emails) to GET /api/bookings/share/:token response so the join page can show social proof.",
+  "activeForm": "Updating share endpoint",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

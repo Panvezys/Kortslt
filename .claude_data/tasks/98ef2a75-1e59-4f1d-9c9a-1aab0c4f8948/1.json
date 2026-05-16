@@ -1,0 +1,9 @@
+{
+  "id": "1",
+  "subject": "Add hostStripeCustomerId and hostStripePaymentMethodId to bookings schema",
+  "description": "Add two nullable text columns to bookingsTable for the Host Guarantee feature. Push schema to DB.",
+  "activeForm": "Updating DB schema",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

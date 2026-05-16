@@ -1,0 +1,969 @@
+import { useState, useEffect } from "react";
+import { useLocation, useParams } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  X, ArrowLeft, CalendarDays, ExternalLink, Ban, Plus, Phone, ChevronLeft, ChevronRight, Tag,
+} from "lucide-react";
+import { SportPill } from "@/components/sport-icon";
+import { OwnerLayout } from "@/components/owner-layout";
+import { useToast } from "@/hooks/use-toast";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+const STATUS_COLORS: Record<string, string> = {
+  confirmed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  awaiting_players: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  cancelled: "bg-destructive/10 text-destructive border-destructive/20",
+  rejected: "bg-destructive/10 text-destructive border-destructive/20",
+};
+const STATUS_LT: Record<string, string> = {
+  confirmed: "Patvirtinta", pending: "Laukiama", awaiting_players: "Laukia žaidėjų", cancelled: "Atšaukta", rejected: "Atmesta",
+};
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function prevDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() - 1); return isoDate(d); }
+function nextDay(s: string): string { const d = new Date(s + "T12:00:00"); d.setDate(d.getDate() + 1); return isoDate(d); }
+function mondayOf(s: string): string {
+  const d = new Date(s + "T12:00:00");
+  const dow = d.getDay();
+  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return isoDate(d);
+}
+function addDays(s: string, n: number): string {
+  const d = new Date(s + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+function weekDays(s: string): string[] {
+  const d = new Date(s + "T12:00:00");
+  const dow = d.getDay();
+  const mon = new Date(d);
+  mon.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(mon); x.setDate(mon.getDate() + i); return isoDate(x); });
+}
+
+function getWeekDates() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(diff + i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+}
+
+const DAY_NAMES = ["Pir", "Ant", "Tre", "Ket", "Pen", "Šeš", "Sek"];
+
+function fmtDate(d: string) {
+  const [, m, day] = d.split("-");
+  return `${day}.${m}`;
+}
+
+function fmtPrice(n: number) {
+  return n.toLocaleString("lt-LT", { style: "currency", currency: "EUR" });
+}
+
+interface CourtStats {
+  court: {
+    id: number; name: string; type: string; status: string;
+    pricePerHour: number; facilityId: number | null; isIndoor: boolean | null; imageUrl: string | null;
+  };
+  todayPricing: Record<string, number>;
+  facility: { id: number; name: string } | null;
+  monthlyRevenue: number;
+  monthlyBookingCount: number;
+  todayBookings: Booking[];
+  weeklyBookings: Booking[];
+  recentBookings: Booking[];
+}
+
+interface Booking {
+  id: number; courtId: number; bookerUserId?: string | null; customerName: string; customerEmail: string;
+  customerPhone?: string | null; date: string; startTime: string; endTime: string;
+  totalPrice: number; status: string; rentedItems?: string | null; createdAt: string;
+  isSplit?: boolean; pricePerSlot?: number | null; totalSlots?: number | null;
+}
+
+// 30-min slots 08:00 → 21:30  (28 slots)
+const SLOTS = Array.from({ length: 28 }, (_, i) => {
+  const m = 8 * 60 + i * 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+});
+
+function addThirty(t: string): string {
+  const m = toMin(t) + 30;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${m % 60 === 0 ? "00" : "30"}`;
+}
+
+function ManualBookingModal({
+  open, onClose, courtId, preStartTime, preDate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  courtId: number;
+  preStartTime?: string;
+  preDate?: string;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const today = todayStr();
+
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [date, setDate] = useState(preDate ?? today);
+  const [startHour, setStartHour] = useState(preStartTime ?? "08:00");
+  const [endHour, setEndHour] = useState(preStartTime ? addThirty(preStartTime) : "08:30");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setDate(preDate ?? today);
+      setStartHour(preStartTime ?? "08:00");
+      setEndHour(preStartTime ? addThirty(preStartTime) : "08:30");
+      setCustomerName(""); setCustomerEmail(""); setCustomerPhone(""); setNote("");
+    }
+  }, [open]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      customFetch(`${API_URL}/owner/bookings/manual`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtId,
+          customerName,
+          customerEmail: customerEmail.trim() || undefined,
+          customerPhone: customerPhone.trim() || undefined,
+          date,
+          startTime: startHour,
+          endTime: endHour,
+          note: note || undefined,
+        }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Rezervacija sukurta" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onClose();
+      setCustomerName(""); setCustomerEmail(""); setCustomerPhone(""); setNote("");
+    },
+    onError: (e: any) => toast({
+      title: "Klaida",
+      description: e?.data?.error || e?.message || "Nepavyko sukurti rezervacijos",
+      variant: "destructive",
+    }),
+  });
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Rankinė rezervacija</h2>
+        <p className="text-sm text-muted-foreground mb-5">Sukurkite rezervaciją už klientą (patvirtinta iš karto).</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Kliento vardas *</label>
+            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Vardas Pavardė" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">El. paštas</label>
+            <input value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} placeholder="vardas@email.com" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Telefonas</label>
+            <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="+370 600 00000" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Data</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
+              <select value={endHour} onChange={e => setEndHour(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pastaba</label>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Pvz. telefonu gautas…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Atšaukti</Button>
+          <Button
+            className="flex-1"
+            disabled={!customerName || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? "Saugoma…" : "Išsaugoti"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BlockCourtModal({
+  open, onClose, courtId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  courtId: number;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const today = todayStr();
+  const [date, setDate] = useState(today);
+  const [startHour, setStartHour] = useState("08:00");
+  const [endHour, setEndHour] = useState("08:30");
+  const [notes, setNotes] = useState("");
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
+
+  function reset() { setNotes(""); setConflictMsg(null); }
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      customFetch(`${API_URL}/owner/bookings/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtId, date, startTime: startHour, endTime: endHour, notes: notes || undefined }),
+      }),
+    onSuccess: () => {
+      toast({ title: "Kortas užblokuotas" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onClose(); reset();
+    },
+    onError: (e: any) => {
+      const code = e?.data?.code;
+      if (code === "CONFIRMED_EXISTS") {
+        setConflictMsg("⚠️ Šiuo laiku jau yra patvirtinta rezervacija. Negalite blokuoti užimto laiko.");
+      } else if (code === "PENDING_EXISTS") {
+        setConflictMsg("ℹ️ Šiuo metu klientas atlieka mokėjimą šiam laikui. Palaukite ir bandykite vėliau.");
+      } else {
+        toast({ title: "Klaida blokuojant", description: e?.data?.error || e?.message || "Nepavyko užblokuoti korto", variant: "destructive" });
+      }
+    },
+  });
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { onClose(); reset(); }} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={() => { onClose(); reset(); }} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Blokuoti kortą</h2>
+        <p className="text-sm text-muted-foreground mb-5">Pasirinkite datą ir laiką, kurį norite uždaryti.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Data</label>
+            <input type="date" value={date} onChange={e => { setDate(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Nuo</label>
+              <select value={startHour} onChange={e => { setStartHour(e.target.value); setConflictMsg(null); if (toMin(endHour) <= toMin(e.target.value)) setEndHour(addThirty(e.target.value)); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Iki</label>
+              <select value={endHour} onChange={e => { setEndHour(e.target.value); setConflictMsg(null); }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background">
+                {SLOTS.filter(s => toMin(s) > toMin(startHour)).map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="22:00">22:00</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1.5 block">Pastaba (neprivaloma)</label>
+            <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="pvz. Priežiūra, privatus renginys…" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors" />
+          </div>
+          {conflictMsg && (
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+              {conflictMsg}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 mt-5">
+          <Button variant="outline" className="flex-1" onClick={() => { onClose(); reset(); }}>Atšaukti</Button>
+          <Button className="flex-1" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? "Blokuojama…" : "Blokuoti"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, sub, color = "text-primary" }: {
+  label: string; value: string | number; sub?: string; color?: string;
+}) {
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4">
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function TodayGrid({
+  todayBookings,
+  pricePerHour,
+  todayPricing,
+  selectedDate,
+  isToday,
+  onDateChange,
+  onFreeClick,
+  onBookingClick,
+}: {
+  todayBookings: Booking[];
+  pricePerHour: number;
+  todayPricing: Record<string, number>;
+  selectedDate: string;
+  isToday: boolean;
+  onDateChange: (d: string) => void;
+  onFreeClick: (startTime: string) => void;
+  onBookingClick: (booking: Booking) => void;
+}) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const defaultHalf = pricePerHour / 2;
+  const isPastDay = selectedDate < todayStr();
+  const isFutureDay = selectedDate > todayStr();
+  const dateLbl = new Date(selectedDate + "T12:00:00").toLocaleDateString("lt-LT", { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-1.5">
+          <CalendarDays className="w-4 h-4 text-primary shrink-0" />
+          <span className="font-semibold text-sm">Dienos grafikas</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onDateChange(prevDay(selectedDate))} className="p-1 rounded hover:bg-muted transition-colors">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className={`text-xs font-medium px-1 tabular-nums ${isToday ? "text-primary" : "text-foreground"}`}>
+            {dateLbl}{isToday ? " (šiandien)" : ""}
+          </span>
+          <button onClick={() => onDateChange(nextDay(selectedDate))} className="p-1 rounded hover:bg-muted transition-colors">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          {!isToday && (
+            <button onClick={() => onDateChange(todayStr())} className="ml-1 text-[10px] text-primary hover:underline">
+              šiandien
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[360px] max-h-[340px] overflow-y-auto">
+          {SLOTS.map(slot => {
+            const slotMin = toMin(slot);
+            const slotEnd = addThirty(slot);
+
+            const booking = todayBookings.find(b => {
+              const bStart = toMin(b.startTime);
+              const bEnd = toMin(b.endTime);
+              return bStart <= slotMin && bEnd > slotMin && ["confirmed", "pending", "blocked", "awaiting_players"].includes(b.status);
+            });
+
+            const isNow = isToday && nowMin >= slotMin && nowMin < slotMin + 30;
+            const isPast = isPastDay || (isToday && slotMin + 30 <= nowMin);
+
+            const slotPrice = todayPricing[slot] ?? defaultHalf;
+
+            return (
+              <div
+                key={slot}
+                className={`flex items-center border-b border-border/40 last:border-0 px-3 py-1.5 gap-3 min-h-[36px] ${isNow ? "bg-primary/5" : isPast ? "bg-muted/20" : ""}`}
+              >
+                <span className={`text-xs tabular-nums font-mono w-10 shrink-0 ${isNow ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                  {slot}
+                </span>
+                {booking ? (
+                  <div
+                    onClick={() => onBookingClick(booking)}
+                    className={`flex-1 rounded px-2 py-1 text-xs font-medium border cursor-pointer transition-opacity hover:opacity-75 ${
+                      booking.status === "confirmed"
+                        ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                        : booking.status === "awaiting_players"
+                          ? "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-400/30"
+                          : booking.status === "pending"
+                            ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                            : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                    }`}
+                  >
+                    <span className="truncate block">{booking.customerName}{booking.isSplit ? " 👥" : ""}</span>
+                    <span className="text-[10px] opacity-70">{booking.startTime.slice(0, 5)}–{booking.endTime.slice(0, 5)} · {fmtPrice(booking.totalPrice)}</span>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => !isPast && onFreeClick(slot)}
+                    className={`flex-1 flex items-center justify-between rounded border border-dashed border-border/40 px-2 py-1 transition-colors ${
+                      isPast ? "opacity-40" : "cursor-pointer hover:bg-muted/40 group"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Plus className="w-3 h-3 text-muted-foreground/40 group-hover:text-muted-foreground/60" />
+                      <span className="text-[11px] text-muted-foreground/50">{slot}–{slotEnd}</span>
+                    </div>
+                    {slotPrice > 0 && (
+                      <span className="text-[10px] text-muted-foreground/50 font-medium">
+                        {slotPrice % 1 === 0 ? slotPrice : slotPrice.toFixed(1)}€
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DAY_SHORT_LT = ["Pir", "Ant", "Tre", "Ket", "Pen", "Šeš", "Sek"];
+
+function WeekGrid({
+  days, weeklyBookings, pricePerHour, todayPricing,
+  onFreeClick, onBookingClick,
+}: {
+  days: string[];
+  weeklyBookings: Booking[];
+  pricePerHour: number;
+  todayPricing: Record<string, number>;
+  onFreeClick: (date: string, startTime: string) => void;
+  onBookingClick: (booking: Booking) => void;
+}) {
+  const today = todayStr();
+  const now = new Date();
+
+  return (
+    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: `${56 + 7 * 90}px` }}>
+          {/* Day header */}
+          <div className="grid border-b border-border bg-muted/30" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+            <div className="px-2 py-2" />
+            {days.map((day, i) => {
+              const isToday = day === today;
+              const isPast = day < today;
+              const [, mm, dd] = day.split("-");
+              return (
+                <div key={day} className={`px-1 py-2 text-center ${isToday ? "bg-primary/5" : ""}`}>
+                  <p className={`text-[10px] font-semibold uppercase ${isToday ? "text-primary" : isPast ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                    {DAY_SHORT_LT[i]}
+                  </p>
+                  <p className={`text-xs font-bold ${isToday ? "text-primary" : isPast ? "text-muted-foreground/50" : "text-foreground"}`}>
+                    {mm}-{dd}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {/* Slot rows */}
+          <div className="max-h-[400px] overflow-y-auto">
+            {SLOTS.map(slot => {
+              const slotMin = toMin(slot);
+              return (
+                <div key={slot} className="grid border-b border-border/40 last:border-0" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+                  <div className="px-2 py-1 flex items-center justify-end text-[10px] tabular-nums font-mono text-muted-foreground shrink-0">
+                    {slot}
+                  </div>
+                  {days.map(day => {
+                    const isToday = day === today;
+                    const nowMin = now.getHours() * 60 + now.getMinutes();
+                    const isPast = day < today || (isToday && slotMin + 30 <= nowMin);
+                    const booking = weeklyBookings.find(b => {
+                      if (b.date !== day) return false;
+                      return toMin(b.startTime) <= slotMin && toMin(b.endTime) > slotMin &&
+                        ["confirmed", "pending", "blocked", "awaiting_players"].includes(b.status);
+                    });
+                    if (booking) {
+                      return (
+                        <div key={day} className="px-0.5 py-0.5">
+                          <div
+                            onClick={() => onBookingClick(booking)}
+                            className={`h-7 rounded text-[9px] font-medium border cursor-pointer hover:opacity-75 transition-opacity flex items-center px-1 overflow-hidden ${
+                              booking.status === "confirmed" ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-400/30"
+                              : booking.status === "awaiting_players" ? "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-400/30"
+                              : booking.status === "pending" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300 border-amber-400/30"
+                              : "bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300/40"
+                            }`}
+                          >
+                            <span className="truncate">{booking.customerName.split(" ")[0]}{booking.isSplit ? "👥" : ""}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={day} className="px-0.5 py-0.5">
+                        <div
+                          onClick={() => !isPast && onFreeClick(day, slot)}
+                          className={`h-7 rounded border border-dashed border-border/30 transition-colors flex flex-col items-center justify-center gap-0 ${
+                            isToday && slotMin >= (now.getHours() * 60 + now.getMinutes() - 30) && slotMin < (now.getHours() * 60 + now.getMinutes() + 30) ? "bg-primary/5" : ""
+                          } ${isPast ? "opacity-25" : "cursor-pointer hover:bg-muted/40 group"}`}
+                        >
+                          {(() => {
+                            const p = todayPricing[slot] ?? (pricePerHour / 2);
+                            return p > 0 ? (
+                              <span className="text-[8px] text-muted-foreground/40 group-hover:text-muted-foreground/70 leading-none tabular-nums">
+                                {p % 1 === 0 ? p : p.toFixed(1)}€
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingInfoModal({ booking, onClose, courtId, onCancelled }: {
+  booking: Booking; onClose: () => void; courtId: number; onCancelled?: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const canCancel = ["confirmed", "pending", "blocked", "awaiting_players"].includes(booking.status);
+  const note = booking.rentedItems ?? null;
+  const hasEmail = booking.customerEmail && !booking.customerEmail.startsWith("manual-");
+
+  const cancelMutation = useMutation({
+    mutationFn: () => customFetch(`${API_URL}/bookings/${booking.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: booking.status === "blocked" ? "Laikas atblokuotas" : "Rezervacija atšaukta" });
+      queryClient.invalidateQueries({ queryKey: ["owner-court-stats", String(courtId)] });
+      onCancelled?.();
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Klaida", description: e?.data?.error || e?.message || "Nepavyko atšaukti", variant: "destructive" }),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6">
+        <button onClick={onClose} className="absolute top-4 right-4 p-1 rounded hover:bg-muted transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+        <h2 className="text-lg font-bold mb-1">Rezervacija #{booking.id}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)}</p>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted-foreground">Klientas</span><span className="font-medium">{booking.customerName}</span></div>
+          {hasEmail && <div className="flex justify-between"><span className="text-muted-foreground">El. paštas</span><span className="font-medium truncate max-w-[60%] text-right">{booking.customerEmail}</span></div>}
+          {booking.customerPhone && <div className="flex justify-between"><span className="text-muted-foreground">Telefonas</span><span className="font-medium">{booking.customerPhone}</span></div>}
+          <div className="flex justify-between"><span className="text-muted-foreground">Data</span><span className="font-medium">{booking.date}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Laikas</span><span className="font-medium">{booking.startTime.slice(0,5)} – {booking.endTime.slice(0,5)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Kaina</span><span className="font-medium">€{booking.totalPrice.toFixed(2)}</span></div>
+          {booking.isSplit && booking.pricePerSlot != null && booking.totalSlots != null && (
+            <div className="rounded-lg bg-violet-500/10 border border-violet-400/20 px-2.5 py-2 text-xs">
+              <div className="text-violet-700 dark:text-violet-400 font-medium mb-0.5">👥 Bendras mokėjimas</div>
+              <div className="text-violet-600/80 dark:text-violet-400/70">
+                Vieta: €{Number(booking.pricePerSlot).toFixed(2)} · Iš viso vietų: {booking.totalSlots}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Statusas</span>
+            <Badge variant={booking.status === "confirmed" ? "default" : booking.status === "cancelled" ? "destructive" : "secondary"}>
+              {STATUS_LT[booking.status] ?? booking.status}
+            </Badge>
+          </div>
+          {note && (
+            <div className="pt-1 border-t border-border/40">
+              <p className="text-xs text-muted-foreground mb-0.5">Pastaba</p>
+              <p className="text-sm">{note.startsWith("Pastaba: ") ? note.slice(9) : note}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 mt-5">
+          {canCancel && (
+            <Button
+              variant="destructive"
+              className="w-full text-sm"
+              disabled={cancelMutation.isPending}
+              onClick={() => cancelMutation.mutate()}
+            >
+              {cancelMutation.isPending ? "Atšaukiama…" : booking.status === "blocked" ? "Atblokuoti laiką" : "Atšaukti rezervaciją"}
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>Uždaryti</Button>
+            {booking.status !== "blocked" && (
+              <Button className="flex-1" onClick={() => { onClose(); navigate(`/owner/bookings/${booking.id}`); }}>
+                Pilna peržiūra
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeeklyCalendar({ weeklyBookings }: { weeklyBookings: Booking[] }) {
+  const weekDates = getWeekDates();
+  const today = todayStr();
+  const byDate = new Map<string, Booking[]>();
+  for (const d of weekDates) byDate.set(d, []);
+  for (const b of weeklyBookings) {
+    if (byDate.has(b.date)) byDate.get(b.date)!.push(b);
+  }
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <CalendarDays className="w-4 h-4 text-primary" />
+        <h3 className="font-semibold text-sm">Šios savaitės grafikas</h3>
+      </div>
+      <div className="grid grid-cols-7 gap-1.5">
+        {weekDates.map((date, i) => {
+          const bookings = byDate.get(date) ?? [];
+          const isToday = date === today;
+          const isPast = date < today;
+          const confirmed = bookings.filter(b => b.status === "confirmed").length;
+          const awaitingPlayers = bookings.filter(b => b.status === "awaiting_players").length;
+          const pending = bookings.filter(b => b.status === "pending").length;
+          return (
+            <div key={date} className={`rounded-xl p-2 text-center border transition-colors ${
+              isToday ? "bg-primary/10 border-primary/30" : isPast ? "bg-muted/30 border-border/50" : "bg-muted/10 border-border"
+            }`}>
+              <p className={`text-[10px] font-medium uppercase ${isToday ? "text-primary" : "text-muted-foreground"}`}>{DAY_NAMES[i]}</p>
+              <p className={`text-xs font-bold mb-1.5 ${isToday ? "text-primary" : "text-foreground"}`}>{fmtDate(date)}</p>
+              {bookings.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">–</p>
+              ) : (
+                <div className="space-y-0.5">
+                  {confirmed > 0 && (
+                    <div className="rounded bg-emerald-500/15 text-emerald-600 text-[10px] font-semibold px-1 py-0.5">
+                      {confirmed} ✓
+                    </div>
+                  )}
+                  {awaitingPlayers > 0 && (
+                    <div className="rounded bg-violet-500/15 text-violet-600 text-[10px] font-semibold px-1 py-0.5">
+                      {awaitingPlayers} 👥
+                    </div>
+                  )}
+                  {pending > 0 && (
+                    <div className="rounded bg-amber-500/15 text-amber-600 text-[10px] font-semibold px-1 py-0.5">
+                      {pending} ⏳
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BookingRow({ booking }: { booking: Booking }) {
+  const statusClass = STATUS_COLORS[booking.status] ?? "bg-muted text-muted-foreground border-border";
+  const statusLabel = STATUS_LT[booking.status] ?? booking.status;
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border/60 last:border-0 gap-2">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{booking.customerName}</p>
+        <p className="text-xs text-muted-foreground">
+          {fmtDate(booking.date)} · {booking.startTime.slice(0,5)}–{booking.endTime.slice(0,5)}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusClass}`}>{statusLabel}</span>
+        <span className="text-sm font-semibold">{fmtPrice(booking.totalPrice)}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function OwnerCourtDashboard() {
+  const params = useParams<{ facilityId: string; courtId: string }>();
+  const facilityId = params.facilityId;
+  const courtId = params.courtId;
+  const [, navigate] = useLocation();
+  const [bookingsTab, setBookingsTab] = useState<"today" | "week" | "all">("today");
+  const [scheduleView, setScheduleView] = useState<"day" | "week">("day");
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [weekBase, setWeekBase] = useState(() => mondayOf(todayStr()));
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualPreStartTime, setManualPreStartTime] = useState<string | undefined>();
+  const [manualPreDate, setManualPreDate] = useState<string | undefined>();
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  const isSelectedToday = selectedDate === todayStr();
+
+  const { data, isLoading, error } = useQuery<CourtStats>({
+    queryKey: ["owner-court-stats", courtId, selectedDate],
+    queryFn: () => customFetch<CourtStats>(`${API_URL}/owner/courts/${courtId}/stats?date=${selectedDate}`),
+    enabled: !!courtId,
+  });
+
+  const { data: weekData } = useQuery<CourtStats>({
+    queryKey: ["owner-court-stats", courtId, weekBase],
+    queryFn: () => customFetch<CourtStats>(`${API_URL}/owner/courts/${courtId}/stats?date=${weekBase}`),
+    enabled: !!courtId && scheduleView === "week",
+  });
+
+  if (isLoading) {
+    return (
+      <OwnerLayout facilityId={Number(facilityId) || undefined} title="Aikštelė">
+        <div className="p-4 md:p-6 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+          </div>
+          <Skeleton className="h-36 rounded-2xl" />
+          <Skeleton className="h-80 rounded-2xl" />
+        </div>
+      </OwnerLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <OwnerLayout facilityId={Number(facilityId) || undefined} title="Aikštelė">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-4">Nepavyko gauti duomenų</p>
+            <Button variant="outline" onClick={() => navigate(`/owner/facility/${facilityId}`)}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Grįžti
+            </Button>
+          </div>
+        </div>
+      </OwnerLayout>
+    );
+  }
+
+  const { court, facility, monthlyRevenue, monthlyBookingCount, todayBookings, weeklyBookings, recentBookings, todayPricing } = data;
+
+  const displayedBookings =
+    bookingsTab === "today" ? todayBookings :
+    bookingsTab === "week" ? weeklyBookings :
+    recentBookings;
+
+  const todayCount = todayBookings.filter(b => ["confirmed","pending"].includes(b.status)).length;
+  const monthlyRevenueStr = fmtPrice(monthlyRevenue);
+  const facilityIdNum = court.facilityId ?? Number(facilityId);
+
+  return (
+    <OwnerLayout facilityId={facilityIdNum} facilityName={facility?.name} title={court.name}>
+      <div className="flex flex-col">
+        {/* Page header with court actions */}
+        <header className="bg-card border-b border-border flex items-center justify-between px-4 md:px-6 py-3 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">{court.name}</h1>
+            <SportPill sport={court.type} variant="subtle" className="hidden sm:inline-flex" />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+              onClick={() => navigate(`/owner/facility/${facilityId}/court/${courtId}/pricing`)}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kainos</span>
+            </Button>
+            <Button
+              size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+              onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Viešas</span>
+            </Button>
+            <Button
+              size="sm" variant="outline" className="gap-1.5 text-xs h-8"
+              onClick={() => setBlockOpen(true)}
+            >
+              <Ban className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Blokuoti kortą</span>
+              <span className="sm:hidden">Blokuoti</span>
+            </Button>
+            <Button
+              size="sm" className="gap-1.5 text-xs h-8"
+              onClick={() => { setManualPreStartTime(undefined); setManualOpen(true); }}
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Rankinė rezervacija</span>
+              <span className="sm:hidden">Rankinė</span>
+            </Button>
+          </div>
+        </header>
+
+        <div className="p-4 md:p-6 space-y-5">
+          {/* Schedule section — day / week tabs */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border gap-2">
+              <div className="flex gap-0.5 shrink-0">
+                {(["day", "week"] as const).map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setScheduleView(v)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      scheduleView === v ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {v === "day" ? "Diena" : "Savaitė"}
+                  </button>
+                ))}
+              </div>
+              {scheduleView === "week" && (() => {
+                const thisMonday = mondayOf(todayStr());
+                const weekEnd = addDays(weekBase, 6);
+                const [, wm, wd] = weekBase.split("-");
+                const [, em, ed] = weekEnd.split("-");
+                const label = `${wm}-${wd} – ${em}-${ed}`;
+                return (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setWeekBase(w => addDays(w, -7))}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs tabular-nums text-muted-foreground min-w-[80px] text-center">{label}</span>
+                    {weekBase !== thisMonday && (
+                      <button
+                        onClick={() => setWeekBase(thisMonday)}
+                        className="px-1.5 py-0.5 text-[10px] font-medium rounded text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        Šiandien
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setWeekBase(w => addDays(w, 7))}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
+            {scheduleView === "day" ? (
+              <TodayGrid
+                todayBookings={todayBookings}
+                pricePerHour={court.pricePerHour}
+                todayPricing={todayPricing ?? {}}
+                selectedDate={selectedDate}
+                isToday={isSelectedToday}
+                onDateChange={d => { setSelectedDate(d); setScheduleView("day"); }}
+                onFreeClick={startTime => { setManualPreStartTime(startTime); setManualPreDate(selectedDate); setManualOpen(true); }}
+                onBookingClick={setSelectedBooking}
+              />
+            ) : (
+              <WeekGrid
+                days={weekDays(weekBase)}
+                weeklyBookings={weekData?.weeklyBookings ?? weeklyBookings}
+                pricePerHour={court.pricePerHour}
+                todayPricing={todayPricing ?? {}}
+                onFreeClick={(date, startTime) => { setManualPreDate(date); setManualPreStartTime(startTime); setManualOpen(true); }}
+                onBookingClick={setSelectedBooking}
+              />
+            )}
+          </div>
+
+          {/* Bookings section */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-0 gap-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Rezervacijos</h3>
+              </div>
+              <div className="flex gap-0.5">
+                {(["today", "week", "all"] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setBookingsTab(tab)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      bookingsTab === tab
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {tab === "today" ? "Šiandien" : tab === "week" ? "Savaitė" : "Visos"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-4 pb-4 mt-3">
+              {displayedBookings.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  {bookingsTab === "today" ? "Šiandien rezervacijų nėra" :
+                   bookingsTab === "week" ? "Šią savaitę rezervacijų nėra" :
+                   "Rezervacijų nėra"}
+                </div>
+              ) : (
+                <div>
+                  {displayedBookings.map(b => <BookingRow key={b.id} booking={b} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {selectedBooking && (
+        <BookingInfoModal booking={selectedBooking} courtId={Number(courtId)} onClose={() => setSelectedBooking(null)} />
+      )}
+      <ManualBookingModal
+        open={manualOpen}
+        onClose={() => { setManualOpen(false); setManualPreStartTime(undefined); setManualPreDate(undefined); }}
+        courtId={Number(courtId)}
+        preStartTime={manualPreStartTime}
+        preDate={manualPreDate}
+      />
+      <BlockCourtModal
+        open={blockOpen}
+        onClose={() => setBlockOpen(false)}
+        courtId={Number(courtId)}
+      />
+    </OwnerLayout>
+  );
+}

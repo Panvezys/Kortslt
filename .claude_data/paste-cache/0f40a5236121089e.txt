@@ -1,0 +1,21 @@
+Let's implement the three `split_guarantee` email stubs in `email.ts` using the Resend SDK. 
+
+Please update the file with the following requirements:
+
+1. Resend Initialization & Guard: Ensure Resend is initialized (`new Resend(process.env.RESEND_API_KEY)`). At the top of each function, check if the API key exists. If it doesn't, log a warning (`console.warn("RESEND_API_KEY missing, skipping email")`) and return early (no-op).
+2. The "From" Address: Use `"korts.lt <onboarding@resend.dev>"` as the sender for now. Add a `// TODO: Update to verified production domain` comment next to it.
+3. Transport Logic: Use `resend.emails.send({})`. Wrap the call in a `try/catch` block. If `error` is returned from Resend or caught in the block, log it with `console.error` but do NOT throw the error (we don't want to crash the background sweeper).
+4. Template 1 (`sendSplitGuaranteeChargedEmail`):
+   - To: Host Email
+   - Subject: "Rezervacija patvirtinta: [Court Name]"
+   - HTML: A clean, minimal structure. "<h2>Sveiki,</h2><p>Trūkstami žaidėjai neprisijungė. Jūsų kortelė buvo apmokestinta <strong>€[Amount]</strong>, ir <strong>[Court Name]</strong> rezervacija sėkmingai patvirtinta.</p><p>Gero žaidimo!</p>"
+5. Template 2 (`sendSplitGuaranteeFailedEmail`):
+   - To: Host Email
+   - Subject: "Rezervacija atšaukta: [Court Name]"
+   - HTML: "<h2>Sveiki,</h2><p>Nepavyko nuskaičiuoti trūkstamos <strong>€[Amount]</strong> sumos nuo jūsų kortelės. <strong>[Court Name]</strong> rezervacija buvo atšaukta, o kitiems žaidėjams pinigai grąžinti.</p>"
+6. Template 3 (`sendSplitParticipantRefundedEmail`):
+   - To: Participant Email
+   - Subject: "Atšauktas mačas ir pinigų grąžinimas: [Court Name]"
+   - HTML: "<h2>Sveiki,</h2><p>Mačas <strong>[Court Name]</strong> atšauktas nesurinkus pilnos sumos. Jūsų sumokėta dalis (<strong>€[Amount]</strong>) buvo inicijuota grąžinimui į jūsų sąskaitą. Pinigai turėtų pasiekti jus per kelias darbo dienas.</p>"
+
+Run typechecks to ensure the `email.ts` file is fully valid and exports these functions correctly for the sweeper to use.

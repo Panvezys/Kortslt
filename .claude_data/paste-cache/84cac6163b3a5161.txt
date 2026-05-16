@@ -1,0 +1,13 @@
+This is the final piece of the puzzle. By shifting to the "Host Guarantee" model, you are protecting your facility owners, guaranteeing your platform’s revenue, and creating a flawless, professional experience.
+
+Here is a summary of the architecture we are about to implement:
+
+The Guarantee: When the Host pays their 5€ share, Stripe also securely saves their card for future use (setup_future_usage: 'off_session'). The court slot is immediately reserved.
+
+The Owner's View: Because the Host guaranteed the payment, the facility owner sees this on their calendar as a fully secured, guaranteed booking. No risk of ghost bookings.
+
+The Enforcer: A cron job runs in the background. If the game starts in 2 hours and 15€ is still missing, the cron job automatically charges the Host's saved card for the missing 15€. The match goes ahead.
+
+The Fallback: If the Host's card fails the automatic charge (e.g., insufficient funds), the game is immediately canceled, the court is freed up, and the other players get refunded.
+
+Here is the master prompt for Claude Code. It is highly detailed, strictly defines the backend/frontend boundaries, and includes rigorous testing instructions.

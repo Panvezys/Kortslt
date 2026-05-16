@@ -1,0 +1,967 @@
+import { Router, type IRouter } from "express";
+import { eq, and, gte, lte, inArray, or, sql } from "drizzle-orm";
+import { db, courtsTable, bookingsTable, courtPricingTable, courtPricingRulesTable, courtBlockedSlotsTable, facilitiesTable, courtPhotosTable, gamesTable } from "@workspace/db";
+import { asc, desc } from "drizzle-orm";
+import { buildDayPriceMap } from "../lib/pricing";
+import {
+  ListCourtsQueryParams,
+  CreateCourtBody,
+  GetCourtParams,
+  GetCourtResponse,
+  UpdateCourtBody,
+  UpdateCourtParams,
+  UpdateCourtResponse,
+  DeleteCourtParams,
+  GetCourtAvailabilityParams,
+  GetCourtAvailabilityQueryParams,
+  GetCourtAvailabilityResponse,
+  GetCourtPricingParams,
+  GetCourtPricingResponse,
+  SetCourtPricingParams,
+  SetCourtPricingBody,
+  SetCourtPricingResponse,
+} from "@workspace/api-zod";
+import { requireAuth, requireAdmin, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { sendAdminNotification } from "../lib/notify";
+
+const router: IRouter = Router();
+
+type FacilityRow = typeof facilitiesTable.$inferSelect;
+type CourtRow = typeof courtsTable.$inferSelect;
+
+function formatCourt(c: CourtRow, facility: FacilityRow | null) {
+  return {
+    ...c,
+    address: facility?.address ?? undefined,
+    city: facility?.city ?? undefined,
+    postcode: facility?.postcode ?? undefined,
+    latitude: facility?.latitude ?? undefined,
+    longitude: facility?.longitude ?? undefined,
+    ownerUserId: facility?.ownerUserId ?? undefined,
+    ownershipDocUrl: facility?.ownershipDocUrl ?? undefined,
+    pricePerHour: Number(c.pricePerHour),
+    rentableItems: c.rentableItems ?? undefined,
+    description: c.description ?? undefined,
+    imageUrl: c.imageUrl ?? undefined,
+    rating: c.rating ?? undefined,
+    surface: c.surface ?? undefined,
+    surfaceSpeed: c.surfaceSpeed ?? undefined,
+    surfaceBounce: c.surfaceBounce ?? undefined,
+    hasSmartLock: c.hasSmartLock ?? false,
+    accessInstructions: c.accessInstructions ?? undefined,
+    condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
+    phone: c.phone ?? undefined,
+    rejectionReason: c.rejectionReason ?? undefined,
+    socialFacebook: c.socialFacebook ?? undefined,
+    socialInstagram: c.socialInstagram ?? undefined,
+    socialWhatsapp: c.socialWhatsapp ?? undefined,
+    socialWebsite: c.socialWebsite ?? undefined,
+    workingHours: c.workingHours ?? undefined,
+    amenityPhotos: c.amenityPhotos ?? undefined,
+    instantBookingEnabled: c.instantBookingEnabled ?? true,
+  };
+}
+
+/** Restricted view for unauthenticated / public callers.
+ *  Sensitive internal fields are intentionally omitted. */
+function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
+  return {
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    description: c.description ?? undefined,
+    address: facility?.address ?? undefined,
+    city: facility?.city ?? undefined,
+    postcode: facility?.postcode ?? undefined,
+    latitude: facility?.latitude ?? undefined,
+    longitude: facility?.longitude ?? undefined,
+    pricePerHour: Number(c.pricePerHour),
+    rentableItems: c.rentableItems ?? undefined,
+    imageUrl: c.imageUrl ?? undefined,
+    ownerUserId: facility?.ownerUserId ?? undefined,
+    amenities: c.amenities,
+    isIndoor: c.isIndoor,
+    maxPlayers: c.maxPlayers,
+    surface: c.surface ?? undefined,
+    surfaceSpeed: c.surfaceSpeed ?? undefined,
+    surfaceBounce: c.surfaceBounce ?? undefined,
+    hasSmartLock: c.hasSmartLock ?? false,
+    accessInstructions: c.accessInstructions ?? undefined,
+    condition: (c.condition ?? "good") as "excellent" | "very_good" | "good" | "fair",
+    rating: c.rating ?? undefined,
+    totalBookings: c.totalBookings,
+    phone: c.phone ?? undefined,
+    socialFacebook: c.socialFacebook ?? undefined,
+    socialInstagram: c.socialInstagram ?? undefined,
+    socialWhatsapp: c.socialWhatsapp ?? undefined,
+    socialWebsite: c.socialWebsite ?? undefined,
+    instantBookingEnabled: c.instantBookingEnabled ?? true,
+    facilityId: c.facilityId,
+    facilityName: facility?.name ?? undefined,
+    workingHours: c.workingHours ?? undefined,
+    amenityPhotos: c.amenityPhotos ?? undefined,
+    createdAt: c.createdAt,
+  };
+}
+
+async function getFacility(facilityId: number): Promise<FacilityRow | null> {
+  const [f] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  return f ?? null;
+}
+
+async function getFacilitiesMap(facilityIds: number[]): Promise<Map<number, FacilityRow>> {
+  if (facilityIds.length === 0) return new Map();
+  const unique = [...new Set(facilityIds)];
+  const rows = await db.select().from(facilitiesTable).where(inArray(facilitiesTable.id, unique));
+  return new Map(rows.map(f => [f.id, f]));
+}
+
+/** Parse "HH:MM" → total minutes */
+function timeToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/** Format total minutes → "HH:MM" */
+function minToTime(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+}
+
+/** Generate 30-min slots between openTime and closeTime (default: 07:00–22:00).
+ *  The last slot ends at closeTime, so a slot starting at closeTime is excluded.
+ *  E.g. open="08:00", close="22:00" produces 08:00–08:30, …, 21:30–22:00
+ */
+function generateSlots(openTime = "07:00", closeTime = "22:00"): { startTime: string; endTime: string }[] {
+  const openMin = timeToMin(openTime);
+  const closeMin = timeToMin(closeTime);
+  const slots = [];
+  for (let m = openMin; m + 30 <= closeMin; m += 30) {
+    slots.push({ startTime: minToTime(m), endTime: minToTime(m + 30) });
+  }
+  return slots;
+}
+
+const PUBLIC_STATUSES = ["approved", "active"] as const;
+
+router.get("/courts/cities", async (_req, res): Promise<void> => {
+  const rows = await db
+    .selectDistinct({ city: facilitiesTable.city })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active")))
+    .orderBy(facilitiesTable.city);
+  res.json(rows.map(r => r.city).filter(Boolean));
+});
+
+router.get("/courts", async (req, res): Promise<void> => {
+  const params = ListCourtsQueryParams.safeParse(req.query);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const conditions: ReturnType<typeof eq>[] = [];
+
+  // If ownerUserId filter is supplied, this is an owner dashboard request.
+  // Require the caller to be authenticated as that owner (or an admin).
+  if (params.data.ownerUserId) {
+    const userId = getCurrentUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const role = await getUserRole(userId);
+    if (role !== "admin" && userId !== params.data.ownerUserId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+  } else {
+    // Public callers only see active/approved courts.
+    conditions.push(inArray(courtsTable.status, ["approved", "active"]));
+  }
+
+  if (params.data.type) conditions.push(eq(courtsTable.type, params.data.type));
+  if (params.data.surface) conditions.push(eq(courtsTable.surface, params.data.surface));
+  if (params.data.condition) conditions.push(eq(courtsTable.condition, params.data.condition));
+  if (params.data.isIndoor != null) conditions.push(eq(courtsTable.isIndoor, params.data.isIndoor));
+  if (params.data.minPrice != null) conditions.push(gte(courtsTable.pricePerHour, String(params.data.minPrice)));
+  if (params.data.maxPrice != null) conditions.push(lte(courtsTable.pricePerHour, String(params.data.maxPrice)));
+
+  if (params.data.ownerUserId) {
+    // Authenticated owner/admin view — join facilities to filter by owner and return full data.
+    const facilityConditions = [eq(facilitiesTable.ownerUserId, params.data.ownerUserId)];
+    if (params.data.city) facilityConditions.push(eq(facilitiesTable.city, params.data.city));
+
+    const rows = await db
+      .select({ court: courtsTable, facility: facilitiesTable })
+      .from(courtsTable)
+      .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(and(...conditions, ...facilityConditions));
+
+    const courtIds = rows.map(r => r.court.id);
+    const photoMap = new Map<number, string[]>();
+    const ownerPricingMinMap = new Map<number, number>();
+    if (courtIds.length > 0) {
+      const [photos, pricingRows] = await Promise.all([
+        db
+          .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+          .from(courtPhotosTable)
+          .where(inArray(courtPhotosTable.courtId, courtIds))
+          .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt)),
+        db
+          .select({ courtId: courtPricingTable.courtId, price: courtPricingTable.price })
+          .from(courtPricingTable)
+          .where(and(
+            inArray(courtPricingTable.courtId, courtIds),
+            gte(courtPricingTable.startTime, "06:00"),
+            lte(courtPricingTable.startTime, "23:00"),
+          )),
+      ]);
+      for (const p of photos) {
+        const arr = photoMap.get(p.courtId) ?? [];
+        if (arr.length < 3) arr.push(p.url);
+        photoMap.set(p.courtId, arr);
+      }
+      for (const entry of pricingRows) {
+        const hourly = Number(entry.price) * 2;
+        const prev = ownerPricingMinMap.get(entry.courtId);
+        if (prev === undefined || hourly < prev) ownerPricingMinMap.set(entry.courtId, hourly);
+      }
+    }
+
+    res.json(rows.map(r => ({
+      ...formatCourt(r.court, r.facility),
+      photos: photoMap.get(r.court.id) ?? [],
+      minDisplayPrice: ownerPricingMinMap.get(r.court.id) ?? Number(r.court.pricePerHour),
+    })));
+    return;
+  }
+
+  // Public view: courts must belong to a verified facility.
+  const facilityConditions: ReturnType<typeof eq>[] = [];
+  if (params.data.city) facilityConditions.push(eq(facilitiesTable.city, params.data.city));
+
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(and(...conditions, ...facilityConditions));
+
+  const filtered = rows.filter(r => r.facility.verificationStatus === "active");
+
+  const courtIds = filtered.map(r => r.court.id);
+  const photoMap = new Map<number, string[]>();
+  const pricingMinMap = new Map<number, number>();
+  if (courtIds.length > 0) {
+    const [photos, pricingRows] = await Promise.all([
+      db
+        .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+        .from(courtPhotosTable)
+        .where(inArray(courtPhotosTable.courtId, courtIds))
+        .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt)),
+      db
+        .select({ courtId: courtPricingTable.courtId, price: courtPricingTable.price })
+        .from(courtPricingTable)
+        .where(and(
+          inArray(courtPricingTable.courtId, courtIds),
+          // Bait-and-switch guard: only consider slots a normal human can book (06:00–23:00)
+          gte(courtPricingTable.startTime, "06:00"),
+          lte(courtPricingTable.startTime, "23:00"),
+        )),
+    ]);
+    for (const p of photos) {
+      const arr = photoMap.get(p.courtId) ?? [];
+      if (arr.length < 3) arr.push(p.url);
+      photoMap.set(p.courtId, arr);
+    }
+    // Pricing entries store per-30-min prices; multiply × 2 to get an hourly rate for display
+    for (const entry of pricingRows) {
+      const hourly = Number(entry.price) * 2;
+      const prev = pricingMinMap.get(entry.courtId);
+      if (prev === undefined || hourly < prev) pricingMinMap.set(entry.courtId, hourly);
+    }
+  }
+
+  res.json(filtered.map(r => ({
+    ...formatPublicCourt(r.court, r.facility),
+    facilityVerified: r.facility.verificationStatus === "active",
+    photos: photoMap.get(r.court.id) ?? [],
+    // minDisplayPrice: lowest hourly rate from custom pricing; falls back to pricePerHour
+    minDisplayPrice: pricingMinMap.get(r.court.id) ?? Number(r.court.pricePerHour),
+  })));
+});
+
+router.post("/courts", requireAuth, async (req, res): Promise<void> => {
+  const parsed = CreateCourtBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const facility = await getFacility(parsed.data.facilityId);
+  if (!facility) {
+    res.status(404).json({ error: "Facility not found" });
+    return;
+  }
+
+  if (!(await isOwner(req, facility.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden – you do not own this facility" });
+    return;
+  }
+
+  const [court] = await db
+    .insert(courtsTable)
+    .values({
+      name: parsed.data.name,
+      type: parsed.data.type,
+      description: parsed.data.description ?? null,
+      pricePerHour: String(parsed.data.pricePerHour),
+      rentableItems: parsed.data.rentableItems ?? null,
+      imageUrl: parsed.data.imageUrl ?? null,
+      amenities: parsed.data.amenities ?? [],
+      isIndoor: parsed.data.isIndoor,
+      maxPlayers: parsed.data.maxPlayers,
+      surface: parsed.data.surface ?? null,
+      surfaceSpeed: (parsed.data as any).surfaceSpeed ?? null,
+      surfaceBounce: (parsed.data as any).surfaceBounce ?? null,
+      hasSmartLock: Boolean((parsed.data as any).hasSmartLock ?? false),
+      accessInstructions: (parsed.data as any).accessInstructions ?? null,
+      condition: (parsed.data.condition ?? "good") as string,
+      status: "draft",
+      instantBookingEnabled: true,
+      facilityId: parsed.data.facilityId,
+      workingHours: parsed.data.workingHours ?? null,
+    })
+    .returning();
+
+  res.status(201).json(formatCourt(court, facility));
+});
+
+// GET /courts/available-for-slot?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM&sport=tennis
+// Returns court IDs that have no confirmed/blocked booking conflicts in the requested window.
+router.get("/courts/available-for-slot", async (req, res): Promise<void> => {
+  const { date, startTime, endTime, sport } = req.query as Record<string, string | undefined>;
+  if (!date || !startTime || !endTime) {
+    res.status(400).json({ error: "date, startTime, endTime are required" });
+    return;
+  }
+
+  const courtConditions: ReturnType<typeof eq>[] = [
+    or(eq(courtsTable.status, "approved"), eq(courtsTable.status, "active"))!,
+  ];
+  if (sport && sport !== "all") courtConditions.push(eq(courtsTable.type, sport));
+
+  const allCourts = await db
+    .select({ id: courtsTable.id })
+    .from(courtsTable)
+    .where(and(...courtConditions));
+
+  if (!allCourts.length) {
+    res.json({ availableCourtIds: [] });
+    return;
+  }
+
+  const courtIds = allCourts.map(c => c.id);
+
+  const [conflictBookings, conflictBlocked] = await Promise.all([
+    db
+      .select({ courtId: bookingsTable.courtId })
+      .from(bookingsTable)
+      .where(and(
+        inArray(bookingsTable.courtId, courtIds),
+        eq(bookingsTable.date, date),
+        sql`${bookingsTable.startTime} < ${endTime}`,
+        sql`${bookingsTable.endTime} > ${startTime}`,
+        or(
+          eq(bookingsTable.status, "confirmed"),
+          eq(bookingsTable.status, "blocked"),
+          eq(bookingsTable.status, "awaiting_players"),
+          and(
+            eq(bookingsTable.status, "pending"),
+            sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
+          )
+        )
+      )),
+    db
+      .select({ courtId: courtBlockedSlotsTable.courtId })
+      .from(courtBlockedSlotsTable)
+      .where(and(
+        inArray(courtBlockedSlotsTable.courtId, courtIds),
+        eq(courtBlockedSlotsTable.date, date),
+        sql`${courtBlockedSlotsTable.startTime} < ${endTime}`,
+        sql`${courtBlockedSlotsTable.endTime} > ${startTime}`,
+      )),
+  ]);
+
+  const conflictIds = new Set([
+    ...conflictBookings.map(b => b.courtId),
+    ...conflictBlocked.map(b => b.courtId),
+  ]);
+
+  const availableCourtIds = courtIds.filter(id => !conflictIds.has(id));
+  res.json({ availableCourtIds });
+});
+
+router.get("/courts/:id", async (req, res): Promise<void> => {
+  const params = GetCourtParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const facility = await getFacility(court.facilityId);
+  const facilityOwnerUserId = facility?.ownerUserId ?? null;
+
+  const isPublic = court.status === "approved" || court.status === "active";
+
+  if (!isPublic) {
+    // Non-public courts are only visible to the owner or an admin.
+    if (!(await isOwner(req, facilityOwnerUserId))) {
+      res.status(404).json({ error: "Court not found" });
+      return;
+    }
+    res.json(GetCourtResponse.parse(formatCourt(court, facility)));
+    return;
+  }
+
+  res.json(formatPublicCourt(court, facility));
+});
+
+router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = UpdateCourtParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const body = UpdateCourtBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  // Ownership check via facility
+  const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const facility = await getFacility(existing.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
+    return;
+  }
+
+  // Preserve extra owner-settable fields that aren't in the Zod schema
+  const extraFields: Record<string, unknown> = {};
+  if (typeof (req.body as any).instantBookingEnabled === "boolean") {
+    extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
+  }
+  const rb = req.body as any;
+  if ("surfaceSpeed" in rb) extraFields.surfaceSpeed = rb.surfaceSpeed ?? null;
+  if ("surfaceBounce" in rb) extraFields.surfaceBounce = rb.surfaceBounce ?? null;
+  if ("hasSmartLock" in rb) extraFields.hasSmartLock = Boolean(rb.hasSmartLock);
+  if ("accessInstructions" in rb) extraFields.accessInstructions = rb.accessInstructions ?? null;
+
+  const { ...safeFields } = body.data as any;
+
+  const [court] = await db
+    .update(courtsTable)
+    .set({
+      ...safeFields,
+      ...extraFields,
+      pricePerHour: String(body.data.pricePerHour),
+
+      rentableItems: body.data.rentableItems ?? null,
+      amenities: body.data.amenities ?? [],
+      condition: (body.data.condition ?? "good") as string,
+      facilityId: existing.facilityId,
+      workingHours: body.data.workingHours ?? null,
+      amenityPhotos: body.data.amenityPhotos ?? null,
+    })
+    .where(eq(courtsTable.id, params.data.id))
+    .returning();
+
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  res.json(UpdateCourtResponse.parse(formatCourt(court, facility)));
+});
+
+
+router.delete("/courts/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = DeleteCourtParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const facility = await getFacility(existing.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
+    return;
+  }
+
+  const [court] = await db.delete(courtsTable).where(eq(courtsTable.id, params.data.id)).returning();
+
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  res.sendStatus(204);
+});
+
+
+router.get("/courts/:id/availability", async (req, res): Promise<void> => {
+  const params = GetCourtAvailabilityParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const query = GetCourtAvailabilityQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+
+  const { date } = query.data;
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const [existingBookings, blockedSlots, { priceMap }] = await Promise.all([
+    db
+      .select()
+      .from(bookingsTable)
+      .where(
+        and(
+          eq(bookingsTable.courtId, params.data.id),
+          eq(bookingsTable.date, date),
+          or(
+            eq(bookingsTable.status, "confirmed"),
+            eq(bookingsTable.status, "blocked"),
+            eq(bookingsTable.status, "awaiting_players"),
+            and(
+              eq(bookingsTable.status, "pending"),
+              sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
+            )
+          )
+        )
+      ),
+    db
+      .select()
+      .from(courtBlockedSlotsTable)
+      .where(
+        and(
+          eq(courtBlockedSlotsTable.courtId, params.data.id),
+          eq(courtBlockedSlotsTable.date, date)
+        )
+      ),
+    buildDayPriceMap(params.data.id, date, Number(court.pricePerHour) / 2),
+  ]);
+
+  // ── Parse working hours for this day ────────────────────────────────────────
+  const dayOfWeek = new Date(date + "T00:00:00").getDay();
+  let openTime = "07:00";
+  let closeTime = "22:00";
+  let courtClosed = false;
+
+  if (court.workingHours) {
+    try {
+      const wh = JSON.parse(court.workingHours) as Record<string, { open: string; close: string; closed: boolean }>;
+      const dayConfig = wh[String(dayOfWeek)];
+      if (dayConfig) {
+        if (dayConfig.closed) {
+          courtClosed = true;
+        } else {
+          openTime = dayConfig.open ?? "07:00";
+          closeTime = dayConfig.close ?? "22:00";
+        }
+      }
+    } catch {
+      // malformed JSON — fall back to defaults
+    }
+  }
+
+  if (courtClosed) {
+    res.json(GetCourtAvailabilityResponse.parse({ courtId: params.data.id, date, slots: [] }));
+    return;
+  }
+
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+
+  const allSlots = generateSlots(openTime, closeTime).map(({ startTime, endTime }) => {
+    const isBooked = existingBookings.some(
+      b => b.startTime <= startTime && b.endTime > startTime
+    );
+    const isBlocked = blockedSlots.some(
+      b => b.startTime <= startTime && b.endTime > startTime
+    );
+    const price = priceMap.get(startTime) ?? defaultSlotPrice;
+    return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
+  });
+
+  res.json(GetCourtAvailabilityResponse.parse({
+    courtId: params.data.id,
+    date,
+    slots: allSlots,
+  }));
+});
+
+router.get("/courts/:id/pricing", async (req, res): Promise<void> => {
+  const params = GetCourtPricingParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const entries = await db
+    .select()
+    .from(courtPricingTable)
+    .where(eq(courtPricingTable.courtId, params.data.id));
+
+  res.json(GetCourtPricingResponse.parse({
+    courtId: params.data.id,
+    entries: entries.map(e => ({
+      dayOfWeek: e.dayOfWeek,
+      startTime: e.startTime,
+      price: Number(e.price),
+    })),
+  }));
+});
+
+router.put("/courts/:id/pricing", requireAuth, async (req, res): Promise<void> => {
+  const params = SetCourtPricingParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const body = SetCourtPricingBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [existingCourt] = await db.select().from(courtsTable).where(eq(courtsTable.id, params.data.id));
+  if (!existingCourt) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  const facility = await getFacility(existingCourt.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden – you do not own this court" });
+    return;
+  }
+
+  await db.delete(courtPricingTable).where(eq(courtPricingTable.courtId, params.data.id));
+
+  if (body.data.entries.length > 0) {
+    await db.insert(courtPricingTable).values(
+      body.data.entries.map(e => ({
+        courtId: params.data.id,
+        dayOfWeek: e.dayOfWeek,
+        startTime: e.startTime,
+        price: String(e.price),
+      }))
+    );
+  }
+
+  const entries = await db
+    .select()
+    .from(courtPricingTable)
+    .where(eq(courtPricingTable.courtId, params.data.id));
+
+  res.json(SetCourtPricingResponse.parse({
+    courtId: params.data.id,
+    entries: entries.map(e => ({
+      dayOfWeek: e.dayOfWeek,
+      startTime: e.startTime,
+      price: Number(e.price),
+    })),
+  }));
+});
+
+// GET /courts/:id/pricing-rules  — get special pricing rules (holiday rate, etc.)
+router.get("/courts/:id/pricing-rules", async (req, res): Promise<void> => {
+  const courtId = Number(String(req.params.id));
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const rules = await db
+    .select()
+    .from(courtPricingRulesTable)
+    .where(eq(courtPricingRulesTable.courtId, courtId));
+
+  res.json(rules.map(r => ({ id: r.id, type: r.type, price: Number(r.price) })));
+});
+
+// PUT /courts/:id/pricing-rules  — upsert special pricing rules (owner only)
+router.put("/courts/:id/pricing-rules", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(String(req.params.id));
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const { rules } = req.body as { rules: Array<{ type: string; price: number }> };
+  if (!Array.isArray(rules)) { res.status(400).json({ error: "rules must be an array" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const facility = await getFacility(court.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Replace all rules for this court
+  await db.delete(courtPricingRulesTable).where(eq(courtPricingRulesTable.courtId, courtId));
+
+  if (rules.length > 0) {
+    await db.insert(courtPricingRulesTable).values(
+      rules.map(r => ({
+        courtId,
+        type: r.type,
+        price: String(r.price),
+      }))
+    );
+  }
+
+  const updated = await db
+    .select()
+    .from(courtPricingRulesTable)
+    .where(eq(courtPricingRulesTable.courtId, courtId));
+
+  res.json(updated.map(r => ({ id: r.id, type: r.type, price: Number(r.price) })));
+});
+
+// GET /courts/:id/equipment-availability?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM
+router.get("/courts/:id/equipment-availability", async (req, res): Promise<void> => {
+  const courtId = parseInt(String(req.params.id), 10);
+  const { date, startTime, endTime } = req.query as Record<string, string>;
+  if (!courtId || !date || !startTime || !endTime) {
+    res.status(400).json({ error: "courtId, date, startTime, endTime required" });
+    return;
+  }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const equipment: Array<{ name: string; pricePerSlot: number; stock: number }> =
+    court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+  if (equipment.length === 0) { res.json([]); return; }
+
+  // Find overlapping confirmed/pending bookings with rented items
+  const existingBookings = await db
+    .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+    .from(bookingsTable)
+    .where(and(eq(bookingsTable.courtId, courtId), eq(bookingsTable.date, date)));
+
+  // Parse startTime/endTime to minutes for overlap check
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const reqStart = toMin(startTime);
+  const reqEnd = toMin(endTime);
+
+  // Sum up booked quantities for overlapping bookings
+  const bookedQty: Record<string, number> = {};
+  for (const b of existingBookings) {
+    if (!b.rentedItems) continue;
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    // Overlap: not (bEnd <= reqStart || bStart >= reqEnd)
+    if (bEnd <= reqStart || bStart >= reqEnd) continue;
+    try {
+      const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
+      for (const item of items) {
+        bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
+      }
+    } catch {}
+  }
+
+  const result = equipment.map(e => ({
+    name: e.name,
+    pricePerSlot: e.pricePerSlot,
+    stock: e.stock,
+    booked: bookedQty[e.name] ?? 0,
+    available: Math.max(0, e.stock - (bookedQty[e.name] ?? 0)),
+  }));
+
+  res.json(result);
+});
+
+// ─── Owner: submit court for review ──────────────────────────────────────────
+router.post("/courts/:id/submit-review", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(String(req.params.id));
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const facility = await getFacility(court.facilityId);
+  if (!(await isOwner(req, facility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Facility must be admin-approved before any of its courts can enter review
+  if (facility?.verificationStatus !== "active") {
+    res.status(422).json({
+      error: "Objektas dar nepatvirtintas. Prieš teikiant aikštelę peržiūrai, objektas turi būti patvirtintas administratoriaus.",
+    }); return;
+  }
+
+  // Validate required fields
+  const missingFields: string[] = [];
+  if (!court.pricePerHour || Number(court.pricePerHour) <= 0) missingFields.push("kaina");
+  if (!facility?.address || !facility?.city) missingFields.push("vieta");
+  if (missingFields.length > 0) {
+    res.status(422).json({ error: `Trūksta privalomų laukų: ${missingFields.join(", ")}` }); return;
+  }
+
+  if (!["draft", "hidden"].includes(court.status)) {
+    res.status(409).json({ error: `Aikštelė jau yra "${court.status}" būsenos` }); return;
+  }
+
+  const [updated] = await db
+    .update(courtsTable)
+    .set({ status: "pending_review", rejectionReason: null })
+    .where(eq(courtsTable.id, courtId))
+    .returning();
+
+  await sendAdminNotification(
+    "Nauja aikštelė laukia patvirtinimo",
+    `„${court.name}" pateikta peržiūrai.`,
+    "/admin/courts",
+  );
+
+  res.json(formatCourt(updated, facility));
+});
+
+// ─── Admin/Owner: update court status ─────────────────────────────────────────
+router.patch("/courts/:id/status", requireAuth, async (req, res): Promise<void> => {
+  const courtId = Number(String(req.params.id));
+  if (isNaN(courtId)) { res.status(400).json({ error: "Invalid courtId" }); return; }
+
+  const { status, rejectionReason } = req.body as { status?: string; rejectionReason?: string };
+  const ALLOWED_ADMIN = ["draft", "pending_review", "active", "hidden", "approved"];
+  const OWNER_TOGGLE = ["active", "hidden"];
+
+  if (!status) { res.status(400).json({ error: "status required" }); return; }
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  const facility = await getFacility(court.facilityId);
+
+  const userId = getCurrentUserId(req);
+  const role = userId ? await getUserRole(userId) : null;
+  const userIsAdmin = role === "admin";
+  const userIsOwner = await isOwner(req, facility?.ownerUserId ?? null);
+
+  if (userIsAdmin) {
+    if (!ALLOWED_ADMIN.includes(status)) {
+      res.status(400).json({ error: `status must be one of: ${ALLOWED_ADMIN.join(", ")}` }); return;
+    }
+  } else if (userIsOwner) {
+    if (!OWNER_TOGGLE.includes(status)) {
+      res.status(403).json({ error: "Owners can only toggle between active and hidden" }); return;
+    }
+    if (!OWNER_TOGGLE.includes(court.status)) {
+      res.status(409).json({ error: "Court must be active or hidden to use this toggle" }); return;
+    }
+  } else {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [updated] = await db
+    .update(courtsTable)
+    .set({ status, rejectionReason: userIsAdmin ? (rejectionReason ?? null) : court.rejectionReason })
+    .where(eq(courtsTable.id, courtId))
+    .returning();
+
+  res.json(formatCourt(updated, facility));
+});
+
+// ─── Admin: list courts pending review ───────────────────────────────────────
+router.get("/admin/courts/pending", requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ court: courtsTable, facility: facilitiesTable })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(inArray(courtsTable.status, ["pending", "pending_review"]))
+    .orderBy(courtsTable.createdAt);
+
+  const courtIds = rows.map(r => r.court.id);
+  const photoMap = new Map<number, string[]>();
+  if (courtIds.length > 0) {
+    const photos = await db
+      .select({ courtId: courtPhotosTable.courtId, url: courtPhotosTable.url })
+      .from(courtPhotosTable)
+      .where(inArray(courtPhotosTable.courtId, courtIds))
+      .orderBy(asc(courtPhotosTable.displayOrder), asc(courtPhotosTable.createdAt));
+    for (const p of photos) {
+      const arr = photoMap.get(p.courtId) ?? [];
+      if (arr.length < 3) arr.push(p.url);
+      photoMap.set(p.courtId, arr);
+    }
+  }
+
+  res.json(rows.map(r => ({ ...formatCourt(r.court, r.facility), photos: photoMap.get(r.court.id) ?? [] })));
+});
+
+router.get("/courts/:id/activity", async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const [lastBooking] = await db
+    .select({ createdAt: bookingsTable.createdAt })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, id),
+      eq(bookingsTable.status, "confirmed"),
+    ))
+    .orderBy(desc(bookingsTable.createdAt))
+    .limit(1);
+
+  const todayGames = await db
+    .select({ id: gamesTable.id })
+    .from(gamesTable)
+    .where(and(
+      eq(gamesTable.courtId, id),
+      gte(gamesTable.datetime, todayStart.toISOString()),
+      lte(gamesTable.datetime, todayEnd.toISOString()),
+    ));
+
+  res.json({
+    lastBookedAt: lastBooking?.createdAt ?? null,
+    todayGameCount: todayGames.length,
+  });
+});
+
+export default router;

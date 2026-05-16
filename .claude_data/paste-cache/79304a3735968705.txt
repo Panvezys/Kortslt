@@ -1,0 +1,21 @@
+This is a critical catch. In the SaaS booking world, we call this a "Ghost Booking." If a court stays permanently blocked while only 5€ has been collected, the facility owner loses money, and other players are locked out of a prime time slot. You absolutely cannot go to production with this gap.
+
+To fix this, we need to introduce a "Drop Dead" cutoff time. The industry standard for racket sports is usually 12 to 24 hours before the game starts. If the lobby isn't fully funded by that cutoff, the system should automatically cancel the booking, free up the court, and refund the players who did pay.
+
+Here is the exact architecture to solve this and the prompt to have Claude build it.
+
+The Solution: The "Auto-Cancel & Refund" Sweeper
+The Logic: We add a new sweep function that runs periodically (e.g., every hour). It looks for any booking in the awaiting_players state where the game's start_time is less than X hours away.
+
+The Action: For any matching booking:
+
+Update the booking and game status to cancelled.
+
+Loop through the participants who have paid and trigger a Stripe Refund using their Payment Intent ID.
+
+The court becomes instantly available again on the calendar.
+
+The UI Sync: We expose this X hours rule to the frontend, so the Join Page explicitly says: "Liko 4 val. apmokėti. Priešingu atveju rezervacija bus atšaukta ir pinigai grąžinti." (4 hours left to pay. Otherwise, the reservation will be canceled and money refunded.)
+
+The Implementation Prompt for Claude Code
+Paste this into your terminal. (I have used 24 hours as the default cutoff in the prompt, but you can adjust it).

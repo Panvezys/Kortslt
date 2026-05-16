@@ -1,0 +1,117 @@
+import Holidays from "date-holidays";
+import { db, courtPricingTable, courtPriceOverridesTable, courtPricingRulesTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+
+const hd = new Holidays("LT");
+
+/** Resolve the price (in EUR, per 30-min slot) for a single slot on a specific date. */
+export async function resolvePriceForSlot(
+  courtId: number,
+  date: string,          // YYYY-MM-DD
+  startTime: string,     // HH:MM
+  defaultSlotPrice: number
+): Promise<number> {
+  const slotDate = new Date(`${date}T12:00:00`);
+  const dayOfWeek = slotDate.getDay();
+
+  const [overrides, weeklyEntries, rules] = await Promise.all([
+    db.select()
+      .from(courtPriceOverridesTable)
+      .where(and(
+        eq(courtPriceOverridesTable.courtId, courtId),
+        eq(courtPriceOverridesTable.date, date),
+        eq(courtPriceOverridesTable.startTime, startTime),
+      )),
+    db.select()
+      .from(courtPricingTable)
+      .where(and(
+        eq(courtPricingTable.courtId, courtId),
+        eq(courtPricingTable.dayOfWeek, dayOfWeek),
+        eq(courtPricingTable.startTime, startTime),
+      )),
+    db.select()
+      .from(courtPricingRulesTable)
+      .where(and(
+        eq(courtPricingRulesTable.courtId, courtId),
+        eq(courtPricingRulesTable.type, "holiday"),
+      )),
+  ]);
+
+  // 1. Date-specific override (highest priority)
+  if (overrides.length > 0) return Number(overrides[0].price);
+
+  // 2. Holiday rule — only when the date is a public holiday
+  const isHoliday = !!hd.isHoliday(slotDate);
+  if (isHoliday && rules.length > 0) return Number(rules[0].price);
+
+  // 3. Weekly recurring template
+  if (weeklyEntries.length > 0) return Number(weeklyEntries[0].price);
+
+  // 4. Default fallback
+  return defaultSlotPrice;
+}
+
+/**
+ * Build a price map for all slots in a day, batching the DB calls once
+ * instead of per-slot. Used in the availability endpoint.
+ */
+export async function buildDayPriceMap(
+  courtId: number,
+  date: string,
+  defaultSlotPrice: number
+): Promise<{ priceMap: Map<string, number>; isHoliday: boolean }> {
+  const slotDate = new Date(`${date}T12:00:00`);
+  const dayOfWeek = slotDate.getDay();
+  const isHolidayDay = !!hd.isHoliday(slotDate);
+
+  const [weeklyEntries, dateOverrides, holidayRules] = await Promise.all([
+    db.select()
+      .from(courtPricingTable)
+      .where(and(
+        eq(courtPricingTable.courtId, courtId),
+        eq(courtPricingTable.dayOfWeek, dayOfWeek),
+      )),
+    db.select()
+      .from(courtPriceOverridesTable)
+      .where(and(
+        eq(courtPriceOverridesTable.courtId, courtId),
+        eq(courtPriceOverridesTable.date, date),
+      )),
+    db.select()
+      .from(courtPricingRulesTable)
+      .where(and(
+        eq(courtPricingRulesTable.courtId, courtId),
+        eq(courtPricingRulesTable.type, "holiday"),
+      )),
+  ]);
+
+  const weeklyMap = new Map(weeklyEntries.map(e => [e.startTime, Number(e.price)]));
+  const overrideMap = new Map(dateOverrides.map(e => [e.startTime, Number(e.price)]));
+  const holidayPrice = holidayRules.length > 0 ? Number(holidayRules[0].price) : null;
+
+  // Waterfall: override > holiday > weekly > default
+  const priceMap = new Map<string, number>();
+  const allTimes = new Set([...weeklyMap.keys(), ...overrideMap.keys()]);
+
+  // Pre-generate all 30-min slots 06:00-23:00 so every slot has an entry
+  for (let h = 6; h < 23; h++) {
+    for (const m of [0, 30]) {
+      const t = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+      allTimes.add(t);
+    }
+  }
+
+  for (const t of allTimes) {
+    if (overrideMap.has(t)) {
+      priceMap.set(t, overrideMap.get(t)!);
+    } else if (isHolidayDay && holidayPrice !== null) {
+      priceMap.set(t, holidayPrice);
+    } else if (weeklyMap.has(t)) {
+      priceMap.set(t, weeklyMap.get(t)!);
+    } else {
+      priceMap.set(t, defaultSlotPrice);
+    }
+  }
+
+  return { priceMap, isHoliday: isHolidayDay };
+}

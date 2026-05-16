@@ -1,0 +1,638 @@
+import { useState, useEffect } from "react";
+import { useParams, useLocation } from "wouter";
+import { useUser, useClerk, SignUp } from "@clerk/react";
+import { Layout } from "@/components/layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Clock, MapPin, Euro, CheckCircle2, AlertCircle, Loader2, LogIn, Calendar, UserX,
+  CreditCard, Share2, Copy, Check, ChevronDown, UserPlus, Download,
+} from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+
+const signUpAppearance: React.ComponentProps<typeof SignUp>["appearance"] = {
+  variables: {
+    colorPrimary: "#84cc16",
+    colorBackground: "transparent",
+    colorText: "var(--foreground)",
+    colorInputBackground: "var(--muted)",
+    colorInputText: "var(--foreground)",
+    borderRadius: "0.75rem",
+    fontFamily: "inherit",
+    fontSize: "0.875rem",
+  },
+  elements: {
+    rootBox: "w-full",
+    card: "shadow-none border-0 p-0 bg-transparent w-full",
+    header: "hidden",
+    headerTitle: "hidden",
+    headerSubtitle: "hidden",
+    socialButtonsBlockButton:
+      "border border-border bg-muted hover:bg-muted/70 text-foreground rounded-xl h-10 font-medium transition-colors",
+    dividerLine: "bg-border",
+    dividerText: "text-muted-foreground text-xs",
+    formFieldLabel: "text-sm font-medium text-foreground text-left block",
+    formFieldInput:
+      "bg-muted border border-border rounded-xl h-10 text-foreground placeholder:text-muted-foreground focus:border-lime-500",
+    formButtonPrimary:
+      "bg-lime-500 hover:bg-lime-600 text-black font-semibold rounded-xl h-10 transition-colors",
+    footer: { display: "none" },
+    footerAction: { display: "none" },
+    formFieldSuccessText: "text-lime-600",
+    formFieldErrorText: "text-destructive text-xs",
+    alertText: "text-sm",
+  },
+};
+
+function SplitShareBox({ url, title }: { url: string; title: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); });
+  };
+  const handleNativeShare = async () => {
+    try { await navigator.share({ title, url }); } catch { /* cancelled */ }
+  };
+  const hasNativeShare = typeof navigator !== "undefined" && "share" in navigator;
+  return (
+    <div className="bg-primary/5 border border-primary/25 rounded-xl p-4 text-left space-y-3">
+      <div>
+        <p className="text-sm font-bold text-foreground">Pakvieskite daugiau žaidėjų!</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Pasidalinkite nuoroda — kiekvienas žaidėjas sumokės savo dalį.</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-background rounded-lg px-3 py-2 border border-border flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground truncate flex-1">{url}</p>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 text-xs text-foreground hover:text-foreground/70 transition-colors shrink-0 font-semibold"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? "Nukopijuota!" : "Kopijuoti"}
+          </button>
+        </div>
+        {hasNativeShare && (
+          <Button size="sm" variant="secondary" className="gap-1.5 shrink-0" onClick={handleNativeShare}>
+            <Share2 className="w-3.5 h-3.5" />
+            Dalintis
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CalendarInfo {
+  bookingId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  courtName: string;
+  address?: string | null;
+  city?: string | null;
+}
+
+function AddToCalendarButton({ info }: { info: CalendarInfo }) {
+  const dateStr = info.date.split("T")[0].replace(/-/g, "");
+  const start = `${dateStr}T${info.startTime.slice(0, 5).replace(":", "")}00`;
+  const end = `${dateStr}T${info.endTime.slice(0, 5).replace(":", "")}00`;
+  const title = `Rezervacija – ${info.courtName}`;
+  const locationParts = [info.address, info.city, "Lietuva"].filter(Boolean);
+  const location = locationParts.join(", ");
+  const details = [
+    `📅 Rezervacija #${info.bookingId}`,
+    `🏟 Aikštelė: ${info.courtName}`,
+    location ? `📍 Adresas: ${location}` : null,
+    `🔗 Peržiūrėti: ${window.location.origin}${BASE}/bookings/${info.bookingId}`,
+  ].filter(Boolean).join("\n");
+  const googleUrl =
+    `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+    `&text=${encodeURIComponent(title)}` +
+    `&dates=${start}/${end}` +
+    `&ctz=Europe%2FVilnius` +
+    `&details=${encodeURIComponent(details)}` +
+    (location ? `&location=${encodeURIComponent(location)}` : "");
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="w-full gap-2">
+          <Calendar className="w-4 h-4" />
+          Pridėti į kalendorių
+          <ChevronDown className="w-4 h-4 ml-auto" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onClick={() => window.open(googleUrl, "_blank")}>
+          <img
+            src="https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png"
+            className="w-4 h-4 mr-2 object-contain"
+            alt=""
+          />
+          Google Calendar
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => window.open(`${API}/bookings/${info.bookingId}/ics`, "_blank")}>
+          <Download className="w-4 h-4 mr-2" />
+          Apple Calendar (.ics)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ClaimProfileSection({ email }: { email?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="border border-primary/30 rounded-xl bg-primary/5 text-left overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-primary/10 transition-colors"
+      >
+        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+          <UserPlus className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-semibold text-foreground">Išsaugokite savo rezervaciją</p>
+          <p className="text-xs text-muted-foreground leading-snug">
+            Sukurkite paskyrą, kad galėtumėte greičiau apmokėti ateityje, sekti savo mačus ir kviesti draugus.
+          </p>
+        </div>
+        <span className="text-xs font-medium text-primary shrink-0">
+          {expanded ? "Uždaryti" : "Registruotis"}
+        </span>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-5 pt-1 border-t border-primary/20">
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            Mokėjimas sėkmingas! Sukurkite paskyrą, kad nereikėtų vesti duomenų kitą kartą ir galėtumėte sekti visas savo rezervacijas vienoje vietoje.
+          </p>
+          <SignUp
+            routing="hash"
+            fallbackRedirectUrl={`${BASE}/bookings`}
+            {...(email ? { initialValues: { emailAddress: email } } : {})}
+            appearance={signUpAppearance}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SplitBookingInfo {
+  bookingId: number;
+  gameId: number | null;
+  courtId: number | null;
+  courtName: string;
+  facilityName: string;
+  facilityAddress: string | null;
+  facilityCity: string;
+  courtImageUrl: string | null;
+  paidParticipants: string[];
+  guaranteeDeadline: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  totalPrice: number;
+  pricePerSlot: number;
+  totalSlots: number;
+  paidSlots: number;
+  slotsLeft: number;
+  bookingStatus: string;
+  sport: string | null;
+}
+
+export default function JoinBookingPage() {
+  const { token } = useParams<{ token: string }>();
+  const [, navigate] = useLocation();
+  const { user, isSignedIn, isLoaded } = useUser();
+  const { openSignIn } = useClerk();
+  const { toast } = useToast();
+
+  const [info, setInfo] = useState<SplitBookingInfo | null>(null);
+  const [courtAddress, setCourtAddress] = useState<{ address: string | null; city: string | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [joining, setJoining] = useState(false);
+
+  // Guest mode state
+  const [guestMode, setGuestMode] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const isPaid = params.get("paid") === "1";
+  const isCancelled = params.get("cancelled") === "1";
+
+  useEffect(() => {
+    if (!token) { setError("Nuoroda neteisinga"); setLoading(false); return; }
+    fetch(`${API}/bookings/share/${token}`)
+      .then(r => {
+        if (r.status === 404) throw new Error("Kvietimo nuoroda nerasta arba nebegalioja.");
+        if (r.status === 410) throw new Error("Rezervacija atšaukta.");
+        if (!r.ok) throw new Error("Nepavyko gauti rezervacijos informacijos.");
+        return r.json();
+      })
+      .then(async (data: SplitBookingInfo) => {
+        setInfo(data);
+        if (data.courtId) {
+          const courtRes = await fetch(`${API}/courts/${data.courtId}`).catch(() => null);
+          if (courtRes?.ok) {
+            const c = await courtRes.json();
+            setCourtAddress({ address: c.address ?? null, city: c.city ?? null });
+          }
+        }
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const handleJoin = async () => {
+    if (!isSignedIn || !user) { openSignIn(); return; }
+    if (!info || !token) return;
+
+    const email = user.primaryEmailAddress?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress ?? "";
+    const name = user.fullName || `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || email.split("@")[0] || "Žaidėjas";
+
+    setJoining(true);
+    try {
+      const resp = await fetch(`${API}/bookings/share/${token}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerName: name, playerEmail: email }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.error ?? "Nepavyko inicijuoti mokėjimo");
+      }
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Klaida", description: err.message ?? "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleGuestJoin = async () => {
+    if (!info || !token) return;
+    const name = guestName.trim();
+    const email = guestEmail.trim();
+    if (!name || !email) {
+      toast({ title: "Klaida", description: "Įveskite vardą ir el. paštą.", variant: "destructive" });
+      return;
+    }
+
+    setJoining(true);
+    try {
+      const resp = await fetch(`${API}/bookings/share/${token}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestName: name, guestEmail: email }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.error ?? "Nepavyko inicijuoti mokėjimo");
+      }
+      const { url } = await resp.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Klaida", description: err.message ?? "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">Kraunama…</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center gap-4 text-center">
+          <AlertCircle className="w-12 h-12 text-destructive" />
+          <h1 className="text-xl font-bold">Nuoroda nebegalioja</h1>
+          <p className="text-muted-foreground text-sm">{error}</p>
+          <Button variant="outline" onClick={() => navigate("/")}>Grįžti į pradžią</Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!info) return null;
+
+  const allPaid = info.paidSlots >= info.totalSlots;
+  const noSlotsLeft = info.slotsLeft <= 0;
+
+  return (
+    <Layout>
+      <div className="max-w-md mx-auto px-4 py-8 space-y-6">
+
+        {/* Success banner */}
+        {isPaid && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-400/20 text-green-700 dark:text-green-400">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm">Mokėjimas gautas!</p>
+              <p className="text-xs opacity-80">Tavo dalis sėkmingai apmokėta.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Cancelled banner */}
+        {isCancelled && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-400/20 text-yellow-700 dark:text-yellow-400">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <p className="text-sm">Mokėjimas atšauktas. Vieta kol kas laisva — galite bandyti dar kartą.</p>
+          </div>
+        )}
+
+        {/* Header */}
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mokėjimo pakvietimas</p>
+
+        {/* Court info row */}
+        <div className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            className="shrink-0"
+            onClick={() => info.courtId && navigate(`/courts/${info.courtId}`)}
+          >
+            {info.courtImageUrl ? (
+              <img
+                src={info.courtImageUrl}
+                alt={info.courtName}
+                className="w-10 h-10 rounded-lg object-cover"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.style.setProperty("display", "flex"); }}
+              />
+            ) : null}
+            <div className={`w-10 h-10 rounded-lg bg-muted items-center justify-center text-base ${info.courtImageUrl ? "hidden" : "flex"}`}>🏟️</div>
+          </button>
+          <div className="flex-1 min-w-0">
+            <button
+              type="button"
+              className="font-semibold text-sm truncate block w-full text-left hover:text-primary transition-colors"
+              onClick={() => info.courtId && navigate(`/courts/${info.courtId}`)}
+            >
+              {info.courtName}
+            </button>
+            {(() => {
+              const street = courtAddress?.address || info.facilityName;
+              const city = courtAddress?.city || info.facilityCity;
+              const addr = [street, city].filter(Boolean).join(", ");
+              if (!addr) return null;
+              return (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(addr)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors mt-0.5"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{addr}</span>
+                </a>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* Booking card */}
+        <div className="rounded-2xl border bg-card shadow-sm p-5 space-y-3">
+
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="font-medium">{info.date}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="font-medium">{info.startTime} – {info.endTime}</span>
+          </div>
+
+          <Separator />
+
+          {/* Slot progress */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Apmokėta dalių</span>
+              <span className="font-semibold">{info.paidSlots} / {info.totalSlots}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="h-2 rounded-full bg-primary transition-all"
+                style={{ width: `${Math.round((info.paidSlots / info.totalSlots) * 100)}%` }}
+              />
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {Array.from({ length: info.totalSlots }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-xs font-bold ${
+                    i < info.paidSlots
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "bg-muted border-border text-muted-foreground"
+                  }`}
+                >
+                  {i < info.paidSlots ? "✓" : i + 1}
+                </div>
+              ))}
+            </div>
+            {/* Social proof: paid participant names */}
+            {info.paidParticipants.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {info.paidParticipants.join(", ")} {info.paidParticipants.length === 1 ? "jau sumokėjo" : "jau sumokėjo"}
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Pricing breakdown */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <CreditCard className="w-4 h-4" />
+                Jūsų dalis (1/{info.totalSlots})
+              </span>
+              <span className="font-bold text-primary text-base">€{info.pricePerSlot.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm border-t border-border pt-2">
+              <span className="text-muted-foreground">Visa rezervacijos kaina</span>
+              <span className="font-semibold">€{info.totalPrice.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Liko surinkti iš kitų</span>
+              <span className="font-semibold text-orange-500 dark:text-orange-400">
+                €{Math.max(0, info.totalPrice - info.pricePerSlot * info.paidSlots).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Guarantee deadline */}
+          {info.guaranteeDeadline && (() => {
+            const dl = new Date(info.guaranteeDeadline);
+            const dlStr = `${dl.toLocaleDateString("lt-LT")} ${dl.getHours().toString().padStart(2,"0")}:${dl.getMinutes().toString().padStart(2,"0")}`;
+            return (
+              <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2 space-y-0.5">
+                <p className="font-semibold">Sumokėti iki: {dlStr}</p>
+                <p className="text-amber-600 dark:text-amber-500">Organizatorius garantuoja rezervaciją — tiesiog apmokėkite savo dalį.</p>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Action area */}
+        {isPaid ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              {allPaid
+                ? "Visi žaidėjai sumokėjo — rezervacija patvirtinta!"
+                : `Laukiama likusių ${info.totalSlots - info.paidSlots} žaidėjų mokėjimo.`}
+            </p>
+
+            {/* Share with remaining players */}
+            {!allPaid && token && (
+              <SplitShareBox
+                url={`${window.location.origin}${BASE}/join/${token}`}
+                title={`Prisijunk prie žaidimo aikštelėje ${info.courtName}!`}
+              />
+            )}
+
+            {/* Add to calendar */}
+            <AddToCalendarButton
+              info={{
+                bookingId: info.bookingId,
+                date: info.date,
+                startTime: info.startTime,
+                endTime: info.endTime,
+                courtName: info.courtName,
+                address: courtAddress?.address || info.facilityName,
+                city: courtAddress?.city || info.facilityCity,
+              }}
+            />
+
+            {/* Guest-to-account conversion */}
+            {!isSignedIn && !!clerkPubKey && (
+              <ClaimProfileSection />
+            )}
+
+            {isSignedIn && (
+              <Button variant="outline" className="w-full" onClick={() => navigate("/bookings")}>
+                Mano rezervacijos
+              </Button>
+            )}
+          </div>
+        ) : allPaid || noSlotsLeft ? (
+          <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-muted border text-center">
+            <CheckCircle2 className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground font-medium">
+              {allPaid ? "Visos dalys apmokėtos." : "Visos dalys jau užimtos."}
+            </p>
+          </div>
+        ) : !isLoaded ? (
+          <div className="h-12 w-full bg-muted rounded-xl animate-pulse" />
+        ) : !isSignedIn ? (
+          guestMode ? (
+            /* Guest form */
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground text-center">
+                Įveskite savo duomenis mokėjimui. Patvirtinimas bus išsiųstas el. paštu.
+              </p>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-name">Vardas</Label>
+                  <Input
+                    id="guest-name"
+                    placeholder="Jūsų vardas"
+                    value={guestName}
+                    onChange={e => setGuestName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="guest-email">El. paštas</Label>
+                  <Input
+                    id="guest-email"
+                    type="email"
+                    placeholder="jusu@email.lt"
+                    value={guestEmail}
+                    onChange={e => setGuestEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleGuestJoin()}
+                  />
+                </div>
+              </div>
+              <Button
+                className="button-primary w-full h-12 text-base font-semibold gap-2"
+                onClick={handleGuestJoin}
+                disabled={joining || !guestName.trim() || !guestEmail.trim()}
+              >
+                {joining ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Kraunama…</>
+                ) : (
+                  <><Euro className="w-4 h-4" /> Mokėti {info.pricePerSlot.toFixed(2)} €</>
+                )}
+              </Button>
+              <button
+                className="text-xs text-muted-foreground w-full text-center hover:text-foreground transition-colors"
+                onClick={() => setGuestMode(false)}
+              >
+                ← Atgal
+              </button>
+            </div>
+          ) : (
+            /* Sign-in or guest choice */
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground text-center">
+                Pasirinkite, kaip norite sumokėti savo dalį.
+              </p>
+              <Button className="button-primary w-full gap-2" onClick={() => openSignIn()}>
+                <LogIn className="w-4 h-4" />
+                Prisijungti
+              </Button>
+              <Button variant="outline" className="w-full gap-2" onClick={() => setGuestMode(true)}>
+                <UserX className="w-4 h-4" />
+                Tęsti be registracijos
+              </Button>
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground text-center">
+              Mokėdamas patvirtini dalyvavimą. Grąžinimo sąlygos taikomos pagal bendrąsias taisykles.
+            </p>
+            <Button
+              className="button-primary w-full h-12 text-base font-semibold gap-2"
+              onClick={handleJoin}
+              disabled={joining}
+            >
+              {joining ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Kraunama…</>
+              ) : (
+                <><Euro className="w-4 h-4" /> Mokėti {info.pricePerSlot.toFixed(2)} €</>
+              )}
+            </Button>
+          </div>
+        )}
+
+      </div>
+    </Layout>
+  );
+}

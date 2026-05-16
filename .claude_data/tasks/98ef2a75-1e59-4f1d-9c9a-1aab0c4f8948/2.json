@@ -1,0 +1,9 @@
+{
+  "id": "2",
+  "subject": "Backend: save card on host checkout + store customer/PM on confirm",
+  "description": "In split-payments.ts: add customer_creation:'always' and setup_future_usage:'off_session' to the host Stripe checkout session. In confirm-split, retrieve customer ID and payment method from the completed session and store on the booking.",
+  "activeForm": "Updating checkout and confirm-split routes",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

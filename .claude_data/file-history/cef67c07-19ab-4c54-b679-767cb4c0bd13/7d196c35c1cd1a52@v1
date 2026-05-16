@@ -1,0 +1,93 @@
+import { db, notificationsTable, notificationSettingsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+export const ADMIN_NOTIF_USER = "__ADMIN__";
+
+type NotifType =
+  | "game_join_request"
+  | "game_cancelled"
+  | "booking_created"
+  | "booking_cancelled"
+  | "court_approved"
+  | "court_rejected"
+  | "facility_approved"
+  | "facility_rejected"
+  | "coach_approved"
+  | "coach_rejected"
+  | "court_coach_approved"
+  | "court_coach_rejected"
+  | "coach_invite"
+  | "coach_application"
+  | "tournament_pending_review"
+  | "tournament_approved"
+  | "tournament_rejected"
+  | "tournament_match_ready"
+  | "admin_pending_review"
+  | "game_join_rejected"
+  | "game_join_approved"
+  | "game_removed"
+  | "result_confirmation"
+  | "result_disputed"
+  | "elo_update"
+  | "message"
+  | "split_player_joined";
+
+const TYPE_TO_SETTING: Partial<Record<NotifType, keyof typeof notificationSettingsTable.$inferSelect>> = {
+  game_join_request: "gameJoinRequest",
+  game_cancelled: "gameCancelled",
+  booking_created: "bookingCreated",
+  booking_cancelled: "bookingCancelled",
+  court_approved: "courtApproved",
+  court_rejected: "courtApproved",
+  facility_approved: "courtApproved",
+  facility_rejected: "courtApproved",
+  coach_approved: "courtApproved",
+  coach_rejected: "courtApproved",
+  message: "messageReceived",
+};
+
+async function shouldNotify(userId: string, type: NotifType): Promise<boolean> {
+  // Admin pseudo-user always receives notifications
+  if (userId === ADMIN_NOTIF_USER) return true;
+  try {
+    const [row] = await db
+      .select()
+      .from(notificationSettingsTable)
+      .where(eq(notificationSettingsTable.userId, userId));
+    if (!row) return true;
+    const field = TYPE_TO_SETTING[type];
+    if (!field) return true;
+    return row[field] as boolean;
+  } catch {
+    return true;
+  }
+}
+
+export async function sendNotification(
+  userId: string,
+  type: NotifType,
+  title: string,
+  body: string,
+  link?: string,
+) {
+  try {
+    const allowed = await shouldNotify(userId, type);
+    if (!allowed) return;
+    await db.insert(notificationsTable).values({
+      userId,
+      type,
+      title,
+      body,
+      link: link ?? null,
+    });
+  } catch { /* silent */ }
+}
+
+/** Send a notification to the admin queue (special sentinel user) */
+export async function sendAdminNotification(
+  title: string,
+  body: string,
+  link?: string,
+) {
+  return sendNotification(ADMIN_NOTIF_USER, "admin_pending_review", title, body, link);
+}

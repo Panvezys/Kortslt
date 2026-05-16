@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "subject": "Frontend: owner dashboard — Dalinis (Garantuotas) badge",
+  "description": "Replace the 👥 emoji on split bookings in owner/court-dashboard.tsx with a proper small badge reading \"Dalinis (Garantuotas)\".",
+  "activeForm": "Updating owner dashboard badge",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,524 @@
+import { useEffect, useState } from "react";
+import { useParams, useLocation } from "wouter";
+import { Layout } from "@/components/layout";
+import { BackButton } from "@/components/back-button";
+import {
+  CheckCircle2, Calendar, Clock, MapPin, Phone, Mail,
+  User, CreditCard, Loader2, XCircle, ExternalLink, Download,
+  Users, Copy, Check, ChevronDown, CalendarCheck, Building2, MessageCircle,
+} from "lucide-react";
+import { getSportLabel } from "@/components/sport-icon";
+import { resolveCourtImage } from "@/lib/imageUrl";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { format } from "date-fns";
+import { lt } from "date-fns/locale";
+import { useSafeAuth } from "@/lib/safeAuth";
+import { openChat } from "@/components/chat-bubble";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+interface BookingDetail {
+  id: number;
+  courtId: number;
+  courtName?: string;
+  courtSport?: string;
+  facilityName?: string;
+  courtAddress?: string;
+  courtCity?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  totalPrice: number;
+  status: "pending" | "confirmed" | "cancelled" | "awaiting_players";
+  stripeSessionId?: string | null;
+  createdAt: string;
+  isSplit?: boolean;
+  totalSlots?: number;
+  pricePerSlot?: number;
+  splitInviteToken?: string | null;
+}
+
+interface SplitParticipant {
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  paymentStatus: string;
+  joinedAt: string;
+}
+
+interface SplitStatus {
+  bookingId: number;
+  gameId: number | null;
+  bookingStatus: string;
+  totalSlots: number;
+  pricePerSlot: number;
+  totalPrice: number;
+  shareToken: string | null;
+  participants: SplitParticipant[];
+}
+
+interface CourtDetail {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  phone?: string | null;
+  ownerEmail?: string | null;
+  ownerUserId?: string | null;
+  ownerName?: string | null;
+  imageUrl?: string | null;
+  type: string;
+}
+
+function formatDate(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : format(d, "yyyy-MM-dd");
+}
+
+function formatDateLong(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : format(d, "EEEE, yyyy-MM-dd", { locale: lt });
+}
+
+function useCountdown(targetMs: number | null): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+  useEffect(() => {
+    if (targetMs === null) { setLabel(null); return; }
+    const update = () => {
+      const diff = targetMs - Date.now();
+      if (diff <= 0) { setLabel("Laikas baigėsi"); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      if (h > 0) setLabel(`${h} val. ${m} min.`);
+      else if (m > 0) setLabel(`${m} min. ${s} sek.`);
+      else setLabel(`${s} sek.`);
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [targetMs]);
+  return label;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "confirmed":
+      return <Badge className="bg-green-500 text-white"><CheckCircle2 className="w-3 h-3 mr-1" />Patvirtinta</Badge>;
+    case "pending":
+      return <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400"><Clock className="w-3 h-3 mr-1" />Laukiama</Badge>;
+    case "awaiting_players":
+      return <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400"><Users className="w-3 h-3 mr-1" />Laukiama žaidėjų</Badge>;
+    case "cancelled":
+      return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Atšaukta</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+}
+
+export default function BookingDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
+  const { isSignedIn } = useSafeAuth();
+  const [booking, setBooking] = useState<BookingDetail | null>(null);
+  const [court, setCourt] = useState<CourtDetail | null>(null);
+  const [splitStatus, setSplitStatus] = useState<SplitStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const bookingRes = await fetch(`${API}/bookings/${id}`);
+        if (!bookingRes.ok) throw new Error("Rezervacija nerasta");
+        const bookingData = await bookingRes.json();
+        setBooking(bookingData);
+
+        const [courtResult, splitResult] = await Promise.allSettled([
+          bookingData.courtId
+            ? fetch(`${API}/courts/${bookingData.courtId}`).then(r => r.ok ? r.json() : null)
+            : Promise.resolve(null),
+          bookingData.isSplit
+            ? fetch(`${API}/bookings/${bookingData.id}/split-status`).then(r => r.ok ? r.json() : null)
+            : Promise.resolve(null),
+        ]);
+
+        if (courtResult.status === "fulfilled" && courtResult.value) {
+          setCourt(courtResult.value);
+        }
+        if (splitResult.status === "fulfilled" && splitResult.value) {
+          setSplitStatus(splitResult.value);
+        }
+      } catch (err: any) {
+        setError(err.message ?? "Klaida");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  const shareUrl = splitStatus?.shareToken
+    ? `${window.location.origin}${BASE}/join/${splitStatus.shareToken}`
+    : null;
+
+  const guaranteeDeadlineMs = (booking?.isSplit && booking.status === "awaiting_players" && booking.date && booking.startTime)
+    ? new Date(`${booking.date.split("T")[0]}T${booking.startTime}:00`).getTime() - 2 * 60 * 60 * 1000
+    : null;
+  const countdown = useCountdown(guaranteeDeadlineMs);
+
+  const handleCopyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select text
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !booking) {
+    return (
+      <Layout>
+        <div className="container flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <XCircle className="w-12 h-12 text-destructive" />
+          <p className="text-lg font-medium">{error ?? "Rezervacija nerasta"}</p>
+          <BackButton to="/bookings" label="Grįžti" />
+        </div>
+      </Layout>
+    );
+  }
+
+  const courtName = booking.courtName ?? court?.name ?? `Kortas #${booking.courtId}`;
+  const address = court ? `${court.address}, ${court.city}` : null;
+  const phone = court?.phone ?? null;
+  const email = court?.ownerEmail ?? null;
+  const duration = (() => {
+    const [sh, sm] = booking.startTime.split(":").map(Number);
+    const [eh, em] = booking.endTime.split(":").map(Number);
+    const mins = (eh * 60 + em) - (sh * 60 + (sm ?? 0));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  })();
+
+  return (
+    <Layout>
+      <div className="container mx-auto px-4 py-8 max-w-lg">
+        {/* Back button */}
+        <BackButton to="/bookings" label="Visos rezervacijos" />
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-6">
+          <div>
+            <h1 className="text-xl font-bold">Rezervacija #{booking.id}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{courtName}</p>
+          </div>
+          <StatusBadge status={booking.status} />
+        </div>
+
+        {/* Booking info card */}
+        <div className="bg-card border rounded-xl divide-y divide-border overflow-hidden mb-4">
+          <div className="w-full px-4 py-3 flex items-center gap-3">
+            {resolveCourtImage(court?.imageUrl, court?.type) ? (
+              <img
+                src={resolveCourtImage(court?.imageUrl, court?.type)!}
+                alt={courtName}
+                className="w-10 h-10 rounded-lg object-cover shrink-0"
+              />
+            ) : (
+              <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+            )}
+            <button
+              className="flex-1 flex flex-col min-w-0 text-left"
+              onClick={() => setLocation(`/courts/${booking.courtId}`)}
+            >
+              <p className="text-xs text-muted-foreground">Aikštelė</p>
+              <p className="text-sm font-medium text-primary truncate">{courtName}</p>
+            </button>
+            <ExternalLink
+              className="w-3.5 h-3.5 text-muted-foreground shrink-0 cursor-pointer hover:text-primary transition-colors"
+              onClick={() => setLocation(`/courts/${booking.courtId}`)}
+            />
+            {isSignedIn && court?.ownerUserId && (
+              <button
+                type="button"
+                className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
+                onClick={() => openChat({
+                  userId: court.ownerUserId!,
+                  userName: court.ownerName || "Savininkas",
+                  ctxType: "booking",
+                  ctxId: booking.id,
+                })}
+              >
+                <MessageCircle className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Data</p>
+              <p className="text-sm font-medium capitalize">{formatDateLong(booking.date)}</p>
+            </div>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Laikas</p>
+              <p className="text-sm font-medium">{booking.startTime} – {booking.endTime} <span className="text-muted-foreground font-normal">({duration})</span></p>
+            </div>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">
+                {booking.isSplit
+                  ? "Jūsų mokėjimo dalis"
+                  : booking.status === "confirmed" ? "Sumokėta" : "Kaina"}
+              </p>
+              <p className="text-sm font-medium">
+                {booking.isSplit && booking.pricePerSlot != null
+                  ? (booking.pricePerSlot > 0 ? `€${Number(booking.pricePerSlot).toFixed(2)}` : "Nemokama")
+                  : (booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama")}
+              </p>
+              {booking.isSplit && booking.pricePerSlot != null && (
+                <p className="text-xs text-muted-foreground">Visa kaina: €{Number(booking.totalPrice).toFixed(2)}</p>
+              )}
+            </div>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <User className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Rezervavo</p>
+              <p className="text-sm font-medium">{booking.customerName}</p>
+            </div>
+          </div>
+          <div className="px-4 py-3 flex items-center gap-3">
+            <CalendarCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div>
+              <p className="text-xs text-muted-foreground">Rezervuota</p>
+              <p className="text-sm font-medium">
+                {format(new Date(booking.createdAt), "yyyy-MM-dd HH:mm", { locale: lt })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Split payment progress panel */}
+        {booking.isSplit && splitStatus && (
+          <div className="bg-card border rounded-xl overflow-hidden mb-4">
+            <div className="px-4 py-3 flex items-center justify-between border-b">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <p className="text-sm font-semibold">Bendras mokėjimas</p>
+              </div>
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
+                {splitStatus.participants.filter(p => p.paymentStatus === "paid").length}/{splitStatus.totalSlots} apmokėta
+              </Badge>
+            </div>
+
+            {/* Progress bar */}
+            <div className="px-4 pt-3 pb-1">
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-2 rounded-full bg-blue-500 transition-all"
+                  style={{ width: `${Math.round((splitStatus.participants.filter(p => p.paymentStatus === "paid").length / splitStatus.totalSlots) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Slot dots */}
+            <div className="px-4 pt-2 pb-3 flex gap-1.5 flex-wrap">
+              {Array.from({ length: splitStatus.totalSlots }).map((_, i) => {
+                const paid = splitStatus.participants.filter(p => p.paymentStatus === "paid");
+                const isPaid = i < paid.length;
+                return (
+                  <div
+                    key={i}
+                    className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-xs font-bold ${
+                      isPaid
+                        ? "bg-blue-500 border-blue-500 text-white"
+                        : "bg-muted border-border text-muted-foreground"
+                    }`}
+                  >
+                    {isPaid ? "✓" : i + 1}
+                  </div>
+                );
+              })}
+            </div>
+
+            <Separator />
+
+            {/* Participant list */}
+            {splitStatus.participants.length > 0 && (
+              <div className="px-4 py-3 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Žaidėjai</p>
+                {splitStatus.participants.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{p.userName ?? p.userEmail ?? `Žaidėjas ${i + 1}`}</p>
+                      {p.userEmail && p.userName && (
+                        <p className="truncate text-xs text-muted-foreground">{p.userEmail}</p>
+                      )}
+                    </div>
+                    {p.paymentStatus === "paid"
+                      ? <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0 text-xs shrink-0">Sumokėta</Badge>
+                      : <Badge variant="secondary" className="text-xs shrink-0">Laukiama</Badge>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Guarantee countdown */}
+            {countdown && booking.status === "awaiting_players" && (
+              <>
+                <Separator />
+                <div className="px-4 py-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>Liko surinkti: <span className="font-semibold tabular-nums">{countdown}</span></span>
+                </div>
+              </>
+            )}
+
+            {/* Share link (only if still awaiting players) */}
+            {shareUrl && booking.status === "awaiting_players" && (
+              <>
+                <Separator />
+                <div className="px-4 py-3 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Kvietimo nuoroda</p>
+                  <p className="text-xs text-muted-foreground">Pasidalinkite su žaidėjais, kad jie galėtų sumokėti savo dalį.</p>
+                  <div className="flex gap-2">
+                    <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 truncate font-mono">{shareUrl}</code>
+                    <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={handleCopyLink}>
+                      {copied ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? "Nukopijuota" : "Kopijuoti"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Court contact info */}
+        {(address || phone || email) && (
+          <div className="bg-card border rounded-xl divide-y divide-border overflow-hidden mb-4">
+            <div className="px-4 py-2.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Aikštelės kontaktai</p>
+            </div>
+            {address && (
+              <div className="px-4 py-3 flex items-center gap-3">
+                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm">{address}</p>
+                </div>
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/80 shrink-0"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+            )}
+            {phone && (
+              <div className="px-4 py-3 flex items-center gap-3">
+                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                <a href={`tel:${phone}`} className="text-sm hover:text-primary transition-colors">{phone}</a>
+              </div>
+            )}
+            {email && (
+              <div className="px-4 py-3 flex items-center gap-3">
+                <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                <a href={`mailto:${email}`} className="text-sm hover:text-primary transition-colors truncate">{email}</a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Calendar */}
+        <div className="flex gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex-1">
+                <Calendar className="w-4 h-4 mr-2" />
+                Pridėti į kalendorių
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                const date = booking.date.split("T")[0].replace(/-/g, "");
+                const start = date + "T" + booking.startTime.slice(0, 5).replace(":", "") + "00";
+                const end = date + "T" + booking.endTime.slice(0, 5).replace(":", "") + "00";
+                const sportLabel = getSportLabel(booking.courtSport);
+                const courtLabel = booking.courtName ?? "Kortas";
+                const title = booking.facilityName
+                  ? `${sportLabel} – ${courtLabel}, ${booking.facilityName}`
+                  : `${sportLabel} – ${courtLabel}`;
+                const addressParts = [
+                  booking.courtAddress,
+                  booking.courtCity,
+                  "Lietuva",
+                ].filter(Boolean);
+                const location = addressParts.join(", ");
+                const siteUrl = "https://korts.lt";
+                const bookingUrl = `${siteUrl}/bookings/${booking.id}`;
+                const details = [
+                  `📅 Rezervacija #${booking.id}`,
+                  `🏟 Aikštelė: ${courtLabel}`,
+                  booking.facilityName ? `🏢 Objektas: ${booking.facilityName}` : null,
+                  `⚽ Sportas: ${sportLabel}`,
+                  `💶 Kaina: ${Number(booking.totalPrice).toFixed(2)} €`,
+                  `🔗 Peržiūrėti: ${bookingUrl}`,
+                ].filter(Boolean).join("\n");
+                const url =
+                  `https://calendar.google.com/calendar/render?action=TEMPLATE` +
+                  `&text=${encodeURIComponent(title)}` +
+                  `&dates=${start}/${end}` +
+                  `&ctz=Europe%2FVilnius` +
+                  `&details=${encodeURIComponent(details)}` +
+                  `&location=${encodeURIComponent(location)}`;
+                window.open(url, "_blank");
+              }}>
+                <img src="https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png" className="w-4 h-4 mr-2 object-contain" alt="" />
+                Google Calendar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open(`${API}/bookings/${booking.id}/ics`, "_blank")}>
+                <Download className="w-4 h-4 mr-2" />
+                Apple Calendar (.ics)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </Layout>
+  );
+}

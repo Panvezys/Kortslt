@@ -13,7 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
-import { CourtIcon } from "@/components/sport-icon";
 import { validateEmail, validatePhone } from "@/lib/validators";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -21,7 +20,10 @@ import {
   Shield, ShieldCheck, ShieldAlert, Edit2, Trash2, CreditCard, Loader2,
   AlertTriangle, Send, FileEdit, Hourglass, Ban,
   Phone, Mail, Globe, FileText, Clock, CheckCircle2, XCircle, Info, ExternalLink,
+  Tag, Settings, LayoutDashboard,
 } from "lucide-react";
+import { SportPill, getSportLabel } from "@/components/sport-icon";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
@@ -197,10 +199,11 @@ function BusinessInfoPanel() {
   if (isLoading) return <div className="bg-card border rounded-2xl p-5 space-y-2"><Skeleton className="h-5 w-48" /><Skeleton className="h-4 w-64" /></div>;
   if (isError || !info) return null;
 
-  const pendingFields: string[] = (() => {
-    if (!info.pendingEdit) return [];
-    try { return Object.keys(JSON.parse(info.pendingEdit.requestedData)); } catch { return []; }
+  const pendingData: Record<string, string> = (() => {
+    if (!info.pendingEdit) return {};
+    try { return JSON.parse(info.pendingEdit.requestedData) as Record<string, string>; } catch { return {}; }
   })();
+  const pendingFields = Object.keys(pendingData);
 
   const fieldLabel: Record<string, string> = {
     companyName: "Juridinis pavadinimas", registrationCode: "Įmonės kodas",
@@ -235,39 +238,42 @@ function BusinessInfoPanel() {
 
       {expanded && (
         <div className="border-t border-border/60">
-          {info.hasPendingEdit && (
-            <div className="mx-5 mt-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-muted-foreground flex gap-2">
-              <Info className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground mb-0.5">Pakeitimai laukia administratoriaus peržiūros</p>
-                <p className="text-xs">Laukai: {pendingFields.map(f => fieldLabel[f] ?? f).join(", ")}</p>
-              </div>
-            </div>
-          )}
 
           {!editing ? (
             <div className="p-5 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
                 {[
-                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Juridinis pavadinimas", value: info.companyName },
-                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Įmonės kodas", value: info.registrationCode },
-                  { icon: <FileText className="w-3.5 h-3.5" />, label: "PVM kodas", value: info.vatNumber },
-                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Svetainė", value: info.websiteUrl },
-                  { icon: <MapPin className="w-3.5 h-3.5" />, label: "Adresas", value: [info.address, info.city, info.postcode].filter(Boolean).join(", ") || null },
-                  { icon: <Phone className="w-3.5 h-3.5" />, label: "Telefonas", value: info.phone },
-                  { icon: <Mail className="w-3.5 h-3.5" />, label: "El. paštas", value: info.email },
-                ].map(({ icon, label, value }) => (
-                  <div key={label} className="flex items-start gap-2">
-                    <div className="text-muted-foreground mt-0.5 shrink-0">{icon}</div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                      {value
-                        ? <p className="font-medium truncate text-foreground">{value}</p>
-                        : <p className="text-muted-foreground/50 italic text-xs">Nepateikta</p>
-                      }
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Juridinis pavadinimas", key: "companyName", value: info.companyName },
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "Įmonės kodas", key: "registrationCode", value: info.registrationCode },
+                  { icon: <FileText className="w-3.5 h-3.5" />, label: "PVM kodas", key: "vatNumber", value: info.vatNumber },
+                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Svetainė", key: "websiteUrl", value: info.websiteUrl },
+                  { icon: <MapPin className="w-3.5 h-3.5" />, label: "Adresas", key: "address", value: [info.address, info.city, info.postcode].filter(Boolean).join(", ") || null },
+                  { icon: <Phone className="w-3.5 h-3.5" />, label: "Telefonas", key: null, value: info.phone },
+                  { icon: <Mail className="w-3.5 h-3.5" />, label: "El. paštas", key: null, value: info.email },
+                ].map(({ icon, label, key, value }) => {
+                  const pendingVal = key === "address"
+                    ? [pendingData.address, pendingData.city, pendingData.postcode].filter(Boolean).join(", ") || null
+                    : key ? (pendingData[key] ?? null) : null;
+                  const hasPending = !!pendingVal;
+                  return (
+                    <div key={label} className="flex items-start gap-2">
+                      <div className="text-muted-foreground mt-0.5 shrink-0">{icon}</div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">{label}</p>
+                        {value
+                          ? <p className={`font-medium truncate ${hasPending ? "line-through text-muted-foreground/60 text-xs" : "text-foreground"}`}>{value}</p>
+                          : !hasPending && <p className="text-muted-foreground/50 italic text-xs">Nepateikta</p>
+                        }
+                        {hasPending && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="font-medium truncate text-foreground">{pendingVal}</p>
+                            <span className="text-[10px] bg-yellow-500/15 text-yellow-600 border border-yellow-500/30 rounded px-1 py-0.5 whitespace-nowrap">laukia</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="pt-2">
                 <div className="bg-muted/30 border border-border/60 rounded-lg px-3 py-2 text-xs text-muted-foreground flex gap-1.5 items-start">
@@ -596,11 +602,7 @@ export default function OwnerFacilities() {
     }
   };
 
-  const getFacilityImage = (f: FacilityWithCourts): string | null => {
-    if (f.photos && f.photos.length > 0) return f.photos[0];
-    const courtWithImage = (f.courts ?? []).find(c => c.imageUrl);
-    return courtWithImage?.imageUrl || null;
-  };
+
 
   const totalCourts = facilities?.reduce((sum, f) => sum + f.courtCount, 0) ?? 0;
   const ownerStripeStatus: StripeStatus = stripeStatusData?.status ?? "not_connected";
@@ -681,15 +683,15 @@ export default function OwnerFacilities() {
         )}
 
         {isLoading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-card border rounded-2xl overflow-hidden">
-                <Skeleton className="h-48 w-full" />
-                <div className="p-5 space-y-3">
-                  <Skeleton className="h-6 w-3/4" />
+          <div className="flex gap-6 overflow-x-auto pb-2">
+            {[1, 2].map(i => (
+              <div key={i} className="min-w-[360px] flex-shrink-0 space-y-3">
+                <div className="bg-card border rounded-2xl p-4 space-y-3">
+                  <Skeleton className="h-5 w-2/3" />
                   <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-5 w-24" />
                 </div>
+                {[1, 2].map(j => <Skeleton key={j} className="h-16 w-full rounded-xl" />)}
               </div>
             ))}
           </div>
@@ -708,120 +710,52 @@ export default function OwnerFacilities() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-row gap-6 overflow-x-auto pb-4 items-start">
             {facilities.map(facility => {
-              const image = getFacilityImage(facility);
               const fCourts = facility.courts ?? [];
-              const approvedCourts = fCourts.filter(c => c.status === "approved").length;
-              const pendingCourts = fCourts.filter(c => c.status === "pending").length;
+              const fBase = `/owner/facility/${facility.id}`;
 
               return (
-                <div
-                  key={facility.id}
-                  role="link"
-                  tabIndex={0}
-                  aria-label={`Atidaryti objektą ${facility.name}`}
-                  onClick={() => navigate(`/owner/dashboard?facility=${facility.id}`)}
-                  onKeyDown={(e) => {
-                    if (e.currentTarget !== e.target) return;
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/owner/dashboard?facility=${facility.id}`);
-                    }
-                  }}
-                  className="group bg-card border rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
-                  <div className="relative h-32 bg-muted overflow-hidden">
-                    {image ? (
-                      <img
-                        src={image.startsWith("http") ? image : `${BASE_URL}/${image}`}
-                        alt={facility.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-muted">
-                        <Building2 className="w-16 h-16 text-muted-foreground/60" />
+                <div key={facility.id} className="min-w-[360px] max-w-[400px] flex-shrink-0 flex flex-col gap-3">
+
+                  {/* ── Facility header ── */}
+                  <div
+                    className="bg-card border border-border rounded-2xl p-4 cursor-pointer hover:border-primary/30 hover:shadow-sm transition-all group"
+                    onClick={() => navigate(fBase)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h3 className="font-bold text-base leading-tight group-hover:text-primary transition-colors">{facility.name}</h3>
+                      <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/owner/dashboard?facility=${facility.id}`); }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title="Suvestinė"
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`/owner/settings?facility=${facility.id}`); }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title="Objekto nustatymai"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    )}
-
-                    <div className="absolute top-3 left-3 flex flex-col gap-1">
-                      <VerificationBadge status={facility.verificationStatus} />
-                    </div>
-
-                    <div className="absolute top-3 right-3 flex gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          navigate(`/owner/settings?facility=${facility.id}`);
-                        }}
-                        className="p-1.5 rounded-lg bg-black/50 text-white hover:bg-black/70 transition-colors backdrop-blur-sm"
-                        title="Redaguoti"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDelete(facility, e)}
-                        disabled={deleteMutation.isPending}
-                        className="p-1.5 rounded-lg bg-black/50 text-red-400 hover:bg-black/70 transition-colors backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Ištrinti"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                  </div>
-
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-lg leading-tight truncate group-hover:text-primary transition-colors">
-                          {facility.name}
-                        </h3>
-                        {facility.companyName && facility.companyName !== facility.name && (
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{facility.companyName}</p>
-                        )}
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0 mt-1" />
                     </div>
 
                     {(facility.address || facility.city) && (
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">
-                          {[facility.address, facility.city].filter(Boolean).join(", ")}
-                        </span>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2.5">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{[facility.address, facility.city].filter(Boolean).join(", ")}</span>
                       </div>
                     )}
 
-                    {facility.description && (
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{facility.description}</p>
-                    )}
-
-                    <div className="flex items-center gap-3 pt-3 border-t border-border/50">
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <CourtIcon size={16} className="text-primary" />
-                        <span className="font-semibold text-sm text-foreground">
-                          {ltPlural(facility.courtCount, "aikštelė", "aikštelės", "aikštelių")}
-                        </span>
-                      </div>
-                      {approvedCourts > 0 && (
-                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
-                          {approvedCourts} aktyvūs
-                        </Badge>
-                      )}
-                      {pendingCourts > 0 && (
-                        <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
-                          {pendingCourts} laukia
-                        </Badge>
-                      )}
-                    </div>
+                    <VerificationBadge status={facility.verificationStatus} />
 
                     {facility.verificationStatus === "draft" && facility.verificationNotes && (
-                      <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+                      <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
                         <div className="font-semibold mb-1 flex items-center gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Administratoriaus pastaba
+                          <AlertTriangle className="w-3 h-3" /> Administratoriaus pastaba
                         </div>
                         <p className="leading-relaxed whitespace-pre-wrap">{facility.verificationNotes}</p>
                       </div>
@@ -832,27 +766,118 @@ export default function OwnerFacilities() {
                         <Button
                           variant={stripeActive ? "default" : "secondary"}
                           size="sm"
-                          className="w-full gap-2"
-                          onClick={(e) => handleSubmitForVerification(facility.id, e)}
+                          className="w-full gap-2 h-8 text-xs"
+                          onClick={(e) => { e.stopPropagation(); handleSubmitForVerification(facility.id, e); }}
                           disabled={submitForVerificationMutation.isPending || !stripeActive}
                           title={!stripeActive ? "Prijunkite Stripe sąskaitą norėdami pateikti" : undefined}
                         >
-                          {submitForVerificationMutation.isPending ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
+                          {submitForVerificationMutation.isPending
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Send className="w-3.5 h-3.5" />}
                           Pateikti patvirtinimui
                         </Button>
                         {!stripeActive && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            Prijunkite Stripe sąskaitą norėdami pateikti patvirtinimui.
-                          </p>
+                          <p className="mt-1.5 text-xs text-muted-foreground">Prijunkite Stripe norėdami pateikti.</p>
                         )}
                       </div>
                     )}
-
                   </div>
+
+                  {/* ── Court list ── */}
+                  {fCourts.length === 0 ? (
+                    <div className="border border-dashed border-border rounded-xl flex flex-col items-center justify-center py-8 gap-2 text-center">
+                      <p className="text-sm text-muted-foreground">Nėra pridėtų aikštelių</p>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="gap-1.5 h-8 text-xs"
+                        onClick={() => navigate(`${fBase}/court/new`)}
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Pridėti aikštelę
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {fCourts.map(court => {
+                        const courtBase = `${fBase}/court/${court.id}`;
+                        const isActive = court.status === "active" || court.status === "approved";
+                        const statusDot = isActive
+                          ? "bg-green-500"
+                          : court.status === "pending_review" || court.status === "pending"
+                          ? "bg-yellow-400"
+                          : court.status === "hidden"
+                          ? "bg-slate-400"
+                          : "bg-muted-foreground/40";
+                        const statusLabel = isActive ? "Aktyvus"
+                          : court.status === "pending_review" || court.status === "pending" ? "Laukia peržiūros"
+                          : court.status === "hidden" ? "Paslėpta"
+                          : "Juodraštis";
+                        return (
+                          <div
+                            key={court.id}
+                            className="bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-3 hover:shadow-sm hover:border-primary/20 hover:bg-muted/30 transition-all cursor-pointer group"
+                            onClick={() => navigate(courtBase)}
+                          >
+                            {/* Photo or sport fallback */}
+                            {(() => {
+                              const img = resolveCourtImage(court.imageUrl, court.type);
+                              return img ? (
+                                <img
+                                  src={img}
+                                  alt={court.name}
+                                  className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border"
+                                />
+                              ) : null;
+                            })()}
+
+                            {/* Status dot + name + sport */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${statusDot}`} title={statusLabel} />
+                                <p className="text-sm font-medium leading-tight truncate group-hover:text-primary transition-colors">{court.name}</p>
+                              </div>
+                              <div className="mt-0.5 ml-3.5">
+                                <SportPill sport={court.type} size="sm" variant="subtle" />
+                              </div>
+                            </div>
+
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(courtBase); }}
+                                className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                title="Suvestinė"
+                              >
+                                <LayoutDashboard className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`${courtBase}/pricing`); }}
+                                className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                title="Kainos"
+                              >
+                                <Tag className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`${courtBase}/edit`); }}
+                                className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                title="Nustatymai"
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 h-8 text-xs text-muted-foreground w-full justify-center border border-dashed border-border/60 hover:border-border hover:text-foreground"
+                        onClick={() => navigate(`${fBase}/court/new`)}
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Pridėti aikštelę
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -1,0 +1,954 @@
+import { Router, type IRouter } from "express";
+import { eq, and, or, sql, ne, inArray } from "drizzle-orm";
+import { db, bookingsTable, courtsTable, courtBlockedSlotsTable, facilitiesTable, waitlistsTable, gamesTable, gameParticipantsTable } from "@workspace/db";
+import { buildDayPriceMap } from "../lib/pricing";
+import { sendNotification } from "../lib/notify";
+import { sendCustomerCancellationEmail, sendOwnerCancellationEmail, sendWaitlistNotificationEmail } from "../lib/email";
+import {
+  ListBookingsQueryParams,
+  CreateBookingBody,
+  GetBookingParams,
+  GetBookingResponse,
+  CancelBookingParams,
+  CancelBookingResponse,
+  ListBookingsResponse,
+} from "@workspace/api-zod";
+import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { getUncachableStripeClient } from "../stripeClient";
+import { logger } from "../lib/logger";
+import { z } from "zod";
+import { randomBytes } from "node:crypto";
+
+// Cryptographically random opaque token used to authorize guest booking management.
+export function generateManagementToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+// ─── Refund tier policy ──────────────────────────────────────────────────────
+// >= 48h before start: 80% refund
+// >= 24h and < 48h:    50% refund
+// <  24h:              0% refund
+//
+// All money math is done in INTEGER CENTS to avoid binary-float rounding (e.g.
+// 19.99 * 0.5 = 9.995). Stripe `refunds.create.amount` is also in integer cents.
+export function computeRefund(totalPriceEur: number, hoursBeforeStart: number) {
+  const totalCents = Math.round(totalPriceEur * 100);
+  if (hoursBeforeStart >= 48) {
+    const cents = Math.round(totalCents * 0.80);
+    return { refundPercent: 80, refundAmount: cents / 100, refundCents: cents, refundable: true };
+  }
+  if (hoursBeforeStart >= 24) {
+    const cents = Math.round(totalCents * 0.50);
+    return { refundPercent: 50, refundAmount: cents / 100, refundCents: cents, refundable: true };
+  }
+  return { refundPercent: 0, refundAmount: 0, refundCents: 0, refundable: false };
+}
+
+// Booking `date`/`startTime` are stored as Lithuanian local time strings. The
+// server runs in UTC, so naively parsing `${date}T${startTime}:00` would treat
+// them as UTC and give a result that is wrong by Vilnius's DST offset (2–3h).
+// Compute the UTC instant for the Vilnius wall-clock time, then diff against
+// `Date.now()` in absolute milliseconds.
+export function vilniusLocalToUtcMs(date: string, time: string): number {
+  const dateOnly = String(date).slice(0, 10);
+  // Step 1: pretend the local string is UTC.
+  const naiveUtcMs = Date.parse(`${dateOnly}T${time}:00Z`);
+  // Step 2: ask what Europe/Vilnius wall-clock that UTC instant displays.
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Vilnius",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date(naiveUtcMs));
+  const get = (t: string) => parts.find(p => p.type === t)!.value;
+  let hh = get("hour");
+  if (hh === "24") hh = "00";
+  const vilniusAsUtcMs = Date.UTC(
+    Number(get("year")), Number(get("month")) - 1, Number(get("day")),
+    Number(hh), Number(get("minute")), Number(get("second")),
+  );
+  // Offset = how many ms Vilnius is AHEAD of UTC at that instant (+2h or +3h).
+  const offsetMs = vilniusAsUtcMs - naiveUtcMs;
+  // Subtract offset to get the actual UTC instant for that Vilnius wall-clock time.
+  return naiveUtcMs - offsetMs;
+}
+
+export function hoursBeforeStart(date: string, startTime: string): number {
+  return (vilniusLocalToUtcMs(date, startTime) - Date.now()) / (1000 * 60 * 60);
+}
+
+function toMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function slotsBetween(startTime: string, endTime: string): string[] {
+  const start = toMin(startTime);
+  const end = toMin(endTime);
+  const result: string[] = [];
+  for (let m = start; m < end; m += 30) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    result.push(`${h.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`);
+  }
+  return result;
+}
+
+const router: IRouter = Router();
+
+function formatBooking(booking: typeof bookingsTable.$inferSelect, courtName?: string, paidSlots?: number) {
+  return {
+    ...booking,
+    totalPrice: Number(booking.totalPrice),
+    refundAmount: Number(booking.refundAmount ?? 0),
+    pricePerSlot: booking.pricePerSlot != null ? Number(booking.pricePerSlot) : undefined,
+    totalSlots: booking.totalSlots ?? undefined,
+    paidSlots: paidSlots,
+    splitInviteToken: booking.splitInviteToken ?? undefined,
+    rentedItems: booking.rentedItems ?? undefined,
+    courtName: courtName ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
+    managementToken: booking.managementToken ?? undefined,
+  };
+}
+
+router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
+  const params = ListBookingsQueryParams.safeParse(req.query);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+  const role = await getUserRole(userId);
+
+  const conditions = [];
+  if (params.data.courtId != null) {
+    conditions.push(eq(bookingsTable.courtId, params.data.courtId));
+  }
+  if (params.data.status) {
+    conditions.push(eq(bookingsTable.status, params.data.status));
+  }
+  if (params.data.customerEmail) {
+    conditions.push(eq(bookingsTable.customerEmail, params.data.customerEmail));
+  }
+
+  let query = db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .$dynamic();
+
+  if (role === "admin") {
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+  } else {
+    // "My bookings" — always scoped to the authenticated booker, regardless of
+    // role. Owners use GET /api/owner/bookings for the facility-wide view.
+    conditions.push(eq(bookingsTable.bookerUserId, userId));
+    query = query.where(and(...conditions));
+  }
+
+  const rows = await query;
+
+  // For split bookings, count paid participants (matches the split-status endpoint logic)
+  const splitBookingIds = rows.filter(r => r.booking.isSplit).map(r => r.booking.id);
+  const paidSlotsMap = new Map<number, number>();
+  if (splitBookingIds.length > 0) {
+    const gameRows = await db
+      .select({ bookingId: gamesTable.bookingId, gameId: gamesTable.id })
+      .from(gamesTable)
+      .where(inArray(gamesTable.bookingId, splitBookingIds));
+
+    const bookingIdByGameId = new Map<number, number>();
+    for (const g of gameRows) {
+      if (g.bookingId != null) bookingIdByGameId.set(g.gameId, g.bookingId);
+    }
+
+    if (gameRows.length > 0) {
+      const allParticipants = await db
+        .select({ gameId: gameParticipantsTable.gameId, paymentStatus: gameParticipantsTable.paymentStatus })
+        .from(gameParticipantsTable)
+        .where(and(
+          inArray(gameParticipantsTable.gameId, gameRows.map(g => g.gameId)),
+          eq(gameParticipantsTable.status, "joined"),
+        ));
+
+      for (const p of allParticipants) {
+        if (p.paymentStatus !== "paid") continue;
+        const bookingId = bookingIdByGameId.get(p.gameId);
+        if (bookingId != null) {
+          paidSlotsMap.set(bookingId, (paidSlotsMap.get(bookingId) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
+  res.json(ListBookingsResponse.parse(rows.map(r => formatBooking(r.booking, r.courtName ?? undefined, paidSlotsMap.get(r.booking.id) ?? (r.booking.isSplit ? 0 : undefined)))));
+});
+
+// POST /bookings — supports both authenticated bookers and guests.
+// No requireAuth: if the caller has a Clerk session, we associate the booking with their userId.
+// If not, we treat it as a guest booking (bookerUserId=null) and generate a managementToken
+// so the guest can later view/cancel via /api/guest/bookings/:token.
+router.post("/bookings", async (req, res): Promise<void> => {
+  const parsed = CreateBookingBody.safeParse(req.body);
+  if (!parsed.success) {
+    console.error("[bookings] validation failed:", JSON.stringify(req.body), parsed.error.flatten());
+    res.status(400).json({ error: parsed.error.message, details: parsed.error.flatten() });
+    return;
+  }
+
+  const recurringGroupId =
+    typeof req.body?.recurringGroupId === "string" && req.body.recurringGroupId.length > 0
+      ? req.body.recurringGroupId
+      : null;
+
+  const d0 = parsed.data.date;
+  const dateStr0 = `${d0.getUTCFullYear()}-${String(d0.getUTCMonth() + 1).padStart(2, "0")}-${String(d0.getUTCDate()).padStart(2, "0")}`;
+  const dayOfWeek = new Date(dateStr0 + "T00:00:00").getDay();
+  const reqStart = parsed.data.startTime;
+  const reqEnd = parsed.data.endTime;
+  const reqStartMin = toMin(reqStart);
+  const reqEndMin = toMin(reqEnd);
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, parsed.data.courtId));
+  if (!court) {
+    res.status(404).json({ error: "Court not found" });
+    return;
+  }
+
+  // ── Working hours validation ────────────────────────────────────────────────
+  if (court.workingHours) {
+    try {
+      const wh = JSON.parse(court.workingHours) as Record<string, { open: string; close: string; closed: boolean }>;
+      const dayConfig = wh[String(dayOfWeek)];
+      if (dayConfig) {
+        if (dayConfig.closed) {
+          res.status(400).json({ error: "Court is closed on this day", code: "COURT_CLOSED" });
+          return;
+        }
+        const openMin = toMin(dayConfig.open ?? "07:00");
+        const closeMin = toMin(dayConfig.close ?? "22:00");
+        if (reqStartMin < openMin || reqEndMin > closeMin) {
+          res.status(400).json({ error: "Requested time is outside court working hours", code: "OUTSIDE_WORKING_HOURS" });
+          return;
+        }
+      }
+    } catch {
+      // malformed workingHours JSON — skip validation, allow booking
+    }
+  }
+
+  // ── Compute server-side price using full pricing waterfall ──
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  const { priceMap } = await buildDayPriceMap(parsed.data.courtId, dateStr0, defaultSlotPrice);
+
+  const slots = slotsBetween(reqStart, reqEnd);
+  let courtPrice = 0;
+  for (const slotStart of slots) {
+    courtPrice += priceMap.get(slotStart) ?? defaultSlotPrice;
+  }
+
+  const durationMinutes = reqEndMin - reqStartMin;
+  const slotCount = Math.round(durationMinutes / 30);
+  const bookerUserId = getCurrentUserId(req);
+
+  // ── Atomically check conflicts and insert within a serialized transaction ──
+  // A PostgreSQL advisory lock (per court+date) blocks any concurrent booking attempt
+  // for the same court on the same day, making the read-then-write conflict check atomic.
+  class BookingConflictError extends Error {
+    constructor(public readonly statusCode: number, public readonly body: any) {
+      super("BookingConflict");
+    }
+  }
+
+  let booking: typeof bookingsTable.$inferSelect;
+  try {
+    booking = await db.transaction(async (tx) => {
+      // Acquire exclusive advisory lock for this court+date combination.
+      // Released automatically at end of transaction.
+      const dateInt = parseInt(dateStr0.replace(/-/g, ""), 10);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${sql.raw(String(parsed.data.courtId))}::int, ${sql.raw(String(dateInt))}::int)`);
+
+      // ── Conflict check (inside lock) ──
+      const [conflictingBookings, conflictingBlocked] = await Promise.all([
+        tx.select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+          .from(bookingsTable)
+          .where(and(
+            eq(bookingsTable.courtId, parsed.data.courtId),
+            eq(bookingsTable.date, dateStr0),
+            or(
+              eq(bookingsTable.status, "confirmed"),
+              eq(bookingsTable.status, "blocked"),
+              eq(bookingsTable.status, "awaiting_players"),
+              and(
+                eq(bookingsTable.status, "pending"),
+                sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
+              )
+            )
+          )),
+        tx.select({ startTime: courtBlockedSlotsTable.startTime, endTime: courtBlockedSlotsTable.endTime })
+          .from(courtBlockedSlotsTable)
+          .where(and(
+            eq(courtBlockedSlotsTable.courtId, parsed.data.courtId),
+            eq(courtBlockedSlotsTable.date, dateStr0),
+          )),
+      ]);
+
+      for (const b of conflictingBookings) {
+        const bStart = toMin(b.startTime);
+        const bEnd = toMin(b.endTime);
+        if (reqStartMin < bEnd && reqEndMin > bStart) {
+          throw new BookingConflictError(409, { error: "Requested time slot is not available", code: "SLOT_UNAVAILABLE" });
+        }
+      }
+
+      for (const b of conflictingBlocked) {
+        const bStart = toMin(b.startTime);
+        const bEnd = toMin(b.endTime);
+        if (reqStartMin < bEnd && reqEndMin > bStart) {
+          throw new BookingConflictError(409, { error: "Requested time slot is blocked", code: "SLOT_BLOCKED" });
+        }
+      }
+
+      // ── Equipment availability (inside lock, same consistent snapshot) ──
+      let equipmentCost = 0;
+      let validatedRentedItems: string | null = null;
+      if (parsed.data.rentedItems) {
+        try {
+          const clientItems: Array<{ name: string; quantity?: number }> = JSON.parse(parsed.data.rentedItems);
+          const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
+            court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+          const existingBookings = await tx
+            .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+            .from(bookingsTable)
+            .where(and(eq(bookingsTable.courtId, parsed.data.courtId), eq(bookingsTable.date, dateStr0)));
+          const bookedQty: Record<string, number> = {};
+          for (const b of existingBookings) {
+            if (!b.rentedItems || b.status === "cancelled") continue;
+            const bStart = toMin(b.startTime);
+            const bEnd = toMin(b.endTime);
+            if (bEnd <= reqStartMin || bStart >= reqEndMin) continue;
+            const items: Array<{ name: string; quantity: number }> = JSON.parse(b.rentedItems);
+            for (const item of items) {
+              bookedQty[item.name] = (bookedQty[item.name] ?? 0) + item.quantity;
+            }
+          }
+
+          const serverValidated: Array<{ name: string; pricePerSlot: number; quantity: number }> = [];
+          for (const ci of clientItems) {
+            const canonical = courtEquipment.find(e => e.name === ci.name);
+            if (!canonical) continue;
+            const pricePerSlot = canonical.pricePerSlot ?? canonical.pricePerBooking ?? 0;
+            const qty = Math.max(1, Math.min(Math.floor(ci.quantity ?? 1), 20));
+            const alreadyBooked = bookedQty[ci.name] ?? 0;
+            if (alreadyBooked + qty > canonical.stock) {
+              throw new BookingConflictError(409, {
+                error: `Įranga "${ci.name}" nebepasiekiama: likę ${Math.max(0, canonical.stock - alreadyBooked)} vnt.`,
+                code: "EQUIPMENT_UNAVAILABLE",
+                item: ci.name,
+                available: Math.max(0, canonical.stock - alreadyBooked),
+              });
+            }
+            serverValidated.push({ name: canonical.name, pricePerSlot, quantity: qty });
+            equipmentCost += pricePerSlot * qty * slotCount;
+          }
+          if (serverValidated.length > 0) validatedRentedItems = JSON.stringify(serverValidated);
+        } catch (e) {
+          if (e instanceof BookingConflictError) throw e;
+          console.error("[bookings] equipment validation error:", e);
+        }
+      }
+
+      const totalPrice = courtPrice + equipmentCost;
+
+      // ── Insert inside the same transaction ──
+      // Guests (no Clerk session) get a management_token so they can later view & cancel
+      // their booking via /api/guest/bookings/:token. Authenticated users use their session.
+      const managementToken = bookerUserId ? null : generateManagementToken();
+
+      const [inserted] = await tx.insert(bookingsTable).values({
+        courtId: parsed.data.courtId,
+        bookerUserId: bookerUserId ?? null,
+        customerName: parsed.data.customerName,
+        customerEmail: parsed.data.customerEmail,
+        customerPhone: parsed.data.customerPhone ?? null,
+        date: dateStr0,
+        startTime: parsed.data.startTime,
+        endTime: parsed.data.endTime,
+        totalPrice: String(totalPrice),
+        rentedItems: validatedRentedItems,
+        status: "pending",
+        managementToken,
+        recurringGroupId,
+      }).returning();
+
+      return inserted;
+    });
+  } catch (err) {
+    if (err instanceof BookingConflictError) {
+      res.status(err.statusCode).json(err.body);
+      return;
+    }
+    throw err;
+  }
+
+  {
+    const [bookingFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+    if (bookingFacility?.ownerUserId) {
+      await sendNotification(
+        bookingFacility.ownerUserId,
+        "booking_created",
+        `Nauja rezervacija — ${court.name}`,
+        `${parsed.data.customerName} užrezervavo ${dateStr0} ${parsed.data.startTime}–${parsed.data.endTime}.`,
+        "/owner",
+      );
+    }
+  }
+
+  res.status(201).json(GetBookingResponse.parse(formatBooking(booking, court.name)));
+});
+
+router.get("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = GetBookingParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtSport: courtsTable.type,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+      facilityName: facilitiesTable.name,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, params.data.id));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const { booking, courtName, courtSport, facilityOwnerUserId, facilityName, courtAddress, courtCity } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourOwner = facilityOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const formatted = formatBooking(booking, courtName ?? undefined);
+  // managementToken is the sole credential for guest booking management — only return
+  // it to the booker themselves, never to court owners or admins.
+  if (!isBooker) {
+    delete (formatted as any).managementToken;
+  }
+
+  res.json(GetBookingResponse.parse({
+    ...formatted,
+    courtSport: courtSport ?? undefined,
+    facilityName: facilityName ?? undefined,
+    courtAddress: courtAddress ?? undefined,
+    courtCity: courtCity ?? undefined,
+  }));
+});
+
+router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
+  const params = CancelBookingParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+      facilityOwnerName: facilitiesTable.name,
+      facilityOwnerEmail: facilitiesTable.email,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, params.data.id));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const { booking, facilityOwnerUserId, courtName, facilityOwnerName: ownerName, facilityOwnerEmail: ownerEmail } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (booking.status === "cancelled") {
+    res.json(CancelBookingResponse.parse(formatBooking(booking)));
+    return;
+  }
+
+  // ─── Refund tier calculation ─────────────────────────────────────────────
+  // Policy applies uniformly to all roles. No silent admin override.
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const tier = computeRefund(totalPriceEur, hours);
+
+  // Prevent cancelling a booking that has already started/ended.
+  if (hours <= 0) {
+    res.status(400).json({ error: "Booking has already started or ended", code: "CANCEL_TOO_LATE" });
+    return;
+  }
+
+  // ─── Atomic compare-and-set on status to prevent double-refund ──────────
+  // Only proceed if we successfully transitioned status from non-cancelled to cancelled.
+  const claimed = await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(and(eq(bookingsTable.id, params.data.id), ne(bookingsTable.status, "cancelled")))
+    .returning();
+
+  if (claimed.length === 0) {
+    // Another request beat us to it — return current state without issuing a refund.
+    const [current] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, params.data.id));
+    res.json(CancelBookingResponse.parse(formatBooking(current)));
+    return;
+  }
+
+  // ─── Issue Stripe refund if applicable ───────────────────────────────────
+  let stripeRefundId: string | null = null;
+  if (
+    tier.refundable &&
+    tier.refundAmount > 0 &&
+    booking.stripePaymentIntentId &&
+    !booking.stripePaymentIntentId.startsWith("mock_")
+  ) {
+    try {
+      const stripe = await getUncachableStripeClient();
+      const refund = await stripe.refunds.create(
+        {
+          payment_intent: booking.stripePaymentIntentId,
+          amount: Math.round(tier.refundAmount * 100),
+          reason: "requested_by_customer",
+        },
+        { idempotencyKey: `cancel-booking-${booking.id}` },
+      );
+      stripeRefundId = refund.id;
+      logger.info(
+        { bookingId: booking.id, refundId: refund.id, amount: tier.refundAmount },
+        "Stripe refund issued",
+      );
+    } catch (err) {
+      logger.error({ err, bookingId: booking.id }, "Stripe refund failed");
+      // Roll back the status transition so admin can retry / investigate.
+      await db
+        .update(bookingsTable)
+        .set({ status: booking.status })
+        .where(eq(bookingsTable.id, booking.id));
+      res.status(502).json({ error: "Refund failed at payment provider" });
+      return;
+    }
+  }
+
+  const [cancelled] = await db
+    .update(bookingsTable)
+    .set({
+      refundAmount: String(tier.refundAmount),
+      stripeRefundId,
+    })
+    .where(eq(bookingsTable.id, params.data.id))
+    .returning();
+
+  // ─── Notifications (fire-and-forget; never block the response) ───────────
+  const displayCourtName = courtName ?? "Kortas";
+  const dateStr = typeof booking.date === "string" ? booking.date : String(booking.date);
+
+  // Dedupe in-app notifications: if owner and booker are the same user, only send once.
+  // The "booker" view (refund details + /bookings link) takes priority since it's more relevant
+  // to the human reading it. Owner-only recipients still get the owner-flavored copy.
+  const notifiedUserIds = new Set<string>();
+
+  if (booking.bookerUserId && booking.bookerUserId !== userId) {
+    notifiedUserIds.add(booking.bookerUserId);
+    sendNotification(
+      booking.bookerUserId,
+      "booking_cancelled",
+      `Rezervacija atšaukta — ${displayCourtName}`,
+      tier.refundAmount > 0
+        ? `Jūsų rezervacija ${dateStr} ${booking.startTime}–${booking.endTime} atšaukta. Grąžinta: ${tier.refundAmount.toFixed(2)} €.`
+        : `Jūsų rezervacija ${dateStr} ${booking.startTime}–${booking.endTime} atšaukta.`,
+      "/bookings",
+    ).catch((err) => logger.error({ err, bookingId: booking.id }, "booker cancel notification failed"));
+  }
+
+  if (facilityOwnerUserId && facilityOwnerUserId !== userId && !notifiedUserIds.has(facilityOwnerUserId)) {
+    sendNotification(
+      facilityOwnerUserId,
+      "booking_cancelled",
+      `Atšaukta rezervacija — ${displayCourtName}`,
+      `${booking.customerName} atšaukė ${dateStr} ${booking.startTime}–${booking.endTime}.${
+        tier.refundAmount > 0 ? ` Grąžinta klientui: ${tier.refundAmount.toFixed(2)} €.` : ""
+      }`,
+      "/owner",
+    ).catch((err) => logger.error({ err, bookingId: booking.id }, "owner cancel notification failed"));
+  }
+
+  // Email the customer with refund details
+  if (booking.customerEmail) {
+    sendCustomerCancellationEmail({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      courtName: displayCourtName,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: totalPriceEur,
+      refundAmount: tier.refundAmount,
+      bookingId: booking.id,
+    }).catch((err) => logger.error({ err, bookingId: booking.id }, "sendCustomerCancellationEmail failed"));
+  }
+
+  // Email the court owner so they know the slot freed up
+  if (ownerEmail) {
+    sendOwnerCancellationEmail({
+      ownerName: ownerName ?? "Savininkas",
+      ownerEmail,
+      customerName: booking.customerName,
+      courtName: displayCourtName,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: totalPriceEur,
+      refundAmount: tier.refundAmount,
+      bookingId: booking.id,
+    }).catch((err) => logger.error({ err, bookingId: booking.id }, "sendOwnerCancellationEmail failed"));
+  }
+
+  // Notify waitlist subscribers that this slot just freed up (fire-and-forget)
+  db.select()
+    .from(waitlistsTable)
+    .where(
+      and(
+        eq(waitlistsTable.courtId, booking.courtId),
+        eq(waitlistsTable.date, String(booking.date).slice(0, 10)),
+        eq(waitlistsTable.startTime, booking.startTime),
+        eq(waitlistsTable.endTime, booking.endTime),
+      ),
+    )
+    .then((entries) => {
+      for (const entry of entries) {
+        sendWaitlistNotificationEmail({
+          email: entry.email,
+          name: entry.name ?? undefined,
+          courtName: displayCourtName,
+          date: booking.date,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+          courtId: booking.courtId,
+        }).catch((err) => logger.error({ err, waitlistId: entry.id }, "sendWaitlistNotificationEmail failed"));
+      }
+    })
+    .catch((err) => logger.error({ err }, "Waitlist query on cancellation failed"));
+
+  res.json(CancelBookingResponse.parse(formatBooking(cancelled)));
+});
+
+// ─── Refund preview (modal calls this before confirming cancellation) ────────
+router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable, facilityOwnerUserId: facilitiesTable.ownerUserId })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, id));
+
+  if (!rows[0]) { res.status(404).json({ error: "Booking not found" }); return; }
+
+  const { booking, facilityOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const tier = computeRefund(totalPriceEur, hours);
+
+  // Cancellation only allowed before start time (policy applies to all roles).
+  const canCancel = booking.status !== "cancelled" && hours > 0;
+  let reason: string | undefined;
+  if (booking.status === "cancelled") reason = "Booking is already cancelled.";
+  else if (hours <= 0) reason = "Booking has already started or ended.";
+
+  res.json({
+    bookingId: booking.id,
+    totalPrice: totalPriceEur,
+    hoursBeforeStart: Math.round(hours * 10) / 10,
+    refundPercent: tier.refundPercent,
+    refundAmount: tier.refundAmount,
+    refundable: tier.refundable,
+    canCancel,
+    ...(reason ? { reason } : {}),
+  });
+});
+
+router.get("/bookings/:id/ics", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).send("Invalid booking id");
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtSport: courtsTable.type,
+      courtId: courtsTable.id,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+      facilityName: facilitiesTable.name,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, id));
+
+  if (!rows[0]) {
+    res.status(404).send("Booking not found");
+    return;
+  }
+
+  const { booking, courtName, courtSport, courtId, courtAddress, courtCity, facilityName, facilityOwnerUserId } = rows[0];
+  const role = await getUserRole(userId);
+  const isBooker = booking.bookerUserId === userId;
+  const isCourtOwner = facilityOwnerUserId === userId;
+
+  if (role !== "admin" && !isBooker && !isCourtOwner) {
+    res.status(403).send("Forbidden");
+    return;
+  }
+
+  const siteUrl = process.env.SITE_URL || "https://korts.lt";
+
+  function icsDateTime(date: string, time: string): string {
+    return date.replace(/-/g, "") + "T" + time.slice(0, 5).replace(":", "") + "00";
+  }
+
+  const now = new Date();
+  const dtstamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+
+  const courtLabel = courtName ?? "Kortas";
+  const summary = facilityName
+    ? `${courtSport ?? "Sportas"} – ${courtLabel}, ${facilityName}`
+    : `${courtSport ?? "Sportas"} – ${courtLabel}`;
+  const locationParts = [courtAddress, courtCity, "Lietuva"].filter(Boolean);
+  const description = [
+    `Rezervacija #${booking.id} per korts.lt`,
+    `Aikštelė: ${courtLabel}`,
+    facilityName ? `Objektas: ${facilityName}` : null,
+    courtSport ? `Sportas: ${courtSport}` : null,
+    `Kaina: ${Number(booking.totalPrice).toFixed(2)} €`,
+    `Nuoroda: ${siteUrl}/bookings/${booking.id}`,
+  ].filter(Boolean).join("\\n");
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//korts.lt//Court Booking//LT",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:booking-${booking.id}@korts.lt`,
+    `DTSTAMP:${dtstamp}`,
+    `DTSTART;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.startTime)}`,
+    `DTEND;TZID=Europe/Vilnius:${icsDateTime(booking.date, booking.endTime)}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    `LOCATION:${locationParts.join(", ")}`,
+    `URL:${siteUrl}/bookings/${booking.id}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="booking-${booking.id}.ics"`);
+  res.send(ics);
+});
+
+// ─── Owner: block a court time slot ──────────────────────────────────────────
+const BlockBookingBody = z.object({
+  courtId: z.number().int(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  notes: z.string().optional(),
+});
+
+router.post("/owner/bookings/block", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BlockBookingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() }); return; }
+
+  const { courtId, date, startTime, endTime, notes } = parsed.data;
+  const ownerId = getCurrentUserId(req)!;
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+  const [blockFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, blockFacility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const reqStartMin = toMin(startTime);
+  const reqEndMin = toMin(endTime);
+
+  const existing = await db
+    .select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, courtId),
+      eq(bookingsTable.date, date),
+      or(
+        eq(bookingsTable.status, "confirmed"),
+        and(
+          eq(bookingsTable.status, "pending"),
+          sql`${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'`
+        )
+      )
+    ));
+
+  for (const b of existing) {
+    const bStart = toMin(b.startTime);
+    const bEnd = toMin(b.endTime);
+    if (reqStartMin < bEnd && reqEndMin > bStart) {
+      if (b.status === "confirmed") {
+        res.status(409).json({ error: "Šiuo laiku yra patvirtinta rezervacija.", code: "CONFIRMED_EXISTS" });
+        return;
+      }
+      if (b.status === "pending") {
+        res.status(409).json({ error: "Šiuo metu klientas atlieka mokėjimą. Palaukite ir bandykite vėliau.", code: "PENDING_EXISTS" });
+        return;
+      }
+    }
+  }
+
+  const [booking] = await db.insert(bookingsTable).values({
+    courtId,
+    bookerUserId: ownerId,
+    customerName: "Savininkas (blokas)",
+    customerEmail: `owner-block-${Date.now()}@korts.lt`,
+    date,
+    startTime,
+    endTime,
+    totalPrice: "0",
+    status: "blocked",
+    notes: notes ?? null,
+  }).returning();
+
+  res.status(201).json(booking);
+});
+
+// ─── Owner: create manual (free) booking ──────────────────────────────────────
+const ManualBookingBody = z.object({
+  courtId: z.number().int(),
+  customerName: z.string().min(1),
+  customerEmail: z.string().email().optional().or(z.literal("")).transform(v => v || ""),
+  customerPhone: z.string().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  note: z.string().optional(),
+});
+
+router.post("/owner/bookings/manual", requireAuth, async (req, res): Promise<void> => {
+  const parsed = ManualBookingBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() }); return; }
+
+  const { courtId, customerName, customerEmail, customerPhone, date, startTime, endTime, note } = parsed.data;
+
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+  const [manualFacility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(facilitiesTable).where(eq(facilitiesTable.id, court.facilityId));
+  if (!(await isOwner(req, manualFacility?.ownerUserId ?? null))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [booking] = await db.insert(bookingsTable).values({
+    courtId,
+    bookerUserId: null,
+    customerName,
+    customerEmail,
+    customerPhone: customerPhone ?? null,
+    date,
+    startTime,
+    endTime,
+    totalPrice: "0",
+    status: "confirmed",
+    rentedItems: note ? `Pastaba: ${note}` : null,
+  }).returning();
+
+  res.status(201).json(formatBooking(booking, court.name));
+});
+
+// ─── Sweeper (called from cron) ──────────────────────────────────────────────
+// Cancels single-payer bookings that have been stuck in `pending` for > 15 min.
+// These rows are created by POST /bookings but never reach `confirmed` because
+// the user abandoned the Stripe checkout (or never even started it). Split
+// bookings transition out of `pending` via /payments/confirm-split — those are
+// covered by sweepStalePendingGames in routes/games.ts, so we exclude them here.
+export async function sweepAbandonedPendingBookings(): Promise<number> {
+  const cancelled = await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(and(
+      eq(bookingsTable.status, "pending"),
+      eq(bookingsTable.isSplit, false),
+      sql`${bookingsTable.createdAt} < NOW() - INTERVAL '15 minutes'`,
+    ))
+    .returning({ id: bookingsTable.id });
+  return cancelled.length;
+}
+
+export default router;

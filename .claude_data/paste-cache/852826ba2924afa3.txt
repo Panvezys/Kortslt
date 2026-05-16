@@ -1,0 +1,13 @@
+The Host Guarantee sweeper failed during simulation. A split booking reached its 2-hour deadline, but the host's card was not charged, and the status remained stuck in 'awaiting_players' indefinitely. 
+
+We need to debug and harden the `sweepHostGuarantees` logic. Please implement the following:
+
+1. Create a Manual Trigger Endpoint: Create a new API route (e.g., `GET /api/test/sweep-host-guarantees`) so I can manually trigger the cron job from my browser during local testing.
+2. Add Aggressive Logging: Inside the sweeper function, add `console.log` statements for every step:
+   - Log the number of stale bookings found.
+   - Log the `host_stripe_customer_id` and the calculated `missing_amount`.
+   - Log the exact error object if the Stripe `stripe.paymentIntents.create({ off_session: true })` call fails.
+3. Fix the Silent Failure (Fallback Logic): If the Stripe off-session charge throws an error (e.g., card declined, missing customer ID), the system MUST catch this error. In the `catch` block, it must forcefully update the booking and game status to `cancelled`, and initiate refunds for the participants who did pay. Do not let the booking stay in 'awaiting_players'.
+4. Frontend Cleanup: On the booking details page, if `status === 'awaiting_players'` AND the deadline has passed (`Laikas baigėsi`), hide the share link. The invite is dead. 
+
+Run typechecks and give me the URL for the manual trigger endpoint so I can test it.

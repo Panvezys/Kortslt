@@ -1,0 +1,14 @@
+We missed a critical growth loop on the Split Payment Success view. We need to encourage guest users to create an account after they successfully pay their share.
+
+Please implement the "Guest-to-Account Conversion" prompt on the Split Payment Success view:
+
+1. Auth Check: Use Clerk's authentication hooks (e.g., `useUser` or `useAuth`) to check if the current user is signed in.
+2. The "Claim Profile" Card: If `!isSignedIn` is true, render a clean, prominent card below the payment success details (and above or alongside the Share/Calendar actions).
+3. UI & Copy: 
+   - Add a subtle background color to this card to make it stand out (e.g., a light lime or slate tint).
+   - Headline: "Išsaugokite savo rezervaciją" (Save your reservation).
+   - Subtext: "Sukurkite paskyrą, kad galėtumėte greičiau apmokėti ateityje, sekti savo mačus ir kviesti draugus." (Create an account to pay faster in the future, track your matches, and invite friends.)
+   - Action: Embed the Clerk `<SignUp />` component (configured for a compact or modal layout if possible), OR a prominent button that links to the signup route `href="/sign-up"`.
+4. Fallback: If the user *is* signed in, this card should be completely hidden.
+
+Run typechecks and verify the logic. Ensure the UI flows naturally with the fixes we just made to the math and action buttons.

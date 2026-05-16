@@ -1,0 +1,9 @@
+{
+  "id": "9",
+  "subject": "Run typecheck and push DB schema",
+  "description": "pnpm typecheck across all packages; cd lib/db && pnpm push to apply schema changes.",
+  "activeForm": "Running typecheck and DB push",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

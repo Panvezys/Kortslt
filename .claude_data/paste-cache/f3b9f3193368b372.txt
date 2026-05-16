@@ -1,0 +1,18 @@
+Let's integrate the Court Working Hours into our new B2B Pricing Manager UI using a "Non-Destructive Masking" approach.
+
+Phase 1: Fetching the Working Hours
+- In the `CourtPricingManager` (or its parent page), ensure we fetch the computed working hours for the selected court. (This should account for the fallback: use Court-specific hours if they exist, otherwise use Facility-wide hours).
+- Pass this `workingHours` schedule (mapping Pr-Se to open/close times) into the grid component.
+
+Phase 2: Visually Masking Closed Hours
+- Update the CSS Grid rendering logic inside `CourtPricingManager`. 
+- For every 30-minute cell, check if that specific time falls outside the court's working hours for that specific day of the week.
+- If it is CLOSED: 
+  - Render the cell with a distinct "disabled" styling (e.g., a striped gray background, lowered opacity).
+  - Add `pointer-events: none` or prevent the `mousedown`/`mousemove` drag-to-select logic from interacting with this cell.
+  - Optionally, render a subtle "Nedirba" text inside the largest contiguous block of closed cells, or just use a tooltip.
+
+Phase 3: Drag-to-Select Safety
+- Ensure that if a user starts dragging a selection from 07:00 to 10:00, but the court opens at 08:00, only the 08:00-10:00 cells are actually added to the selection array and updated.
+
+Please implement this frontend integration and run typechecks. Do not write any backend logic that deletes pricing rules; just mask them in the UI.
