@@ -88,15 +88,6 @@ export function hoursBeforeStart(date: string, startTime: string): number {
   return (vilniusLocalToUtcMs(date, startTime) - Date.now()) / (1000 * 60 * 60);
 }
 
-// Returns the number of calendar days between today (Vilnius local) and the booking date.
-function daysUntilBooking(dateStr: string): number {
-  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Vilnius" });
-  const todayStr = fmt.format(new Date()); // YYYY-MM-DD
-  const today = Date.parse(todayStr + "T00:00:00Z");
-  const target = Date.parse(String(dateStr).slice(0, 10) + "T00:00:00Z");
-  return Math.round((target - today) / (1000 * 60 * 60 * 24));
-}
-
 function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
@@ -251,24 +242,6 @@ router.post("/bookings", async (req, res): Promise<void> => {
       }
     } catch {
       // malformed workingHours JSON — skip validation, allow booking
-    }
-  }
-
-  // ── Advance booking limit check ───────────────────────────────────────────
-  if (court.facilityId) {
-    const [facility] = await db
-      .select({ advanceBookingEnabled: facilitiesTable.advanceBookingEnabled, advanceBookingLimit: facilitiesTable.advanceBookingLimit })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, court.facilityId));
-    if (facility?.advanceBookingEnabled && facility.advanceBookingLimit != null) {
-      const days = daysUntilBooking(dateStr0);
-      if (days > facility.advanceBookingLimit) {
-        res.status(400).json({
-          error: `Rezervaciją galima atlikti ne anksčiau kaip ${facility.advanceBookingLimit} d. iš anksto`,
-          code: "ADVANCE_BOOKING_LIMIT_EXCEEDED",
-        });
-        return;
-      }
     }
   }
 

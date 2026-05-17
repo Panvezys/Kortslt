@@ -280,9 +280,8 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 
   const allowed = ["name", "description", "address", "city", "phone", "email",
     "postcode", "latitude", "longitude",
-    "advanceBookingEnabled", "advanceBookingLimit", "businessHours",
-    "websiteUrl", "socialFacebook", "socialInstagram", "socialWhatsapp",
-    "cancellationPolicy"] as const;
+    "cancellationWindow", "advanceBookingLimit", "businessHours",
+    "websiteUrl", "socialFacebook", "socialInstagram", "socialWhatsapp"] as const;
   type AllowedKey = typeof allowed[number];
   const updates: Partial<typeof facilitiesTable.$inferInsert> = {};
   for (const key of allowed) {
@@ -292,11 +291,6 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
   }
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updatable fields" }); return; }
-
-  if ("cancellationPolicy" in updates && updates.cancellationPolicy !== "standard" && updates.cancellationPolicy !== "strict") {
-    res.status(400).json({ error: "Invalid cancellationPolicy value" });
-    return;
-  }
 
   const [updated] = await db.update(facilitiesTable).set(updates).where(eq(facilitiesTable.id, id)).returning();
   res.json(updated);

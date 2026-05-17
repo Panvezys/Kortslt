@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -73,8 +72,6 @@ interface FacilityWithCourts {
   websiteUrl?: string;
   photos: string[];
   equipment: string[];
-  advanceBookingEnabled?: boolean | null;
-  advanceBookingLimit?: number | null;
   courtCount: number;
   sportTypes: string[];
   courts: FacilityCourt[];
@@ -365,7 +362,6 @@ export default function OwnerFacilities() {
   const [formData, setFormData] = useState({
     name: "", description: "", address: "", city: "", phone: "", email: "",
     latitude: 0, longitude: 0, postcode: "",
-    advanceBookingEnabled: false, advanceBookingLimit: 30,
   });
 
   const { data: facilities, isLoading } = useQuery<FacilityWithCourts[]>({
@@ -437,8 +433,6 @@ export default function OwnerFacilities() {
     postcode: data.postcode.trim() || undefined,
     latitude: data.latitude || undefined,
     longitude: data.longitude || undefined,
-    advanceBookingEnabled: data.advanceBookingEnabled,
-    advanceBookingLimit: data.advanceBookingEnabled ? Math.min(365, Math.max(1, data.advanceBookingLimit)) : data.advanceBookingLimit,
   });
 
   const createMutation = useMutation({
@@ -538,7 +532,7 @@ export default function OwnerFacilities() {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", latitude: 0, longitude: 0, postcode: "", advanceBookingEnabled: false, advanceBookingLimit: 30 });
+    setFormData({ name: "", description: "", address: "", city: "", phone: "", email: "", latitude: 0, longitude: 0, postcode: "" });
     setMapKey(k => k + 1);
   };
 
@@ -563,8 +557,6 @@ export default function OwnerFacilities() {
       latitude: f.latitude || 0,
       longitude: f.longitude || 0,
       postcode: f.postcode || "",
-      advanceBookingEnabled: !!f.advanceBookingEnabled,
-      advanceBookingLimit: f.advanceBookingLimit ?? 30,
     });
     setMapKey(k => k + 1);
     setDialogOpen(true);
@@ -938,31 +930,6 @@ export default function OwnerFacilities() {
                       placeholder="Trumpas objekto aprašymas..."
                       rows={4}
                     />
-                  </div>
-                  <div className="border border-border rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-semibold">Išankstinio rezervavimo limitas</p>
-                        <p className="text-xs text-muted-foreground">Apriboja, kiek dienų į priekį galima rezervuoti</p>
-                      </div>
-                      <Switch
-                        checked={formData.advanceBookingEnabled}
-                        onCheckedChange={v => setFormData(d => ({ ...d, advanceBookingEnabled: v }))}
-                      />
-                    </div>
-                    {formData.advanceBookingEnabled && (
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={formData.advanceBookingLimit}
-                          onChange={e => setFormData(d => ({ ...d, advanceBookingLimit: Math.min(365, Math.max(1, Number(e.target.value))) }))}
-                          className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
-                        />
-                        <span className="text-sm text-muted-foreground">d. į priekį (maks. 365)</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, doublePrecision, integer, boolean, smallint } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, doublePrecision, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -21,9 +21,6 @@ export const FACILITY_STATUSES = [
   "suspended",
 ] as const;
 export type FacilityStatus = (typeof FACILITY_STATUSES)[number];
-
-export const CANCELLATION_POLICIES = ["standard", "strict"] as const;
-export type CancellationPolicy = (typeof CANCELLATION_POLICIES)[number];
 
 export const facilitiesTable = pgTable("facilities", {
   id: serial("id").primaryKey(),
@@ -50,9 +47,8 @@ export const facilitiesTable = pgTable("facilities", {
   adminVerified: boolean("admin_verified").notNull().default(false),
   photos: text("photos").array().notNull().default([]),
   equipment: text("equipment").array().notNull().default([]),
-  cancellationPolicy: text("cancellation_policy").notNull().default("standard"),
-  advanceBookingEnabled: boolean("advance_booking_enabled").notNull().default(false),
-  advanceBookingLimit: integer("advance_booking_limit").default(30),
+  cancellationWindow: integer("cancellation_window"),
+  advanceBookingLimit: integer("advance_booking_limit"),
   businessHours: text("business_hours"),
   vatNumber: text("vat_number"),
   websiteUrl: text("website_url"),

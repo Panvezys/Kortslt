@@ -1315,15 +1315,10 @@ export default function CourtDetail() {
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="min-w-0 flex-1">
                   {/* Badges */}
-                  <div className="flex flex-wrap gap-2 items-center mb-2">
+                  <div className="flex gap-2 items-center mb-2">
                     <Badge variant="default" className="bg-primary text-primary-foreground">{court.type}</Badge>
                     {court.isIndoor !== undefined && (
                       <Badge variant="secondary">{court.isIndoor ? t("detail.indoor") : t("detail.outdoor")}</Badge>
-                    )}
-                    {(court as any).cancellationPolicy === "strict" ? (
-                      <Badge variant="outline" className="text-red-600 border-red-200">Pinigai negrąžinami</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-green-600 border-green-200">Galimas atšaukimas</Badge>
                     )}
                   </div>
 
@@ -2276,19 +2271,13 @@ export default function CourtDetail() {
                       <span className="font-medium">{equipmentTotal.toFixed(2)} €</span>
                     </div>
                   )}
-                  {(court as any).cancellationPolicy === "strict" ? (
-                    <p className="text-xs text-red-600 dark:text-red-400 font-medium py-1">
-                      Dėmesio: Šios aikštelės rezervacija yra negrąžinama.
-                    </p>
-                  ) : (
-                    <CancellationTimeline
-                      hoursUntilStart={(() => {
-                        const now = new Date();
-                        const start = new Date(`${dateStr}T${selectedSlotRange.startTime}:00`);
-                        return (start.getTime() - now.getTime()) / (1000 * 60 * 60);
-                      })()}
-                    />
-                  )}
+                  <CancellationTimeline
+                    hoursUntilStart={(() => {
+                      const now = new Date();
+                      const start = new Date(`${dateStr}T${selectedSlotRange.startTime}:00`);
+                      return (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    })()}
+                  />
                   <Separator className="my-1" />
                   {splitEnabled ? (
                     <>
@@ -2320,13 +2309,6 @@ export default function CourtDetail() {
 
               {/* Desktop sticky reserve footer — always visible */}
               <div className="hidden md:flex flex-col gap-2 border-t bg-card px-4 py-3 rounded-b-2xl shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                {selectedSlotRange && (
-                  <p className={`text-xs text-center ${(court as any).cancellationPolicy === "strict" ? "text-red-500 dark:text-red-400 font-medium" : "text-muted-foreground"}`}>
-                    {(court as any).cancellationPolicy === "strict"
-                      ? "Dėmesio: Šios aikštelės rezervacija yra negrąžinama."
-                      : "Taikoma standartinė atšaukimo politika (iki 80% grąžinimas)."}
-                  </p>
-                )}
                 <div className="flex items-center gap-3">
                 {selectedSlotRange ? (
                   <>
@@ -2382,11 +2364,6 @@ export default function CourtDetail() {
       {/* Mobile sticky bottom reserve bar */}
       {selectedSlotRange && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t shadow-2xl px-4 py-2 safe-area-bottom">
-          <p className={`text-xs text-center mb-1 ${(court as any).cancellationPolicy === "strict" ? "text-red-500 dark:text-red-400 font-medium" : "text-muted-foreground"}`}>
-            {(court as any).cancellationPolicy === "strict"
-              ? "Dėmesio: Šios aikštelės rezervacija yra negrąžinama."
-              : "Taikoma standartinė atšaukimo politika (iki 80% grąžinimas)."}
-          </p>
           <div className="flex items-center gap-3">
             <button
               onClick={() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }}

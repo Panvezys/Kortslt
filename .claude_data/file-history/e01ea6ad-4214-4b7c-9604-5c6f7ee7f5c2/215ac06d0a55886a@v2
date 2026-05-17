@@ -280,7 +280,7 @@ router.patch("/facilities/:id", requireAuth, async (req, res): Promise<void> => 
 
   const allowed = ["name", "description", "address", "city", "phone", "email",
     "postcode", "latitude", "longitude",
-    "advanceBookingEnabled", "advanceBookingLimit", "businessHours",
+    "cancellationWindow", "advanceBookingLimit", "businessHours",
     "websiteUrl", "socialFacebook", "socialInstagram", "socialWhatsapp",
     "cancellationPolicy"] as const;
   type AllowedKey = typeof allowed[number];

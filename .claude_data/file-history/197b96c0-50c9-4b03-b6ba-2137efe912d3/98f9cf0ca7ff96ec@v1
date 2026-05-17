@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
@@ -28,9 +27,8 @@ interface Facility {
   postcode?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  advanceBookingEnabled?: boolean | null;
+  cancellationWindow?: number | null;
   advanceBookingLimit?: number | null;
-  cancellationPolicy?: string | null;
   businessHours?: string | null;
   websiteUrl?: string | null;
   socialFacebook?: string | null;
@@ -85,9 +83,8 @@ export default function OwnerSettings() {
   const [profileInstagram, setProfileInstagram] = useState("");
   const [profileWhatsapp, setProfileWhatsapp] = useState("");
 
-  const [advanceBookingEnabled, setAdvanceBookingEnabled] = useState(false);
+  const [cancellationWindow, setCancellationWindow] = useState("24");
   const [advanceBookingLimit, setAdvanceBookingLimit] = useState("30");
-  const [cancellationPolicy, setCancellationPolicy] = useState<"standard" | "strict">("standard");
 
   // Apply ?tab=&profileTab= URL params on mount
   useEffect(() => {
@@ -129,9 +126,8 @@ export default function OwnerSettings() {
     setProfileLatitude(facility.latitude ?? 0);
     setProfileLongitude(facility.longitude ?? 0);
     setMapKey(k => k + 1);
-    setAdvanceBookingEnabled(!!facility.advanceBookingEnabled);
+    setCancellationWindow(String(facility.cancellationWindow ?? 24));
     setAdvanceBookingLimit(String(facility.advanceBookingLimit ?? 30));
-    setCancellationPolicy(facility.cancellationPolicy === "strict" ? "strict" : "standard");
     if (facility.businessHours) {
       try {
         const parsed = JSON.parse(facility.businessHours);
@@ -186,9 +182,8 @@ export default function OwnerSettings() {
 
   function saveRules() {
     mutation.mutate({
-      advanceBookingEnabled,
+      cancellationWindow: Number(cancellationWindow),
       advanceBookingLimit: Number(advanceBookingLimit),
-      cancellationPolicy,
     });
   }
 
@@ -434,57 +429,33 @@ export default function OwnerSettings() {
                 <Separator />
                 <div className="space-y-5">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-semibold">Išankstinio rezervavimo limitas</label>
-                      <Switch checked={advanceBookingEnabled} onCheckedChange={setAdvanceBookingEnabled} />
+                    <label className="text-sm font-semibold block mb-1">Atšaukimo langas (valandos)</label>
+                    <p className="text-xs text-muted-foreground mb-2">Minimalus laikas prieš rezervaciją, per kurį galima atšaukti nemokamai.</p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={0}
+                        max={168}
+                        value={cancellationWindow}
+                        onChange={e => setCancellationWindow(e.target.value)}
+                        className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
+                      />
+                      <span className="text-sm text-muted-foreground">val.</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">Apriboja, kiek dienų į priekį galima rezervuoti kortą.</p>
-                    {advanceBookingEnabled && (
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={advanceBookingLimit}
-                          onChange={e => setAdvanceBookingLimit(String(Math.min(365, Math.max(1, Number(e.target.value)))))}
-                          className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
-                        />
-                        <span className="text-sm text-muted-foreground">d. į priekį</span>
-                      </div>
-                    )}
                   </div>
                   <div>
-                    <label className="text-sm font-semibold block mb-1">Atšaukimo politika</label>
-                    <p className="text-xs text-muted-foreground mb-3">Nustato, ar žaidėjai gauna pinigų grąžinimą atšaukę rezervaciją.</p>
-                    <div className="space-y-2">
-                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${cancellationPolicy === "standard" ? "border-primary bg-primary/5" : "border-border hover:border-border/80"}`}>
-                        <input
-                          type="radio"
-                          name="cancellationPolicy"
-                          value="standard"
-                          checked={cancellationPolicy === "standard"}
-                          onChange={() => setCancellationPolicy("standard")}
-                          className="mt-0.5 accent-primary"
-                        />
-                        <div>
-                          <p className="text-sm font-medium">Standartinė (80% / 50% / 0% grąžinimas)</p>
-                          <p className="text-xs text-muted-foreground">≥48 val. – 80%, ≥24 val. – 50%, &lt;24 val. – 0%</p>
-                        </div>
-                      </label>
-                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${cancellationPolicy === "strict" ? "border-destructive bg-destructive/5" : "border-border hover:border-border/80"}`}>
-                        <input
-                          type="radio"
-                          name="cancellationPolicy"
-                          value="strict"
-                          checked={cancellationPolicy === "strict"}
-                          onChange={() => setCancellationPolicy("strict")}
-                          className="mt-0.5 accent-destructive"
-                        />
-                        <div>
-                          <p className="text-sm font-medium">Griežta (pinigai negrąžinami)</p>
-                          <p className="text-xs text-muted-foreground">Žaidėjai gali atšaukti rezervaciją, tačiau pinigai negrąžinami.</p>
-                        </div>
-                      </label>
+                    <label className="text-sm font-semibold block mb-1">Išankstinio rezervavimo limitas (dienos)</label>
+                    <p className="text-xs text-muted-foreground mb-2">Kiek dienų į priekį galima rezervuoti kortą.</p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={advanceBookingLimit}
+                        onChange={e => setAdvanceBookingLimit(e.target.value)}
+                        className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
+                      />
+                      <span className="text-sm text-muted-foreground">d.</span>
                     </div>
                   </div>
                 </div>

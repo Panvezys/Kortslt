@@ -1,5 +1,5 @@
 {
-  "numStartups": 22,
+  "numStartups": 23,
   "installMethod": "global",
   "hasSeenTasksHint": true,
   "tipsHistory": {
@@ -496,47 +496,66 @@
       ],
       "exampleFilesGeneratedAt": 1778499569213,
       "hasCompletedProjectOnboarding": true,
-      "lastHintSessionId": "98ef2a75-1e59-4f1d-9c9a-1aab0c4f8948",
-      "lastSessionFirstPrompt": "in the booking confirmation page and booking details page, instead of court icon, put a small thumbnail next to the court info text. Move the chat icon  button to the right of this row",
-      "lastSessionModified": 1778746122930,
-      "lastCost": 0,
-      "lastAPIDuration": 0,
-      "lastAPIDurationWithoutRetries": 0,
-      "lastToolDuration": 0,
-      "lastDuration": 16589,
-      "lastLinesAdded": 0,
-      "lastLinesRemoved": 0,
-      "lastTotalInputTokens": 0,
-      "lastTotalOutputTokens": 0,
-      "lastTotalCacheCreationInputTokens": 0,
-      "lastTotalCacheReadInputTokens": 0,
+      "lastHintSessionId": "197b96c0-50c9-4b03-b6ba-2137efe912d3",
+      "lastSessionFirstPrompt": "what are the current cancellation rules? How are they implemented?",
+      "lastSessionModified": 1778963391568,
+      "lastCost": 18.83938184999999,
+      "lastAPIDuration": 4237346,
+      "lastAPIDurationWithoutRetries": 4236543,
+      "lastToolDuration": 637489,
+      "lastDuration": 46566707,
+      "lastLinesAdded": 1730,
+      "lastLinesRemoved": 759,
+      "lastTotalInputTokens": 17584,
+      "lastTotalOutputTokens": 280377,
+      "lastTotalCacheCreationInputTokens": 1043555,
+      "lastTotalCacheReadInputTokens": 36539013,
       "lastTotalWebSearchRequests": 0,
-      "lastModelUsage": {},
-      "lastSessionId": "cef67c07-19ab-4c54-b679-767cb4c0bd13",
+      "lastModelUsage": {
+        "claude-sonnet-4-6": {
+          "inputTokens": 17512,
+          "outputTokens": 273332,
+          "cacheReadInputTokens": 36144094,
+          "cacheCreationInputTokens": 985762,
+          "webSearchRequests": 0,
+          "costUSD": 18.692351699999993
+        },
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 72,
+          "outputTokens": 7045,
+          "cacheReadInputTokens": 394919,
+          "cacheCreationInputTokens": 57793,
+          "webSearchRequests": 0,
+          "costUSD": 0.14703015
+        }
+      },
+      "lastSessionId": "98ef2a75-1e59-4f1d-9c9a-1aab0c4f8948",
       "lastSessionMetrics": {
-        "frame_duration_ms_count": 13591,
-        "frame_duration_ms_min": 0.06191999999282416,
-        "frame_duration_ms_max": 39.15861899999436,
-        "frame_duration_ms_avg": 0.9258503106470446,
-        "frame_duration_ms_p50": 0.8364750000764616,
-        "frame_duration_ms_p95": 1.606029500137083,
-        "frame_duration_ms_p99": 2.6925800000171862,
-        "pre_tool_hook_duration_ms_count": 87,
+        "frame_duration_ms_count": 86451,
+        "frame_duration_ms_min": 0.05030999984592199,
+        "frame_duration_ms_max": 46700.44308999926,
+        "frame_duration_ms_avg": 1.8233388129351193,
+        "frame_duration_ms_p50": 1.1186739993281662,
+        "frame_duration_ms_p95": 2.409110999898984,
+        "frame_duration_ms_p99": 5.861887470027429,
+        "pre_tool_hook_duration_ms_count": 380,
         "pre_tool_hook_duration_ms_min": 0,
-        "pre_tool_hook_duration_ms_max": 4,
-        "pre_tool_hook_duration_ms_avg": 0.1724137931034483,
+        "pre_tool_hook_duration_ms_max": 6,
+        "pre_tool_hook_duration_ms_avg": 0.12368421052631579,
         "pre_tool_hook_duration_ms_p50": 0,
         "pre_tool_hook_duration_ms_p95": 1,
-        "pre_tool_hook_duration_ms_p99": 1.4200000000000017,
-        "hook_duration_ms_count": 48,
+        "pre_tool_hook_duration_ms_p99": 2.2099999999999795,
+        "hook_duration_ms_count": 222,
         "hook_duration_ms_min": 0,
-        "hook_duration_ms_max": 1,
-        "hook_duration_ms_avg": 0.08333333333333333,
+        "hook_duration_ms_max": 6,
+        "hook_duration_ms_avg": 0.15765765765765766,
         "hook_duration_ms_p50": 0,
         "hook_duration_ms_p95": 1,
         "hook_duration_ms_p99": 1
       },
-      "lastVersionBase": "2.1.142"
+      "lastVersionBase": "2.1.143",
+      "lastFpsAverage": 1.86,
+      "lastFpsLow1Pct": 138.74
     }
   },
   "cachedExperimentFeatures": [
@@ -550,7 +569,7 @@
     "tengu_plank_river_frost",
     "tengu_read_dedup_killswitch"
   ],
-  "lastReleaseNotesSeen": "2.1.142",
+  "lastReleaseNotesSeen": "2.1.143",
   "opus47LaunchSeenCount": 5,
   "githubRepoPaths": {
     "panvezys/kortslt": [
@@ -561,7 +580,7 @@
   "clientDataCache": null,
   "additionalModelOptionsCache": [],
   "additionalModelCostsCache": {},
-  "closedIssuesLastChecked": 1778847708227,
+  "closedIssuesLastChecked": 1778944400452,
   "officialMarketplaceAutoInstallAttempted": true,
   "officialMarketplaceAutoInstalled": true,
   "metricsStatusCache": {
@@ -594,7 +613,7 @@
   "routineFiredWatermark": "2026-05-11T12:01:34.257Z",
   "groveConfigCache": {
     "d98bd841-6436-4a67-afad-dadc4c990170": {
-      "timestamp": 1778847696288
+      "timestamp": 1778963361892
     }
   },
   "cachedExtraUsageDisabledReason": "org_level_disabled",
@@ -609,5 +628,14 @@
     }
   },
   "showSpinnerTree": false,
-  "lastPlanModeUse": 1778621155511
+  "lastPlanModeUse": 1778621155511,
+  "passesEligibilityCache": {
+    "ad15c0fc-60c8-4541-8f2f-83f73c8f5ff2": {
+      "eligible": false,
+      "referral_code_details": null,
+      "referrer_reward": null,
+      "remaining_passes": null,
+      "timestamp": 1778963362689
+    }
+  }
 }

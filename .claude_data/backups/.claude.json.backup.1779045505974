@@ -9,7 +9,7 @@
     "theme-command": 24,
     "status-line": 4,
     "prompt-queue": 14,
-    "enter-to-steer-in-relatime": 24,
+    "enter-to-steer-in-relatime": 4,
     "color-when-multi-clauding": 17,
     "todo-list": 6,
     "install-github-app": 16,

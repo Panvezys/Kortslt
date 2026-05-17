@@ -98,7 +98,6 @@ function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
     instantBookingEnabled: c.instantBookingEnabled ?? true,
     facilityId: c.facilityId,
     facilityName: facility?.name ?? undefined,
-    cancellationPolicy: (facility?.cancellationPolicy ?? "standard") as "standard" | "strict",
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
     createdAt: c.createdAt,

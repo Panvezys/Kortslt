@@ -1,0 +1,27 @@
+Let's implement a Facility-level cancellation policy toggle that allows owners to opt-out of the refund system, while keeping our existing 80/50/0 tiers as the default.
+
+Please implement this in 4 phases:
+
+--- PHASE 1: Schema & DB ---
+1. Add a `cancellationPolicy` text/enum column to `facilitiesTable` (or `courtsTable`, depending on where business settings currently live). Allow values: `'standard'` (default) and `'strict'`.
+2. Generate and run the drizzle migration for this schema change.
+
+--- PHASE 2: Backend Logic (`bookings.ts`) ---
+1. Update `computeRefund` to accept a new parameter: `policy: 'standard' | 'strict'`. 
+2. If `policy === 'strict'`, instantly return `{ refundPercent: 0, refundAmount: 0, refundable: false, canCancel: true }` (allowing them to free the slot, but getting no money).
+3. Update `GET /bookings/:id/refund-preview` and `DELETE /bookings/:id` to fetch the court's/facility's cancellation policy and pass it into `computeRefund`.
+
+--- PHASE 3: Owner UI ---
+1. In the Owner Facility Settings page (e.g., `facility-settings.tsx` or similar), add a Select or Radio group for "Atšaukimo politika" (Cancellation Policy).
+2. Options: "Standartinė (80% / 50% / 0% grąžinimas)" and "Griežta (Pinigai negrąžinami)".
+3. Ensure the API route that updates the facility saves this preference.
+
+--- PHASE 4: Player UI ---
+1. Court Detail Page (`court-detail.tsx`): Fetch the `cancellationPolicy`. Add a UI badge near the Price or Contacts section. 
+   - If 'standard': `<Badge variant="outline" className="text-green-600 border-green-200">Galimas atšaukimas</Badge>`
+   - If 'strict': `<Badge variant="outline" className="text-red-600 border-red-200">Pinigai negrąžinami</Badge>`
+2. Checkout / Split Booking Page: Right above the payment/confirm button, render a small disclaimer.
+   - If 'standard': "Taikoma standartinė atšaukimo politika (iki 80% grąžinimas)."
+   - If 'strict': "Dėmesio: Šios aikštelės rezervacija yra negrąžinama."
+
+Run typechecks and verify the refund-preview endpoint correctly returns 0€ for strict courts.

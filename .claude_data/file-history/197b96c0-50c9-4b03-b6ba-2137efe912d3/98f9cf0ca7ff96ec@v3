@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
 import { LocationPicker, type LocationPickerResult } from "@/components/location-picker";
@@ -28,7 +27,6 @@ interface Facility {
   postcode?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  advanceBookingEnabled?: boolean | null;
   advanceBookingLimit?: number | null;
   cancellationPolicy?: string | null;
   businessHours?: string | null;
@@ -85,7 +83,6 @@ export default function OwnerSettings() {
   const [profileInstagram, setProfileInstagram] = useState("");
   const [profileWhatsapp, setProfileWhatsapp] = useState("");
 
-  const [advanceBookingEnabled, setAdvanceBookingEnabled] = useState(false);
   const [advanceBookingLimit, setAdvanceBookingLimit] = useState("30");
   const [cancellationPolicy, setCancellationPolicy] = useState<"standard" | "strict">("standard");
 
@@ -129,7 +126,6 @@ export default function OwnerSettings() {
     setProfileLatitude(facility.latitude ?? 0);
     setProfileLongitude(facility.longitude ?? 0);
     setMapKey(k => k + 1);
-    setAdvanceBookingEnabled(!!facility.advanceBookingEnabled);
     setAdvanceBookingLimit(String(facility.advanceBookingLimit ?? 30));
     setCancellationPolicy(facility.cancellationPolicy === "strict" ? "strict" : "standard");
     if (facility.businessHours) {
@@ -186,7 +182,6 @@ export default function OwnerSettings() {
 
   function saveRules() {
     mutation.mutate({
-      advanceBookingEnabled,
       advanceBookingLimit: Number(advanceBookingLimit),
       cancellationPolicy,
     });
@@ -434,24 +429,19 @@ export default function OwnerSettings() {
                 <Separator />
                 <div className="space-y-5">
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm font-semibold">Išankstinio rezervavimo limitas</label>
-                      <Switch checked={advanceBookingEnabled} onCheckedChange={setAdvanceBookingEnabled} />
+                    <label className="text-sm font-semibold block mb-1">Išankstinio rezervavimo limitas (dienos)</label>
+                    <p className="text-xs text-muted-foreground mb-2">Kiek dienų į priekį galima rezervuoti kortą.</p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={advanceBookingLimit}
+                        onChange={e => setAdvanceBookingLimit(e.target.value)}
+                        className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
+                      />
+                      <span className="text-sm text-muted-foreground">d.</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">Apriboja, kiek dienų į priekį galima rezervuoti kortą.</p>
-                    {advanceBookingEnabled && (
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min={1}
-                          max={365}
-                          value={advanceBookingLimit}
-                          onChange={e => setAdvanceBookingLimit(String(Math.min(365, Math.max(1, Number(e.target.value)))))}
-                          className="w-24 border border-border rounded-lg px-3 py-2 text-sm bg-background outline-none focus:border-primary transition-colors"
-                        />
-                        <span className="text-sm text-muted-foreground">d. į priekį</span>
-                      </div>
-                    )}
                   </div>
                   <div>
                     <label className="text-sm font-semibold block mb-1">Atšaukimo politika</label>

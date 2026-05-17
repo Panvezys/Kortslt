@@ -25,23 +25,13 @@ export function generateManagementToken(): string {
 }
 
 // ─── Refund tier policy ──────────────────────────────────────────────────────
-// standard policy:
-//   >= 48h before start: 80% refund
-//   >= 24h and < 48h:    50% refund
-//   <  24h:              0% refund
-//
-// strict policy: 0% refund at any time (slot can still be freed/cancelled)
+// >= 48h before start: 80% refund
+// >= 24h and < 48h:    50% refund
+// <  24h:              0% refund
 //
 // All money math is done in INTEGER CENTS to avoid binary-float rounding (e.g.
 // 19.99 * 0.5 = 9.995). Stripe `refunds.create.amount` is also in integer cents.
-export function computeRefund(
-  totalPriceEur: number,
-  hoursBeforeStart: number,
-  policy: "standard" | "strict" = "standard",
-) {
-  if (policy === "strict") {
-    return { refundPercent: 0, refundAmount: 0, refundCents: 0, refundable: false };
-  }
+export function computeRefund(totalPriceEur: number, hoursBeforeStart: number) {
   const totalCents = Math.round(totalPriceEur * 100);
   if (hoursBeforeStart >= 48) {
     const cents = Math.round(totalCents * 0.80);
@@ -86,15 +76,6 @@ export function vilniusLocalToUtcMs(date: string, time: string): number {
 
 export function hoursBeforeStart(date: string, startTime: string): number {
   return (vilniusLocalToUtcMs(date, startTime) - Date.now()) / (1000 * 60 * 60);
-}
-
-// Returns the number of calendar days between today (Vilnius local) and the booking date.
-function daysUntilBooking(dateStr: string): number {
-  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Vilnius" });
-  const todayStr = fmt.format(new Date()); // YYYY-MM-DD
-  const today = Date.parse(todayStr + "T00:00:00Z");
-  const target = Date.parse(String(dateStr).slice(0, 10) + "T00:00:00Z");
-  return Math.round((target - today) / (1000 * 60 * 60 * 24));
 }
 
 function toMin(t: string): number {
@@ -251,24 +232,6 @@ router.post("/bookings", async (req, res): Promise<void> => {
       }
     } catch {
       // malformed workingHours JSON — skip validation, allow booking
-    }
-  }
-
-  // ── Advance booking limit check ───────────────────────────────────────────
-  if (court.facilityId) {
-    const [facility] = await db
-      .select({ advanceBookingEnabled: facilitiesTable.advanceBookingEnabled, advanceBookingLimit: facilitiesTable.advanceBookingLimit })
-      .from(facilitiesTable)
-      .where(eq(facilitiesTable.id, court.facilityId));
-    if (facility?.advanceBookingEnabled && facility.advanceBookingLimit != null) {
-      const days = daysUntilBooking(dateStr0);
-      if (days > facility.advanceBookingLimit) {
-        res.status(400).json({
-          error: `Rezervaciją galima atlikti ne anksčiau kaip ${facility.advanceBookingLimit} d. iš anksto`,
-          code: "ADVANCE_BOOKING_LIMIT_EXCEEDED",
-        });
-        return;
-      }
     }
   }
 
@@ -515,7 +478,6 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
       facilityOwnerUserId: facilitiesTable.ownerUserId,
       facilityOwnerName: facilitiesTable.name,
       facilityOwnerEmail: facilitiesTable.email,
-      cancellationPolicy: facilitiesTable.cancellationPolicy,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -527,7 +489,7 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { booking, facilityOwnerUserId, courtName, facilityOwnerName: ownerName, facilityOwnerEmail: ownerEmail, cancellationPolicy } = rows[0];
+  const { booking, facilityOwnerUserId, courtName, facilityOwnerName: ownerName, facilityOwnerEmail: ownerEmail } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
   const isCourtOwner = facilityOwnerUserId === userId;
@@ -546,8 +508,7 @@ router.delete("/bookings/:id", requireAuth, async (req, res): Promise<void> => {
   // Policy applies uniformly to all roles. No silent admin override.
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const policy = (cancellationPolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
-  const tier = computeRefund(totalPriceEur, hours, policy);
+  const tier = computeRefund(totalPriceEur, hours);
 
   // Prevent cancelling a booking that has already started/ended.
   if (hours <= 0) {
@@ -716,11 +677,7 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
   const userId = getCurrentUserId(req)!;
 
   const rows = await db
-    .select({
-      booking: bookingsTable,
-      facilityOwnerUserId: facilitiesTable.ownerUserId,
-      cancellationPolicy: facilitiesTable.cancellationPolicy,
-    })
+    .select({ booking: bookingsTable, facilityOwnerUserId: facilitiesTable.ownerUserId })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
     .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
@@ -728,7 +685,7 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
 
   if (!rows[0]) { res.status(404).json({ error: "Booking not found" }); return; }
 
-  const { booking, facilityOwnerUserId, cancellationPolicy: previewPolicy } = rows[0];
+  const { booking, facilityOwnerUserId } = rows[0];
   const role = await getUserRole(userId);
   const isBooker = booking.bookerUserId === userId;
   const isCourtOwner = facilityOwnerUserId === userId;
@@ -740,8 +697,7 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
 
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const policy = (previewPolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
-  const tier = computeRefund(totalPriceEur, hours, policy);
+  const tier = computeRefund(totalPriceEur, hours);
 
   // Cancellation only allowed before start time (policy applies to all roles).
   const canCancel = booking.status !== "cancelled" && hours > 0;
@@ -756,7 +712,6 @@ router.get("/bookings/:id/refund-preview", requireAuth, async (req, res): Promis
     refundPercent: tier.refundPercent,
     refundAmount: tier.refundAmount,
     refundable: tier.refundable,
-    cancellationPolicy: policy,
     canCancel,
     ...(reason ? { reason } : {}),
   });

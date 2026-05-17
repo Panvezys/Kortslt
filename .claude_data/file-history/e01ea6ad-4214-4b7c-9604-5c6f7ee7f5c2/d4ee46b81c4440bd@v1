@@ -507,14 +507,8 @@ router.get("/games/:id/refund-preview", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  const bookingRows = await db
-    .select({ booking: bookingsTable, cancellationPolicy: facilitiesTable.cancellationPolicy })
-    .from(bookingsTable)
-    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
-    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-    .where(eq(bookingsTable.id, g.bookingId));
-
-  if (!bookingRows[0]) {
+  const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, g.bookingId));
+  if (!booking) {
     res.json({
       gameId: g.id,
       bookingId: g.bookingId,
@@ -529,19 +523,17 @@ router.get("/games/:id/refund-preview", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  const { booking: gameBooking, cancellationPolicy: gamePolicy } = bookingRows[0];
-  const totalPriceEur = Number(gameBooking.totalPrice);
-  const hours = hoursBeforeStart(gameBooking.date, gameBooking.startTime);
-  const policy = (gamePolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
-  const tier = computeRefund(totalPriceEur, hours, policy);
-  const canCancel = gameBooking.status !== "cancelled" && hours > 0;
+  const totalPriceEur = Number(booking.totalPrice);
+  const hours = hoursBeforeStart(booking.date, booking.startTime);
+  const tier = computeRefund(totalPriceEur, hours);
+  const canCancel = booking.status !== "cancelled" && hours > 0;
   let reason: string | undefined;
-  if (gameBooking.status === "cancelled") reason = "Rezervacija jau atšaukta.";
+  if (booking.status === "cancelled") reason = "Rezervacija jau atšaukta.";
   else if (hours <= 0) reason = "Žaidimas jau prasidėjo arba pasibaigė.";
 
   res.json({
     gameId: g.id,
-    bookingId: gameBooking.id,
+    bookingId: booking.id,
     hasBooking: true,
     totalPrice: totalPriceEur,
     hoursBeforeStart: Math.round(hours * 10) / 10,
@@ -581,14 +573,7 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
   let refundedAmount = 0;
   let refundPercent = 0;
   if (g.bookingId) {
-    const deleteBookingRows = await db
-      .select({ booking: bookingsTable, cancellationPolicy: facilitiesTable.cancellationPolicy })
-      .from(bookingsTable)
-      .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
-      .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
-      .where(eq(bookingsTable.id, g.bookingId));
-    const booking = deleteBookingRows[0]?.booking;
-    const deletePolicy = (deleteBookingRows[0]?.cancellationPolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
+    const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, g.bookingId));
     if (booking && booking.status !== "cancelled") {
       const totalPriceEur = Number(booking.totalPrice);
       const hours = hoursBeforeStart(booking.date, booking.startTime);
@@ -596,7 +581,7 @@ router.delete("/games/:id", requireAuth, async (req, res): Promise<void> => {
         res.status(400).json({ error: "Žaidimas jau prasidėjo arba pasibaigė", code: "CANCEL_TOO_LATE" });
         return;
       }
-      const tier = computeRefund(totalPriceEur, hours, deletePolicy);
+      const tier = computeRefund(totalPriceEur, hours);
 
       // CAS on booking status to prevent double-refund if the host clicks twice or the
       // sweeper races us on a still-pending booking.

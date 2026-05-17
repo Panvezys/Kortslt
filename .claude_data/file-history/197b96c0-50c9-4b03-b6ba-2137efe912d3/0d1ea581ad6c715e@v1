@@ -91,23 +91,19 @@ router.get("/guest/bookings/:token/refund-preview", async (req, res): Promise<vo
     return;
   }
 
-  const rows = await db
-    .select({ booking: bookingsTable, cancellationPolicy: facilitiesTable.cancellationPolicy })
+  const [booking] = await db
+    .select()
     .from(bookingsTable)
-    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
-    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(bookingsTable.managementToken, token));
 
-  if (!rows[0]) {
+  if (!booking) {
     res.status(404).json({ error: "Booking not found" });
     return;
   }
 
-  const { booking, cancellationPolicy: previewPolicy } = rows[0];
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const policy = (previewPolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
-  const tier = computeRefund(totalPriceEur, hours, policy);
+  const tier = computeRefund(totalPriceEur, hours);
 
   const canCancel = booking.status !== "cancelled" && hours > 0;
   let reason: string | undefined;
@@ -121,7 +117,6 @@ router.get("/guest/bookings/:token/refund-preview", async (req, res): Promise<vo
     refundPercent: tier.refundPercent,
     refundAmount: tier.refundAmount,
     refundable: tier.refundable,
-    cancellationPolicy: policy,
     canCancel,
     reason,
   });
@@ -144,7 +139,6 @@ router.post("/guest/bookings/:token/cancel", async (req, res): Promise<void> => 
       courtOwnerUserId: facilitiesTable.ownerUserId,
       ownerName: facilitiesTable.name,
       ownerEmail: facilitiesTable.email,
-      cancellationPolicy: facilitiesTable.cancellationPolicy,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -156,7 +150,7 @@ router.post("/guest/bookings/:token/cancel", async (req, res): Promise<void> => 
     return;
   }
 
-  const { booking, courtName, courtOwnerUserId, ownerName, ownerEmail, cancellationPolicy: cancelPolicy } = rows[0];
+  const { booking, courtName, courtOwnerUserId, ownerName, ownerEmail } = rows[0];
 
   // Idempotent: if it was already cancelled, just return current state.
   if (booking.status === "cancelled") {
@@ -170,8 +164,7 @@ router.post("/guest/bookings/:token/cancel", async (req, res): Promise<void> => 
 
   const totalPriceEur = Number(booking.totalPrice);
   const hours = hoursBeforeStart(booking.date, booking.startTime);
-  const policy = (cancelPolicy === "strict" ? "strict" : "standard") as "standard" | "strict";
-  const tier = computeRefund(totalPriceEur, hours, policy);
+  const tier = computeRefund(totalPriceEur, hours);
 
   if (hours <= 0) {
     res.status(400).json({ error: "Booking has already started or ended", code: "CANCEL_TOO_LATE" });
