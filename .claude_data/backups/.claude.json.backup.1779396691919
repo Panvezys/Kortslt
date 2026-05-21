@@ -27,7 +27,7 @@
     "frontend-design-plugin": 16,
     "permissions": 41,
     "rename-conversation": 42,
-    "custom-commands": 27,
+    "custom-commands": 42,
     "default-permission-mode-config": 35,
     "stripe-plugin": 22,
     "ide-upsell-external-terminal": 37,
@@ -574,7 +574,7 @@
   "clientDataCache": null,
   "additionalModelOptionsCache": [],
   "additionalModelCostsCache": {},
-  "closedIssuesLastChecked": 1779307742959,
+  "closedIssuesLastChecked": 1779394688020,
   "officialMarketplaceAutoInstallAttempted": true,
   "officialMarketplaceAutoInstalled": true,
   "metricsStatusCache": {
