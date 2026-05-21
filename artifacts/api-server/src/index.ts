@@ -51,11 +51,7 @@ const server = http.createServer(app);
 initSocketIO(server);
 
 function startListening(attemptsLeft: number) {
-  server.listen(port, "0.0.0.0", () => {
-    logger.info({ port }, "Server listening");
-    startCron();
-  });
-  server.on("error", (err: NodeJS.ErrnoException) => {
+  server.once("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE" && attemptsLeft > 0) {
       logger.warn({ port, attemptsLeft }, "Port in use, retrying in 2s...");
       setTimeout(() => startListening(attemptsLeft - 1), 2000);
@@ -63,6 +59,10 @@ function startListening(attemptsLeft: number) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
     }
+  });
+  server.listen(port, "0.0.0.0", () => {
+    logger.info({ port }, "Server listening");
+    startCron();
   });
 }
 startListening(5);
