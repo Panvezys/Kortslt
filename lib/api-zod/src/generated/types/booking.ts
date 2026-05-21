@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BookingCoach } from "./bookingCoach";
+import type { BookingCoachReview } from "./bookingCoachReview";
+import type { BookingCourtReview } from "./bookingCourtReview";
 import type { BookingStatus } from "./bookingStatus";
 
 export interface Booking {
@@ -39,4 +41,8 @@ export interface Booking {
   coachServiceId?: number | null;
   /** Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings. */
   coach?: BookingCoach;
+  /** The booker's existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode. */
+  coachReview?: BookingCoachReview;
+  /** The booker's existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode for non-coach bookings. */
+  courtReview?: BookingCourtReview;
 }

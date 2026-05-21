@@ -1,0 +1,10 @@
+GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/chunk-AV5PLS3M.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+@radix-ui_react-tooltip.js:34  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/chunk-JSET4TII.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+@radix-ui_react-tooltip.js:20  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/chunk-C3OEO4XK.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+utils.ts:3  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/tailwind-merge.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+layout.tsx:5  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/src/components/theme-provider.tsx net::ERR_ABORTED 404 (Not Found)Understand this error
+button.tsx:4  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/@radix-ui_react-slot.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+date-fns_locale.js:13  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/chunk-FOKDPVCF.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+@radix-ui_react-toast.js:7  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/node_modules/.vite/deps/chunk-REY5SZAB.js?v=7baafabb net::ERR_ABORTED 404 (Not Found)Understand this error
+favicon.svg:1  GET https://82e2755b-6da4-4a6d-977e-2aa88048e319-00-sn849fnoamp9.kirk.replit.dev/favicon.svg 404 (Not Found)

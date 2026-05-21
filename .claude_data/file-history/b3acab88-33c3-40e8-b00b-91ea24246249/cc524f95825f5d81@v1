@@ -1,0 +1,39 @@
+import { sweepStalePendingGames, sweepAutoConfirmResults } from "../routes/games";
+import { sweepAbandonedPendingBookings } from "../routes/bookings";
+import { sweepHostGuarantees } from "../routes/split-payments";
+import { logger } from "./logger";
+
+const TICK_INTERVAL_MS = 60 * 1000;
+const GUARANTEE_SWEEP_EVERY_N_TICKS = 15; // run guarantee sweep every ~15 minutes
+
+export function startCron(): void {
+  let running = false;
+  let tickCount = 0;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    tickCount++;
+    try {
+      const promises: Promise<number>[] = [
+        sweepStalePendingGames(),
+        sweepAutoConfirmResults(),
+        sweepAbandonedPendingBookings(),
+      ];
+      if (tickCount % GUARANTEE_SWEEP_EVERY_N_TICKS === 1) {
+        promises.push(sweepHostGuarantees());
+      }
+      const counts = await Promise.all(promises);
+      const [staleCount, autoCount, abandonedBookingCount, guaranteeCount = 0] = counts;
+      if (staleCount > 0 || autoCount > 0 || abandonedBookingCount > 0 || guaranteeCount > 0) {
+        logger.info({ staleCount, autoCount, abandonedBookingCount, guaranteeCount }, "cron: swept");
+      }
+    } catch (err) {
+      logger.error({ err }, "cron tick failed");
+    } finally {
+      running = false;
+    }
+  };
+  setInterval(tick, TICK_INTERVAL_MS);
+  setTimeout(tick, 5000);
+  logger.info({ intervalMs: TICK_INTERVAL_MS }, "cron started");
+}

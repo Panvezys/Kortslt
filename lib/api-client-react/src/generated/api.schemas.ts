@@ -192,6 +192,32 @@ export type BookingCoach = {
   name: string;
 } | null;
 
+/**
+ * The booker's existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode.
+ */
+export type BookingCoachReview = {
+  id: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  comment?: string | null;
+} | null;
+
+/**
+ * The booker's existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode for non-coach bookings.
+ */
+export type BookingCourtReview = {
+  id: number;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  rating: number;
+  comment?: string | null;
+} | null;
+
 export interface Booking {
   id: number;
   courtId: number;
@@ -223,6 +249,10 @@ export interface Booking {
   coachServiceId?: number | null;
   /** Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings. */
   coach?: BookingCoach;
+  /** The booker's existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode. */
+  coachReview?: BookingCoachReview;
+  /** The booker's existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode for non-coach bookings. */
+  courtReview?: BookingCourtReview;
 }
 
 export interface RefundPreview {
@@ -289,32 +319,6 @@ export interface PopularCourt {
   revenue: number;
 }
 
-export interface Review {
-  id: number;
-  courtId: number;
-  bookingId: number;
-  /**
-   * @minimum 1
-   * @maximum 5
-   */
-  rating: number;
-  reviewText?: string;
-  reviewerName: string;
-  createdAt: string;
-}
-
-export interface CreateReviewBody {
-  bookingId: number;
-  /**
-   * @minimum 1
-   * @maximum 5
-   */
-  rating: number;
-  reviewText?: string;
-  reviewerName: string;
-  photos?: string[];
-}
-
 export type ListCourtsParams = {
   type?: ListCourtsType;
   city?: string;
@@ -365,11 +369,3 @@ export const ListBookingsStatus = {
   confirmed: "confirmed",
   cancelled: "cancelled",
 } as const;
-
-export type CreateReview400 = {
-  error: string;
-};
-
-export type CreateReview404 = {
-  error: string;
-};

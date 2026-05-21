@@ -1,0 +1,59 @@
+I love the ambition. Executing all four upgrades at once will take this review system from a "good MVP" to a truly enterprise-grade marketplace feature.
+
+Since we are touching the database schema, the API layer, the player dashboard, the coach dashboard, and the admin panel, this is a massive operation.
+
+Here is the master execution command. Copy and paste this entirely into your terminal/agent. It is carefully sequenced to ensure the database migrations happen before the UI tries to read the new fields.
+
+"We are upgrading the Coach Review system to enterprise standards. We are going to implement all four missing features: Moderation, Edit Mode, Host Replies, and Pagination.
+
+Please execute this in 5 distinct phases.
+
+--- PHASE 1: The Schema Upgrades ---
+
+In lib/db/src/schema/coach-reviews.ts, add three new columns:
+
+status: text enum ('published', 'hidden', 'flagged'), default 'published'.
+
+coachReplyText: text, nullable.
+
+coachReplyCreatedAt: timestamp, nullable.
+
+Update syncCoachAverageRating in routes/coach-reviews.ts. It MUST now include a WHERE status = 'published' clause. Hidden or flagged reviews should instantly be removed from the coach's average rating and count.
+
+Push the schema.
+
+--- PHASE 2: The API Expansions ---
+
+Edit Review (PATCH): Create PATCH /api/coach-reviews/:id. Require auth. Verify the requesting user owns the review. Allow updating rating and comment. Call syncCoachAverageRating in the transaction.
+
+Host Reply (PATCH): Create PATCH /api/coach/reviews/:id/reply. Require auth (isCoach). Verify the logged-in coach owns the profile the review was left on. Update coachReplyText and coachReplyCreatedAt.
+
+Moderation (PATCH): Create PATCH /api/admin/coach-reviews/:id/status. Require auth (isAdmin). Update the status column and trigger syncCoachAverageRating.
+
+Pagination (GET): Update GET /api/coaches/:id/reviews. Implement standard offset/limit pagination (e.g., accept ?page=1&limit=20) and return a hasMore boolean. Ensure it only returns status = 'published' reviews.
+
+--- PHASE 3: The Player UI (Edit Mode) ---
+
+Update GET /bookings to return the actual review data (e.g., coachReview: { id, rating, comment }) instead of just a boolean.
+
+In pages/bookings.tsx, if booking.coachReview exists, change the button to a subtle 'Redaguoti atsiliepimą' (Edit review).
+
+Pass the existing rating and comment into the CoachReviewDialog as initial values, and wire the submit handler to hit the new PATCH endpoint instead of POST.
+
+--- PHASE 4: The Coach UI (Host Reply) ---
+
+Create a new tab or section in the coach dashboard (pages/coach/reviews.tsx or similar).
+
+Fetch the reviews left for this coach.
+
+For each review, if coachReplyText is null, show an 'Atsakyti' (Reply) button. Clicking it opens a text area to submit their reply via the new host reply PATCH endpoint.
+
+--- PHASE 5: The Public & Admin UI ---
+
+Public Profile (pages/coach.tsx): >    - Render the coachReplyText directly beneath the user's review comment, styled slightly differently (e.g., indented with a 'Trenerio atsakymas' label) to distinguish it.
+
+Implement the 'Rodyti daugiau' (Load More) button using the hasMore boolean from the paginated API.
+
+Admin Panel (pages/admin.tsx): Add an 'Atsiliepimai' tab. Fetch all reviews (bypassing the published filter). Add a dropdown to change a review's status to 'hidden' to remove toxic content from the platform.
+
+Run strict typechecks across all packages after each phase."

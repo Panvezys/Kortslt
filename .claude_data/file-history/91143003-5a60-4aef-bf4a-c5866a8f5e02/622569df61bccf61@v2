@@ -1,0 +1,232 @@
+import { Router, type IRouter } from "express";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
+import {
+  db,
+  coachReviewsTable,
+  coachesTable,
+  bookingsTable,
+} from "@workspace/db";
+import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { vilniusToUtc } from "../lib/coach-availability";
+import { z } from "zod";
+
+const router: IRouter = Router();
+
+const CreateReviewBody = z.object({
+  bookingId: z.number().int().positive(),
+  coachId: z.number().int().positive(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().trim().min(1).max(2000).optional().nullable(),
+});
+
+/**
+ * Invariant D: recompute the (averageRating, reviewCount) aggregates from
+ * coachReviewsTable and write them back to coachesTable so the marketplace
+ * list query can render ratings without a sub-aggregate.
+ *
+ * Always called from inside the same transaction as the mutation that
+ * triggered it, so a failed sync rolls the insert/update/delete back too.
+ *
+ * Note the explicit `count(id)` against `coach_reviews` rather than reading
+ * coachesTable.reviewCount — the latter is what we're WRITING, so reading
+ * it would create a cycle. The count(*) here scans the index on coachId.
+ */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function syncCoachAverageRating(coachId: number, tx: Tx): Promise<void> {
+  const [agg] = await tx
+    .select({
+      avg: sql<string | null>`AVG(${coachReviewsTable.rating})::numeric(3,2)`,
+      count: sql<number>`COUNT(${coachReviewsTable.id})::int`,
+    })
+    .from(coachReviewsTable)
+    .where(eq(coachReviewsTable.coachId, coachId));
+
+  await tx
+    .update(coachesTable)
+    .set({
+      // Numeric column accepts a string (drizzle/postgres-js convention).
+      averageRating: agg?.avg ?? null,
+      reviewCount: agg?.count ?? 0,
+    })
+    .where(eq(coachesTable.id, coachId));
+}
+
+// POST /coach-reviews — submit a verified-purchase review.
+//
+// Invariant C is enforced here: (1) the requesting user owns the booking,
+// (2) the booking's coach matches the submitted coachId, (3) the booking's
+// scheduled end (Europe/Vilnius local) is in the past, and (4) the booking
+// is confirmed and not cancelled. The unique constraint on bookingId
+// guarantees one-review-per-booking even under concurrent submission.
+router.post("/coach-reviews", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const parsed = CreateReviewBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Netinkami atsiliepimo duomenys" });
+    return;
+  }
+  const { bookingId, coachId, rating, comment } = parsed.data;
+
+  // (1) Fetch the booking and verify ownership.
+  const [booking] = await db
+    .select({
+      id: bookingsTable.id,
+      bookerUserId: bookingsTable.bookerUserId,
+      coachUserId: bookingsTable.coachId,
+      date: bookingsTable.date,
+      endTime: bookingsTable.endTime,
+      status: bookingsTable.status,
+    })
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!booking) {
+    res.status(404).json({ error: "Rezervacija nerasta" });
+    return;
+  }
+  if (booking.bookerUserId !== userId) {
+    // Don't leak existence — same shape as 404 to a non-owner.
+    res.status(404).json({ error: "Rezervacija nerasta" });
+    return;
+  }
+
+  // (2) Verify the booking points to the submitted coach. bookings.coachId
+  // is the Clerk userId, so we resolve coachesTable.id → userId here.
+  if (!booking.coachUserId) {
+    res.status(400).json({ error: "Ši rezervacija nėra trenerio pamoka" });
+    return;
+  }
+  const [coach] = await db
+    .select({ id: coachesTable.id, userId: coachesTable.userId })
+    .from(coachesTable)
+    .where(eq(coachesTable.id, coachId));
+  if (!coach || coach.userId !== booking.coachUserId) {
+    res.status(400).json({ error: "Rezervacija nesutampa su nurodytu treneriu" });
+    return;
+  }
+
+  // (3) Booking must be over — convert YYYY-MM-DD + HH:MM (Vilnius local) to UTC.
+  const endUtc = vilniusToUtc(booking.date, booking.endTime).getTime();
+  if (endUtc > Date.now()) {
+    res.status(400).json({ error: "Atsiliepimą galima palikti tik po treniruotės" });
+    return;
+  }
+
+  // (4) Reject cancelled/blocked bookings so refunded lessons can't be reviewed.
+  if (booking.status === "cancelled" || booking.status === "blocked") {
+    res.status(400).json({ error: "Atšauktos rezervacijos negali būti vertinamos" });
+    return;
+  }
+
+  // Insert + sync aggregate atomically. The unique(bookingId) constraint is
+  // the last-line guard against double-submit; we surface its violation as
+  // a clean 409 rather than a generic 500.
+  try {
+    const inserted = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(coachReviewsTable)
+        .values({
+          reviewerUserId: userId,
+          coachId,
+          bookingId,
+          rating,
+          comment: comment ?? null,
+        })
+        .returning();
+      await syncCoachAverageRating(coachId, tx);
+      return row;
+    });
+
+    res.status(201).json({
+      id: inserted.id,
+      coachId: inserted.coachId,
+      bookingId: inserted.bookingId,
+      rating: inserted.rating,
+      comment: inserted.comment ?? null,
+      createdAt: inserted.createdAt.toISOString(),
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "Šiai rezervacijai jau pateiktas atsiliepimas" });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /coaches/:id/reviews — paginated reviews for a single coach, newest
+// first. Joins Clerk in a single batched lookup to attach the reviewer's
+// first name; falls back to "Vartotojas" if Clerk is unavailable.
+router.get("/coaches/:id/reviews", async (req, res): Promise<void> => {
+  const coachId = parseInt(String(req.params.id), 10);
+  if (isNaN(coachId)) {
+    res.status(400).json({ error: "Invalid coach id" });
+    return;
+  }
+  const rawLimit = Number(req.query.limit ?? 20);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 50) : 20;
+  const rawOffset = Number(req.query.offset ?? 0);
+  const offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+
+  const rows = await db
+    .select({
+      id: coachReviewsTable.id,
+      reviewerUserId: coachReviewsTable.reviewerUserId,
+      rating: coachReviewsTable.rating,
+      comment: coachReviewsTable.comment,
+      createdAt: coachReviewsTable.createdAt,
+    })
+    .from(coachReviewsTable)
+    .where(eq(coachReviewsTable.coachId, coachId))
+    .orderBy(desc(coachReviewsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  // Batch-resolve reviewer first names from Clerk. Best-effort — if Clerk is
+  // unreachable we fall back to a generic label rather than blocking the
+  // page render.
+  const userIds = Array.from(new Set(rows.map((r) => r.reviewerUserId)));
+  const nameByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    try {
+      const list = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length });
+      for (const u of list.data) {
+        const first = (u.firstName ?? "").trim();
+        const last = (u.lastName ?? "").trim();
+        const initial = last ? `${last[0]}.` : "";
+        const display = [first, initial].filter(Boolean).join(" ");
+        nameByUserId.set(u.id, display || "Vartotojas");
+      }
+    } catch {
+      // Clerk unavailable — leave the map empty so the fallback applies below.
+    }
+  }
+
+  // Pull the totals from the denormalized aggregate to avoid a second query.
+  const [agg] = await db
+    .select({
+      averageRating: coachesTable.averageRating,
+      reviewCount: coachesTable.reviewCount,
+    })
+    .from(coachesTable)
+    .where(eq(coachesTable.id, coachId));
+
+  res.json({
+    coachId,
+    averageRating: agg?.averageRating != null ? Number(agg.averageRating) : null,
+    reviewCount: agg?.reviewCount ?? 0,
+    items: rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment ?? null,
+      reviewerName: nameByUserId.get(r.reviewerUserId) ?? "Vartotojas",
+      createdAt: r.createdAt.toISOString(),
+    })),
+    limit,
+    offset,
+  });
+});
+
+export default router;

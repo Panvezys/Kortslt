@@ -437,6 +437,10 @@ export const ListBookingsQueryParams = zod.object({
   customerEmail: zod.coerce.string().optional(),
 });
 
+export const listBookingsResponseCoachReviewRatingMax = 5;
+
+export const listBookingsResponseCourtReviewRatingMax = 5;
+
 export const ListBookingsResponseItem = zod.object({
   id: zod.number(),
   courtId: zod.number(),
@@ -504,6 +508,26 @@ export const ListBookingsResponseItem = zod.object({
     .describe(
       "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
+  coachReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod.number().min(1).max(listBookingsResponseCoachReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode.',
+    ),
+  courtReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod.number().min(1).max(listBookingsResponseCourtReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode for non-coach bookings.',
+    ),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
 
@@ -530,6 +554,10 @@ export const CreateBookingBody = zod.object({
 export const GetBookingParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const getBookingResponseCoachReviewRatingMax = 5;
+
+export const getBookingResponseCourtReviewRatingMax = 5;
 
 export const GetBookingResponse = zod.object({
   id: zod.number(),
@@ -598,6 +626,26 @@ export const GetBookingResponse = zod.object({
     .describe(
       "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
+  coachReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod.number().min(1).max(getBookingResponseCoachReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode.',
+    ),
+  courtReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod.number().min(1).max(getBookingResponseCourtReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode for non-coach bookings.',
+    ),
 });
 
 /**
@@ -606,6 +654,10 @@ export const GetBookingResponse = zod.object({
 export const CancelBookingParams = zod.object({
   id: zod.coerce.number(),
 });
+
+export const cancelBookingResponseCoachReviewRatingMax = 5;
+
+export const cancelBookingResponseCourtReviewRatingMax = 5;
 
 export const CancelBookingResponse = zod.object({
   id: zod.number(),
@@ -674,6 +726,32 @@ export const CancelBookingResponse = zod.object({
     .describe(
       "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
+  coachReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod
+        .number()
+        .min(1)
+        .max(cancelBookingResponseCoachReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode.',
+    ),
+  courtReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod
+        .number()
+        .min(1)
+        .max(cancelBookingResponseCourtReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode for non-coach bookings.',
+    ),
 });
 
 /**
@@ -692,43 +770,6 @@ export const GetRefundPreviewResponse = zod.object({
   refundable: zod.boolean(),
   canCancel: zod.boolean(),
   reason: zod.string().optional(),
-});
-
-/**
- * @summary List reviews for a court
- */
-export const ListCourtReviewsParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const listCourtReviewsResponseRatingMax = 5;
-
-export const ListCourtReviewsResponseItem = zod.object({
-  id: zod.number(),
-  courtId: zod.number(),
-  bookingId: zod.number(),
-  rating: zod.number().min(1).max(listCourtReviewsResponseRatingMax),
-  reviewText: zod.string().optional(),
-  reviewerName: zod.string(),
-  createdAt: zod.coerce.date(),
-});
-export const ListCourtReviewsResponse = zod.array(ListCourtReviewsResponseItem);
-
-/**
- * @summary Submit a review for a court after a booking
- */
-export const CreateReviewParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const createReviewBodyRatingMax = 5;
-
-export const CreateReviewBody = zod.object({
-  bookingId: zod.number(),
-  rating: zod.number().min(1).max(createReviewBodyRatingMax),
-  reviewText: zod.string().optional(),
-  reviewerName: zod.string(),
-  photos: zod.array(zod.string()).optional(),
 });
 
 /**
@@ -751,6 +792,10 @@ export const CreateCheckoutSessionResponse = zod.object({
 export const ConfirmPaymentBody = zod.object({
   sessionId: zod.string(),
 });
+
+export const confirmPaymentResponseCoachReviewRatingMax = 5;
+
+export const confirmPaymentResponseCourtReviewRatingMax = 5;
 
 export const ConfirmPaymentResponse = zod.object({
   id: zod.number(),
@@ -818,6 +863,32 @@ export const ConfirmPaymentResponse = zod.object({
     .nullish()
     .describe(
       "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
+    ),
+  coachReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod
+        .number()
+        .min(1)
+        .max(confirmPaymentResponseCoachReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode.',
+    ),
+  courtReview: zod
+    .object({
+      id: zod.number(),
+      rating: zod
+        .number()
+        .min(1)
+        .max(confirmPaymentResponseCourtReviewRatingMax),
+      comment: zod.string().nullish(),
+    })
+    .nullish()
+    .describe(
+      'The booker\'s existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the \"Palikti atsiliepimą\" CTA into edit mode for non-coach bookings.',
     ),
 });
 

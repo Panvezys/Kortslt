@@ -25,9 +25,6 @@ import type {
   CreateBookingBody,
   CreateCheckoutBody,
   CreateCourtBody,
-  CreateReview400,
-  CreateReview404,
-  CreateReviewBody,
   GetCourtAvailabilityParams,
   HealthStatus,
   ListBookingsParams,
@@ -36,7 +33,6 @@ import type {
   PriceOverridesResponse,
   PricingSchedule,
   RefundPreview,
-  Review,
   SetPriceOverridesBody,
   SetPricingBody,
   StatsSummary,
@@ -1538,182 +1534,6 @@ export function useGetRefundPreview<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
-
-/**
- * @summary List reviews for a court
- */
-export const getListCourtReviewsUrl = (id: number) => {
-  return `/api/courts/${id}/reviews`;
-};
-
-export const listCourtReviews = async (
-  id: number,
-  options?: RequestInit,
-): Promise<Review[]> => {
-  return customFetch<Review[]>(getListCourtReviewsUrl(id), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getListCourtReviewsQueryKey = (id: number) => {
-  return [`/api/courts/${id}/reviews`] as const;
-};
-
-export const getListCourtReviewsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCourtReviews>>,
-  TError = ErrorType<unknown>,
->(
-  id: number,
-  options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<typeof listCourtReviews>>,
-      TError,
-      TData
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListCourtReviewsQueryKey(id);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listCourtReviews>>
-  > = ({ signal }) => listCourtReviews(id, { signal, ...requestOptions });
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!id,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listCourtReviews>>,
-    TError,
-    TData
-  > & { queryKey: QueryKey };
-};
-
-export type ListCourtReviewsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCourtReviews>>
->;
-export type ListCourtReviewsQueryError = ErrorType<unknown>;
-
-/**
- * @summary List reviews for a court
- */
-
-export function useListCourtReviews<
-  TData = Awaited<ReturnType<typeof listCourtReviews>>,
-  TError = ErrorType<unknown>,
->(
-  id: number,
-  options?: {
-    query?: UseQueryOptions<
-      Awaited<ReturnType<typeof listCourtReviews>>,
-      TError,
-      TData
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  },
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListCourtReviewsQueryOptions(id, options);
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
-    queryKey: QueryKey;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * @summary Submit a review for a court after a booking
- */
-export const getCreateReviewUrl = (id: number) => {
-  return `/api/courts/${id}/reviews`;
-};
-
-export const createReview = async (
-  id: number,
-  createReviewBody: CreateReviewBody,
-  options?: RequestInit,
-): Promise<Review> => {
-  return customFetch<Review>(getCreateReviewUrl(id), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createReviewBody),
-  });
-};
-
-export const getCreateReviewMutationOptions = <
-  TError = ErrorType<CreateReview400 | CreateReview404>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createReview>>,
-    TError,
-    { id: number; data: BodyType<CreateReviewBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createReview>>,
-  TError,
-  { id: number; data: BodyType<CreateReviewBody> },
-  TContext
-> => {
-  const mutationKey = ["createReview"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createReview>>,
-    { id: number; data: BodyType<CreateReviewBody> }
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return createReview(id, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateReviewMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createReview>>
->;
-export type CreateReviewMutationBody = BodyType<CreateReviewBody>;
-export type CreateReviewMutationError = ErrorType<
-  CreateReview400 | CreateReview404
->;
-
-/**
- * @summary Submit a review for a court after a booking
- */
-export const useCreateReview = <
-  TError = ErrorType<CreateReview400 | CreateReview404>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createReview>>,
-    TError,
-    { id: number; data: BodyType<CreateReviewBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof createReview>>,
-  TError,
-  { id: number; data: BodyType<CreateReviewBody> },
-  TContext
-> => {
-  return useMutation(getCreateReviewMutationOptions(options));
-};
 
 /**
  * @summary Create a Stripe checkout session

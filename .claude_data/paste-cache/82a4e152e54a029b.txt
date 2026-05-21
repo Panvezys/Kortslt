@@ -1,0 +1,7 @@
+Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error
+(index):1 <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">Understand this warning
+/@fs/home/runner/workspace/lib/api-client-react/src/generated/api.schemas.ts:1  Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error
+/@fs/home/runner/workspace/lib/api-client-react/src/custom-fetch.ts:1  Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error
+/node_modules/.vite/deps/chunk-ZPAKAAQN.js?v=7baafabb:1  Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error
+/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=7baafabb:1  Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error
+/src/components/ui/card.tsx:1  Failed to load resource: the server responded with a status of 404 (Not Found)Understand this error

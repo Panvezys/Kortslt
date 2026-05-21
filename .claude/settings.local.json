@@ -65,7 +65,18 @@
       "Bash(kill 352)",
       "Bash(PORT=8080 pnpm start *)",
       "Bash(ps -o pid,etime,cmd -p 305)",
-      "Bash(kill 305)"
+      "Bash(kill 305)",
+      "Bash(kill 5096)",
+      "Bash(ps -p 13197 -o pid,etime,cmd)",
+      "Bash(kill 11646)",
+      "Bash(PORT=8080 nohup node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs -r kill)",
+      "Bash(xargs ls -lt)",
+      "Bash(awk 'NR>1 {split\\($2, a, \":\"\\); port=strtonum\\(\"0x\"a[2]\\); if \\($4 == \"0A\"\\) print port}')",
+      "Bash(kill 121)",
+      "Bash(PORT=24213 pnpm dev)",
+      "Bash(echo \"Started PID $!\")"
     ]
   },
   "enabledPlugins": {}
