@@ -1,0 +1,823 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GoogleMap, InfoWindowF, useJsApiLoader } from "@react-google-maps/api";
+import { MarkerClusterer } from "@googlemaps/markerclusterer";
+import { MapPin, Plane } from "lucide-react";
+import { resolveCourtImage } from "@/lib/imageUrl";
+import { SPORT_LABELS, getSportColor } from "@/components/sport-icon";
+import { useTheme } from "./theme-provider";
+
+const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+const LIBRARIES: ("places")[] = ["places"];
+const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
+
+const AUDIENCE_LT: Record<string, string> = {
+  kids: "Vaikai",
+  beginners: "Pradedantieji",
+  advanced: "Pažengę",
+  pros: "Profesionalai",
+};
+
+const MAP_STYLES_LIGHT: google.maps.MapTypeStyle[] = [
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#d1fae5" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#bfdbfe" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#fde68a" }] },
+];
+
+const MAP_STYLES_DARK: google.maps.MapTypeStyle[] = [
+  { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2d2d44" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#1a1a2e" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#6b7280" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3b3b5e" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1117" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#4b5563" }] },
+  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1f2937" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#1a2e1a" }] },
+  { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2d2d44" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#2d2d44" }] },
+  { featureType: "administrative.country", elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+  { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d1d5db" }] },
+];
+
+export interface CoachMapAffiliation {
+  facilityId: number;
+  facilityName: string;
+  city: string | null;
+  latitude: number;
+  longitude: number;
+  sports: string[];
+}
+
+export interface CoachMapCoach {
+  id: number;
+  name: string;
+  bio?: string;
+  photoUrl?: string;
+  pricePerHour?: number;
+  sports: string[];
+  sportsAudiences?: { sport: string; audiences: string[] }[];
+  travelPolicy?: "any_court" | "affiliated_only";
+  cancellationPolicy?: "flexible" | "standard" | "strict";
+  facilityAffiliations?: CoachMapAffiliation[];
+}
+
+interface CoachMarker {
+  key: string;
+  coach: CoachMapCoach;
+  facility: CoachMapAffiliation;
+}
+
+function initialsOf(name: string): string {
+  return name.split(/\s+/).map(p => p[0]).filter(Boolean).join("").toUpperCase().slice(0, 2);
+}
+
+/**
+ * Build a round avatar-style marker for a coach. Uses the photo as a foreignObject
+ * when available so Google Maps renders it as an inline SVG marker (no external
+ * fetch). Falls back to a colored circle with the coach's initials.
+ */
+function buildCoachMarkerUrl(opts: {
+  initials: string;
+  color: string;
+  photoSrc: string | null;
+  isSelected: boolean;
+  travels: boolean;
+}): string {
+  const size = opts.isSelected ? 52 : 42;
+  const border = opts.isSelected ? 3 : 2.5;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size / 2 - border / 2;
+
+  // Photo (when available) is rendered as a clipped <image>; otherwise we draw
+  // the initials. The colored ring + small "Plane" notch (when travels=true)
+  // sit on top so the marker reads at a glance.
+  const photoNode = opts.photoSrc
+    ? `<defs><clipPath id="c"><circle cx="${cx}" cy="${cy}" r="${r - 1}"/></clipPath></defs>
+       <image href="${opts.photoSrc}" x="${cx - r}" y="${cy - r}" width="${r * 2}" height="${r * 2}" clip-path="url(#c)" preserveAspectRatio="xMidYMid slice"/>`
+    : `<circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="${opts.color}"/>
+       <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="700" font-size="${size * 0.4}" fill="white">${opts.initials}</text>`;
+
+  const travelBadge = opts.travels
+    ? `<circle cx="${size - 8}" cy="8" r="7" fill="#0ea5e9" stroke="white" stroke-width="1.5"/>
+       <path d="M${size - 10.5} 7.5 L${size - 6.5} 7.5 M${size - 8} 5.5 L${size - 8} 10.5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>`
+    : "";
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${opts.color}" stroke="white" stroke-width="${border}"/>
+    ${photoNode}
+    ${travelBadge}
+  </svg>`;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function useInfoWindowStyles() {
+  useEffect(() => {
+    const id = "gm-iw-overrides-coach";
+    if (document.getElementById(id)) return;
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = `
+      .gm-style-iw-c { padding: 0 !important; overflow: hidden !important; border-radius: 12px !important; box-shadow: 0 8px 32px rgba(0,0,0,0.28) !important; top: 0 !important; }
+      .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; max-height: none !important; }
+      .gm-style-iw-d > div { overflow: hidden !important; }
+      .gm-style-iw-ch { display: none !important; height: 0 !important; padding: 0 !important; }
+      .gm-style-iw-t::after { display: none !important; }
+      button.gm-ui-hover-effect { display: none !important; }
+    `;
+    document.head.appendChild(style);
+    return () => { document.getElementById(id)?.remove(); };
+  }, []);
+}
+
+function CoachInfoWindow({
+  marker,
+  onClose,
+  theme,
+}: {
+  marker: CoachMarker;
+  onClose: () => void;
+  theme: "light" | "dark";
+}) {
+  useInfoWindowStyles();
+  const { coach, facility } = marker;
+  const img = coach.photoUrl ? resolveCourtImage(coach.photoUrl) : null;
+  const isDark = theme === "dark";
+  const bg = isDark ? "#0d0f14" : "#ffffff";
+  const textPrimary = isDark ? "#f9fafb" : "#111827";
+  const textSecondary = isDark ? "#9ca3af" : "#6b7280";
+  const ringBg = isDark ? "#1f2937" : "#f3f4f6";
+  const initials = initialsOf(coach.name);
+
+  // Dedupe audience labels across all sports the coach teaches.
+  const audienceSet = new Set<string>();
+  for (const sa of coach.sportsAudiences ?? []) {
+    for (const a of sa.audiences) audienceSet.add(a);
+  }
+  const audienceLabels = Array.from(audienceSet)
+    .map(a => AUDIENCE_LT[a])
+    .filter(Boolean) as string[];
+
+  const sportLabels = facility.sports
+    .map(s => SPORT_LABELS[s] ?? s)
+    .slice(0, 3);
+  const willTravel = coach.travelPolicy === "any_court";
+  const flexibleCancel = coach.cancellationPolicy === "flexible";
+  const priceEur = coach.pricePerHour != null ? Math.round(coach.pricePerHour / 100) : null;
+
+  return (
+    <InfoWindowF
+      position={{ lat: facility.latitude, lng: facility.longitude }}
+      onCloseClick={onClose}
+      options={{
+        pixelOffset: new google.maps.Size(0, -22),
+        disableAutoPan: false,
+        maxWidth: 260,
+      }}
+    >
+      <div
+        style={{
+          width: "260px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          background: bg,
+          color: textPrimary,
+          borderRadius: "12px",
+          overflow: "hidden",
+        }}
+      >
+        {/* Top bar with avatar, name, price, close */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 12px 8px" }}>
+          <div style={{
+            width: "44px", height: "44px", borderRadius: "50%",
+            background: ringBg, display: "flex", alignItems: "center", justifyContent: "center",
+            overflow: "hidden", flexShrink: 0, border: `2px solid ${getSportColor(facility.sports[0])}`,
+          }}>
+            {img ? (
+              <img src={img} alt={coach.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <span style={{ fontWeight: 700, fontSize: "15px", color: textPrimary }}>{initials}</span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: "14px", lineHeight: "1.2", color: textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {coach.name}
+            </div>
+            {priceEur != null && (
+              <div style={{ fontSize: "12px", color: textSecondary, marginTop: "2px" }}>
+                <span style={{ fontWeight: 700, color: textPrimary }}>{priceEur}€</span>
+                <span style={{ marginLeft: "2px" }}>/val</span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            title="Uždaryti"
+            style={{
+              width: "22px", height: "22px", borderRadius: "50%",
+              background: ringBg, border: "none", color: textSecondary,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "13px", flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Facility row */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          padding: "6px 12px",
+          fontSize: "12px", color: textSecondary,
+          borderTop: `1px solid ${isDark ? "#1f2937" : "#f1f5f9"}`,
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span style={{ color: textPrimary, fontWeight: 500 }}>{facility.facilityName}</span>
+          {facility.city && <span>· {facility.city}</span>}
+        </div>
+
+        {/* Sport + audience pills */}
+        {(sportLabels.length > 0 || audienceLabels.length > 0) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", padding: "0 12px 8px" }}>
+            {sportLabels.map((s, idx) => {
+              const color = getSportColor(facility.sports[idx]);
+              return (
+                <span key={`sp-${idx}`} style={{
+                  background: color, color: "white",
+                  padding: "3px 8px", borderRadius: "999px",
+                  fontSize: "10.5px", fontWeight: 600,
+                }}>
+                  {s}
+                </span>
+              );
+            })}
+            {audienceLabels.slice(0, 4).map((a, idx) => (
+              <span key={`au-${idx}`} style={{
+                background: isDark ? "#1f2937" : "#f1f5f9",
+                color: textPrimary,
+                padding: "3px 8px", borderRadius: "999px",
+                fontSize: "10.5px", fontWeight: 500,
+              }}>
+                {a}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Conditions */}
+        {(willTravel || flexibleCancel) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", padding: "0 12px 8px" }}>
+            {willTravel && (
+              <span style={{
+                background: "rgba(14,165,233,0.15)", color: "#0ea5e9",
+                border: "1px solid rgba(14,165,233,0.3)",
+                padding: "3px 8px", borderRadius: "999px",
+                fontSize: "10.5px", fontWeight: 600,
+                display: "inline-flex", alignItems: "center", gap: "4px",
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m4 4 16 16"/><path d="m4 20 16-16"/><circle cx="12" cy="12" r="9"/></svg>
+                Atvyksta į bet kurią aikštelę
+              </span>
+            )}
+            {flexibleCancel && (
+              <span style={{
+                background: "rgba(16,185,129,0.15)", color: "#10b981",
+                border: "1px solid rgba(16,185,129,0.3)",
+                padding: "3px 8px", borderRadius: "999px",
+                fontSize: "10.5px", fontWeight: 600,
+              }}>
+                Lankstus atšaukimas
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* CTA */}
+        <div style={{ padding: "0 12px 12px" }}>
+          <a
+            href={`/coach/${coach.id}`}
+            style={{
+              display: "block",
+              background: getSportColor(facility.sports[0]),
+              color: "black",
+              padding: "8px 12px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 700,
+              textDecoration: "none",
+              textAlign: "center",
+              transition: "filter 0.15s",
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.12)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)"; }}
+          >
+            Peržiūrėti profilį
+          </a>
+        </div>
+      </div>
+    </InfoWindowF>
+  );
+}
+
+function CoachListInfoWindow({
+  position,
+  markers,
+  onClose,
+  theme,
+}: {
+  position: { lat: number; lng: number };
+  markers: CoachMarker[];
+  onClose: () => void;
+  theme: "light" | "dark";
+}) {
+  useInfoWindowStyles();
+  const isDark = theme === "dark";
+  const bg = isDark ? "#0d0f14" : "#ffffff";
+  const textPrimary = isDark ? "#f9fafb" : "#111827";
+  const textSecondary = isDark ? "#9ca3af" : "#6b7280";
+  const ringBg = isDark ? "#1f2937" : "#f3f4f6";
+  const divider = isDark ? "#1f2937" : "#f1f5f9";
+  const facility = markers[0]?.facility;
+
+  return (
+    <InfoWindowF
+      position={position}
+      onCloseClick={onClose}
+      options={{
+        pixelOffset: new google.maps.Size(0, -22),
+        disableAutoPan: false,
+        maxWidth: 300,
+      }}
+    >
+      <div
+        style={{
+          width: "300px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          background: bg,
+          color: textPrimary,
+          borderRadius: "12px",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 12px 10px" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: "14px", color: textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {facility?.facilityName ?? "Treneriai"}
+            </div>
+            <div style={{ fontSize: "11.5px", color: textSecondary, marginTop: "2px" }}>
+              {markers.length} {markers.length === 1 ? "treneris" : markers.length < 10 ? "treneriai" : "trenerių"}
+              {facility?.city ? ` · ${facility.city}` : ""}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            title="Uždaryti"
+            style={{
+              width: "22px", height: "22px", borderRadius: "50%",
+              background: ringBg, border: "none", color: textSecondary,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "13px", flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable list */}
+        <div style={{ maxHeight: "320px", overflowY: "auto", borderTop: `1px solid ${divider}` }}>
+          {markers.map((m, idx) => {
+            const { coach, facility: fac } = m;
+            const img = coach.photoUrl ? resolveCourtImage(coach.photoUrl) : null;
+            const initials = initialsOf(coach.name);
+            const priceEur = coach.pricePerHour != null ? Math.round(coach.pricePerHour / 100) : null;
+            const sportLabels = fac.sports.map(s => SPORT_LABELS[s] ?? s).slice(0, 2);
+            const ringColor = getSportColor(fac.sports[0]);
+            return (
+              <div
+                key={m.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 12px",
+                  borderBottom: idx === markers.length - 1 ? "none" : `1px solid ${divider}`,
+                }}
+              >
+                <div style={{
+                  width: "36px", height: "36px", borderRadius: "50%",
+                  background: ringBg, display: "flex", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden", flexShrink: 0, border: `2px solid ${ringColor}`,
+                }}>
+                  {img ? (
+                    <img src={img} alt={coach.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontWeight: 700, fontSize: "13px", color: textPrimary }}>{initials}</span>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    display: "flex", alignItems: "baseline", gap: "6px",
+                    fontWeight: 600, fontSize: "13px", color: textPrimary,
+                  }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{coach.name}</span>
+                    {priceEur != null && (
+                      <span style={{ fontSize: "11.5px", color: textSecondary, fontWeight: 600, flexShrink: 0 }}>
+                        {priceEur}€/val
+                      </span>
+                    )}
+                  </div>
+                  {sportLabels.length > 0 && (
+                    <div style={{ display: "flex", gap: "4px", marginTop: "4px", flexWrap: "wrap" }}>
+                      {sportLabels.map((s, i) => (
+                        <span key={i} style={{
+                          background: getSportColor(fac.sports[i]),
+                          color: "white",
+                          padding: "2px 7px", borderRadius: "999px",
+                          fontSize: "10px", fontWeight: 600,
+                        }}>{s}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <a
+                  href={`/coach/${coach.id}`}
+                  title="Peržiūrėti profilį"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    background: ringColor,
+                    color: "black",
+                    padding: "6px 10px",
+                    borderRadius: "8px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.12)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)"; }}
+                >
+                  Peržiūrėti
+                </a>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </InfoWindowF>
+  );
+}
+
+export function CoachMap({ coaches }: { coaches: CoachMapCoach[] }) {
+  const { theme } = useTheme();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [clusterSelection, setClusterSelection] = useState<{
+    lat: number;
+    lng: number;
+    keys: string[];
+  } | null>(null);
+  const [mapType, setMapType] = useState<"roadmap" | "satellite">("roadmap");
+  const [mapReady, setMapReady] = useState(false);
+
+  // Expand coach × affiliation into individual markers. A coach who teaches at
+  // 3 facilities produces 3 markers. Facilities at the same lat/lng will cluster
+  // automatically via @googlemaps/markerclusterer.
+  const markers = useMemo<CoachMarker[]>(() => {
+    const out: CoachMarker[] = [];
+    for (const coach of coaches) {
+      for (const facility of coach.facilityAffiliations ?? []) {
+        if (facility.latitude == null || facility.longitude == null) continue;
+        out.push({
+          key: `${coach.id}-${facility.facilityId}`,
+          coach,
+          facility,
+        });
+      }
+    }
+    return out;
+  }, [coaches]);
+
+  const markersByKey = useMemo(() => {
+    const m = new Map<string, CoachMarker>();
+    for (const x of markers) m.set(x.key, x);
+    return m;
+  }, [markers]);
+
+  const selected = useMemo(
+    () => (selectedKey ? markersByKey.get(selectedKey) ?? null : null),
+    [markersByKey, selectedKey],
+  );
+
+  const clusterMarkers = useMemo(() => {
+    if (!clusterSelection) return null;
+    const list: CoachMarker[] = [];
+    for (const k of clusterSelection.keys) {
+      const m = markersByKey.get(k);
+      if (m) list.push(m);
+    }
+    return list.length > 0 ? list : null;
+  }, [clusterSelection, markersByKey]);
+
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+  const lastFitSignatureRef = useRef<string>("");
+  // Resolved photo URL per coach id (resolveCourtImage adds the basePath / .webp).
+  const photoUrlRef = useRef<Map<number, string | null>>(new Map());
+
+  function getCoachPhotoUrl(coach: CoachMapCoach): string | null {
+    const cached = photoUrlRef.current.get(coach.id);
+    if (cached !== undefined) return cached;
+    const resolved = coach.photoUrl ? resolveCourtImage(coach.photoUrl) : null;
+    photoUrlRef.current.set(coach.id, resolved);
+    return resolved;
+  }
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: API_KEY ?? "",
+    libraries: LIBRARIES,
+  });
+
+  const fitBounds = useCallback((map: google.maps.Map, list: CoachMarker[]) => {
+    if (list.length === 0) {
+      map.setCenter(LITHUANIA_CENTER);
+      map.setZoom(7);
+    } else if (list.length === 1) {
+      map.setCenter({ lat: list[0].facility.latitude, lng: list[0].facility.longitude });
+      map.setZoom(13);
+    } else {
+      const bounds = new google.maps.LatLngBounds();
+      list.forEach(m => bounds.extend({ lat: m.facility.latitude, lng: m.facility.longitude }));
+      map.fitBounds(bounds, 60);
+    }
+  }, []);
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+    clustererRef.current = new MarkerClusterer({
+      map,
+      markers: [],
+      onClusterClick: (_event, cluster, clickMap) => {
+        // If every marker in this cluster shares (effectively) the same lat/lng,
+        // default fitBounds would zoom to a zero-size box and the markers stay
+        // stacked. Open an aggregated InfoWindow listing all coaches instead.
+        const clusterMembers = cluster.markers ?? [];
+        if (clusterMembers.length === 0) return;
+        let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+        const keys: string[] = [];
+        for (const cm of clusterMembers) {
+          const pos = (cm as google.maps.Marker).getPosition?.();
+          if (!pos) continue;
+          const lat = pos.lat();
+          const lng = pos.lng();
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+          const key = (cm as google.maps.Marker).get?.("coachKey") as string | undefined;
+          if (key) keys.push(key);
+        }
+        const COINCIDENT_EPSILON = 1e-5; // ~1m
+        const coincident =
+          maxLat - minLat <= COINCIDENT_EPSILON &&
+          maxLng - minLng <= COINCIDENT_EPSILON;
+        if (coincident && keys.length > 0) {
+          setSelectedKey(null);
+          setClusterSelection({ lat: minLat, lng: minLng, keys });
+          return;
+        }
+        if (cluster.bounds) clickMap.fitBounds(cluster.bounds);
+      },
+      renderer: {
+        render({ count, position }) {
+          return new google.maps.Marker({
+            position,
+            label: {
+              text: String(count),
+              color: "#F3F7FA",
+              fontSize: "12px",
+              fontWeight: "700",
+            },
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+                `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 42 42">
+                  <circle cx="21" cy="21" r="19" fill="#C5E041" stroke="#FFFFFF" stroke-width="2.5"/>
+                </svg>`,
+              )}`,
+              scaledSize: new google.maps.Size(42, 42),
+              anchor: new google.maps.Point(21, 21),
+            },
+            zIndex: 1000,
+          });
+        },
+      },
+    });
+    fitBounds(map, markers);
+    lastFitSignatureRef.current = markers.map(m => m.key).sort().join("|");
+    setMapReady(true);
+  }, [markers, fitBounds]);
+
+  // Imperatively manage markers — same pattern as CourtMap.
+  useEffect(() => {
+    if (!mapRef.current || !clustererRef.current) return;
+    const clusterer = clustererRef.current;
+    const visibleKeys = new Set(markers.map(m => m.key));
+    const currentKeys = new Set(markersRef.current.keys());
+
+    const toRemove: google.maps.Marker[] = [];
+    for (const [key, marker] of markersRef.current.entries()) {
+      if (!visibleKeys.has(key)) {
+        marker.setMap(null);
+        toRemove.push(marker);
+        markersRef.current.delete(key);
+      }
+    }
+    if (toRemove.length) clusterer.removeMarkers(toRemove);
+
+    const toAdd: google.maps.Marker[] = [];
+    for (const m of markers) {
+      if (currentKeys.has(m.key)) continue;
+      const color = getSportColor(m.facility.sports[0]);
+      const iconUrl = buildCoachMarkerUrl({
+        initials: initialsOf(m.coach.name),
+        color,
+        photoSrc: getCoachPhotoUrl(m.coach),
+        isSelected: false,
+        travels: m.coach.travelPolicy === "any_court",
+      });
+      const marker = new google.maps.Marker({
+        position: { lat: m.facility.latitude, lng: m.facility.longitude },
+        icon: {
+          url: iconUrl,
+          scaledSize: new google.maps.Size(42, 42),
+          anchor: new google.maps.Point(21, 21),
+        },
+        title: `${m.coach.name} · ${m.facility.facilityName}`,
+        zIndex: 1,
+      });
+      marker.set("coachKey", m.key);
+      marker.addListener("click", () => {
+        setClusterSelection(null);
+        setSelectedKey(prev => (prev === m.key ? null : m.key));
+      });
+      markersRef.current.set(m.key, marker);
+      toAdd.push(marker);
+    }
+    if (toAdd.length) clusterer.addMarkers(toAdd);
+
+    // Refit only when the actual marker set changes (not on every re-render).
+    // Parent passes a fresh sortedCoaches array each render, so the markers
+    // useMemo recomputes — but if the keys are identical, the map shouldn't
+    // refit and undo the user's cluster-click zoom.
+    const signature = markers.map(m => m.key).sort().join("|");
+    if (mapRef.current && markers.length > 0 && signature !== lastFitSignatureRef.current) {
+      lastFitSignatureRef.current = signature;
+      fitBounds(mapRef.current, markers);
+    }
+  }, [markers, mapReady, fitBounds]);
+
+  // Update selected marker icon scale.
+  useEffect(() => {
+    for (const [key, marker] of markersRef.current.entries()) {
+      const m = markers.find(x => x.key === key);
+      if (!m) continue;
+      const isSelected = selectedKey === key;
+      const color = getSportColor(m.facility.sports[0]);
+      const iconUrl = buildCoachMarkerUrl({
+        initials: initialsOf(m.coach.name),
+        color,
+        photoSrc: getCoachPhotoUrl(m.coach),
+        isSelected,
+        travels: m.coach.travelPolicy === "any_court",
+      });
+      const size = isSelected ? 52 : 42;
+      marker.setIcon({
+        url: iconUrl,
+        scaledSize: new google.maps.Size(size, size),
+        anchor: new google.maps.Point(size / 2, size / 2),
+      });
+      marker.setZIndex(isSelected ? 999 : 1);
+    }
+  }, [selectedKey, markers]);
+
+  useEffect(() => {
+    return () => {
+      for (const marker of markersRef.current.values()) {
+        marker.setMap(null);
+      }
+      markersRef.current.clear();
+      clustererRef.current?.clearMarkers();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const styles = mapType === "roadmap"
+      ? (theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT)
+      : undefined;
+    mapRef.current.setOptions({ styles });
+  }, [theme, mapType]);
+
+  if (loadError || !API_KEY) {
+    return (
+      <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-border/50 bg-muted flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <MapPin className="w-12 h-12 text-muted-foreground/30" />
+        <div>
+          <p className="font-semibold text-foreground mb-1">Google Maps nepasiekiamas</p>
+          <p className="text-sm text-muted-foreground">
+            {!API_KEY ? "Reikalingas VITE_GOOGLE_MAPS_API_KEY konfigūracijos raktas." : "Nepavyko įkelti žemėlapio."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="w-full h-full min-h-[400px] rounded-xl overflow-hidden border border-border/50 bg-muted animate-pulse flex items-center justify-center">
+        <div className="text-muted-foreground text-sm">Kraunamas žemėlapis...</div>
+      </div>
+    );
+  }
+
+  // Surface 'any_court' coaches that have NO mappable affiliations as a callout
+  // band — they would otherwise vanish from the map view entirely.
+  const travelingWithoutPin = coaches.filter(
+    c => c.travelPolicy === "any_court" &&
+      !(c.facilityAffiliations ?? []).some(f => f.latitude != null && f.longitude != null),
+  );
+
+  return (
+    <div className="w-full h-full min-h-[400px] z-0 relative rounded-xl overflow-hidden border border-border/50 shadow-sm">
+      <GoogleMap
+        mapContainerStyle={MAP_CONTAINER_STYLE}
+        center={LITHUANIA_CENTER}
+        zoom={7}
+        onLoad={onLoad}
+        onClick={() => { setSelectedKey(null); setClusterSelection(null); }}
+        options={{
+          mapTypeId: mapType,
+          styles: mapType === "roadmap" ? (theme === "dark" ? MAP_STYLES_DARK : MAP_STYLES_LIGHT) : undefined,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+          gestureHandling: "greedy",
+        }}
+      >
+        {selected && (
+          <CoachInfoWindow marker={selected} onClose={() => setSelectedKey(null)} theme={theme} />
+        )}
+        {clusterSelection && clusterMarkers && (
+          <CoachListInfoWindow
+            position={{ lat: clusterSelection.lat, lng: clusterSelection.lng }}
+            markers={clusterMarkers}
+            onClose={() => setClusterSelection(null)}
+            theme={theme}
+          />
+        )}
+      </GoogleMap>
+
+      <div className="absolute top-3 left-3 z-[1000] flex rounded-lg overflow-hidden border border-border shadow-md text-xs font-medium">
+        {(["roadmap", "satellite"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setMapType(t)}
+            className={`px-3 py-1.5 transition-colors ${
+              mapType === t
+                ? "bg-primary text-primary-foreground"
+                : "bg-background/95 backdrop-blur text-foreground hover:bg-muted"
+            }`}
+          >
+            {t === "roadmap" ? "Žemėlapis" : "Palydovas"}
+          </button>
+        ))}
+      </div>
+
+      {travelingWithoutPin.length > 0 && (
+        <div className="absolute bottom-3 left-3 right-3 z-[1000] flex items-center gap-2 bg-sky-500/95 text-white rounded-lg shadow-md px-3 py-2 text-xs">
+          <Plane className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>{travelingWithoutPin.length}</strong> tren{travelingWithoutPin.length === 1 ? "eris atvyksta" : "eriai atvyksta"} pas jus —
+            jie nepasirinkę aikštelės. Pamatysite juos sąraše.
+          </span>
+        </div>
+      )}
+
+      {markers.length === 0 && travelingWithoutPin.length === 0 && (
+        <div className="absolute inset-0 z-[999] flex items-center justify-center pointer-events-none">
+          <div className="bg-background/95 backdrop-blur border border-border rounded-xl shadow-xl px-5 py-4 text-center pointer-events-auto">
+            <MapPin className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-foreground">Nė vienas treneris neturi nurodytos vietos</p>
+            <p className="text-xs text-muted-foreground mt-1">Pakeiskite filtrus arba peržiūrėkite sąrašą</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

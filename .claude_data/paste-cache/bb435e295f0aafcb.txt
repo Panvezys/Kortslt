@@ -1,0 +1,9 @@
+Let's apply a production hardening pass to the Strike 3 cancellation flow to prevent Stripe API crashes and locked states.
+
+Please implement the following three checks in `routes/bookings.ts`:
+
+1. **The Zero-Dollar Guard:** Wrap the `stripe.transfers.createReversal` calls in an explicit `if (courtRefundCents > 0)` and `if (coachRefundCents > 0)` check. Stripe will throw a fatal error if we attempt to reverse or refund 0 cents. Apply this same guard to the final `stripe.refunds.create` call.
+2. **The Unpaid Bypass:** Before attempting any Stripe API calls, check if the booking actually has a `paymentIntentId` or if it's in an unpaid state (`pending_checkout`). If no payment was ever captured, bypass the Stripe block entirely and transition the DB state straight to `cancelled`.
+3. **The Null Charge Guard:** When calling `paymentIntents.retrieve(piId, {expand:['latest_charge']})`, assert that `latest_charge` exists. If the payment intent succeeded but somehow has no charge (e.g., a fully discounted 100% promo code), bypass the reversals.
+
+Run typechecks and verify the logic safely skips Stripe when no money moved.

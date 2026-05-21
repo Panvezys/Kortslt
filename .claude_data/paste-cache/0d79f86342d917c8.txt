@@ -1,0 +1,31 @@
+Let's architect a dedicated Coach Dashboard. A coach is a service provider who rents out their time, so their UI needs to be completely separated from the Player and Court Owner views.
+
+Please implement this architecture in 4 phases:
+
+--- PHASE 1: Database Schema ---
+1. Create a `coachProfilesTable` (or `coachesTable`) linked to `usersTable`. 
+2. Required columns: `userId`, `hourlyRate` (integer cents), `bio` (text), `isAcceptingStudents` (boolean), `experienceYears` (integer), and `createdAt`.
+3. Generate and run the Drizzle migration.
+
+--- PHASE 2: Layout & Navigation (`coach-layout.tsx`) ---
+1. Create a `coach-layout.tsx` component acting as a shell, similar to the `owner-layout.tsx`.
+2. Add a Role Switcher in the top/bottom of the sidebar (e.g., a dropdown to switch between "Žaidėjas" (Player), "Savininkas" (Owner), and "Treneris" (Coach)).
+3. Add the following Sidebar Links:
+   - "Apžvalga" (Dashboard) -> `/coach/dashboard`
+   - "Tvarkaraštis" (Schedule) -> `/coach/schedule`
+   - "Mokiniai" (Students) -> `/coach/students`
+   - "Žinutės" (Messages) -> `/coach/messages`
+   - "Nustatymai" (Settings) -> `/coach/settings`
+
+--- PHASE 3: Core Page Scaffolding ---
+Create minimal functional scaffolding for the sidebar routes:
+1. `coach/dashboard.tsx`: Show basic stats (Upcoming lessons this week, Total active students).
+2. `coach/schedule.tsx`: A calendar or list view where they can eventually set their weekly availability and see booked slots.
+3. `coach/messages.tsx`: A dedicated inbox explicitly for student inquiries. Fetch messages where `ctxType === 'coach'`.
+4. `coach/settings.tsx`: A form to update their `coachProfilesTable` data (Hourly rate, Bio, Status).
+
+--- PHASE 4: App Routing & Protection ---
+1. In `App.tsx`, import these new coach pages using `React.lazy()`.
+2. Wrap the `/coach/*` routes in an authorization guard. The user must have a coach profile (or a specific role flag in Clerk metadata) to access these pages. If they don't, redirect them to a "Become a Coach" landing page or the home page.
+
+Run a strict typecheck and verify the new layout renders cleanly without breaking existing standard routing.

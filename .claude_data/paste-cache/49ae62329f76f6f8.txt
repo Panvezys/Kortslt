@@ -1,0 +1,28 @@
+Let's build the core Scheduling and Affiliation engine for the Coach Dashboard. We need to allow coaches to set their working hours, block slots, and define their relationship with physical courts (Affiliated vs. Free Agent).
+
+Please execute this in 4 phases:
+
+--- PHASE 1: DB Schema Updates ---
+1. Extend `coachesTable` with two new columns: 
+   - `travelPolicy` (enum: 'any_court', 'affiliated_only', default 'affiliated_only')
+   - `courtPaymentModel` (enum: 'student_pays_court', 'coach_pays_court', default 'student_pays_court')
+2. Create `coachAvailabilitiesTable` (working hours): `coachId`, `dayOfWeek` (0-6), `startTime` (string e.g. "08:00"), `endTime` (string).
+3. Create `coachBlockedSlotsTable` (manual overrides): `coachId`, `startTime` (timestamp), `endTime` (timestamp), `reason` (text).
+4. Update `courtCoachesTable` (if it exists) or create it to handle affiliations: `courtId`, `coachId`, `status` (enum: 'pending', 'approved', 'rejected').
+5. Push the schema using `cd lib/db && pnpm push`.
+
+--- PHASE 2: Coach Settings & Affiliations UI ---
+1. In `/coach/settings`, add toggles for `travelPolicy` (Galiu atvykti į bet kurią aikštelę / Tik pasirinktose aikštelėse) and `courtPaymentModel`.
+2. Add a new section in Settings for "Aikštelių partnerystės" (Court Partnerships). Allow the coach to search for existing courts and click "Siųsti užklausą" (Send Request). This inserts a 'pending' row in `courtCoachesTable`.
+3. In `/owner/coaches` (the Court Owner dashboard), show these pending requests so the owner can approve or reject them.
+
+--- PHASE 3: The Coach Schedule UI ---
+1. In `/coach/schedule`, build a unified calendar or week-view UI.
+2. Allow them to set their weekly recurring hours (saving to `coachAvailabilitiesTable`).
+3. Allow them to click specific future dates to add a "Block" (saving to `coachBlockedSlotsTable` with a reason like "Atostogos" / Vacation).
+
+--- PHASE 4: The Availability Matrix (Backend) ---
+1. Create a new utility function `getCoachAvailability(coachId, date)` in the backend. 
+2. This function must return an array of available 30-minute time slots for a given date by taking their `coachAvailabilitiesTable` schedule and subtracting any overlapping times from `coachBlockedSlotsTable` and their existing `bookingsTable` (where they are the coach).
+
+Run thorough typechecks to ensure the schema and new UI components are perfectly typed.

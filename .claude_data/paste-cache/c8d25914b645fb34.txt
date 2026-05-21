@@ -1,0 +1,19 @@
+"Let's execute the Quick Win first, and then implement a lightweight schema for the qualifications. We do not need a normalized table or admin verification for the MVP.
+
+Please execute this in 2 phases:
+
+--- PHASE 1: The Quick Win (experienceYears) ---
+
+Ensure experienceYears is exposed in the Coach interface/query payload.
+
+Surface it on the public profile (coach.tsx). Add a clean, one-line stat next to the price/availability row (e.g., 'Patirtis: X metai' / 'Experience: X years').
+
+--- PHASE 2: Lightweight Qualifications Schema & UI ---
+
+Schema: Add qualifications (text array, default empty) to coachesTable. Push the schema.
+
+API & Dashboard: Expose this array in the GET/PATCH endpoints. In /coach/settings (or the edit wizard), add a dynamic list input where coaches can add/remove simple text strings (e.g., 'Lietuvos Padelio Federacijos Treneris', 'Sports Science Degree').
+
+Public UI: Render a 'Kvalifikacija' section on the public profile (between Bio and Services). Render the qualifications array as a simple bulleted list. If the array is empty, hide the section entirely.
+
+Run strict typechecks after implementing."

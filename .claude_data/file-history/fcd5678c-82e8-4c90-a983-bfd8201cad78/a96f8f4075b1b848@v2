@@ -1,0 +1,150 @@
+# Coach Onboarding Wizard + Marketplace
+
+## Purpose
+
+Captures the data the matching engine needs (per-sport audience tags, travel policy, cancellation policy, avatar, schedule deferred to dashboard) and exposes it on a marketplace that filters by the same dimensions a player cares about (city, time-of-day window, level, cancellation flexibility, will-travel-to-me).
+
+## Data model
+
+`coachesTable` (existing, extended in earlier strikes):
+- `travelPolicy text` — `any_court | affiliated_only` (Strike 1)
+- `cancellationPolicy text` — `flexible | standard | strict` (Strike 3)
+- `sports text[]` — denormalized cache of sports the coach teaches (kept in sync with `coach_sports`)
+
+`coach_sports` (new):
+```
+coach_sports (
+  id              serial primary key,
+  coach_id        integer not null references coaches(id) on delete cascade,
+  sport           text    not null,
+  audiences       text[]  not null default '{}',
+  unique (coach_id, sport)
+)
+```
+
+One row per (coachId, sport). `audiences` holds the wizard's per-sport checkboxes (`kids | beginners | advanced | pros`). **The junction is the source of truth.** `coaches.sports` is the cache so legacy code paths keep working — every upsert path keeps them aligned.
+
+### Why a junction instead of a flat array
+
+A flat `coaches.audiences text[]` would cross-pollinate between sports. Concrete failure: a tennis pro who also teaches casual swimming would expose `['pros', 'beginners', 'kids']` flat. A parent searching `Tenisas + Vaikai` would match this coach falsely — the coach has tennis and has the `kids` tag, but those facts live in different sports. The junction lets the marketplace filter on `(sport = ? AND audiences && ?)` and avoid the false positive.
+
+## Onboarding wizard (`pages/become-coach.tsx`)
+
+Four-step wizard. State is local React state until the final POST — no draft persistence yet.
+
+**Step 1 — Apie jus**
+- Avatar (`<AvatarUpload>`, uploads to `/api/upload/amenity-photo`, stores relative path).
+- Name, email, phone (Lithuanian validators), bio with explicit "what to mention" hint.
+- Experience years and certifications text.
+
+**Step 2 — Sportas**
+- Sport list with inline expanders. Selecting a sport reveals the audience checkboxes for that sport only. Validation refuses to advance until every selected sport has ≥1 audience checked — prevents a coach from claiming a sport without specifying who they teach.
+
+**Step 3 — Kainodara**
+- Just the hourly rate. The free-text availability box was removed: schedules live in `coach_availabilities` and are set on `/coach/schedule` after approval. The step shows a callout pointing the coach there.
+
+**Step 4 — Sąlygos** (new)
+- Travel policy radio: `affiliated_only` (default) vs `any_court`.
+- Cancellation policy radio: `flexible | standard | strict`.
+- Summary card uses the `SPORT_LABEL` map so the recap shows `Tenisas` not `tennis` (fixes the prior `Sportas: swimming` bug).
+
+**Success screen**
+- Prominent CTA `Prijunkite banko sąskaitą` → `POST /api/coaches/stripe/onboard` → Stripe-hosted onboarding redirect. The endpoint is gated by `requireCoach`; if the role is still pending the route returns 403 and the UI gracefully suggests completing onboarding from the coach dashboard later.
+
+### Submission payload
+
+The wizard POSTs to `/api/me/request-role` with:
+```ts
+{
+  pendingRole: "coach",
+  requestData: {
+    name, email, phone, bio, photoUrl,
+    sports: string[],                                        // derived from sportsAudiences
+    sportsAudiences: { sport: string; audiences: string[] }[],
+    experience, certifications, pricePerHour,                // pricePerHour in integer cents
+    travelPolicy, cancellationPolicy,
+  }
+}
+```
+
+Admin approval (`POST /admin/role-requests/:userId/approve`) reads these fields and writes them onto the `coaches` row + replaces the `coach_sports` junction in a single transaction.
+
+## Backend
+
+### `CoachUpsertBody` zod
+
+Extended with `sportsAudiences: { sport, audiences[] }[]` (audiences validated against the four enum values). Every upsert path (`POST /coaches`, `PUT /coaches/:id`, `PUT /coaches/me`) calls `syncCoachSports(coachId, entries)` after the main row write — a transactional `delete + insert` that keeps the junction consistent.
+
+When `sportsAudiences` is supplied, `coaches.sports` is derived from it so the cache stays aligned. When only the legacy `sports: string[]` is supplied (back-compat for older clients), that's honored directly.
+
+### GET `/coaches` — marketplace endpoint
+
+Query params (all optional):
+
+| Param | Meaning |
+|---|---|
+| `courtId` | restrict to coaches affiliated with this court |
+| `sport` | filter by primary sport (joined via `coach_sports`) |
+| `audiences` | comma-separated subset of `kids \| beginners \| advanced \| pros` |
+| `travelPolicies` | comma-separated subset of `any_court \| affiliated_only` |
+| `cancellationPolicies` | comma-separated subset of `flexible \| standard \| strict` |
+| `minPrice` / `maxPrice` | integer cents |
+| `city` | match coaches with at least one court in this city |
+| `date` + `startTime` + `endTime` | continuous availability across the window in Europe/Vilnius (must all three be present) |
+
+Filters that depend on the junction (`sport`, `audiences`, `city`) are applied in app code against pre-loaded junction data — cheaper than building dynamic SQL with array-overlap operators given the candidate set is typically small. The availability filter runs LAST so we only pay the per-coach matrix cost on the post-filtered set.
+
+Each result is enriched with `cities: string[]` (from approved court affiliations) and `sportsAudiences: SportAudience[]`.
+
+### GET `/courts/:id/available-coaches`
+
+Pre-loads `coach_sports` for the eligible coaches and returns each coach's `sportsAudiences` so the court-detail picker can show audience pills. No filtering by (sport, audience) here — the picker is at the court level; the player selects by visual inspection.
+
+## Frontend marketplace (`pages/coaches.tsx`)
+
+### Hero search bar
+
+City + Date + **Time** + **Duration** + Search button. Time is an `<input type="time" step={1800}>` (30-min snap). Duration is a `Select` with 30/60/90/120 min options. When all three of (date, time, duration) are present, the effective window is `[time, time + duration)` and gets piped to the `/coaches?date=&startTime=&endTime=` API.
+
+### Sidebar filters
+
+- Sports (existing) — sport pill toggles.
+- Coach name search (existing).
+- Max price slider (existing, in euros).
+- **Lygis** (new) — audience checkboxes (kids, beginners, advanced, pros). Sent as `audiences=` to the server.
+- **Sąlygos** (new) — `Lankstus atšaukimas` toggle (sends `cancellationPolicies=flexible`) and `Atvyksta į mano aikštelę` toggle (sends `travelPolicies=any_court`).
+
+Active filter count + `Valyti` button reset all of them.
+
+### Coach card
+
+Conversion-optimized layout:
+- Avatar (or initials fallback)
+- Price badge (top-right)
+- "Laisvas" green pulse badge (top-left) when the player searched a specific time window — every card in that result set has continuous coverage, so the badge is unconditional inside that mode
+- Sport pills (truncated +N)
+- Audience pills (Lithuanian labels, deduplicated across sports)
+- Conditions pills: `Lankstus atšaukimas` (emerald) when `cancellationPolicy=flexible`, `Atvyksta į bet kurią aikštelę` (sky) when `travelPolicy=any_court`
+- Bio preview (2-line clamp)
+- `Peržiūrėti profilį` CTA
+
+The full per-sport breakdown lives on the coach detail page (`/coach/:id`) — the card surfaces only the summary tags so density stays readable.
+
+## Files touched
+
+Backend:
+- `lib/db/src/schema/coaches.ts` — new `coach_sports` table.
+- `artifacts/api-server/src/routes/coaches.ts` — `sportsAudiences` in zod, `syncCoachSports` helper, all upsert paths, expanded `GET /coaches` filters, formatters return `sportsAudiences`.
+- `artifacts/api-server/src/routes/coach-schedule.ts` — `/courts/:id/available-coaches` returns `sportsAudiences` per coach.
+- `artifacts/api-server/src/routes/roles.ts` — admin approval reads `sportsAudiences`, `travelPolicy`, `cancellationPolicy`, `photoUrl` from `requestData` and writes them.
+
+Frontend:
+- `artifacts/courtbook/src/components/avatar-upload.tsx` — new round avatar primitive.
+- `artifacts/courtbook/src/pages/become-coach.tsx` — rewritten 4-step wizard.
+- `artifacts/courtbook/src/pages/coaches.tsx` — hero gains Time + Duration; sidebar gains Lygis + Sąlygos; cards gain audience pills + conditions pills + availability badge.
+
+## Follow-up gaps
+
+- Coach detail page (`/coach/:id`) doesn't yet render the per-sport audience breakdown — only the marketplace card does. Easy add when the user requests it.
+- Wizard state is not persisted across reloads. If we ship to live coaches with slow connections this becomes worth adding.
+- The legacy `availabilityDescription` text column on `coachesTable` is no longer written by onboarding but is still in the schema. Safe to drop in a future cleanup strike once we confirm no admin tools read it.

@@ -1,0 +1,511 @@
+import { Router, type IRouter } from "express";
+import { eq, desc, count, and, inArray } from "drizzle-orm";
+import { db, courtsTable, notificationsTable, facilitiesTable, coachesTable, userProfilesTable } from "@workspace/db";
+import { requireAdmin } from "../lib/auth";
+import { getAuth, clerkClient } from "@clerk/express";
+import { z } from "zod";
+import { readFileSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { sql } from "drizzle-orm";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const router: IRouter = Router();
+const STRIPE_RESET_EMAIL = "panvezys@gmail.com";
+
+/** GET /admin/courts — all courts with any status, newest first */
+router.get("/admin/courts", requireAdmin, async (_req, res): Promise<void> => {
+  const courts = await db
+    .select()
+    .from(courtsTable)
+    .orderBy(desc(courtsTable.createdAt));
+
+  res.json(
+    courts.map((c) => ({
+      ...c,
+      pricePerHour: Number(c.pricePerHour),
+      description: c.description ?? undefined,
+      imageUrl: c.imageUrl ?? undefined,
+      rating: c.rating ?? undefined,
+      surface: c.surface ?? undefined,
+      phone: c.phone ?? undefined,
+      rejectionReason: c.rejectionReason ?? undefined,
+    }))
+  );
+});
+
+/** PUT /admin/courts/:id/approve */
+router.put("/admin/courts/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [court] = await db
+    .update(courtsTable)
+    .set({ status: "approved", rejectionReason: null })
+    .where(eq(courtsTable.id, id))
+    .returning();
+
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (court.facilityId) {
+    const [facility] = await db
+      .select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, court.facilityId));
+    if (facility?.ownerUserId) {
+      await db.insert(notificationsTable).values({
+        userId: facility.ownerUserId,
+        type: "court_approved",
+        title: `Kortas patvirtintas: ${court.name}`,
+        body: "Jūsų kortas patvirtintas ir dabar matomas klientams.",
+        link: `/owner/facility/${court.facilityId}`,
+      }).catch(() => {});
+    }
+  }
+
+  res.json({ id: court.id, status: court.status });
+});
+
+/** PUT /admin/courts/:id/reject */
+const RejectBody = z.object({ reason: z.string().optional() });
+
+router.put("/admin/courts/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  const [court] = await db
+    .update(courtsTable)
+    .set({ status: "rejected", rejectionReason: reason })
+    .where(eq(courtsTable.id, id))
+    .returning();
+
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
+
+  if (court.facilityId) {
+    const [facility] = await db
+      .select({ ownerUserId: facilitiesTable.ownerUserId })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, court.facilityId));
+    if (facility?.ownerUserId) {
+      await db.insert(notificationsTable).values({
+        userId: facility.ownerUserId,
+        type: "court_rejected",
+        title: `Kortas atmestas: ${court.name}`,
+        body: reason ? `Priežastis: ${reason}` : "Jūsų kortas buvo atmestas administratoriaus.",
+        link: `/owner/facility/${court.facilityId}`,
+      }).catch(() => {});
+    }
+  }
+
+  res.json({ id: court.id, status: court.status, rejectionReason: court.rejectionReason });
+});
+
+// ─── Facility management ─────────────────────────────────────────────────────
+
+/** GET /admin/facilities — all facilities with any verification status, enriched with owner stripe status */
+router.get("/admin/facilities", requireAdmin, async (_req, res): Promise<void> => {
+  const facilities = await db
+    .select()
+    .from(facilitiesTable)
+    .orderBy(desc(facilitiesTable.createdAt));
+
+  if (facilities.length === 0) { res.json([]); return; }
+
+  const ownerIds = [...new Set(facilities.map(f => f.ownerUserId))];
+  const profiles = await db
+    .select({ userId: userProfilesTable.userId, stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(inArray(userProfilesTable.userId, ownerIds));
+  const stripeMap = new Map(profiles.map(p => [p.userId, p.stripeAccountStatus]));
+
+  res.json(facilities.map(f => ({
+    ...f,
+    ownerStripeStatus: stripeMap.get(f.ownerUserId) ?? "not_connected",
+  })));
+});
+
+/** GET /admin/facilities/pending — only the verification queue */
+router.get("/admin/facilities/pending", requireAdmin, async (_req, res): Promise<void> => {
+  const facilities = await db
+    .select()
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.verificationStatus, "pending_verification"))
+    .orderBy(desc(facilitiesTable.createdAt));
+  res.json(facilities);
+});
+
+/**
+ * PUT /admin/facilities/:id/approve
+ * Move a 'pending_verification' facility to 'active'. The owner must STILL have
+ * an active Stripe Connect account at approval time — checked by joining the
+ * owner profile (single source of truth) instead of a per-facility mirror.
+ */
+router.put("/admin/facilities/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db
+    .select({
+      id: facilitiesTable.id,
+      ownerUserId: facilitiesTable.ownerUserId,
+      verificationStatus: facilitiesTable.verificationStatus,
+    })
+    .from(facilitiesTable)
+    .where(eq(facilitiesTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (existing.verificationStatus !== "pending_verification") {
+    res.status(400).json({
+      error: `Patvirtinti galima tik objektus, esančius patvirtinimo eilėje. Dabartinis statusas: ${existing.verificationStatus}.`,
+    });
+    return;
+  }
+
+  const [ownerProfile] = await db
+    .select({ stripeAccountStatus: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, existing.ownerUserId));
+  if (ownerProfile?.stripeAccountStatus !== "active") {
+    res.status(400).json({
+      error: "Negalima patvirtinti — savininkas dar neužbaigė Stripe Connect.",
+    });
+    return;
+  }
+
+  // Compare-and-set: only mutate if the row is STILL in 'pending_verification'.
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({
+      verificationStatus: "active",
+      adminVerified: true,
+      verificationNotes: null,
+      rejectionReason: null,
+    })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "pending_verification"),
+    ))
+    .returning();
+
+  if (!facility) {
+    res.status(409).json({
+      error: "Objekto būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą.",
+    });
+    return;
+  }
+
+  if (facility?.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_approved",
+      title: `Objektas patvirtintas: ${facility.name}`,
+      body: "Jūsų objektas patvirtintas ir matomas paieškoje. Galite priimti rezervacijas.",
+      link: `/owner/facility/${facility.id}`,
+    }).catch(() => {});
+  }
+
+  res.json({
+    id: facility.id,
+    verificationStatus: facility.verificationStatus,
+    adminVerified: facility.adminVerified,
+  });
+});
+
+/**
+ * PUT /admin/facilities/:id/reject
+ * Reverts the facility back to 'draft' and stores the admin's note in
+ * `verification_notes` (and legacy `rejection_reason`) so the owner sees why.
+ */
+const RejectFacilityBody = z.object({ reason: z.string().optional() });
+
+router.put("/admin/facilities/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectFacilityBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  // Compare-and-set: only allow reject from 'pending_verification' (the verification queue).
+  // This prevents accidental wipe of an 'active' or 'suspended' facility's status.
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({
+      verificationStatus: "draft",
+      adminVerified: false,
+      verificationNotes: reason,
+      rejectionReason: reason,
+    })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "pending_verification"),
+    ))
+    .returning();
+
+  if (!facility) {
+    // Disambiguate: 404 vs 400 (wrong state).
+    const [exists] = await db
+      .select({ id: facilitiesTable.id, verificationStatus: facilitiesTable.verificationStatus })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, id));
+    if (!exists) { res.status(404).json({ error: "Facility not found" }); return; }
+    res.status(400).json({
+      error: `Pataisymų galima prašyti tik iš patvirtinimo eilės. Dabartinis statusas: ${exists.verificationStatus}.`,
+    });
+    return;
+  }
+
+  if (facility.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_rejected",
+      title: `Reikia pataisymų: ${facility.name}`,
+      body: reason
+        ? `Administratoriaus pastaba: ${reason}`
+        : "Administratorius prašo pataisyti objekto duomenis prieš pakartotinį pateikimą.",
+      link: `/owner/facility/${facility.id}`,
+    }).catch(() => {});
+  }
+
+  res.json({
+    id: facility.id,
+    verificationStatus: facility.verificationStatus,
+    verificationNotes: facility.verificationNotes,
+    rejectionReason: facility.rejectionReason,
+  });
+});
+
+/**
+ * PUT /admin/facilities/:id/suspend — manually disable an active facility.
+ */
+router.put("/admin/facilities/:id/suspend", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectFacilityBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  // Compare-and-set: only allow suspend from 'active'. Suspending a draft/onboarding/
+  // pending_verification facility makes no sense (already not public) and would let an
+  // admin skip the verification queue for a future re-activation.
+  const [facility] = await db
+    .update(facilitiesTable)
+    .set({ verificationStatus: "suspended", verificationNotes: reason })
+    .where(and(
+      eq(facilitiesTable.id, id),
+      eq(facilitiesTable.verificationStatus, "active"),
+    ))
+    .returning();
+
+  if (!facility) {
+    const [exists] = await db
+      .select({ id: facilitiesTable.id, verificationStatus: facilitiesTable.verificationStatus })
+      .from(facilitiesTable)
+      .where(eq(facilitiesTable.id, id));
+    if (!exists) { res.status(404).json({ error: "Facility not found" }); return; }
+    res.status(400).json({
+      error: `Sustabdyti galima tik aktyvius objektus. Dabartinis statusas: ${exists.verificationStatus}.`,
+    });
+    return;
+  }
+
+  if (facility.ownerUserId) {
+    await db.insert(notificationsTable).values({
+      userId: facility.ownerUserId,
+      type: "facility_rejected",
+      title: `Objektas sustabdytas: ${facility.name}`,
+      body: reason ?? "Jūsų objektas laikinai sustabdytas administratoriaus.",
+      link: `/owner/facility/${facility.id}`,
+    }).catch(() => {});
+  }
+
+  res.json({ id: facility.id, verificationStatus: facility.verificationStatus });
+});
+
+router.get("/admin/reset-stripe", requireAdmin, async (req, res): Promise<void> => {
+  const { userId } = getAuth(req);
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const user = await clerkClient.users.getUserList({
+    emailAddress: [STRIPE_RESET_EMAIL],
+    limit: 1,
+  });
+  const target = user.data[0];
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  await db
+    .update(userProfilesTable)
+    .set({ stripeAccountId: null, stripeAccountStatus: "not_connected" })
+    .where(eq(userProfilesTable.userId, target.id));
+
+  res.json({ status: "success", message: "Stripe reset for panvezys@gmail.com" });
+});
+
+// ─── Coach management ─────────────────────────────────────────────────────────
+
+/** GET /admin/coaches — all coaches with any status */
+router.get("/admin/coaches", requireAdmin, async (_req, res): Promise<void> => {
+  const coaches = await db.select().from(coachesTable).orderBy(desc(coachesTable.createdAt));
+  res.json(coaches.map(c => ({
+    ...c,
+    // pricePerHour is integer cents — admin UI divides by 100 for display.
+    bio: c.bio ?? null,
+    photoUrl: c.photoUrl ?? null,
+    rejectionReason: c.rejectionReason ?? null,
+  })));
+});
+
+/** PUT /admin/coaches/:id/approve */
+router.put("/admin/coaches/:id/approve", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ status: "approved", rejectionReason: null })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  if (coach.userId) {
+    await db.insert(notificationsTable).values({
+      userId: coach.userId,
+      type: "coach_approved",
+      title: `Trenerio profilis patvirtintas`,
+      body: "Jūsų trenerio profilis patvirtintas ir dabar matomas klientams.",
+      link: "/coaches",
+    }).catch(() => {});
+  }
+
+  res.json({ id: coach.id, status: coach.status });
+});
+
+/** PUT /admin/coaches/:id/reject */
+const RejectCoachBody = z.object({ reason: z.string().optional() });
+
+router.put("/admin/coaches/:id/reject", requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = RejectCoachBody.safeParse(req.body);
+  const reason = body.success ? (body.data.reason ?? null) : null;
+
+  const [coach] = await db
+    .update(coachesTable)
+    .set({ status: "rejected", rejectionReason: reason })
+    .where(eq(coachesTable.id, id))
+    .returning();
+
+  if (!coach) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  if (coach.userId) {
+    await db.insert(notificationsTable).values({
+      userId: coach.userId,
+      type: "coach_rejected",
+      title: `Trenerio profilis atmestas`,
+      body: reason ? `Priežastis: ${reason}` : "Jūsų trenerio profilis buvo atmestas administratoriaus.",
+      link: "/become-coach",
+    }).catch(() => {});
+  }
+
+  res.json({ id: coach.id, status: coach.status, rejectionReason: coach.rejectionReason });
+});
+
+/** DELETE /admin/users/:id — hard-delete user from Clerk; webhook handles local DB cleanup */
+router.delete("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const { userId: adminUserId } = getAuth(req);
+  const targetUserId = String(req.params.id);
+
+  if (!targetUserId) {
+    res.status(400).json({ error: "Nenurodytas vartotojo ID" });
+    return;
+  }
+  if (adminUserId && adminUserId === targetUserId) {
+    res.status(400).json({ error: "Negalima ištrinti savo paskyros" });
+    return;
+  }
+
+  try {
+    await clerkClient.users.deleteUser(targetUserId);
+    res.json({ deleted: true, userId: targetUserId });
+  } catch (err: unknown) {
+    const anyErr = err as { errors?: { longMessage?: string }[]; message?: string };
+    const msg = anyErr?.errors?.[0]?.longMessage ?? anyErr?.message ?? "Klaida trinant vartotoją";
+    res.status(400).json({ error: msg });
+  }
+});
+
+/** POST /admin/seed-courts — seed courts from JSON file if DB is empty */
+router.post("/admin/seed-courts", requireAdmin, async (_req, res): Promise<void> => {
+  try {
+    const [{ value: courtCount }] = await db.select({ value: count() }).from(courtsTable);
+    if (Number(courtCount) > 0) {
+      res.json({ message: `Skipped — ${courtCount} courts already exist`, inserted: 0 });
+      return;
+    }
+
+    const seedPath = join(__dirname, "data/courts-seed.json");
+    const seedData: Array<Record<string, unknown>> = JSON.parse(readFileSync(seedPath, "utf-8"));
+
+    // Ensure a seed facility exists to satisfy the notNull facilityId FK
+    let seedFacilityId: number;
+    const [existingFacility] = await db.select({ id: facilitiesTable.id }).from(facilitiesTable).limit(1);
+    if (existingFacility) {
+      seedFacilityId = existingFacility.id;
+    } else {
+      const [newFacility] = await db.insert(facilitiesTable).values({
+        name: "Seed Facility",
+        ownerUserId: "seed",
+        address: "",
+        city: "",
+        verificationStatus: "pending",
+      }).returning({ id: facilitiesTable.id });
+      seedFacilityId = newFacility.id;
+    }
+
+    const BATCH = 50;
+    let inserted = 0;
+    for (let i = 0; i < seedData.length; i += BATCH) {
+      const batch = seedData.slice(i, i + BATCH).map((c) => ({
+        name: c.name as string,
+        type: c.type as string,
+        description: c.description as string | null,
+        pricePerHour: String(c.price_per_hour),
+        imageUrl: c.image_url as string | null,
+        amenities: (Array.isArray(c.amenities) ? c.amenities : []) as string[],
+        isIndoor: (c.is_indoor ?? false) as boolean,
+        maxPlayers: (c.max_players ?? 4) as number,
+        surface: c.surface as string | null,
+        condition: (c.condition ?? "good") as string,
+        rating: c.rating as number | null,
+        totalBookings: (c.total_bookings ?? 0) as number,
+        phone: c.phone as string | null,
+        status: (c.status ?? "approved") as string,
+        rejectionReason: c.rejection_reason as string | null,
+        facilityId: seedFacilityId,
+      }));
+      await db.insert(courtsTable).values(batch).onConflictDoNothing();
+      inserted += batch.length;
+    }
+
+    // Reset the sequence to avoid ID collisions with future inserts
+    const maxId = Math.max(...seedData.map((c) => Number(c.id)));
+    await db.execute(sql`SELECT setval(pg_get_serial_sequence('courts', 'id'), ${maxId}, true)`);
+
+    res.json({ message: "Courts seeded successfully", inserted });
+  } catch (err) {
+    console.error("Seed error:", err);
+    res.status(500).json({ error: "Seed failed", detail: String(err) });
+  }
+});
+
+export default router;

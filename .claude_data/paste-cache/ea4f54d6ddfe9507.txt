@@ -1,0 +1,29 @@
+Excellent work on Strike 2. We are now executing Strike 3: Independent Cancellations & Reversals. 
+
+We are going with the "Independent Coach" model. Coaches will set their own refund policies, and we must implement strict financial boundaries so the platform NEVER pays out of pocket for a cancellation.
+
+Please execute this in 4 phases:
+
+--- PHASE 1: Schema & Settings ---
+1. Extend `coachesTable` with `cancellationPolicy` (text, default 'standard'). 
+   - Allowed values: 'flexible' (100% up to 24h), 'standard' (80% > 48h, 50% > 24h), 'strict' (0% anytime).
+2. Update `/coach/settings` so the coach can select their policy via a RadioGroup.
+3. Push the schema.
+
+--- PHASE 2: Checkout Transparency ---
+1. Update the Checkout UI and Court Detail UI. If a coach is attached, explicitly state BOTH policies to the player.
+   - Example: "Aikštelės atšaukimo taisyklės: [Policy]" AND "Trenerio atšaukimo taisyklės: [Policy]".
+
+--- PHASE 3: The Safe Math Engine ---
+1. In `routes/bookings.ts`, locate the cancellation logic. Refactor the refund calculation to decouple the Court and the Coach.
+2. Calculate `courtRefundCents` based on the Court's policy and the time until the game.
+3. Calculate `coachRefundCents` based on the Coach's policy and the time until the game.
+4. **CRITICAL BOUNDARY:** The total `refundAmount` to the player MUST equal exactly `courtRefundCents + coachRefundCents`. The platform keeps its original margin to cover Stripe processing fees.
+
+--- PHASE 4: The Clawback Execution ---
+1. Update the Stripe API calls in the cancellation flow.
+2. Court Leg: Continue using `refunds.create` with `reverse_transfer: true` for the court's portion. (Pass `courtRefundCents` to `refund_application_fee` logic if needed, but ensure platform keeps its overall cut).
+3. Coach Leg: If `coachRefundCents > 0`, execute a separate API call: `stripe.transfers.createReversal(booking.coachTransferId, { amount: coachRefundCents })`. 
+4. Execute the reversals FIRST, and only if they succeed, finalize the `bookingsTable` status update.
+
+Run strict financial typechecks. Ensure the math relies entirely on integer cents.

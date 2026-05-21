@@ -1,0 +1,34 @@
+Strike 1 was flawless. The DST fix was excellent. We are now cleared for Strike 2: Stripe Connect and the Unified Booking Flow.
+
+Please execute this in 4 phases:
+
+--- PHASE 1: Stripe Connect DB & Onboarding ---
+1. Extend `coachesTable` with: `stripeAccountId` (text, nullable) and `stripeOnboardingComplete` (boolean, default false). Push the schema.
+2. Build backend endpoints: `/api/coaches/stripe/onboard` (creates a Stripe Account Link, type: 'express') and `/api/coaches/stripe/return` (callback handling).
+3. In `/coach/dashboard`, if `stripeOnboardingComplete` is false, render a prominent Warning Banner: "Prijunkite banko sąskaitą mokėjimams gauti" with a button to `/api/coaches/stripe/onboard`.
+
+--- PHASE 2: The Unified Booking Matrix ---
+1. Update the Court Detail UI. When a player selects a 1.5h time slot (e.g., 10:00 - 11:30), display a new section: "Pridėti trenerį" (Add a Coach) below the time selector.
+2. Update `GET /courts/:id/available-coaches` to accept `?date=...&startTime=...&endTime=...`. 
+3. This endpoint must return coaches where:
+   - `getCoachAvailability` confirms they have open slots covering the entire duration.
+   - AND (`travelPolicy` === 'any_court' OR they are approved in `courtCoachesTable` for this `courtId`).
+   - AND `stripeOnboardingComplete` === true.
+
+--- PHASE 3: The Split Checkout Flow (Backend & UI) ---
+1. In the Player Checkout UI, if a coach is attached, display the split:
+   - Aikštelės nuoma: €X
+   - Treneris ([Coach Name]): €Y
+   - Iš viso: €X+Y (Send this total to the backend as integer cents).
+2. Update `POST /api/checkout` (Stripe Session creation):
+   - If `courtPaymentModel` === 'student_pays_court' AND `coachId` is present:
+     - The Player pays the total amount upfront.
+     - Use Stripe `transfer_data` (Destination Charge) to route the Court fee to the Court Owner's Stripe Account.
+     - Use `stripe.transfers.create` (Separate Transfer) to route the Coach fee to the `coach.stripeAccountId`.
+3. Update `POST /api/checkout` to save the `coachId` to the newly created `bookingsTable` row.
+
+--- PHASE 4: The Availability Matrix Loop ---
+1. Finally, update `getCoachAvailability` in `lib/coach-availability.ts` to query `bookingsTable` where `coachId === coachId` and the booking is active (`status != 'cancelled'`). 
+2. Subtract those booked times from the coach's available slots.
+
+Run strict financial typechecks. All money math must be integer cents.

@@ -8,6 +8,7 @@
 
 export * from "./availabilityResponse";
 export * from "./booking";
+export * from "./bookingCoach";
 export * from "./bookingStatus";
 export * from "./checkoutSessionResponse";
 export * from "./confirmPaymentBody";

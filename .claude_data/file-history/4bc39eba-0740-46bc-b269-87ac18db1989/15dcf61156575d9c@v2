@@ -1,0 +1,36 @@
+/**
+ * Wipes everything seeded by `seed-demo-coaches.ts`. Identifies rows by the
+ * 'demo-seed-' user prefix on coaches.user_id and facilities.owner_user_id.
+ *
+ * Drizzle ON DELETE CASCADE handles court_coaches, coach_sports,
+ * coach_availabilities, court_blocked_slots, etc. automatically.
+ */
+import {
+  db,
+  facilitiesTable,
+  coachesTable,
+} from "@workspace/db";
+import { like } from "drizzle-orm";
+
+const DEMO_PREFIX = "demo-seed-";
+
+async function main() {
+  const deletedCoaches = await db
+    .delete(coachesTable)
+    .where(like(coachesTable.userId, `${DEMO_PREFIX}%`))
+    .returning({ id: coachesTable.id });
+  console.log(`✓ Deleted ${deletedCoaches.length} coaches (sports, availability, affiliations cascade)`);
+
+  const deletedFacilities = await db
+    .delete(facilitiesTable)
+    .where(like(facilitiesTable.ownerUserId, `${DEMO_PREFIX}%`))
+    .returning({ id: facilitiesTable.id });
+  console.log(`✓ Deleted ${deletedFacilities.length} facilities (courts cascade)`);
+
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

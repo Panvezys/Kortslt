@@ -1,0 +1,9 @@
+{
+  "id": "30",
+  "subject": "Phase 2: GET /api/coaches/:id/reviews paginated",
+  "description": "Paginated reviews list for a coach, newest first",
+  "activeForm": "Adding reviews list endpoint",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

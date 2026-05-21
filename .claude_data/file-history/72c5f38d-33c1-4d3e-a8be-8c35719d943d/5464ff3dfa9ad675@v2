@@ -1,0 +1,28 @@
+import { CoachLayout } from "@/components/coach-layout";
+import { Users } from "lucide-react";
+
+export default function CoachStudents() {
+  // Scaffold only — the relationship between coaches and their students is not
+  // yet modelled in the DB. When it lands, this page will list active students
+  // with quick links to their lesson history.
+  return (
+    <CoachLayout title="Mokiniai">
+      <div className="px-4 md:px-6 py-6 space-y-6 max-w-4xl">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Mokiniai</h1>
+          <p className="text-sm text-muted-foreground">
+            Visi su jumis dirbantys mokiniai matomi vienoje vietoje.
+          </p>
+        </header>
+
+        <div className="rounded-2xl border bg-card px-6 py-10 flex flex-col items-center text-center gap-3">
+          <Users className="h-10 w-10 text-muted-foreground/50" />
+          <h2 className="text-base font-semibold">Dar nėra mokinių</h2>
+          <p className="text-sm text-muted-foreground max-w-md">
+            Kai mokiniai užregistruoja pamokas su jumis, jie atsiras šiame sąraše.
+          </p>
+        </div>
+      </div>
+    </CoachLayout>
+  );
+}

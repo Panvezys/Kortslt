@@ -1,0 +1,206 @@
+import { Router, type IRouter } from "express";
+import { desc, eq, or, and, sql, inArray } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
+import { db, directMessagesTable, notificationsTable, userProfilesTable } from "@workspace/db";
+import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { socketEmit, dmRoom, getPresence } from "../lib/socket";
+
+const router: IRouter = Router();
+
+// Player inbox isolation: facility-scoped DMs belong to the owner inbox
+// (/messages/owner-inbox), not the personal /dm/* threads. `IS DISTINCT FROM`
+// is the NULL-safe form of `!=` so untyped DMs (most personal conversations)
+// still match.
+const notFacilityContext = sql`${directMessagesTable.contextType} IS DISTINCT FROM 'facility'`;
+
+// Allowlist of contextType values legitimate /dm/send callers ever produce
+// (chat-bubble + court / tournament / booking / game pages). Anything outside
+// this set — including 'facility', which has its own route — gets coerced
+// to null so a malicious client cannot smuggle data past notFacilityContext.
+const ALLOWED_DM_CONTEXT_TYPES = new Set(["game", "court", "tournament", "booking"]);
+function sanitizeContextType(raw: unknown): string | null {
+  return typeof raw === "string" && ALLOWED_DM_CONTEXT_TYPES.has(raw) ? raw : null;
+}
+function sanitizeContextId(raw: unknown): number | null {
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function formatMsg(r: typeof directMessagesTable.$inferSelect) {
+  return {
+    ...r,
+    createdAt: r.createdAt.toISOString(),
+    readAt: r.readAt ? r.readAt.toISOString() : null,
+  };
+}
+
+// GET /dm/threads — list my conversations, grouped by "other user"
+router.get("/dm/threads", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db.select().from(directMessagesTable)
+    .where(and(
+      or(eq(directMessagesTable.senderUserId, userId), eq(directMessagesTable.recipientUserId, userId)),
+      notFacilityContext,
+    ))
+    .orderBy(desc(directMessagesTable.createdAt));
+
+  const threadMap = new Map<string, {
+    otherUserId: string;
+    otherUserName: string;
+    lastMessage: ReturnType<typeof formatMsg>;
+    unread: number;
+  }>();
+
+  for (const r of rows) {
+    const otherUserId = r.senderUserId === userId ? r.recipientUserId : r.senderUserId;
+    const existing = threadMap.get(otherUserId);
+    const isIncoming = r.recipientUserId === userId;
+    const isUnread = isIncoming && !r.readAt;
+    if (!existing) {
+      threadMap.set(otherUserId, {
+        otherUserId,
+        otherUserName: r.senderUserId === userId ? "—" : r.senderName,
+        lastMessage: formatMsg(r),
+        unread: isUnread ? 1 : 0,
+      });
+    } else if (isUnread) {
+      existing.unread += 1;
+    }
+  }
+
+  // Fill in names for threads where the latest message is from me
+  for (const thread of threadMap.values()) {
+    if (thread.otherUserName === "—") {
+      const fromOther = rows.find(r => r.senderUserId === thread.otherUserId);
+      if (fromOther) thread.otherUserName = fromOther.senderName;
+      else thread.otherUserName = "Vartotojas";
+    }
+  }
+
+  // Fetch avatars for all other users from userProfilesTable
+  const otherIds = [...threadMap.keys()];
+  const imageMap = new Map<string, string | null>();
+  if (otherIds.length > 0) {
+    const profiles = await db
+      .select({ userId: userProfilesTable.userId, imageUrl: userProfilesTable.imageUrl })
+      .from(userProfilesTable)
+      .where(inArray(userProfilesTable.userId, otherIds));
+    for (const p of profiles) imageMap.set(p.userId, p.imageUrl);
+  }
+
+  const threads = [...threadMap.values()].map(t => ({
+    ...t,
+    otherUserImageUrl: imageMap.get(t.otherUserId) ?? null,
+  }));
+
+  res.json(threads);
+});
+
+// GET /dm/thread/:otherUserId — all messages between me and otherUserId
+router.get("/dm/thread/:otherUserId", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const otherUserId = String(req.params.otherUserId);
+
+  const rows = await db.select().from(directMessagesTable)
+    .where(and(
+      or(
+        and(eq(directMessagesTable.senderUserId, userId), eq(directMessagesTable.recipientUserId, otherUserId)),
+        and(eq(directMessagesTable.senderUserId, otherUserId), eq(directMessagesTable.recipientUserId, userId)),
+      ),
+      notFacilityContext,
+    ))
+    .orderBy(directMessagesTable.createdAt);
+
+  // Mark incoming messages as read and signal all of the user's tabs to
+  // refresh their unread badge immediately (Test 3: multi-tab sync).
+  const updated = await db.update(directMessagesTable).set({ readAt: new Date() })
+    .where(and(
+      eq(directMessagesTable.senderUserId, otherUserId),
+      eq(directMessagesTable.recipientUserId, userId),
+      sql`${directMessagesTable.readAt} IS NULL`,
+      notFacilityContext,
+    )).returning({ id: directMessagesTable.id });
+
+  if (updated.length > 0) {
+    socketEmit(`inbox_${userId}`, "unread_update", {});
+  }
+
+  res.json(rows.map(formatMsg));
+});
+
+// POST /dm/send — send a direct message
+router.post("/dm/send", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const { recipientUserId, body, contextType, contextId } = req.body ?? {};
+  if (!recipientUserId || !body) {
+    res.status(400).json({ error: "recipientUserId, body required" }); return;
+  }
+
+  // Resolve sender display name from Clerk — never trust client-supplied
+  // senderName, otherwise a malicious caller can DM anyone under another
+  // user's name. Mirrors routes/messages.ts:209.
+  let senderName = "Vartotojas";
+  try {
+    const clerkUser = await clerkClient.users.getUser(userId);
+    senderName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || "Vartotojas";
+  } catch {
+    // Clerk unavailable (e.g. no CLERK_SECRET_KEY in dev) — fall back to the default.
+  }
+
+  // contextType/contextId come from the client; the allowlist below is the
+  // single point of enforcement for "/dm is not for facility messages". If
+  // this is loosened, the /dm/threads + /dm/unread-count filters become
+  // bypassable via the live socket path.
+  const safeContextType = sanitizeContextType(contextType);
+  const safeContextId = safeContextType ? sanitizeContextId(contextId) : null;
+
+  const [msg] = await db.insert(directMessagesTable).values({
+    senderUserId: userId,
+    senderName,
+    recipientUserId,
+    body,
+    contextType: safeContextType,
+    contextId: safeContextId,
+  }).returning();
+
+  // Notification for recipient
+  await db.insert(notificationsTable).values({
+    userId: recipientUserId,
+    type: "message",
+    title: `Nauja žinutė nuo ${senderName}`,
+    body: body.length > 100 ? body.slice(0, 97) + "…" : body,
+    link: `/messages?u=${userId}`,
+  }).catch(() => {});
+
+  // Real-time: push to the shared DM room and trigger an unread badge refresh
+  const formatted = formatMsg(msg);
+  socketEmit(dmRoom(userId, recipientUserId), "new_message", { type: "dm", message: formatted });
+  socketEmit(`inbox_${recipientUserId}`, "unread_update", {});
+
+  res.status(201).json(formatted);
+});
+
+// GET /dm/unread-count
+router.get("/dm/unread-count", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const [row] = await db.select({ count: sql<number>`count(*)` }).from(directMessagesTable)
+    .where(and(
+      eq(directMessagesTable.recipientUserId, userId),
+      sql`${directMessagesTable.readAt} IS NULL`,
+      notFacilityContext,
+    ));
+  res.json({ count: Number(row?.count ?? 0) });
+});
+
+// GET /dm/presence?userIds=id1,id2
+router.get("/dm/presence", requireAuth, (req, res): void => {
+  const ids = String(req.query.userIds ?? "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+    .slice(0, 50);
+  res.json(getPresence(ids));
+});
+
+export default router;

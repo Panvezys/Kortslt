@@ -1,0 +1,45 @@
+"We are executing Strike 5.2: Trust & Social Proof (Reviews & Ratings).
+
+Our goal is to build a verified-purchase review system that aggregates 5-star ratings for coaches and displays them on the marketplace.
+
+Please implement this across 5 distinct phases. Execute Phase 1 and Phase 2 first, then pause for my review before moving to the UI.
+
+--- PHASE 1: The Schema & Invariants ---
+
+Create a reviewsTable in lib/db/src/schema/reviews.ts.
+
+Columns: id (serial), reviewerUserId (text/integer, linked to users), coachId (integer, linked to coaches), bookingId (integer, unique, linked to bookings), rating (integer 1-5), comment (text, optional), createdAt.
+
+Add averageRating (numeric/decimal) and reviewCount (integer, default 0) to the coachesTable.
+
+INVARIANT C (Verified Purchase): A review can ONLY be inserted if the bookingId belongs to the reviewerUserId, points to the specified coachId, and the booking's scheduled time has already passed.
+
+INVARIANT D (Denormalized Rating Sync): Just like our price sync, any insert/update/delete on reviewsTable must trigger a database transaction that recalculates the average rating and total count, saving the results to the coachesTable so the marketplace query remains blazing fast.
+
+--- PHASE 2: The API Layer ---
+
+Create POST /api/reviews: Validates the payload against Invariant C, inserts the row, and runs the sync transaction (Invariant D).
+
+Create GET /api/coaches/:id/reviews: Fetches paginated reviews for a specific coach, sorting by newest first.
+
+--- PHASE 3: The Public Marketplace UI ---
+
+Update the CoachCard component in the marketplace directory. Read the denormalized averageRating and reviewCount. Render a star icon and the score (e.g., '★ 4.9 (12)').
+
+Update the public profile (pages/coach.tsx). Add a 'Atsiliepimai' (Reviews) section below the Services. Display the aggregated score and a list of the text comments.
+
+--- PHASE 4: The Private Submission UI ---
+
+In the player's dashboard (pages/bookings.tsx), check past/completed bookings.
+
+If a past booking has a coachId but no associated review, render a 'Palikti atsiliepimą' (Leave a review) button on the booking card.
+
+Clicking it opens a Dialog with a 1-5 star selector and an optional text area, wired to POST /api/reviews.
+
+--- PHASE 5: The Post-Game Automation (Cron) ---
+
+Update src/lib/cron.ts. Add a daily task that finds bookings that ended yesterday where coachId is not null.
+
+Fire an email to the reviewerUserId using our existing email provider: 'Kaip sekėsi treniruotė? Įvertinkite savo patirtį!' (How was your training? Rate your experience!) with a deep link to their bookings page.
+
+Let's start with Phase 1 and 2. Run a typecheck and confirm the database transaction boundaries before proceeding."

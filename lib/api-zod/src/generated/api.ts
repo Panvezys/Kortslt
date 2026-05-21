@@ -475,10 +475,6 @@ export const ListBookingsResponseItem = zod.object({
     .number()
     .optional()
     .describe("Total number of player slots for a split booking."),
-  paidSlots: zod
-    .number()
-    .optional()
-    .describe("Number of players who have paid their slot in a split booking."),
   pricePerSlot: zod
     .number()
     .optional()
@@ -488,6 +484,25 @@ export const ListBookingsResponseItem = zod.object({
     .optional()
     .describe(
       "Shareable token for players to join and pay their share of a split booking.",
+    ),
+  coachId: zod
+    .string()
+    .nullish()
+    .describe("Clerk user ID of the coach attached to this booking, if any."),
+  coachServiceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "ID of the coach_services row this booking was created from, when booked via the coach-services flow.",
+    ),
+  coach: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+    })
+    .nullish()
+    .describe(
+      "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
 });
 export const ListBookingsResponse = zod.array(ListBookingsResponseItem);
@@ -520,10 +535,6 @@ export const GetBookingResponse = zod.object({
   id: zod.number(),
   courtId: zod.number(),
   courtName: zod.string().optional(),
-  courtSport: zod.string().optional(),
-  facilityName: zod.string().optional(),
-  courtAddress: zod.string().optional(),
-  courtCity: zod.string().optional(),
   customerName: zod.string(),
   customerEmail: zod.string(),
   date: zod.coerce.date(),
@@ -567,6 +578,25 @@ export const GetBookingResponse = zod.object({
     .optional()
     .describe(
       "Shareable token for players to join and pay their share of a split booking.",
+    ),
+  coachId: zod
+    .string()
+    .nullish()
+    .describe("Clerk user ID of the coach attached to this booking, if any."),
+  coachServiceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "ID of the coach_services row this booking was created from, when booked via the coach-services flow.",
+    ),
+  coach: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+    })
+    .nullish()
+    .describe(
+      "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
 });
 
@@ -624,6 +654,25 @@ export const CancelBookingResponse = zod.object({
     .optional()
     .describe(
       "Shareable token for players to join and pay their share of a split booking.",
+    ),
+  coachId: zod
+    .string()
+    .nullish()
+    .describe("Clerk user ID of the coach attached to this booking, if any."),
+  coachServiceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "ID of the coach_services row this booking was created from, when booked via the coach-services flow.",
+    ),
+  coach: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+    })
+    .nullish()
+    .describe(
+      "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
 });
 
@@ -750,6 +799,25 @@ export const ConfirmPaymentResponse = zod.object({
     .optional()
     .describe(
       "Shareable token for players to join and pay their share of a split booking.",
+    ),
+  coachId: zod
+    .string()
+    .nullish()
+    .describe("Clerk user ID of the coach attached to this booking, if any."),
+  coachServiceId: zod
+    .number()
+    .nullish()
+    .describe(
+      "ID of the coach_services row this booking was created from, when booked via the coach-services flow.",
+    ),
+  coach: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+    })
+    .nullish()
+    .describe(
+      "Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.",
     ),
 });
 

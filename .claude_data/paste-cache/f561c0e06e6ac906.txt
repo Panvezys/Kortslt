@@ -1,0 +1,19 @@
+The Missing Pieces
+1. The Stripe Webhook Vulnerability (Critical)
+You updated create-checkout to branch on coachServiceId, which is great for session creation. But you need to verify the Webhook Handler (POST /webhooks/stripe).
+
+When checkout.session.completed fires, it grabs the bookingId from the metadata and executes the final CAS to 'confirmed'.
+
+The Vulnerability: Does your webhook handler properly parse and process a booking that was created via coachServiceId? If it tries to recalculate the split, or fails to record the coachTransferId properly because it assumes it's a legacy booking, the funds will get stuck.
+
+Action: Verify webhooks.ts reads the snapshotted coachAmountCents and coachServiceId correctly when calling coach-transfer.ts.
+
+2. The Legacy authorizeAndPriceCoach Trap
+You mentioned that payments.ts branches, and if coachServiceId is not set, it re-runs the legacy authorizeAndPriceCoach.
+
+The Vulnerability: Since we migrated every coach to have at least one default service, and we built the new Motifind UI, are there any paths left in the app where a user can book a coach without a coachServiceId? * If the answer is "no," you should strongly consider deprecating the legacy path entirely in payments.ts. If the answer is "yes" (e.g., the old unified search bar still exists), make sure the legacy path doesn't accidentally try to calculate a price for a coach who has moved all their offerings to coach_services.
+
+3. Post-Checkout Redirection UX
+Currently, the flow is: Click "Apmokėti" -> Stripe -> Return to /booking-success.
+
+The UX Gap: The default /booking-success page probably just says "Court Booked!". It needs to be updated to detect if booking.coachServiceId is present. If it is, the success page should say something like: "Sėkmingai užsisakėte pamoką su treneriu [Name]!" (You successfully booked a lesson with coach [Name]!) and remind them to check their email for details.

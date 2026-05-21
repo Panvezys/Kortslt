@@ -1,0 +1,89 @@
+Part 1: Upgrading the Onboarding Wizard (Images 2-4)
+Right now, the onboarding asks for basic info, but we need it to capture the new business rules we just established without overwhelming the user.
+
+1. Step 1: "Apie Jus" (About You) - Add Polish
+
+The UI Tweak: The text area is good, but coaches often write poorly formatted walls of text. Add small hint text under the box: "Patarimas: Paminėkite savo treniravimo stilių ir su kokio lygio žaidėjais dirbate (pradedantieji, pažengę)." (Tip: Mention your coaching style and what level of players you work with).
+
+Avatar Upload: You absolutely need a profile picture upload in this first step. Players buy trust and personality when hiring a coach. A marketplace without coach headshots will have terrible conversion rates.
+
+2. Step 2: "Sportas" (Sports) - Add Granularity
+
+The UI Tweak: Currently, they just click "Tenisas" or "Plaukimas".
+
+The Upgrade: Once they click a sport, a small dropdown or checkbox group should appear below it asking for Target Audience: [ ] Vaikai (Children) [ ] Pradedantieji (Beginners) [ ] Pažengę (Advanced) [ ] Profesionalai (Pros). This gives you the "Granular Expertise Tags" we discussed earlier, which makes the marketplace search much more powerful.
+
+Minor bug catch: In your screenshot 4, the summary says "Sportas: swimming". Make sure your state mapper translates the backend enum back to Lithuanian for the frontend summary.
+
+3. Step 3: "Kainodara" (Pricing) - Sync with the new DB
+
+The Problem: You have a free-text box for "Prieinamumas / darbo laikas" (Availability). But we just built coachAvailabilitiesTable! If they type "Monday-Friday", the booking matrix can't read that text to block out slots.
+
+The Fix: Remove the free-text box entirely from onboarding. Replace it with a message: "Tikslų savo tvarkaraštį galėsite nustatyti savo trenerio skydelyje po registracijos patvirtinimo." (You will be able to set your exact schedule in your coach dashboard after approval). Keep onboarding fast, let them set the matrix later.
+
+4. NEW Step 4: "Sąlygos" (Policies & Payouts)
+We need a final step to capture the database columns we added in Strikes 1 and 3:
+
+Travel Policy: Radio buttons:
+
+[ ] "Galiu atvykti į bet kurią aikštelę" (I can travel to any court - any_court)
+
+[ ] "Treniruoju tik savo pasirinktose aikštelėse" (I only train at my selected courts - affiliated_only)
+
+Cancellation Policy: Radio buttons:
+
+[ ] Lanksti (Flexible - 100% refund up to 24h)
+
+[ ] Standartinė (Standard)
+
+[ ] Griežta (Strict - 0% refund)
+
+Success Screen Transition: When they click "Pateikti prašymą" (Submit), the success screen MUST mention Stripe: "Prašymas gautas! Kol administratorius peržiūri jūsų anketą, prijunkite savo banko sąskaitą mokėjimams gauti." with a giant button linking to your /api/coaches/stripe/onboard route.
+
+Part 2: Upgrading the Marketplace Page (Image 1)
+This is where players will actually spend their money. Right now, the search tools are built for a "directory", but we need them built for a "booking engine".
+
+1. The Hero Search Bar (Crucial)
+
+Currently, it asks for "Miestas" (City) and "Data" (Date).
+
+The Problem: Because of our Strike 1 logic, we can't tell if a coach is available on May 20th unless we know what time the player wants to play.
+
+The Fix: Add "Laikas" (Time) and "Trukmė" (Duration, e.g., 1h, 1.5h) to the hero search bar. When a user searches, pass these parameters to your new GET /courts/:id/available-coaches?date=...&startTime=...&endTime=... endpoint so the UI only shows coaches who are actually free.
+
+2. The Sidebar Filters
+You have 0 coaches right now, but when you have 50, players need better filters.
+
+Keep the sports and price slider.
+
+Add "Sąlygos" (Conditions) filters:
+
+[ ] Lankstus atšaukimas (Flexible cancellations)
+
+[ ] Atvyksta į mano aikštelę (Will travel to my court)
+
+Add "Lygis" (Skill Level) filters: (Tying into the tags from Onboarding Step 2).
+
+3. The Coach Card Design (For when the empty state is gone)
+When you populate this grid, the cards need to be conversion-optimized. Each coach card should clearly display:
+
+Avatar & Name.
+
+Hourly Rate: (e.g., "30€/val").
+
+Tags: Small visual pills (e.g., Tenisas, Pradedantiesiems, Lankstus atšaukimas).
+
+Availability Indicator: If the player searched without a specific time, show a green dot if the coach has any open slots this week. If the player searched for a specific time, show "Laisvas" (Available).
+
+Primary Action: A "Peržiūrėti profilį" (View Profile) button that takes them to the Coach Detail page (where they can initiate the unified checkout).
+
+Summary of the Action Plan
+If you want to execute this, the fastest route is:
+
+UI: Add the Avatar upload to Step 1.
+
+Logic: Swap the free-text availability box in Step 3 for the new Policies we built.
+
+Flow: Wire the submit button to push them toward the Stripe Connect onboarding we built in Strike 2.
+
+Marketplace: Update the Hero search bar to include Time and Duration so your getCoachAvailability matrix can do its job.

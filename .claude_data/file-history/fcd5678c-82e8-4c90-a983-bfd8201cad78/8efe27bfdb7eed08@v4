@@ -1,0 +1,98 @@
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { courtsTable } from "./courts";
+
+export const coachesTable = pgTable("coaches", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  bio: text("bio"),
+  photoUrl: text("photo_url"),
+  videoUrl: text("video_url"),
+  // Hourly rate stored as integer cents — aligns with Stripe and avoids
+  // floating-point drift in financial math. UI must divide by 100 on display
+  // and multiply by 100 on submit.
+  pricePerHour: integer("price_per_hour"),
+  sports: text("sports").array().notNull().default([]),
+  availabilityDescription: text("availability_description"),
+  phone: text("phone"),
+  isAcceptingStudents: boolean("is_accepting_students").notNull().default(true),
+  experienceYears: integer("experience_years"),
+  // travelPolicy: 'any_court' (free-agent, can teach anywhere) or
+  // 'affiliated_only' (only at courts they have an approved partnership with).
+  travelPolicy: text("travel_policy").notNull().default("affiliated_only"),
+  // courtPaymentModel: 'student_pays_court' (student books the court directly,
+  // coach earns lesson fee only) or 'coach_pays_court' (coach books and bills
+  // student a combined rate, then pays the court out of their fee).
+  courtPaymentModel: text("court_payment_model").notNull().default("student_pays_court"),
+  // cancellationPolicy: per-coach refund policy applied INDEPENDENTLY of the
+  // court's policy. Values:
+  //   'flexible' — 100% up to 24h before start, 0% inside 24h
+  //   'standard' — 80% > 48h, 50% > 24h, 0% inside 24h
+  //   'strict'   — 0% at any time
+  cancellationPolicy: text("cancellation_policy").notNull().default("standard"),
+  status: text("status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const courtCoachesTable = pgTable("court_coaches", {
+  id: serial("id").primaryKey(),
+  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqCourtCoach: uniqueIndex("court_coaches_court_id_coach_id_unique").on(t.courtId, t.coachId),
+}));
+
+export const courtCoachInvitationsTable = pgTable("court_coach_invitations", {
+  id: serial("id").primaryKey(),
+  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  targetUserId: text("target_user_id"),
+  targetEmail: text("target_email"),
+  targetName: text("target_name"),
+  initiatedBy: text("initiated_by").notNull().default("owner"),
+  status: text("status").notNull().default("pending"),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Recurring weekly availability for a coach. One row per (coachId, dayOfWeek,
+ * startTime, endTime) — coaches with split schedules (e.g. 09:00–12:00 and
+ * 16:00–20:00 on Mondays) get multiple rows for the same day. Times are
+ * stored as HH:MM strings interpreted in Europe/Vilnius local time so DST
+ * shifts don't move a coach's working hours twice a year.
+ */
+export const coachAvailabilitiesTable = pgTable("coach_availabilities", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 6 = Saturday
+  startTime: text("start_time").notNull(), // "HH:MM"
+  endTime: text("end_time").notNull(),     // "HH:MM"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCoachDay: index("coach_availabilities_coach_day_idx").on(t.coachId, t.dayOfWeek),
+}));
+
+/**
+ * One-off blocks (vacations, conflicts) overriding the recurring schedule.
+ * Stored as absolute UTC timestamps so range comparisons work without
+ * timezone gymnastics. The UI converts to Europe/Vilnius for display.
+ */
+export const coachBlockedSlotsTable = pgTable("coach_blocked_slots", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCoachStart: index("coach_blocked_slots_coach_start_idx").on(t.coachId, t.startTime),
+}));
+
+export type Coach = typeof coachesTable.$inferSelect;
+export type CourtCoach = typeof courtCoachesTable.$inferSelect;
+export type CourtCoachInvitation = typeof courtCoachInvitationsTable.$inferSelect;
+export type CoachAvailability = typeof coachAvailabilitiesTable.$inferSelect;
+export type CoachBlockedSlot = typeof coachBlockedSlotsTable.$inferSelect;

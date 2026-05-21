@@ -1,0 +1,32 @@
+"Let's execute Phase 2: Services CRUD API & Availability Slots Endpoint.
+
+Please execute this in 3 sub-phases:
+
+--- PHASE 2.1: The Price Sync Helper (Invariant A) ---
+
+Create a database helper function syncCoachStartingPrice(coachId: number, tx: transaction).
+
+This function must query coachServicesTable for the minimum priceCents where coachId = targetCoachId AND isActive = true.
+
+Update coachesTable.pricePerHour with this minimum value. If the coach has zero active services, set it to 0.
+
+--- PHASE 2.2: Services CRUD ---
+Create the routes (e.g., in routes/coaches.ts or a new routes/coach-services.ts):
+
+GET /coaches/:id/services: Public access. Return all services where isActive = true. If the requester is the coach owner, return ALL services (including inactive) sorted by sortOrder.
+
+POST /coaches/:id/services: Owner only. Validate payload. Insert row. MUST be wrapped in a transaction that calls syncCoachStartingPrice.
+
+PATCH /coaches/:id/services/:sid: Owner only. Update row. MUST be wrapped in a transaction that calls syncCoachStartingPrice.
+
+DELETE /coaches/:id/services/:sid: Owner only. Vulnerability Check: Check if bookingsTable references this sid. If yes, soft-delete (isActive = false). If no, hard delete. MUST be wrapped in a transaction that calls syncCoachStartingPrice.
+
+--- PHASE 2.3: The Slots Endpoint ---
+
+Build GET /coaches/:id/services/:sid/slots?date=YYYY-MM-DD. Public access.
+
+Fetch the target service to get durationMin and courtId (if bound).
+
+Pipe these constraints into our existing getCoachAvailability matrix. Return the exact 30-minute start times that can fit this specific service duration on the given date.
+
+Run strict typechecks and verify the transaction boundaries."

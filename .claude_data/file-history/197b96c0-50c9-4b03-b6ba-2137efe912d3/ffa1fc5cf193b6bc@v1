@@ -1,0 +1,63 @@
+interface Props {
+  sport?: string | null;
+  surface?: string | null;
+  surfaceSpeed?: string | null;
+  surfaceBounce?: string | null;
+}
+
+const SURFACE_LABELS: Record<string, string> = {
+  hard: "Kietas",
+  clay: "Molis",
+  grass: "Žolė",
+  carpet: "Kilimas",
+  artificial_grass: "Dirbtinė žolė",
+  wood: "Medis",
+  rubber: "Guma",
+  concrete: "Betonas",
+};
+
+const SPEED_LABELS: Record<string, string> = {
+  slow: "Lėtas",
+  medium: "Vidutinis",
+  fast: "Greitas",
+};
+
+const BOUNCE_LABELS: Record<string, string> = {
+  low: "Žemas",
+  medium: "Vidutinis",
+  high: "Aukštas",
+};
+
+function SpecRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm py-2 border-b last:border-b-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium text-xs px-2.5 py-1 rounded-lg bg-primary/10 text-primary">{value}</span>
+    </div>
+  );
+}
+
+export function SurfaceSpecs({ sport, surface, surfaceSpeed, surfaceBounce }: Props) {
+  const surfaceLabel = surface ? (SURFACE_LABELS[surface] ?? surface) : null;
+  const isTennisPadel = sport === "tennis" || sport === "padel" || sport === "squash" || sport === "badminton";
+
+  const rows: Array<{ label: string; value: string }> = [];
+  if (surfaceLabel) rows.push({ label: "Danga", value: surfaceLabel });
+  if (isTennisPadel && surfaceSpeed) rows.push({ label: "Greitis", value: SPEED_LABELS[surfaceSpeed] ?? surfaceSpeed });
+  if (isTennisPadel && surfaceBounce) rows.push({ label: "Atšokimas", value: BOUNCE_LABELS[surfaceBounce] ?? surfaceBounce });
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+        🏟️ Techninės specifikacijos
+      </h2>
+      <div className="rounded-xl border bg-muted/20 px-4">
+        {rows.map((r) => (
+          <SpecRow key={r.label} label={r.label} value={r.value} />
+        ))}
+      </div>
+    </div>
+  );
+}

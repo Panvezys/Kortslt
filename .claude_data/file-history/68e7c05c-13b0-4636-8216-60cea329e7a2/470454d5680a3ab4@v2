@@ -1,0 +1,196 @@
+import { Server as SocketIOServer } from "socket.io";
+import type { Server as HttpServer } from "node:http";
+import { clerkClient } from "@clerk/express";
+import { and, eq } from "drizzle-orm";
+import {
+  db,
+  courtsTable,
+  facilitiesTable,
+  gamesTable,
+  gameParticipantsTable,
+} from "@workspace/db";
+import { logger } from "./logger";
+
+// Authorization helpers for narrow chat rooms. Both must run before a
+// socket is joined, otherwise any authenticated user could `join_rooms`
+// with arbitrary IDs and silently eavesdrop on other users' chats.
+
+async function canJoinFacilityRoom(userId: string, courtId: number, playerId: string): Promise<boolean> {
+  // The player half of the conversation is always allowed.
+  if (userId === playerId) return true;
+  // The court owner is the other legitimate participant.
+  const [row] = await db
+    .select({ ownerUserId: facilitiesTable.ownerUserId })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.id, courtId))
+    .limit(1);
+  return row?.ownerUserId === userId;
+}
+
+async function canJoinGameRoom(userId: string, gameId: number): Promise<boolean> {
+  const [creator] = await db
+    .select({ creatorUserId: gamesTable.creatorUserId })
+    .from(gamesTable)
+    .where(eq(gamesTable.id, gameId))
+    .limit(1);
+  if (creator?.creatorUserId === userId) return true;
+  const [participant] = await db
+    .select({ id: gameParticipantsTable.id })
+    .from(gameParticipantsTable)
+    .where(and(
+      eq(gameParticipantsTable.gameId, gameId),
+      eq(gameParticipantsTable.userId, userId),
+      eq(gameParticipantsTable.status, "joined"),
+    ))
+    .limit(1);
+  return !!participant;
+}
+
+let io: SocketIOServer | null = null;
+
+const presenceMap = new Map<string, { lastSeen: Date; online: boolean }>();
+
+export function getPresence(userIds: string[]): Record<string, { online: boolean; lastSeen: string }> {
+  const result: Record<string, { online: boolean; lastSeen: string }> = {};
+  for (const uid of userIds) {
+    const p = presenceMap.get(uid);
+    result[uid] = p
+      ? { online: p.online, lastSeen: p.lastSeen.toISOString() }
+      : { online: false, lastSeen: new Date(0).toISOString() };
+  }
+  return result;
+}
+
+export function initSocketIO(httpServer: HttpServer): SocketIOServer {
+  io = new SocketIOServer(httpServer, {
+    cors: { origin: true, credentials: true },
+    transports: ["websocket", "polling"],
+  });
+
+  // Auth middleware — runs before "connection" fires
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token as string | undefined;
+      const userId = socket.handshake.auth?.userId as string | undefined;
+
+      // Agent bypass (dev / automated tests)
+      const bypassKey = process.env.AGENT_BYPASS_KEY;
+      if (bypassKey && socket.handshake.auth?.agentKey === bypassKey) {
+        socket.data.userId = userId ?? "agent-test-user";
+        return next();
+      }
+
+      // No Clerk secret in dev → trust the userId from the handshake
+      if (!process.env.CLERK_SECRET_KEY) {
+        socket.data.userId = userId ?? "anon";
+        return next();
+      }
+
+      if (!token) return next(new Error("auth:no_token"));
+
+      // clerkClient.verifyToken is available on @clerk/express v2+
+      const payload = await (clerkClient as any).verifyToken(token) as { sub: string };
+      socket.data.userId = payload.sub;
+      next();
+    } catch {
+      next(new Error("auth:invalid_token"));
+    }
+  });
+
+  io.on("connection", (socket) => {
+    const userId: string = socket.data.userId;
+
+    // Every authenticated user is always subscribed to their own inbox room
+    // so that unread_update events reach them regardless of which chat is open.
+    socket.join(`inbox_${userId}`);
+    presenceMap.set(userId, { lastSeen: new Date(), online: true });
+    logger.debug({ userId, id: socket.id }, "socket connected");
+
+    // Clients emit this whenever they open a specific conversation.
+    // The server adds the socket to the appropriate narrow room so future
+    // new_message events are only delivered to sockets that care about them.
+    //
+    // Authorization note: DM rooms are accidentally safe because the room
+    // name is derived from the *joining* user's pair, so an eavesdropper
+    // ends up in a different room from the actual conversation. Facility
+    // and game rooms have shared room names, so we must verify ownership /
+    // participation before joining; otherwise any authenticated user could
+    // listen in on any conversation by guessing IDs.
+    socket.on("join_rooms", async (params: {
+      dmUserId?: string;
+      courtId?: number;
+      playerId?: string;
+      gameId?: number;
+    }) => {
+      try {
+        if (params.dmUserId) {
+          socket.join(dmRoom(userId, params.dmUserId));
+        }
+        if (params.courtId != null && params.playerId) {
+          const allowed = await canJoinFacilityRoom(userId, params.courtId, params.playerId);
+          if (allowed) {
+            socket.join(`facility_${params.courtId}_${params.playerId}`);
+          } else {
+            logger.warn(
+              { userId, courtId: params.courtId, playerId: params.playerId },
+              "socket facility room join denied",
+            );
+          }
+        }
+        if (params.gameId != null) {
+          const allowed = await canJoinGameRoom(userId, params.gameId);
+          if (allowed) {
+            socket.join(`game_${params.gameId}`);
+          } else {
+            logger.warn(
+              { userId, gameId: params.gameId },
+              "socket game room join denied",
+            );
+          }
+        }
+      } catch (err) {
+        logger.error({ err, userId }, "socket join_rooms failed");
+      }
+    });
+
+    socket.on("leave_rooms", (params: {
+      dmUserId?: string;
+      courtId?: number;
+      playerId?: string;
+      gameId?: number;
+    }) => {
+      if (params.dmUserId) {
+        socket.leave(dmRoom(userId, params.dmUserId));
+      }
+      if (params.courtId != null && params.playerId) {
+        socket.leave(`facility_${params.courtId}_${params.playerId}`);
+      }
+      if (params.gameId != null) {
+        socket.leave(`game_${params.gameId}`);
+      }
+    });
+
+    socket.on("disconnect", () => {
+      // Only mark offline if this was the user's last socket
+      const remaining = io?.sockets.sockets;
+      const stillOnline = remaining
+        ? [...remaining.values()].some(s => s !== socket && s.data.userId === userId)
+        : false;
+      if (!stillOnline) presenceMap.set(userId, { lastSeen: new Date(), online: false });
+      logger.debug({ userId, id: socket.id }, "socket disconnected");
+    });
+  });
+
+  return io;
+}
+
+/** Emit to a room — safe to call even before initSocketIO (silently no-ops). */
+export function socketEmit(room: string, event: string, data: unknown): void {
+  try { io?.to(room).emit(event, data); } catch { /* ignore */ }
+}
+
+/** Canonical DM room name — sorts user IDs so both sides produce the same string. */
+export function dmRoom(uid1: string, uid2: string): string {
+  return `dm_${[uid1, uid2].sort().join("_")}`;
+}

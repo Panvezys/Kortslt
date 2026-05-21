@@ -1,0 +1,27 @@
+"The forensic audit was spot on. We are protected from the legacy 422 error because of Invariant A (syncCoachStartingPrice), so we will leave the legacy picker alone for now.
+
+Let's execute the fixes for the UX and the Webhook in 3 phases:
+
+--- PHASE 1: The Redirect Fix (coach.tsx) ---
+
+In the Apmokėti submit handler, update the successUrl passed to the Stripe session creation.
+
+Change it from /booking/confirmation to the correct route: ${window.location.origin}/booking-confirmed?session_id={CHECKOUT_SESSION_ID}. (Stripe will swap the macro automatically).
+
+--- PHASE 2: The Success Page UX (booking-confirmed.tsx) ---
+
+Update the BookingConfirmed component to check if the confirmed booking contains a coachServiceId or coachId.
+
+If it does, render coach-specific success copy: 'Sėkmingai užsisakėte pamoką su treneriu!' (You successfully booked a lesson with the coach!).
+
+Provide a 'Grįžti į trenerio profilį' (Return to coach profile) button linked to /coaches/:id.
+
+--- PHASE 3: The Webhook Reconciliation Fix (stripe-webhook.ts) ---
+
+In the checkout.session.completed handler, extract the payment_intent string from the Stripe session object.
+
+Update the db.update(bookingsTable) CAS operation to explicitly write this string to stripePaymentIntentId.
+
+This ensures maybeIssueCoachTransfer will have the source_transaction needed to link the transfer to the originating charge in the Stripe Dashboard.
+
+Run strict typechecks after these changes."

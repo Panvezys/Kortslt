@@ -1,0 +1,226 @@
+import { Router, type IRouter } from "express";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { z } from "zod";
+import {
+  db,
+  coachesTable,
+  coachAvailabilitiesTable,
+  coachBlockedSlotsTable,
+} from "@workspace/db";
+import { requireAuth, requireCoach, getCurrentUserId } from "../lib/auth";
+import { getCoachAvailability } from "../lib/coach-availability";
+
+const router: IRouter = Router();
+
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const AvailabilityEntrySchema = z.object({
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  startTime: z.string().regex(HHMM, "Time must be HH:MM"),
+  endTime: z.string().regex(HHMM, "Time must be HH:MM"),
+}).refine((e) => e.startTime < e.endTime, {
+  message: "endTime must be after startTime",
+  path: ["endTime"],
+});
+
+const AvailabilityReplaceBody = z.object({
+  entries: z.array(AvailabilityEntrySchema),
+});
+
+const BlockedSlotCreateBody = z.object({
+  startTime: z.string().datetime({ offset: true }),
+  endTime: z.string().datetime({ offset: true }),
+  reason: z.string().max(280).optional().nullable(),
+}).refine((b) => new Date(b.startTime) < new Date(b.endTime), {
+  message: "endTime must be after startTime",
+  path: ["endTime"],
+});
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function getMyCoachId(userId: string): Promise<number | null> {
+  const [coach] = await db
+    .select({ id: coachesTable.id })
+    .from(coachesTable)
+    .where(eq(coachesTable.userId, userId));
+  return coach?.id ?? null;
+}
+
+async function getCoachOwnerUserId(coachId: number): Promise<string | null> {
+  const [c] = await db
+    .select({ userId: coachesTable.userId })
+    .from(coachesTable)
+    .where(eq(coachesTable.id, coachId));
+  return c?.userId ?? null;
+}
+
+// ─── Weekly availability ─────────────────────────────────────────────────────
+
+// GET /coaches/me/availability — coach's own weekly schedule
+router.get("/coaches/me/availability", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const coachId = await getMyCoachId(userId);
+  if (coachId == null) { res.json([]); return; }
+
+  const rows = await db
+    .select()
+    .from(coachAvailabilitiesTable)
+    .where(eq(coachAvailabilitiesTable.coachId, coachId))
+    .orderBy(asc(coachAvailabilitiesTable.dayOfWeek), asc(coachAvailabilitiesTable.startTime));
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    dayOfWeek: r.dayOfWeek,
+    startTime: r.startTime,
+    endTime: r.endTime,
+  })));
+});
+
+// PUT /coaches/me/availability — replace the full weekly schedule atomically
+router.put("/coaches/me/availability", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const coachId = await getMyCoachId(userId);
+  if (coachId == null) { res.status(400).json({ error: "Create your coach profile first" }); return; }
+
+  const parsed = AvailabilityReplaceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+
+  // Replace-all semantics: delete existing rows and re-insert the new set.
+  // Cheap because the per-coach row count is tiny (typically <30).
+  await db.transaction(async (tx) => {
+    await tx.delete(coachAvailabilitiesTable).where(eq(coachAvailabilitiesTable.coachId, coachId));
+    if (parsed.data.entries.length > 0) {
+      await tx.insert(coachAvailabilitiesTable).values(
+        parsed.data.entries.map((e) => ({
+          coachId,
+          dayOfWeek: e.dayOfWeek,
+          startTime: e.startTime,
+          endTime: e.endTime,
+        })),
+      );
+    }
+  });
+
+  const rows = await db
+    .select()
+    .from(coachAvailabilitiesTable)
+    .where(eq(coachAvailabilitiesTable.coachId, coachId))
+    .orderBy(asc(coachAvailabilitiesTable.dayOfWeek), asc(coachAvailabilitiesTable.startTime));
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    dayOfWeek: r.dayOfWeek,
+    startTime: r.startTime,
+    endTime: r.endTime,
+  })));
+});
+
+// ─── Blocked slots ───────────────────────────────────────────────────────────
+
+// GET /coaches/me/blocked-slots?from=ISO&to=ISO
+router.get("/coaches/me/blocked-slots", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const coachId = await getMyCoachId(userId);
+  if (coachId == null) { res.json([]); return; }
+
+  // Default window: today (UTC) through +180 days, so the UI gets the
+  // upcoming-blocks view without having to specify a range.
+  const from = req.query.from ? new Date(String(req.query.from)) : new Date();
+  const to = req.query.to
+    ? new Date(String(req.query.to))
+    : new Date(from.getTime() + 180 * 24 * 3600 * 1000);
+
+  const rows = await db
+    .select()
+    .from(coachBlockedSlotsTable)
+    .where(and(
+      eq(coachBlockedSlotsTable.coachId, coachId),
+      gte(coachBlockedSlotsTable.endTime, from),
+      lte(coachBlockedSlotsTable.startTime, to),
+    ))
+    .orderBy(asc(coachBlockedSlotsTable.startTime));
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    startTime: r.startTime.toISOString(),
+    endTime: r.endTime.toISOString(),
+    reason: r.reason,
+  })));
+});
+
+// POST /coaches/me/blocked-slots
+router.post("/coaches/me/blocked-slots", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const coachId = await getMyCoachId(userId);
+  if (coachId == null) { res.status(400).json({ error: "Create your coach profile first" }); return; }
+
+  const parsed = BlockedSlotCreateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.flatten() });
+    return;
+  }
+
+  const [row] = await db.insert(coachBlockedSlotsTable).values({
+    coachId,
+    startTime: new Date(parsed.data.startTime),
+    endTime: new Date(parsed.data.endTime),
+    reason: parsed.data.reason ?? null,
+  }).returning();
+
+  res.status(201).json({
+    id: row.id,
+    startTime: row.startTime.toISOString(),
+    endTime: row.endTime.toISOString(),
+    reason: row.reason,
+  });
+});
+
+// DELETE /coaches/me/blocked-slots/:id
+router.delete("/coaches/me/blocked-slots/:id", requireCoach, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const coachId = await getMyCoachId(userId);
+  if (coachId == null) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  const blockId = Number(req.params.id);
+  if (!Number.isFinite(blockId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  // Bind ownership server-side — never trust the path id alone.
+  const deleted = await db.delete(coachBlockedSlotsTable)
+    .where(and(
+      eq(coachBlockedSlotsTable.id, blockId),
+      eq(coachBlockedSlotsTable.coachId, coachId),
+    ))
+    .returning({ id: coachBlockedSlotsTable.id });
+
+  if (deleted.length === 0) { res.status(404).json({ error: "Block not found" }); return; }
+  res.json({ ok: true });
+});
+
+// ─── Availability matrix (read-only) ─────────────────────────────────────────
+
+// GET /coaches/:id/availability?date=YYYY-MM-DD
+// Returns the 30-min slots a coach is available on a given date, in
+// Europe/Vilnius local time. Blocked slots subtracted; bookings will be
+// subtracted by a later strike when coach bookings ship.
+router.get("/coaches/:id/availability", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid coach id" }); return; }
+
+  const ownerUserId = await getCoachOwnerUserId(id);
+  if (!ownerUserId) { res.status(404).json({ error: "Coach not found" }); return; }
+
+  const date = String(req.query.date ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    res.status(400).json({ error: "date must be YYYY-MM-DD" }); return;
+  }
+
+  const slots = await getCoachAvailability(id, date);
+  res.json({ date, slots });
+});
+
+export default router;

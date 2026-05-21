@@ -1,0 +1,144 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { centsToEuroString } from "@/lib/money";
+import { Check, GraduationCap } from "lucide-react";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+export interface AvailableCoach {
+  id: number;
+  name: string;
+  photoUrl: string | null;
+  pricePerHour: number | null;
+  sports: string[];
+  experienceYears: number | null;
+  cancellationPolicy: "flexible" | "standard" | "strict";
+}
+
+export function coachPolicyLabel(p: AvailableCoach["cancellationPolicy"]): string {
+  if (p === "flexible") return "Lankstu (100% iki 24 val.)";
+  if (p === "strict") return "Griežtas (negrąžinama)";
+  return "Standartinis (80% > 48 val., 50% > 24 val.)";
+}
+
+interface Props {
+  courtId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  selectedCoachId: number | null;
+  onSelect: (coach: AvailableCoach | null) => void;
+}
+
+/**
+ * Renders the "Pridėti trenerį" picker shown beneath the time-slot selector
+ * on the court detail page. Disabled until a time range is chosen. Each
+ * candidate coach is fetched server-side already filtered for: travel policy,
+ * affiliation with this court, Stripe Connect readiness, and continuous
+ * availability covering the entire booking window.
+ */
+export function CourtDetailCoachPicker({
+  courtId,
+  date,
+  startTime,
+  endTime,
+  selectedCoachId,
+  onSelect,
+}: Props) {
+  const enabled = !!(date && startTime && endTime);
+  const { data, isLoading } = useQuery<{ coaches: AvailableCoach[] }>({
+    queryKey: ["available-coaches", courtId, date, startTime, endTime],
+    queryFn: async () =>
+      customFetch<{ coaches: AvailableCoach[] }>(
+        `${API_URL}/courts/${courtId}/available-coaches?date=${date}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      ),
+    enabled,
+    staleTime: 30_000,
+  });
+
+  const coaches = data?.coaches ?? [];
+  const selected = useMemo(
+    () => coaches.find((c) => c.id === selectedCoachId) ?? null,
+    [coaches, selectedCoachId],
+  );
+
+  if (!enabled) return null;
+
+  return (
+    <div className="rounded-2xl border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <GraduationCap className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">Pridėti trenerį</h3>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+      ) : coaches.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Šiam laikui nėra prieinamų trenerių.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {coaches.map((coach) => {
+            const isSelected = coach.id === selectedCoachId;
+            return (
+              <li
+                key={coach.id}
+                className={`flex items-center gap-3 rounded-lg border p-3 ${
+                  isSelected ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <Avatar className="h-10 w-10 shrink-0">
+                  {coach.photoUrl && <AvatarImage src={coach.photoUrl} alt={coach.name} />}
+                  <AvatarFallback>{coach.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{coach.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {coach.pricePerHour != null
+                      ? `${centsToEuroString(coach.pricePerHour)} €/val.`
+                      : "Kaina nenurodyta"}
+                    {coach.experienceYears != null && ` · ${coach.experienceYears} m. patirtis`}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isSelected ? "default" : "outline"}
+                  onClick={() => onSelect(isSelected ? null : coach)}
+                >
+                  {isSelected ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 mr-1" />
+                      Pasirinkta
+                    </>
+                  ) : (
+                    "Pasirinkti"
+                  )}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {selected && (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>Trenerio mokestis bus pridėtas prie viso rezervacijos kainos.</p>
+          <p>
+            <span className="font-medium text-foreground">Trenerio atšaukimo taisyklės: </span>
+            {coachPolicyLabel(selected.cancellationPolicy)}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

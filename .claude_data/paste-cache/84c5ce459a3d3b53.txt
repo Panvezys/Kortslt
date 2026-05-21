@@ -1,0 +1,25 @@
+should we show coaches whose stripe is not connected?
+
+You should absolutely hide them from the public marketplace.
+
+Allowing a coach to appear in the search results without a fully connected and verified Stripe account creates a critical vulnerability in your user experience and your financial flow.
+
+Here is exactly why they must be hidden, and how you should handle it:
+
+The Vulnerabilities of Showing Unconnected Coaches
+The UX Dead-End: If a player finds a coach, goes through the beautiful Motifind-style profile, picks a date, and clicks "Apmokėti" (Pay), the system will crash. Stripe will reject the transfer_data payload because the destination account is invalid. The player is left frustrated, and you lose the conversion.
+
+The Escrow Trap: If you somehow bypass the Stripe error and collect the money centrally, you now hold the player's funds with no automated way to pay the coach. You have created a manual accounting nightmare for yourself.
+
+Loss of Leverage: The strongest incentive a coach has to complete the annoying Stripe KYC (Know Your Customer) onboarding is the desire to get booked. If you show them in search anyway, they will delay connecting their bank account until the last second.
+
+The Implementation Strategy
+Instead of deleting them, you should treat them as "Pending." Here is how to handle the logic:
+
+The Database Filter: In your GET /coaches marketplace query, you must add a strict WHERE clause. It isn't enough to just check if stripeAccountId is not null. You must verify they can actually receive funds. Ensure you are filtering by a flag like stripeChargesEnabled = true.
+
+The Direct Link Exception: You might want to allow the coach to see their own profile via a direct URL (/coaches/:id) so they can see how it looks, but the "Užsakyti" button should be disabled for anyone viewing it.
+
+The Dashboard Nudge: When the unconnected coach logs into their dashboard (/coach/settings), they should see a massive, un-dismissible red or yellow banner: "⚠️ Jūsų profilis yra paslėptas. Prijunkite banko sąskaitą, kad žaidėjai galėtų jus rasti ir užsakyti pamokas." (Your profile is hidden. Connect your bank account so players can find you and book lessons.)
+
+How are you currently storing the Stripe connection status in your coachesTable—do you have a specific boolean flag for stripeChargesEnabled, or are you just checking if the stripeAccountId exists?

@@ -1,0 +1,95 @@
+{
+  "version": 2,
+  "plugins": {
+    "superpowers@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/superpowers/5.1.0",
+        "version": "5.1.0",
+        "installedAt": "2026-05-17T19:58:03.469Z",
+        "lastUpdated": "2026-05-17T19:58:03.469Z",
+        "gitCommitSha": "f2cbfbefebbfef77321e4c9abc9e949826bea9d7"
+      }
+    ],
+    "frontend-design@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/frontend-design/b5a156b6ecd2",
+        "version": "b5a156b6ecd2",
+        "installedAt": "2026-05-17T20:01:25.700Z",
+        "lastUpdated": "2026-05-17T20:01:25.700Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "context7@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/context7/b5a156b6ecd2",
+        "version": "b5a156b6ecd2",
+        "installedAt": "2026-05-17T20:02:01.883Z",
+        "lastUpdated": "2026-05-17T20:02:01.883Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "code-review@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/code-review/b5a156b6ecd2",
+        "version": "b5a156b6ecd2",
+        "installedAt": "2026-05-17T20:02:41.542Z",
+        "lastUpdated": "2026-05-17T20:02:41.542Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "code-simplifier@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/code-simplifier/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-05-17T20:02:57.147Z",
+        "lastUpdated": "2026-05-17T20:02:57.147Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "feature-dev@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/feature-dev/b5a156b6ecd2",
+        "version": "b5a156b6ecd2",
+        "installedAt": "2026-05-17T20:11:59.982Z",
+        "lastUpdated": "2026-05-17T20:11:59.982Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "claude-md-management@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/claude-md-management/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-05-17T20:12:13.130Z",
+        "lastUpdated": "2026-05-17T20:12:13.130Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "typescript-lsp@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/typescript-lsp/1.0.0",
+        "version": "1.0.0",
+        "installedAt": "2026-05-17T20:12:27.053Z",
+        "lastUpdated": "2026-05-17T20:12:27.053Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ],
+    "security-guidance@claude-plugins-official": [
+      {
+        "scope": "user",
+        "installPath": "/home/runner/workspace/.claude_data/plugins/cache/claude-plugins-official/security-guidance/b5a156b6ecd2",
+        "version": "b5a156b6ecd2",
+        "installedAt": "2026-05-17T20:12:38.105Z",
+        "lastUpdated": "2026-05-17T20:12:38.105Z",
+        "gitCommitSha": "b5a156b6ecd2f69c418184b7c093930ddabaf9c0"
+      }
+    ]
+  }
+}

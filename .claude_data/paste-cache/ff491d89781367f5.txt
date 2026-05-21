@@ -1,0 +1,13 @@
+1. The Zero-Dollar Reversal Crash (Critical)
+The Vulnerability: If a coach sets a "Strict" policy, or a player cancels 2 hours before the game on a "Standard" policy, coachRefundCents or courtRefundCents will calculate to exactly 0.
+If you send stripe.transfers.createReversal(..., { amount: 0 }), the Stripe API will immediately reject the request with an invalid_request_error (amount must be greater than zero). Your booking will get permanently stuck in the cancelling state, and the player won't get their flat refund.
+The Fix: You must wrap all Stripe reversal and refund calls in a strict if (amount > 0) check.
+
+2. The Unpaid Cancellation Trap
+The Vulnerability: Your state machine transition allows pending -> cancelling. If pending or pending_checkout means the Stripe Checkout session was created but not yet paid, there is no latest_charge to fetch, and no transfers to reverse. The Stripe retrieve call will return null for the charge, throwing a fatal Type Error, and the booking will be locked forever.
+The Fix: If the booking is in an unpaid state, the cancellation flow must entirely bypass the Stripe block and simply CAS straight to cancelled.
+
+3. The "Drained Account" Standoff (Business Logic)
+The Vulnerability: What happens if the coach has already withdrawn the €30 to their Lithuanian bank account? When you call createReversal, Stripe will attempt to pull the coach's connected balance into the negative. If their account lacks the necessary debit permissions or linked funds, the reversal fails.
+Because your flow mandates "reversals FIRST, refund AFTER," the player will not get their refund because the coach's bank account was empty.
+The Fix: For V1, keep the architecture as-is to protect the platform balance. If it fails, it stays in cancelling. You will manually investigate in the Stripe Dashboard. But you must ensure your UI clearly communicates to the player that refunds can take 5-10 business days, buying you time to handle these edge cases.

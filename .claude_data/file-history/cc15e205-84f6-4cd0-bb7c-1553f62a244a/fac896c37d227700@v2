@@ -1,0 +1,261 @@
+import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Building2, Check, Clock, Search } from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+interface PublicFacility {
+  id: number;
+  name: string;
+  city: string | null;
+  address: string | null;
+}
+
+interface AffiliatedFacility {
+  facilityId: number | null;
+  facilityName: string | null;
+  city: string | null;
+  courts: Array<{ id: number; name: string }>;
+}
+
+interface CoachApplication {
+  id: number;
+  courtId: number;
+  courtName: string;
+  facilityId: number | null;
+  facilityName: string | null;
+  city: string | null;
+  initiatedBy: "owner" | "coach";
+  status: "pending" | "approved" | "rejected";
+  message: string | null;
+  createdAt: string;
+}
+
+type ApplyResponse = {
+  created: number;
+  skipped: number;
+};
+
+export function CoachAffiliations() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [query, setQuery] = useState("");
+
+  const { data: affiliated = [], isLoading: loadingAffiliated } = useQuery<AffiliatedFacility[]>({
+    queryKey: ["coach-me-facilities"],
+    queryFn: () => customFetch<AffiliatedFacility[]>(`${API}/coaches/me/facilities`),
+    staleTime: 60_000,
+  });
+
+  const { data: applications = [], isLoading: loadingApps } = useQuery<CoachApplication[]>({
+    queryKey: ["coach-me-applications"],
+    queryFn: () => customFetch<CoachApplication[]>(`${API}/coaches/me/applications`),
+    staleTime: 60_000,
+  });
+
+  const { data: allFacilities = [], isLoading: loadingFacilities } = useQuery<PublicFacility[]>({
+    queryKey: ["facilities-public"],
+    queryFn: () => customFetch<PublicFacility[]>(`${API}/facilities/public`),
+    staleTime: 5 * 60_000,
+  });
+
+  // Facility IDs already affiliated or with a pending coach-initiated request,
+  // so we can hide them from search and show their state in the lists below.
+  const { affiliatedIds, pendingByFacility } = useMemo(() => {
+    const aIds = new Set<number>();
+    for (const a of affiliated) if (a.facilityId != null) aIds.add(a.facilityId);
+
+    const pending = new Map<number, CoachApplication>();
+    for (const app of applications) {
+      if (
+        app.initiatedBy === "coach" &&
+        app.status === "pending" &&
+        app.facilityId != null
+      ) {
+        // Multiple per-court invitations collapse to one badge per facility.
+        if (!pending.has(app.facilityId)) pending.set(app.facilityId, app);
+      }
+    }
+    return { affiliatedIds: aIds, pendingByFacility: pending };
+  }, [affiliated, applications]);
+
+  const filteredFacilities = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return allFacilities
+      .filter((f) => {
+        if (affiliatedIds.has(f.id)) return false;
+        if (pendingByFacility.has(f.id)) return false;
+        const hay = `${f.name} ${f.city ?? ""} ${f.address ?? ""}`.toLowerCase();
+        return hay.includes(needle);
+      })
+      .slice(0, 8);
+  }, [allFacilities, query, affiliatedIds, pendingByFacility]);
+
+  const apply = useMutation({
+    mutationFn: async (facilityId: number) =>
+      customFetch<ApplyResponse>(`${API}/coaches/apply-to-facility`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ facilityId }),
+      }),
+    onSuccess: (data) => {
+      if (data.created === 0) {
+        toast({
+          title: "Užklausa jau pateikta",
+          description: "Šiai aikštelei jau yra aktyvi paraiška arba esate jos trenerių sąraše.",
+        });
+      } else {
+        toast({
+          title: "Užklausa išsiųsta",
+          description: `Paraiška pateikta ${data.created} aikštelei (-ėms).`,
+        });
+      }
+      setQuery("");
+      qc.invalidateQueries({ queryKey: ["coach-me-applications"] });
+      qc.invalidateQueries({ queryKey: ["coach-me-facilities"] });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const pendingApps = applications.filter(
+    (a) => a.initiatedBy === "coach" && a.status === "pending",
+  );
+
+  return (
+    <section className="space-y-4">
+      <header className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold tracking-tight">Aikštelių partnerystės</h2>
+        <p className="text-sm text-muted-foreground">
+          Siųskite užklausas aikštelių savininkams, kad galėtumėte ten vesti pamokas.
+        </p>
+      </header>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <Label htmlFor="affil-search">Ieškoti aikštelės</Label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            id="affil-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Pavadinimas arba miestas"
+            className="pl-8"
+          />
+        </div>
+
+        {query.trim() && (
+          <div className="border-t pt-3">
+            {loadingFacilities ? (
+              <Skeleton className="h-10" />
+            ) : filteredFacilities.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Aikštelių nerasta. Patikrinkite pavadinimą.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {filteredFacilities.map((f) => (
+                  <li
+                    key={f.id}
+                    className="flex items-center gap-3 rounded-lg border p-2.5"
+                  >
+                    <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{f.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {[f.city, f.address].filter(Boolean).join(" · ") || "—"}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => apply.mutate(f.id)}
+                      disabled={apply.isPending}
+                    >
+                      Siųsti užklausą
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <h3 className="text-sm font-semibold">Patvirtintos partnerystės</h3>
+        {loadingAffiliated ? (
+          <Skeleton className="h-8" />
+        ) : affiliated.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Kol kas neturite patvirtintų aikštelių.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {affiliated.map((a, i) => (
+              <li
+                key={a.facilityId ?? `orphan-${i}`}
+                className="flex items-center gap-3 rounded-lg border p-2.5"
+              >
+                <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {a.facilityName ?? "Aikštelė"}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {[a.city, `${a.courts.length} kortai`].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <Badge variant="secondary">Aktyvi</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <h3 className="text-sm font-semibold">Laukiančios užklausos</h3>
+        {loadingApps ? (
+          <Skeleton className="h-8" />
+        ) : pendingApps.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Šiuo metu nėra laukiančių užklausų.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {pendingApps.map((app) => (
+              <li
+                key={app.id}
+                className="flex items-center gap-3 rounded-lg border p-2.5"
+              >
+                <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {app.facilityName ?? app.courtName}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {[app.city, app.courtName].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Laukiama
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+

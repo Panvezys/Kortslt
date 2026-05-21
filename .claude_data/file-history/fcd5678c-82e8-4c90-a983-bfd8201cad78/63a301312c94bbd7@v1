@@ -1,0 +1,307 @@
+import { Link } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Check, X, Trash2, Euro, MapPin, Mail } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { SportIcon, sportColor, SPORT_LABELS, SportPill } from "@/components/sport-icon";
+import { OwnerLayout, useFacilityId } from "@/components/owner-layout";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+interface PendingRequest {
+  invitationId: number;
+  courtId: number;
+  courtName: string;
+  facilityId: number | null;
+  facilityName: string | null;
+  message: string | null;
+  createdAt: string;
+  coach: {
+    id: number | null;
+    userId: string | null;
+    name: string;
+    email?: string | null;
+    bio?: string;
+    photoUrl?: string;
+    pricePerHour?: number;
+    sports?: string[];
+  };
+}
+
+interface RosterEntry {
+  courtId: number;
+  courtName: string;
+  facilityId: number | null;
+  facilityName: string | null;
+  coach: {
+    id: number;
+    userId: string;
+    name: string;
+    photoUrl?: string;
+    bio?: string;
+    pricePerHour?: number;
+    sports: string[];
+  };
+}
+
+interface FacilitySummary {
+  id: number;
+  name: string;
+}
+
+export default function OwnerCoachesPage() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const facilityId = useFacilityId();
+
+  const requestsQ = useQuery<PendingRequest[]>({
+    queryKey: ["owner", "coach-requests"],
+    queryFn: () => customFetch<PendingRequest[]>(`${API_URL}/owner/coach-requests`),
+  });
+
+  const rosterQ = useQuery<RosterEntry[]>({
+    queryKey: ["owner", "coach-roster"],
+    queryFn: () => customFetch<RosterEntry[]>(`${API_URL}/owner/coach-roster`),
+  });
+
+  const facilitiesQ = useQuery<FacilitySummary[]>({
+    queryKey: ["owner-facilities"],
+    queryFn: () => customFetch<FacilitySummary[]>(`${API_URL}/facilities`),
+    enabled: !!facilityId,
+  });
+
+  const facilityName = facilityId
+    ? facilitiesQ.data?.find(f => f.id === facilityId)?.name
+    : undefined;
+
+  const respondMut = useMutation({
+    mutationFn: (vars: { invitationId: number; decision: "approve" | "reject" }) =>
+      customFetch(`${API_URL}/owner/respond-to-coach`, {
+        method: "POST",
+        body: JSON.stringify(vars),
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["owner", "coach-requests"] });
+      qc.invalidateQueries({ queryKey: ["owner", "coach-roster"] });
+      toast({ title: vars.decision === "approve" ? "Trenerio paraiška patvirtinta" : "Paraiška atmesta" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (vars: { courtId: number; coachId: number }) =>
+      customFetch(`${API_URL}/courts/${vars.courtId}/coaches/${vars.coachId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["owner", "coach-roster"] });
+      toast({ title: "Treneris pašalintas iš aikštelės" });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const requests = (requestsQ.data ?? []).filter(r =>
+    !facilityId || r.facilityId === facilityId
+  );
+
+  const roster = (rosterQ.data ?? []).filter(r =>
+    !facilityId || r.facilityId === facilityId
+  );
+
+  const rosterByCourt = roster.reduce<Record<string, RosterEntry[]>>((acc, r) => {
+    const key = `${r.courtId}:${r.courtName}`;
+    (acc[key] ||= []).push(r);
+    return acc;
+  }, {});
+
+  return (
+    <OwnerLayout facilityId={facilityId} facilityName={facilityName} title="Treneriai">
+      <div className="px-4 md:px-8 py-6 md:py-8 max-w-5xl w-full mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Treneriai</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {facilityId
+              ? "Tvarkykite šio objekto trenerių paraiškas ir aktyvius narius."
+              : "Tvarkykite trenerių paraiškas ir aktyvius narius jūsų aikštelėse."}
+          </p>
+        </div>
+
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Laukiančios paraiškos</h2>
+            {requests.length > 0 && (
+              <Badge variant="secondary">{requests.length}</Badge>
+            )}
+          </div>
+
+          {requestsQ.isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-32 w-full rounded-2xl" />
+            </div>
+          ) : !requests.length ? (
+            <div className="bg-card border border-dashed rounded-2xl p-8 text-center text-sm text-muted-foreground">
+              Šiuo metu naujų paraiškų nėra.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {requests.map(req => {
+                const initials = req.coach.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                return (
+                  <div key={req.invitationId} className="bg-card border rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      {req.coach.photoUrl ? (
+                        <img src={req.coach.photoUrl} alt={req.coach.name} className="w-14 h-14 rounded-full object-cover border-2 border-primary/20 shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center border-2 border-primary/20 shrink-0">
+                          <span className="text-lg font-bold text-primary">{initials}</span>
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <h3 className="font-semibold text-base">
+                              {req.coach.id ? (
+                                <Link href={`/coach/${req.coach.id}`} className="hover:underline">{req.coach.name}</Link>
+                              ) : req.coach.name}
+                            </h3>
+                            {req.coach.email && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <Mail className="w-3 h-3" />{req.coach.email}
+                              </p>
+                            )}
+                          </div>
+                          {req.coach.pricePerHour != null && (
+                            <Badge variant="outline" className="font-semibold">
+                              <Euro className="w-3 h-3 mr-1" />{req.coach.pricePerHour}€/val
+                            </Badge>
+                          )}
+                        </div>
+
+                        {req.coach.sports && req.coach.sports.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {req.coach.sports.map(s => (
+                              <SportPill key={s} sport={s} variant="subtle" />
+                            ))}
+                          </div>
+                        )}
+
+                        {req.coach.bio && (
+                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{req.coach.bio}</p>
+                        )}
+
+                        <div className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
+                          <MapPin className="w-3 h-3" />
+                          Nori dirbti: <span className="font-medium text-foreground">{req.facilityName ?? req.courtName}</span>
+                          {req.facilityName && <span>· {req.courtName}</span>}
+                        </div>
+
+                        {req.message && (
+                          <div className="mt-3 p-3 rounded-lg bg-muted/50 text-sm italic">"{req.message}"</div>
+                        )}
+
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            size="sm"
+                            onClick={() => respondMut.mutate({ invitationId: req.invitationId, decision: "approve" })}
+                            disabled={respondMut.isPending}
+                          >
+                            <Check className="w-4 h-4 mr-1.5" />Patvirtinti
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => respondMut.mutate({ invitationId: req.invitationId, decision: "reject" })}
+                            disabled={respondMut.isPending}
+                          >
+                            <X className="w-4 h-4 mr-1.5" />Atmesti
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Aktyvūs treneriai</h2>
+            {roster.length > 0 && (
+              <Badge variant="secondary">{roster.length}</Badge>
+            )}
+          </div>
+
+          {rosterQ.isLoading ? (
+            <Skeleton className="h-32 w-full rounded-2xl" />
+          ) : !roster.length ? (
+            <div className="bg-card border border-dashed rounded-2xl p-8 text-center text-sm text-muted-foreground">
+              Dar nėra patvirtintų trenerių.
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(rosterByCourt).map(([key, entries]) => {
+                const first = entries[0];
+                return (
+                  <div key={key}>
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      {first.facilityName ? `${first.facilityName} · ${first.courtName}` : first.courtName}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {entries.map(r => {
+                        const initials = r.coach.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+                        return (
+                          <div key={`${r.courtId}-${r.coach.id}`} className="bg-card border rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                            {r.coach.photoUrl ? (
+                              <img src={r.coach.photoUrl} alt={r.coach.name} className="w-12 h-12 rounded-full object-cover shrink-0" />
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                                <span className="text-sm font-bold text-primary">{initials}</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <Link href={`/coach/${r.coach.id}`} className="font-medium hover:underline truncate block">
+                                {r.coach.name}
+                              </Link>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {r.coach.sports.slice(0, 3).map(s => (
+                                  <SportPill key={s} sport={s} variant="subtle" />
+                                ))}
+                              </div>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm(`Pašalinti ${r.coach.name} iš ${r.courtName}?`)) {
+                                  removeMut.mutate({ courtId: r.courtId, coachId: r.coach.id });
+                                }
+                              }}
+                              disabled={removeMut.isPending}
+                              title="Pašalinti"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </OwnerLayout>
+  );
+}

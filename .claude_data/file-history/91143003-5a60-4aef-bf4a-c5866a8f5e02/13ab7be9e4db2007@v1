@@ -1,0 +1,355 @@
+/**
+ * Coach-bookings — booking creation for Motifind-style coach service flow.
+ *
+ * The student picks a service on a coach profile, picks a date + start time,
+ * and (when the service is floating) picks one of the coach's affiliated
+ * courts. This router validates the whole window against:
+ *   1. The service: must be active. priceCents + durationMin come straight
+ *      from the row (Invariant B — Historical Immutability: the client
+ *      cannot send a price; once persisted, the booking's coachAmountCents
+ *      is snapshotted and never recomputed).
+ *   2. The coach: must be approved, accepting students, on the
+ *      student_pays_court model, with active Stripe Connect, and free
+ *      across the requested window (uses getCoachAvailability).
+ *   3. The court: must be the service's bound court when present; otherwise
+ *      must be one the coach is approved at. Must not have an overlapping
+ *      booking. Court price is computed server-side from court_pricing
+ *      with fallback to court.pricePerHour / 2 per 30-min slot.
+ *
+ * Endpoints:
+ *   GET  /coach-bookings/quote — price breakdown preview (no insert)
+ *   POST /coach-bookings       — creates a status='pending' booking row
+ *                                that the existing /payments/create-checkout
+ *                                flow then turns into a Stripe session
+ */
+import { Router, type IRouter } from "express";
+import { and, eq, ne } from "drizzle-orm";
+import { z } from "zod";
+import { clerkClient } from "@clerk/express";
+import {
+  db,
+  coachesTable,
+  coachServicesTable,
+  courtsTable,
+  courtCoachesTable,
+  bookingsTable,
+  userProfilesTable,
+} from "@workspace/db";
+import { requireAuth, getCurrentUserId } from "../lib/auth";
+import { getCoachAvailability } from "../lib/coach-availability";
+import { resolvePriceForSlot } from "../lib/pricing";
+import { generateManagementToken } from "./bookings";
+
+const router: IRouter = Router();
+
+const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+const timeRe = /^\d{2}:\d{2}$/;
+const SLOT_MIN = 30;
+
+const quoteSchema = z.object({
+  coachServiceId: z.coerce.number().int().positive(),
+  courtId: z.coerce.number().int().positive().optional(),
+  date: z.string().regex(dateRe, "Invalid date"),
+  startTime: z.string().regex(timeRe, "Invalid time"),
+});
+
+function addMinutes(hhmm: string, mins: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const total = h * 60 + m + mins;
+  const hh = Math.floor(total / 60).toString().padStart(2, "0");
+  const mm = (total % 60).toString().padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+interface ResolvedWindow {
+  service: typeof coachServicesTable.$inferSelect;
+  coach: {
+    id: number;
+    userId: string;
+  };
+  court: { id: number; pricePerHour: string };
+  startTime: string;
+  endTime: string;
+  durationMin: number;
+  serviceCents: number;
+  courtCents: number;
+  totalCents: number;
+}
+
+type ResolveError =
+  | { status: 400; error: string }
+  | { status: 404; error: string }
+  | { status: 409; error: string }
+  | { status: 422; error: string };
+
+/**
+ * Shared validation pipeline used by both quote and create. Returns the
+ * fully-resolved window or an error suitable for an HTTP response. Reads
+ * every field server-side — the only inputs from the client are
+ * (coachServiceId, courtId?, date, startTime).
+ */
+async function resolveCoachBookingWindow(input: {
+  coachServiceId: number;
+  courtId?: number;
+  date: string;
+  startTime: string;
+}): Promise<{ ok: true; data: ResolvedWindow } | { ok: false; err: ResolveError }> {
+  // 1. Service
+  const [service] = await db
+    .select()
+    .from(coachServicesTable)
+    .where(eq(coachServicesTable.id, input.coachServiceId));
+  if (!service) return { ok: false, err: { status: 404, error: "Service not found" } };
+  if (!service.isActive) {
+    return { ok: false, err: { status: 422, error: "Service inactive" } };
+  }
+
+  // 2. Coach
+  const [coach] = await db
+    .select({
+      id: coachesTable.id,
+      userId: coachesTable.userId,
+      status: coachesTable.status,
+      isAcceptingStudents: coachesTable.isAcceptingStudents,
+      courtPaymentModel: coachesTable.courtPaymentModel,
+    })
+    .from(coachesTable)
+    .where(eq(coachesTable.id, service.coachId));
+  if (!coach) return { ok: false, err: { status: 404, error: "Coach not found" } };
+  if (coach.status !== "approved") {
+    return { ok: false, err: { status: 422, error: "Coach not approved" } };
+  }
+  if (!coach.isAcceptingStudents) {
+    return { ok: false, err: { status: 422, error: "Coach not accepting students" } };
+  }
+  if (coach.courtPaymentModel !== "student_pays_court") {
+    return { ok: false, err: { status: 422, error: "Coach payment model unsupported" } };
+  }
+
+  // Coach Stripe Connect must be live — otherwise the post-payment transfer
+  // for the coach's share would fail later, stranding funds on platform.
+  const [coachProfile] = await db
+    .select({ status: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, coach.userId));
+  if (coachProfile?.status !== "active") {
+    return { ok: false, err: { status: 422, error: "Coach Stripe account not active" } };
+  }
+
+  // 3. Court selection
+  let courtId: number;
+  if (service.courtId != null) {
+    // Court-bound service — server forces the court regardless of what the
+    // client sent. Even sending a foreign id is silently overridden.
+    courtId = service.courtId;
+  } else {
+    // Floating service — client MUST send a courtId and it must be one the
+    // coach is approved at (assertCoachOwnsCourt-equivalent check).
+    if (input.courtId == null) {
+      return { ok: false, err: { status: 400, error: "courtId required for floating service" } };
+    }
+    const [aff] = await db
+      .select({ id: courtCoachesTable.id })
+      .from(courtCoachesTable)
+      .where(and(
+        eq(courtCoachesTable.coachId, coach.id),
+        eq(courtCoachesTable.courtId, input.courtId),
+      ));
+    if (!aff) {
+      return { ok: false, err: { status: 422, error: "Coach not affiliated with this court" } };
+    }
+    courtId = input.courtId;
+  }
+
+  const [court] = await db
+    .select({ id: courtsTable.id, pricePerHour: courtsTable.pricePerHour })
+    .from(courtsTable)
+    .where(eq(courtsTable.id, courtId));
+  if (!court) return { ok: false, err: { status: 404, error: "Court not found" } };
+
+  // 4. Window
+  const durationMin = service.durationMin;
+  const startTime = input.startTime;
+  if (durationMin % SLOT_MIN !== 0) {
+    return { ok: false, err: { status: 400, error: "Service duration must be a multiple of 30 minutes" } };
+  }
+  const endTime = addMinutes(startTime, durationMin);
+  // Sanity: end time must be later than start; only same-day windows.
+  if (endTime <= startTime) {
+    return { ok: false, err: { status: 400, error: "Booking window crosses midnight" } };
+  }
+
+  // 5. Coach matrix check — every 30-min slot in [start, end) must be in the
+  // coach's free-slot set. getCoachAvailability already subtracts existing
+  // coach bookings, blocks, and weekly schedule gaps.
+  const coachSlots = await getCoachAvailability(coach.id, input.date);
+  const freeLabels = new Set(coachSlots.map(s => s.label));
+  let cursor = startTime;
+  while (cursor < endTime) {
+    if (!freeLabels.has(cursor)) {
+      return { ok: false, err: { status: 409, error: "Coach unavailable for this window" } };
+    }
+    cursor = addMinutes(cursor, SLOT_MIN);
+  }
+
+  // 6. Court availability — string-overlap check on bookings for this court
+  // on this date. Status != cancelled blocks the slot.
+  const courtBookings = await db
+    .select({ startTime: bookingsTable.startTime, endTime: bookingsTable.endTime })
+    .from(bookingsTable)
+    .where(and(
+      eq(bookingsTable.courtId, courtId),
+      eq(bookingsTable.date, input.date),
+      ne(bookingsTable.status, "cancelled"),
+    ));
+  for (const b of courtBookings) {
+    if (b.startTime < endTime && b.endTime > startTime) {
+      return { ok: false, err: { status: 409, error: "Court already booked for this window" } };
+    }
+  }
+
+  // 7. Court price — walk 30-min slots, sum resolvePriceForSlot (EUR per
+  // slot) so per-hour overrides and holiday rules apply. Fallback: half
+  // the court's pricePerHour per 30-min slot.
+  const defaultSlotPrice = Number(court.pricePerHour) / 2;
+  let courtEurTotal = 0;
+  cursor = startTime;
+  while (cursor < endTime) {
+    const slotEur = await resolvePriceForSlot(courtId, input.date, cursor, defaultSlotPrice);
+    courtEurTotal += slotEur;
+    cursor = addMinutes(cursor, SLOT_MIN);
+  }
+  const courtCents = Math.round(courtEurTotal * 100);
+
+  // 8. Service price is snapshotted from the row — Invariant B. The client
+  // never sends a price; the booking's coachAmountCents is locked to this
+  // value at insertion time and never re-derived from coachServicesTable
+  // afterwards (even if the service price changes).
+  const serviceCents = service.priceCents;
+  const totalCents = courtCents + serviceCents;
+
+  return {
+    ok: true,
+    data: {
+      service,
+      coach,
+      court,
+      startTime,
+      endTime,
+      durationMin,
+      serviceCents,
+      courtCents,
+      totalCents,
+    },
+  };
+}
+
+// ─── GET /coach-bookings/quote ────────────────────────────────────────────
+
+router.get("/coach-bookings/quote", requireAuth, async (req, res): Promise<void> => {
+  const parsed = quoteSchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const r = await resolveCoachBookingWindow(parsed.data);
+  if (!r.ok) {
+    res.status(r.err.status).json({ error: r.err.error });
+    return;
+  }
+  const { data } = r;
+  res.json({
+    courtId: data.court.id,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    durationMin: data.durationMin,
+    courtCents: data.courtCents,
+    serviceCents: data.serviceCents,
+    totalCents: data.totalCents,
+  });
+});
+
+// ─── POST /coach-bookings ─────────────────────────────────────────────────
+
+const createSchema = quoteSchema;
+
+router.post("/coach-bookings", requireAuth, async (req, res): Promise<void> => {
+  const parsed = createSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const callerId = getCurrentUserId(req);
+  if (!callerId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const r = await resolveCoachBookingWindow(parsed.data);
+  if (!r.ok) {
+    res.status(r.err.status).json({ error: r.err.error });
+    return;
+  }
+  const { data } = r;
+
+  // Customer info — read from Clerk so the student doesn't have to retype
+  // their name/email. Fallback: keep blank-ish defaults if Clerk lookup
+  // fails so the booking can still proceed (we can surface a placeholder
+  // 'Klientas' name in receipts).
+  let customerName = "Klientas";
+  let customerEmail = "";
+  try {
+    const u = await clerkClient.users.getUser(callerId);
+    customerName = [u.firstName, u.lastName].filter(Boolean).join(" ").trim() || u.username || "Klientas";
+    customerEmail = u.primaryEmailAddress?.emailAddress ?? "";
+  } catch (err) {
+    req.log?.warn?.({ err }, "Clerk lookup failed for coach-booking creator");
+  }
+
+  // Insert the row. status='pending' so the existing cron sweeper will
+  // reclaim it if the student abandons checkout. coachAmountCents is
+  // snapshotted from service.priceCents (Invariant B). totalPrice is the
+  // EUR string Stripe will charge (court + service).
+  const [inserted] = await db
+    .insert(bookingsTable)
+    .values({
+      courtId: data.court.id,
+      bookerUserId: callerId,
+      customerName,
+      customerEmail,
+      date: parsed.data.date,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      totalPrice: (data.totalCents / 100).toFixed(2),
+      status: "pending",
+      coachId: data.coach.userId,
+      coachServiceId: data.service.id,
+      coachAmountCents: data.serviceCents,
+      // Authenticated booker → no guest management token needed.
+      managementToken: null,
+      isSplit: false,
+    })
+    .returning({ id: bookingsTable.id });
+
+  if (!inserted) {
+    res.status(500).json({ error: "Failed to create booking" });
+    return;
+  }
+
+  res.status(201).json({
+    bookingId: inserted.id,
+    courtId: data.court.id,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    durationMin: data.durationMin,
+    courtCents: data.courtCents,
+    serviceCents: data.serviceCents,
+    totalCents: data.totalCents,
+  });
+});
+
+// Re-export the generator so callers that pull from this module can use it
+// without reaching into routes/bookings.ts directly.
+export { generateManagementToken };
+
+export default router;

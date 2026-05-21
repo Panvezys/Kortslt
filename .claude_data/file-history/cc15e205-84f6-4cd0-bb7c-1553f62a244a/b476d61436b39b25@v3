@@ -1,0 +1,67 @@
+# Coach Scheduling & Affiliation Engine
+
+## Purpose
+
+Lets coaches define when and where they teach: recurring weekly working hours, one-off blocks, court partnerships, and high-level policies (travel + court payment). The matrix endpoint then derives bookable 30-minute slots for any given date.
+
+## Data model (`lib/db/src/schema/coaches.ts`)
+
+- `coachesTable` (extended) — two new columns:
+  - `travelPolicy: text NOT NULL DEFAULT 'affiliated_only'` — values `any_court` | `affiliated_only`.
+  - `courtPaymentModel: text NOT NULL DEFAULT 'student_pays_court'` — values `student_pays_court` | `coach_pays_court`.
+- `coachAvailabilitiesTable` — recurring weekly hours. `(coachId, dayOfWeek 0-6, startTime "HH:MM", endTime "HH:MM")`. Multiple rows per day are allowed (split shifts); the V1 UI collapses to one envelope per day. Times are interpreted in **Europe/Vilnius** local time.
+- `coachBlockedSlotsTable` — one-off vacations / conflicts. `(coachId, startTime timestamptz, endTime timestamptz, reason text)`. Absolute UTC instants so range comparisons stay timezone-free.
+- `courtCoachInvitationsTable` (existing) — pending partnership requests with `status: pending|approved|rejected` and `initiatedBy: owner|coach`. Coach-initiated rows are surfaced to the court owner for approval.
+- `courtCoachesTable` (existing) — a row here means an active approved partnership.
+- `bookingsTable.coachId text` (new, nullable) — present so the future coach-booking flow can attach a coach to a booking. Not yet populated.
+
+## API surface (`artifacts/api-server/src/routes/coach-schedule.ts`)
+
+All routes are `requireCoach`-gated unless noted. They derive the caller's coach via `coachesTable.userId = clerkUserId`; the path never accepts a client-supplied coach id.
+
+- `GET    /coaches/me/availability` — own weekly schedule (sorted by day + start).
+- `PUT    /coaches/me/availability` — replace-all upsert. Body: `{ entries: [{dayOfWeek, startTime, endTime}, ...] }`. Wrapped in a transaction.
+- `GET    /coaches/me/blocked-slots?from&to` — defaults to next 180 days.
+- `POST   /coaches/me/blocked-slots` — body `{ startTime ISO, endTime ISO, reason? }`.
+- `DELETE /coaches/me/blocked-slots/:id` — ownership-bound delete (compound `WHERE id AND coachId`).
+- `GET    /coaches/:id/availability?date=YYYY-MM-DD` (`requireAuth`) — public matrix endpoint, see below.
+
+Affiliation flow (reuses pre-existing routes in `coaches.ts`):
+
+- `POST /coaches/apply-to-facility` — coach-initiated bulk application; inserts pending rows in `courtCoachInvitationsTable` for every court in the facility.
+- `GET  /owner/coach-requests` — owner-side queue of pending `initiatedBy='coach'` invitations.
+- `POST /owner/respond-to-coach` — owner approve/reject. Approve writes the `courtCoachesTable` row.
+
+## Availability matrix (`artifacts/api-server/src/lib/coach-availability.ts`)
+
+`getCoachAvailability(coachId, date)` returns `CoachAvailabilitySlot[]` (30-minute slots) for the date in Europe/Vilnius. The set is:
+
+```
+slots = ⋃ availability(weekday) − blockedSlots − bookings(coachId, date, status != 'cancelled')
+```
+
+Bookings subtraction was wired in Strike 2: any row in `bookings` where `coachId = this coach's userId`, `date = the requested date`, and `status != 'cancelled'` is treated as a blocker. The `HH:MM` times are converted through the same DST-safe `vilniusToUtc` path so spring-forward / fall-back bookings occupy the right UTC range.
+
+### Timezone math
+
+We avoid pulling in luxon/date-fns-tz for one function. The trick:
+- `partsAtVilnius(date)` formats a UTC instant with `Intl.DateTimeFormat` in `Europe/Vilnius` and parses back the wall-clock parts.
+- `vilniusToUtc(date, "HH:MM")` runs a two-iteration corrector: first guess assumes Vilnius == UTC, then we re-format the candidate and apply the offset delta. Two passes always converge because the worst-case DST correction is one hour.
+
+DST is handled correctly for:
+- Spring-forward (last Sunday of March, 03:00 EET → 04:00 EEST) — the 03:00 hour is skipped, so a `02:00–04:00` Vilnius window produces 2 slots, not 4.
+- Fall-back (last Sunday of October, 04:00 EEST → 03:00 EET) — the 03:00 hour exists twice; we deterministically pick the EET (post-shift) occurrence.
+
+## Frontend
+
+- `artifacts/courtbook/src/pages/coach/settings.tsx` — adds `travelPolicy` + `courtPaymentModel` radio groups and renders `<CoachAffiliations />`.
+- `artifacts/courtbook/src/components/coach-affiliations.tsx` — search facilities (from `/facilities/public`), "Siųsti užklausą" calls `/coaches/apply-to-facility`, lists active partnerships and pending requests.
+- `artifacts/courtbook/src/pages/coach/schedule.tsx` — weekly editor (one shift per day, switch + start/end time inputs) and blocked-slots list with add/delete.
+- `artifacts/courtbook/src/pages/owner/coaches.tsx` — already surfaces coach-initiated requests from `/owner/coach-requests`; no changes needed.
+
+## Security notes
+
+- Every `/coaches/me/*` route binds to `getCurrentUserId(req)` and resolves the caller's `coachId` server-side. No path or body field carries a coach id.
+- Blocked-slot delete uses a compound `WHERE id AND coachId` so a forged path can't delete someone else's block.
+- `/coaches/apply-to-facility` skips courts the caller is already affiliated with or has a pending application for — protects against spam and duplicate notifications to the owner.
+- The matrix endpoint `/coaches/:id/availability` is `requireAuth` only (no ownership check) — availability is intentionally semi-public so students can see when to book.

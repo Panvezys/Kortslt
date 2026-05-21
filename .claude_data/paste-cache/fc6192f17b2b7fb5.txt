@@ -1,0 +1,35 @@
+You must absolutely proceed with this implementation. Your analysis of the user_profiles join and the silent delisting tradeoff is incredibly sharp.
+
+Silently hiding a coach if Stripe flips them back to pending (e.g., due to expired ID verification) is exactly how a robust financial platform should fail—it fails safely. By immediately halting checkouts, you protect the platform's escrow ledger. The mitigation for the silent delisting is the dashboard banner itself; if their bookings suddenly stop, the first thing they will do is check their dashboard, where the giant red banner will instantly explain why. (Stripe also sends its own automated emails to connected accounts when requirements are due, giving you a free layer of communication).
+
+Here is the exact command to execute this critical security layer. Copy and paste this into your terminal:
+
+"The architectural logic for the Stripe connection status is spot on. Failing safely by hiding the profile is the correct default.
+
+Please execute the following in 3 phases:
+
+--- PHASE 1: The Marketplace Shield (GET /coaches) ---
+
+Update the marketplace list query in routes/coaches.ts.
+
+Add an INNER JOIN to user_profiles on userId.
+
+Add a WHERE condition demanding user_profiles.stripeAccountStatus = 'active'. Unconnected or pending coaches must instantly disappear from search results.
+
+--- PHASE 2: The Direct Link Safe-Guard (GET /coaches/:id) ---
+
+Update the single-coach detail response to include an isBookable boolean (computed from stripeAccountStatus === 'active').
+
+In pages/coach.tsx, if !isBookable, disable all 'Užsakyti' (Book) buttons.
+
+Add a tooltip or small subtext under the disabled buttons stating: 'Mokėjimai laikinai negalimi' (Payments temporarily unavailable).
+
+--- PHASE 3: The Dashboard Nudge (pages/coach/settings.tsx) ---
+
+In the coach's private dashboard, check their stripeAccountStatus.
+
+If it is not_connected or pending, render a highly visible, non-dismissible warning banner at the top of the page: '⚠️ Jūsų profilis yra paslėptas nuo žaidėjų. Prijunkite arba atnaujinkite banko sąskaitos informaciją, kad galėtumėte priimti užsakymus.' (Your profile is hidden from players. Connect or update your bank account information to accept bookings.)
+
+Ensure the 'Pridėti paslaugą' (Add Service) CRUD actions still work so they can build their catalog while waiting for Stripe approval.
+
+Run strict typechecks. Ensure the account.updated Stripe webhook properly invalidates the coach query cache so state changes are reflected immediately."

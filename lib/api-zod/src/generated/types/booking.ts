@@ -5,6 +5,7 @@
  * CourtBook API - Court booking platform for Lithuania
  * OpenAPI spec version: 0.1.0
  */
+import type { BookingCoach } from "./bookingCoach";
 import type { BookingStatus } from "./bookingStatus";
 
 export interface Booking {
@@ -32,4 +33,10 @@ export interface Booking {
   pricePerSlot?: number;
   /** Shareable token for players to join and pay their share of a split booking. */
   splitInviteToken?: string;
+  /** Clerk user ID of the coach attached to this booking, if any. */
+  coachId?: string | null;
+  /** ID of the coach_services row this booking was created from, when booked via the coach-services flow. */
+  coachServiceId?: number | null;
+  /** Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings. */
+  coach?: BookingCoach;
 }

@@ -1,0 +1,9 @@
+{
+  "id": "28",
+  "subject": "Phase 1: reviews schema + coaches aggregate columns",
+  "description": "Create reviewsTable, add averageRating + reviewCount to coachesTable, export from schema barrel, run db push",
+  "activeForm": "Building reviews schema",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,28 @@
+Phase 3 looks great. Let's execute Phase 4: Coach-Side Service CRUD UI in `pages/coach.tsx` (or the corresponding management panel).
+
+Please implement this using our existing React Hook Form, Zod, and shadcn/ui primitives across 3 sub-phases:
+
+--- PHASE 4.1: The Services Management Panel ---
+1. Inside the coach's private dashboard view, add a "Mano paslaugos" (My Services) tab or section.
+2. Render a responsive card list of all their services (both active and inactive). Inactive services should have a visual badge or lower opacity indicating they are paused.
+3. Add an inline "Redaguoti" (Edit) button and an "Ištrinti" (Delete) button per row. 
+
+--- PHASE 4.2: The Upsert Dialog Form ---
+1. Add a primary "Pridėti naują paslaugą" (Add New Service) button that opens a Dialog modal.
+2. The form must include the following inputs with strict Zod validation:
+   - Name (text, required)
+   - Description (textarea, optional)
+   - Sport (Select dropdown, restricted to the sports this coach is approved for)
+   - Duration (Select dropdown with strict options: 30 min, 1 val., 1.5 val., 2 val., mapping to 30/60/90/120 minutes)
+   - Price (Text/Number input in Euros, safely parsed to integer cents on submission using Math.round)
+   - Max Participants (Number input, restricted from 1 to 8)
+   - Audience Level (Select dropdown, optional: Vaikai, Pradedantieji, Pažengę, Profesionalai)
+   - Bound Court (Select dropdown, showing ONLY courts from this coach's approved facility affiliations, plus an option for "Bet kuri aikštelė" mapping to null)
+   - Is Active (Toggle switch, default true)
+
+--- PHASE 4.3: Mutation Wiring & Price Sync ---
+1. Wire the form to use TanStack Mutation hooks pointing to our `POST /api/coaches/:id/services` and `PATCH /api/coaches/:id/services/:sid` endpoints.
+2. Wire the Delete button to hit `DELETE /api/coaches/:id/services/:sid`. Ensure the UI triggers a confirmation dialog first.
+3. **CRITICAL:** On any successful mutation (create, update, delete), invalidate the `servicesQ` cache AND the main coach profile cache so the denormalized `pricePerHour` starting price instantly updates across the UI without a page refresh.
+
+Run typechecks across the package and ensure the 15-service catalog limit is respected.

@@ -1,0 +1,556 @@
+/**
+ * Seed demo coaches + their supporting facilities/courts for the marketplace
+ * demo. Everything is tagged with a 'demo-seed-' user prefix so it can be
+ * wiped in one shot via `pnpm run cleanup-demo-coaches`.
+ *
+ * Idempotent: re-running upserts by the deterministic seed keys.
+ */
+import {
+  db,
+  facilitiesTable,
+  courtsTable,
+  coachesTable,
+  courtCoachesTable,
+  coachSportsTable,
+  coachAvailabilitiesTable,
+} from "@workspace/db";
+import { eq, like, sql, inArray, and } from "drizzle-orm";
+
+const DEMO_PREFIX = "demo-seed-";
+
+interface FacilitySeed {
+  key: string;
+  name: string;
+  city: string;
+  address: string;
+  postcode: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  courts: Array<{
+    name: string;
+    type: string;
+    pricePerHour: number; // euros, will be cast to numeric(10,2)
+    isIndoor: boolean;
+    surface: string | null;
+  }>;
+}
+
+// Real-world coordinates for major Lithuanian cities. Picked points that are
+// not on top of each other so the map clustering doesn't fully collapse them.
+const FACILITIES: FacilitySeed[] = [
+  {
+    key: "vilnius",
+    name: "Vilniaus Sporto Centras",
+    city: "Vilnius",
+    address: "Gedimino pr. 50",
+    postcode: "01103",
+    latitude: 54.6892,
+    longitude: 25.2798,
+    description: "Modernus daugiafunkcis sporto centras Vilniaus centre.",
+    courts: [
+      { name: "Teniso kortas 1", type: "tennis", pricePerHour: 28, isIndoor: true, surface: "hard" },
+      { name: "Padelio aikštelė A", type: "padel", pricePerHour: 24, isIndoor: true, surface: null },
+      { name: "Krepšinio salė", type: "basketball", pricePerHour: 35, isIndoor: true, surface: "wood" },
+    ],
+  },
+  {
+    key: "kaunas",
+    name: "Kauno Sporto Akademija",
+    city: "Kaunas",
+    address: "Laisvės al. 75",
+    postcode: "44249",
+    latitude: 54.8985,
+    longitude: 23.9036,
+    description: "Šiuolaikiškas Kauno sporto kompleksas su 8 aikštelėmis.",
+    courts: [
+      { name: "Teniso kortas A", type: "tennis", pricePerHour: 22, isIndoor: false, surface: "clay" },
+      { name: "Badmintono salė", type: "badminton", pricePerHour: 18, isIndoor: true, surface: "wood" },
+      { name: "Stalo teniso salė", type: "table_tennis", pricePerHour: 12, isIndoor: true, surface: null },
+    ],
+  },
+  {
+    key: "klaipeda",
+    name: "Klaipėdos Jūros Sportas",
+    city: "Klaipėda",
+    address: "H. Manto g. 22",
+    postcode: "92234",
+    latitude: 55.7033,
+    longitude: 21.1443,
+    description: "Sporto centras prie Baltijos jūros — tenisas, padelis ir futbolas.",
+    courts: [
+      { name: "Padelio kortas P1", type: "padel", pricePerHour: 26, isIndoor: true, surface: null },
+      { name: "Mini futbolo aikštė", type: "football", pricePerHour: 40, isIndoor: false, surface: "grass" },
+    ],
+  },
+  {
+    key: "siauliai",
+    name: "Šiaulių Sporto Klubas",
+    city: "Šiauliai",
+    address: "Vilniaus g. 100",
+    postcode: "76200",
+    latitude: 55.9326,
+    longitude: 23.3138,
+    description: "Šeimų ir vaikų mėgstamiausias sporto klubas Šiauliuose.",
+    courts: [
+      { name: "Teniso kortas T1", type: "tennis", pricePerHour: 20, isIndoor: false, surface: "clay" },
+      { name: "Skvošo aikštelė", type: "squash", pricePerHour: 16, isIndoor: true, surface: null },
+    ],
+  },
+  {
+    key: "panevezys",
+    name: "Panevėžio Aktyvus Sportas",
+    city: "Panevėžys",
+    address: "Respublikos g. 12",
+    postcode: "35173",
+    latitude: 55.7333,
+    longitude: 24.3567,
+    description: "Šeimos sporto centras su didžiausia padelio sale regione.",
+    courts: [
+      { name: "Padelio aikštelė PN1", type: "padel", pricePerHour: 22, isIndoor: true, surface: null },
+      { name: "Krepšinio aikštelė", type: "basketball", pricePerHour: 28, isIndoor: true, surface: "wood" },
+      { name: "Badmintono kortas", type: "badminton", pricePerHour: 14, isIndoor: true, surface: "wood" },
+    ],
+  },
+];
+
+interface CoachSeed {
+  key: string; // suffix for demo-seed-coach-<key>
+  name: string;
+  email: string;
+  bio: string;
+  pricePerHour: number; // euros
+  experienceYears: number;
+  photoUrl?: string;
+  travelPolicy: "any_court" | "affiliated_only";
+  cancellationPolicy: "flexible" | "standard" | "strict";
+  // Which facility keys this coach is affiliated with — courts at these
+  // facilities matching the coach's sports get auto-linked.
+  facilityKeys: string[];
+  // Per-sport audience checkboxes from the wizard.
+  sportsAudiences: Array<{
+    sport: string;
+    audiences: Array<"kids" | "beginners" | "advanced" | "pros">;
+  }>;
+}
+
+const COACHES: CoachSeed[] = [
+  {
+    key: "tomas-tennis-vilnius",
+    name: "Tomas Petrauskas",
+    email: "tomas.demo@korts.lt",
+    bio: "Vyresnysis teniso treneris su 12 metų patirtimi. Treniravau Lietuvos jaunių rinktinės žaidėjus, dabar specializuojuosi vaikų ir pradedančiųjų grupių darbe. Treniruotės vyksta lietuvių arba anglų kalba.",
+    pricePerHour: 35,
+    experienceYears: 12,
+    travelPolicy: "any_court",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["vilnius"],
+    sportsAudiences: [
+      { sport: "tennis", audiences: ["kids", "beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "egle-tennis-kaunas",
+    name: "Eglė Jankauskaitė",
+    email: "egle.demo@korts.lt",
+    bio: "Buvusi Lietuvos čempionė. Dirbu su jauniais ir suaugusiais pažengusiais žaidėjais. Pasiūlysiu individualų techninių elementų tobulinimą bei taktikos pamokas.",
+    pricePerHour: 42,
+    experienceYears: 18,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "standard",
+    facilityKeys: ["kaunas", "vilnius"],
+    sportsAudiences: [
+      { sport: "tennis", audiences: ["advanced", "pros"] },
+    ],
+  },
+  {
+    key: "mantas-basketball-vilnius",
+    name: "Mantas Vaitkevičius",
+    email: "mantas.demo@korts.lt",
+    bio: "Krepšinio treneris, dirbęs su LKL klubo akademija. Skatinu komandinį darbą, asmeninius metimo įgūdžius ir žaidimo skaitymą. Treniruotės pritaikytos visiems amžiams.",
+    pricePerHour: 30,
+    experienceYears: 9,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["vilnius", "panevezys"],
+    sportsAudiences: [
+      { sport: "basketball", audiences: ["kids", "beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "rasa-padel-klaipeda",
+    name: "Rasa Stankevičienė",
+    email: "rasa.demo@korts.lt",
+    bio: "Padelio trenerė ir buvusi olandų FIP tinklo žaidėja. Specialiai mokau taktikos, žaidimo poromis ir pozicionavimo aikštelėje. Treniruotės dažnai vyksta poromis arba grupėmis.",
+    pricePerHour: 38,
+    experienceYears: 7,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "strict",
+    facilityKeys: ["klaipeda", "vilnius"],
+    sportsAudiences: [
+      { sport: "padel", audiences: ["beginners", "advanced", "pros"] },
+    ],
+  },
+  {
+    key: "lukas-padel-panevezys",
+    name: "Lukas Žukauskas",
+    email: "lukas.demo@korts.lt",
+    bio: "Padelio entuziastas, dirbantis su pradedančiaisiais. Suprantamas bendravimo stilius, daug žaidimo akcentų. Pirmoji treniruotė nemokama susipažinimui.",
+    pricePerHour: 22,
+    experienceYears: 4,
+    travelPolicy: "any_court",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["panevezys", "kaunas"],
+    sportsAudiences: [
+      { sport: "padel", audiences: ["kids", "beginners"] },
+    ],
+  },
+  {
+    key: "indre-badminton-kaunas",
+    name: "Indrė Balčiūnaitė",
+    email: "indre.demo@korts.lt",
+    bio: "Badmintono trenerė vaikams ir paaugliams. Akcentuoju darbo etiką, koordinaciją ir žaidimo džiaugsmą. Treniruoju individualiai bei grupėse.",
+    pricePerHour: 25,
+    experienceYears: 11,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "standard",
+    facilityKeys: ["kaunas", "panevezys"],
+    sportsAudiences: [
+      { sport: "badminton", audiences: ["kids", "beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "vytas-football-klaipeda",
+    name: "Vytas Šimkus",
+    email: "vytas.demo@korts.lt",
+    bio: "Mini futbolo treneris, dirbęs jaunimo akademijoje 10+ metų. Padedu vaikams ir paaugliams ugdyti žaidimo skaitymą, techniką ir fizinį pasirengimą.",
+    pricePerHour: 28,
+    experienceYears: 13,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["klaipeda"],
+    sportsAudiences: [
+      { sport: "football", audiences: ["kids", "beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "agne-tabletennis-kaunas",
+    name: "Agnė Vasiliauskienė",
+    email: "agne.demo@korts.lt",
+    bio: "Stalo teniso trenerė, daugiametė LT moterų rinktinės narė. Pasiūlysiu griežtai struktūruotas treniruotes — nuo techninių pratimų iki konkurencinių žaidimų.",
+    pricePerHour: 30,
+    experienceYears: 16,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "strict",
+    facilityKeys: ["kaunas"],
+    sportsAudiences: [
+      { sport: "table_tennis", audiences: ["advanced", "pros"] },
+    ],
+  },
+  {
+    key: "andrius-squash-siauliai",
+    name: "Andrius Petraitis",
+    email: "andrius.demo@korts.lt",
+    bio: "Skvošo treneris, padedantis pereiti nuo pradinio lygio iki klubinio žaidimo. Dirbu su asmeninėmis treniruotėmis bei mažomis grupėmis.",
+    pricePerHour: 26,
+    experienceYears: 8,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "standard",
+    facilityKeys: ["siauliai"],
+    sportsAudiences: [
+      { sport: "squash", audiences: ["beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "monika-tennis-siauliai",
+    name: "Monika Urbonaitė",
+    email: "monika.demo@korts.lt",
+    bio: "Teniso trenerė vaikams nuo 5 m. amžiaus. Mokau per žaidimą — be spaudimo, su didele meile sportui. Vasarą organizuoju mini stovyklas.",
+    pricePerHour: 24,
+    experienceYears: 6,
+    travelPolicy: "any_court",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["siauliai", "panevezys"],
+    sportsAudiences: [
+      { sport: "tennis", audiences: ["kids", "beginners"] },
+    ],
+  },
+  {
+    key: "donatas-basketball-panevezys",
+    name: "Donatas Kavaliauskas",
+    email: "donatas.demo@korts.lt",
+    bio: "Krepšinio treneris su patirtimi Eurolygos jaunių lygyje. Mokau metimą, žaidimą po krepšiu ir komandinę gynybą.",
+    pricePerHour: 40,
+    experienceYears: 15,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "standard",
+    facilityKeys: ["panevezys", "vilnius"],
+    sportsAudiences: [
+      { sport: "basketball", audiences: ["advanced", "pros"] },
+    ],
+  },
+  {
+    key: "ieva-multi-vilnius",
+    name: "Ieva Žemaitytė",
+    email: "ieva.demo@korts.lt",
+    bio: "Multisporto trenerė — tenisas ir badmintonas. Specializuojuosi šeimos treniruotėse, kur tėvai sportuoja kartu su vaikais.",
+    pricePerHour: 32,
+    experienceYears: 10,
+    travelPolicy: "any_court",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["vilnius", "kaunas"],
+    sportsAudiences: [
+      { sport: "tennis", audiences: ["kids", "beginners"] },
+      { sport: "badminton", audiences: ["kids", "beginners", "advanced"] },
+    ],
+  },
+  {
+    key: "saulius-padel-vilnius",
+    name: "Saulius Tamošaitis",
+    email: "saulius.demo@korts.lt",
+    bio: "Padelio treneris, kurio specializacija — profesionalūs žaidėjai ir mėgėjų lygos rungtynių taktika. Daug video analizės.",
+    pricePerHour: 48,
+    experienceYears: 9,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "strict",
+    facilityKeys: ["vilnius", "klaipeda"],
+    sportsAudiences: [
+      { sport: "padel", audiences: ["advanced", "pros"] },
+    ],
+  },
+  {
+    key: "kotryna-multi-kaunas",
+    name: "Kotryna Mickevičienė",
+    email: "kotryna.demo@korts.lt",
+    bio: "Krepšinio ir badmintono trenerė vaikams nuo 6 metų amžiaus. Treniruotės žaismingai, su mažomis grupėmis ir individualiu dėmesiu.",
+    pricePerHour: 20,
+    experienceYears: 5,
+    travelPolicy: "any_court",
+    cancellationPolicy: "flexible",
+    facilityKeys: ["kaunas", "siauliai"],
+    sportsAudiences: [
+      { sport: "basketball", audiences: ["kids", "beginners"] },
+      { sport: "badminton", audiences: ["kids", "beginners"] },
+    ],
+  },
+  {
+    key: "paulius-football-vilnius",
+    name: "Paulius Adomavičius",
+    email: "paulius.demo@korts.lt",
+    bio: "Futbolo treneris, dirbęs Lietuvos jaunučių rinktinėje. Akcentuoju techninius elementus ir greitumą su kamuoliu.",
+    pricePerHour: 32,
+    experienceYears: 14,
+    travelPolicy: "affiliated_only",
+    cancellationPolicy: "standard",
+    facilityKeys: ["vilnius", "klaipeda"],
+    sportsAudiences: [
+      { sport: "football", audiences: ["beginners", "advanced", "pros"] },
+    ],
+  },
+];
+
+async function seedFacilities(): Promise<Map<string, { facilityId: number; courts: Array<{ id: number; type: string }> }>> {
+  const result = new Map<string, { facilityId: number; courts: Array<{ id: number; type: string }> }>();
+
+  for (const f of FACILITIES) {
+    const ownerUserId = `${DEMO_PREFIX}owner-${f.key}`;
+
+    // Upsert facility — keyed on owner_user_id + name so re-runs don't dupe.
+    const existing = await db
+      .select({ id: facilitiesTable.id })
+      .from(facilitiesTable)
+      .where(and(eq(facilitiesTable.ownerUserId, ownerUserId), eq(facilitiesTable.name, f.name)));
+
+    let facilityId: number;
+    if (existing.length > 0) {
+      facilityId = existing[0].id;
+      await db
+        .update(facilitiesTable)
+        .set({
+          city: f.city,
+          address: f.address,
+          postcode: f.postcode,
+          latitude: f.latitude,
+          longitude: f.longitude,
+          description: f.description,
+          verificationStatus: "active",
+          adminVerified: true,
+        })
+        .where(eq(facilitiesTable.id, facilityId));
+      console.log(`  ↻ Facility "${f.name}" — id=${facilityId}`);
+    } else {
+      const [row] = await db
+        .insert(facilitiesTable)
+        .values({
+          name: f.name,
+          ownerUserId,
+          city: f.city,
+          address: f.address,
+          postcode: f.postcode,
+          latitude: f.latitude,
+          longitude: f.longitude,
+          description: f.description,
+          verificationStatus: "active",
+          adminVerified: true,
+        })
+        .returning({ id: facilitiesTable.id });
+      facilityId = row.id;
+      console.log(`  ✓ Facility "${f.name}" — id=${facilityId}`);
+    }
+
+    // Insert courts (upsert by facility+name)
+    const courts: Array<{ id: number; type: string }> = [];
+    for (const c of f.courts) {
+      const existingCourt = await db
+        .select({ id: courtsTable.id })
+        .from(courtsTable)
+        .where(and(eq(courtsTable.facilityId, facilityId), eq(courtsTable.name, c.name)));
+
+      let courtId: number;
+      if (existingCourt.length > 0) {
+        courtId = existingCourt[0].id;
+        await db
+          .update(courtsTable)
+          .set({
+            type: c.type,
+            pricePerHour: String(c.pricePerHour),
+            isIndoor: c.isIndoor,
+            surface: c.surface,
+            status: "approved",
+          })
+          .where(eq(courtsTable.id, courtId));
+      } else {
+        const [row] = await db
+          .insert(courtsTable)
+          .values({
+            name: c.name,
+            type: c.type,
+            facilityId,
+            pricePerHour: String(c.pricePerHour),
+            isIndoor: c.isIndoor,
+            surface: c.surface,
+            status: "approved",
+            description: `${c.name} · ${f.city}`,
+          })
+          .returning({ id: courtsTable.id });
+        courtId = row.id;
+      }
+      courts.push({ id: courtId, type: c.type });
+    }
+    console.log(`    └─ ${courts.length} courts ready`);
+    result.set(f.key, { facilityId, courts });
+  }
+
+  return result;
+}
+
+async function seedCoaches(
+  facilityMap: Map<string, { facilityId: number; courts: Array<{ id: number; type: string }> }>,
+) {
+  // Weekly availability — every coach gets the same generic schedule
+  // (Mon-Fri 09:00-21:00, Sat 10:00-18:00). The marketplace's availability
+  // filter exercises this when a player picks date+time+duration.
+  const WEEKLY: Array<{ dayOfWeek: number; startTime: string; endTime: string }> = [
+    { dayOfWeek: 1, startTime: "09:00", endTime: "21:00" },
+    { dayOfWeek: 2, startTime: "09:00", endTime: "21:00" },
+    { dayOfWeek: 3, startTime: "09:00", endTime: "21:00" },
+    { dayOfWeek: 4, startTime: "09:00", endTime: "21:00" },
+    { dayOfWeek: 5, startTime: "09:00", endTime: "21:00" },
+    { dayOfWeek: 6, startTime: "10:00", endTime: "18:00" },
+  ];
+
+  for (const c of COACHES) {
+    const userId = `${DEMO_PREFIX}coach-${c.key}`;
+    const sports = c.sportsAudiences.map((s) => s.sport);
+
+    // Upsert coach by userId (which has a unique constraint).
+    const existing = await db.select({ id: coachesTable.id })
+      .from(coachesTable).where(eq(coachesTable.userId, userId));
+
+    let coachId: number;
+    if (existing.length > 0) {
+      coachId = existing[0].id;
+      await db.update(coachesTable).set({
+        name: c.name,
+        email: c.email,
+        bio: c.bio,
+        photoUrl: c.photoUrl ?? null,
+        pricePerHour: c.pricePerHour * 100, // integer cents
+        sports,
+        experienceYears: c.experienceYears,
+        travelPolicy: c.travelPolicy,
+        cancellationPolicy: c.cancellationPolicy,
+        status: "approved",
+        isAcceptingStudents: true,
+      }).where(eq(coachesTable.id, coachId));
+    } else {
+      const [row] = await db.insert(coachesTable).values({
+        userId,
+        name: c.name,
+        email: c.email,
+        bio: c.bio,
+        photoUrl: c.photoUrl ?? null,
+        pricePerHour: c.pricePerHour * 100,
+        sports,
+        experienceYears: c.experienceYears,
+        travelPolicy: c.travelPolicy,
+        cancellationPolicy: c.cancellationPolicy,
+        status: "approved",
+        isAcceptingStudents: true,
+      }).returning({ id: coachesTable.id });
+      coachId = row.id;
+    }
+    console.log(`  ✓ Coach "${c.name}" — id=${coachId} (${c.travelPolicy}, ${c.cancellationPolicy})`);
+
+    // Replace-all sync of coach_sports junction.
+    await db.delete(coachSportsTable).where(eq(coachSportsTable.coachId, coachId));
+    if (c.sportsAudiences.length > 0) {
+      await db.insert(coachSportsTable).values(
+        c.sportsAudiences.map((s) => ({
+          coachId,
+          sport: s.sport,
+          audiences: s.audiences,
+        })),
+      );
+    }
+
+    // Wire court_coaches: link the coach to every court at their affiliated
+    // facilities whose sport matches one the coach teaches.
+    await db.delete(courtCoachesTable).where(eq(courtCoachesTable.coachId, coachId));
+    const links: Array<{ coachId: number; courtId: number }> = [];
+    for (const facilityKey of c.facilityKeys) {
+      const facility = facilityMap.get(facilityKey);
+      if (!facility) continue;
+      for (const court of facility.courts) {
+        if (sports.includes(court.type)) {
+          links.push({ coachId, courtId: court.id });
+        }
+      }
+    }
+    if (links.length > 0) {
+      await db.insert(courtCoachesTable).values(links).onConflictDoNothing();
+    }
+    console.log(`    └─ ${links.length} court affiliations`);
+
+    // Refresh weekly availability — clear and rebuild so the coach has slots
+    // the marketplace availability filter can match against.
+    await db.delete(coachAvailabilitiesTable).where(eq(coachAvailabilitiesTable.coachId, coachId));
+    await db.insert(coachAvailabilitiesTable).values(
+      WEEKLY.map((w) => ({ coachId, ...w })),
+    );
+  }
+}
+
+async function main() {
+  console.log("→ Seeding demo facilities…");
+  const facilityMap = await seedFacilities();
+  console.log("\n→ Seeding demo coaches…");
+  await seedCoaches(facilityMap);
+  console.log("\n✓ Done. Run `pnpm run cleanup-demo-coaches` to wipe.");
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

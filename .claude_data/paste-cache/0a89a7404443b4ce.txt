@@ -1,0 +1,35 @@
+1. The Coach Card: Visual Hierarchy & Decluttering
+Right now, the cards are very "pill-heavy." You have a pill for the sport, 2-3 pills for the audience, and 2 pills for the conditions. It creates visual noise.
+
+Faces Over Initials (Crucial): The biggest conversion killer here is the "TP" and "EJ" placeholder avatars. People buy trust and personality when hiring a coach. Once the Avatar upload is live (from our Strike 5.1 plan), these need to be large, high-quality, circular (or even full-card background) photos.
+
+Iconography for Conditions: Instead of massive text pills like [Lankstus atšaukimas] and [Atvyksta į bet kurią aikštelę], use simple, universally understood icons next to short text.
+
+Example: 🚗 Atvyksta į jūsų aikštelę
+
+Example: 📅 Lankstus atšaukimas
+
+Price Placement: Floating the € 35,00/val badge at the top right feels a bit detached. A modern e-commerce pattern is to place the price right next to the primary Call-to-Action button at the bottom.
+
+New Bottom Row: [ €35 / val. ] (Left aligned) --- [ Peržiūrėti profilį ] (Right aligned, primary button color).
+
+2. Contextual Availability (Functional UI)
+You built a massive availability matrix in the backend, but the frontend card doesn't celebrate it yet.
+
+If the user searches WITH a specific time (e.g., 18:00): The card should add a bright green indicator above the button saying: "🟢 Laisvas 18:00" (Available 18:00). This confirms to the user that their search worked and creates urgency to book.
+
+If the user searches WITHOUT a time: Show a subtle indicator like: "📅 Turi laisvų laikų šią savaitę" (Has open slots this week).
+
+3. Missing Social Proof (The Star Rating)
+As discussed previously, the UI currently forces players to choose based entirely on price and a short bio.
+
+Even before the backend reviews table is fully built (Strike 5.2), you should design the placeholder for it on these cards.
+
+Place a bold "⭐ 4.9 (12)" right under the coach's name. It instantly adds premium credibility to the page.
+
+4. The Hero Search Bar Layout
+Right now, the "Sport" selection is a row of small pills above the main dark grey search bar. Because users read left-to-right, inside-to-out, they might skip straight to "Miestas" (City) and ignore the sports.
+
+Suggestion: Integrate the Sport selection directly into the main search bar as the very first dropdown.
+
+New Layout: [ 🎾 Sporto šaka ] [ 📍 Miestas ] [ 📅 Data ] [ 🕒 Laikas ] [ ⏳ Trukmė ] [ 🔍 Ieškoti ]

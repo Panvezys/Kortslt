@@ -1,0 +1,21 @@
+"Great catch on the UX gap. I disagree with doing only step 1, because teasing the coach in the list view but hiding them in the detail view creates a confusing UX discontinuity. We will skip the filter chip, but we must do 1 and 3 together.
+
+Please execute this in 3 phases:
+
+--- PHASE 1: Type & API Alignment ---
+
+Update the BookingItem interface (and any associated Zod schemas) to include coachId, coachServiceId, and a nested coach object (e.g., { id, name }).
+
+Ensure the GET /bookings endpoint actually joins and returns the coach's name for these rows so the frontend doesn't have to N+1 fetch them.
+
+--- PHASE 2: The List View (bookings.tsx) ---
+
+Update the booking card renderer. If a booking has a coachId, change the primary headline or add a prominent pill: '🎓 Pamoka su [Coach Name]' instead of just the bare court name.
+
+--- PHASE 3: The Detail View ---
+
+In the booking detail page/modal, detect if coachId is present.
+
+If present, add a clear section showing the coach's name with a 'Trenerio profilis' (Coach Profile) deep-link pointing to /coaches/:id.
+
+Run strict typechecks to ensure the BookingItem type propagates cleanly."

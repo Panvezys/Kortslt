@@ -1,0 +1,192 @@
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CoachLayout } from "@/components/coach-layout";
+import { CalendarDays, Users, Sparkles, AlertCircle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { customFetch } from "@workspace/api-client-react";
+import { centsToEuroString } from "@/lib/money";
+import { useToast } from "@/hooks/use-toast";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+interface MyCoachProfile {
+  id: number;
+  name: string;
+  pricePerHour?: number | null;
+  isAcceptingStudents?: boolean;
+  experienceYears?: number | null;
+}
+
+interface StripeStatusResponse {
+  status: "not_connected" | "pending" | "active";
+  accountId: string | null;
+}
+
+function StripeOnboardingBanner() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: status, isLoading } = useQuery<StripeStatusResponse>({
+    queryKey: ["coach-stripe-status"],
+    queryFn: async () => customFetch<StripeStatusResponse>(`${API_URL}/coaches/stripe/return`),
+    staleTime: 30_000,
+  });
+
+  // When the user returns from Stripe (?stripe_return=success), refresh the
+  // status query — the backend retrieves the live Stripe account and updates
+  // user_profiles, so a re-fetch reflects the new state.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_return") === "success") {
+      qc.invalidateQueries({ queryKey: ["coach-stripe-status"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [qc]);
+
+  const onboard = useMutation({
+    mutationFn: async () => {
+      return customFetch<{ url: string; status: string }>(`${API_URL}/coaches/stripe/onboard`, {
+        method: "POST",
+      });
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Stripe klaida",
+        description: err?.message ?? "Nepavyko pradėti Stripe registracijos.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading || status?.status === "active") return null;
+
+  return (
+    <div className="rounded-2xl border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+      <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400 shrink-0" />
+      <div className="flex-1 space-y-1">
+        <h3 className="font-semibold text-sm">Prijunkite banko sąskaitą mokėjimams gauti</h3>
+        <p className="text-xs text-muted-foreground">
+          {status?.status === "pending"
+            ? "Stripe sąskaita jau pradėta, bet dar nepatvirtinta. Užbaikite registraciją, kad galėtumėte priimti mokėjimus iš mokinių."
+            : "Kad mokiniai galėtų jums sumokėti per platformą, prijunkite Stripe sąskaitą."}
+        </p>
+      </div>
+      <Button onClick={() => onboard.mutate()} disabled={onboard.isPending}>
+        {onboard.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+        {status?.status === "pending" ? "Tęsti registraciją" : "Prijungti Stripe"}
+      </Button>
+    </div>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-5 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      {loading ? (
+        <Skeleton className="h-8 w-24" />
+      ) : (
+        <div className="text-3xl font-semibold tracking-tight">{value}</div>
+      )}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+export default function CoachDashboard() {
+  // Coaches are unique per user; /coaches/me returns the authenticated profile.
+  const { data: profile, isLoading } = useQuery<MyCoachProfile | null>({
+    queryKey: ["coach-me-profile"],
+    queryFn: async () => {
+      try {
+        return await customFetch<MyCoachProfile>(`${API_URL}/coaches/me`);
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60_000,
+  });
+
+  // Schedule + students stats are not yet wired to dedicated endpoints — these
+  // scaffolds default to 0 and will be filled in when those features land.
+  const upcomingLessons = 0;
+  const activeStudents = 0;
+
+  return (
+    <CoachLayout title="Apžvalga">
+      <div className="px-4 md:px-6 py-6 space-y-6 max-w-5xl">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Sveiki{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}!
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Apžvalga apie jūsų trenerio veiklą šią savaitę.
+          </p>
+        </header>
+
+        <StripeOnboardingBanner />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatCard
+            icon={CalendarDays}
+            label="Pamokos šią savaitę"
+            value={String(upcomingLessons)}
+            hint="Suplanuotos artimiausioms 7 d."
+            loading={isLoading}
+          />
+          <StatCard
+            icon={Users}
+            label="Aktyvūs mokiniai"
+            value={String(activeStudents)}
+            hint="Šiuo metu dirbantys su jumis"
+            loading={isLoading}
+          />
+          <StatCard
+            icon={Sparkles}
+            label="Valandinė kaina"
+            value={
+              profile?.pricePerHour != null
+                ? `${centsToEuroString(profile.pricePerHour)} €`
+                : "—"
+            }
+            hint={
+              profile?.isAcceptingStudents === false
+                ? "Šiuo metu nepriimate naujų mokinių"
+                : "Galite keisti Nustatymuose"
+            }
+            loading={isLoading}
+          />
+        </div>
+
+        <div className="rounded-2xl border bg-card p-5">
+          <h2 className="text-sm font-semibold mb-2">Greitos nuorodos</h2>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>· Atnaujinkite tvarkaraštį skiltyje <strong className="text-foreground">Tvarkaraštis</strong></li>
+            <li>· Atsakykite į užklausas skiltyje <strong className="text-foreground">Žinutės</strong></li>
+            <li>· Pakeiskite profilį skiltyje <strong className="text-foreground">Nustatymai</strong></li>
+          </ul>
+        </div>
+      </div>
+    </CoachLayout>
+  );
+}

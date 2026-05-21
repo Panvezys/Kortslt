@@ -1,0 +1,18 @@
+Let's implement strict context isolation for our messaging system and build a "Notification Bridge" so users who are both players and owners don't mix their personal and business chats.
+
+Please execute this in 3 phases:
+
+--- PHASE 1: Query & Fetch Isolation ---
+1. Update the backend route that fetches inbox threads for the Player view (`GET /dm/threads` or similar). It must STRICTLY filter out any threads where `ctxType === 'facility'` or the room ID starts with `facility_`. Player inboxes should only contain `dm` and `game` types.
+2. Ensure `owner-messages.tsx` (or the backend route serving it) STRICTLY fetches only `facility_` context messages linked to the courts the user owns.
+
+--- PHASE 2: UI Isolation ---
+1. In `chat-bubble.tsx` and the global `/messages` player page, ensure that no facility owner threads ever render in the list.
+2. In the Owner Layout (`owner-layout.tsx`), ensure the "Žinutės" tab shows an unread badge ONLY for unread facility messages, ignoring unread personal DMs.
+
+--- PHASE 3: The Notification Bridge ---
+1. In the `notification-bell.tsx` component, update the `onClick` routing logic for message notifications.
+2. If a notification's `type` or `ctxType` indicates it is a facility message (someone messaging their court), clicking it MUST route the user directly to `/owner/messages`.
+3. If it is a personal DM or Game message, clicking it should route them to `/messages` (or pop open the floating Chat Bubble).
+
+Run typechecks and ensure the React Query caches for these two different inboxes don't cross-contaminate.

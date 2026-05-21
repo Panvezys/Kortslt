@@ -184,6 +184,14 @@ export const BookingStatus = {
   paid: "paid",
 } as const;
 
+/**
+ * Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.
+ */
+export type BookingCoach = {
+  id: number;
+  name: string;
+} | null;
+
 export interface Booking {
   id: number;
   courtId: number;
@@ -205,12 +213,16 @@ export interface Booking {
   isSplit?: boolean;
   /** Total number of player slots for a split booking. */
   totalSlots?: number;
-  /** Number of players who have paid their slot in a split booking. */
-  paidSlots?: number;
   /** Price each player pays for their slot in a split booking. */
   pricePerSlot?: number;
   /** Shareable token for players to join and pay their share of a split booking. */
   splitInviteToken?: string;
+  /** Clerk user ID of the coach attached to this booking, if any. */
+  coachId?: string | null;
+  /** ID of the coach_services row this booking was created from, when booked via the coach-services flow. */
+  coachServiceId?: number | null;
+  /** Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings. */
+  coach?: BookingCoach;
 }
 
 export interface RefundPreview {

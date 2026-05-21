@@ -1,0 +1,16 @@
+Phase 3: Public Profile Services UI (Motifind Style)
+We are implementing the visual service catalog on /coaches/:id.
+
+The Execution:
+
+Render the list of isActive=true services below the bio.
+
+Each row must cleanly display: Service Name, Duration (e.g., "1 val."), Max Participants, and the Price (bold, right-aligned).
+
+Include the primary "Užsakyti" (Book) button on each row. For now, wire it to a simple console.log('Open booking modal for:', service.id) so we can test the UI before building the complex Phase 5 dialog.
+
+The UI Vulnerabilities to Patch:
+
+Mobile Table Collapse: Do not use standard HTML <table> elements for the service list. On mobile devices, a 5-column table will break the viewport. Use Flexbox or CSS Grid cards that stack gracefully on smaller screens (e.g., Name/Duration on top, Price/Button on the bottom row for mobile).
+
+Empty State: If a coach has zero active services (which shouldn't happen due to your migration, but could happen if they manually pause them all), the page must gracefully display a fallback message like: "Šiuo metu treneris neturi aktyvių paslaugų." (The coach currently has no active services) instead of rendering an empty table header.

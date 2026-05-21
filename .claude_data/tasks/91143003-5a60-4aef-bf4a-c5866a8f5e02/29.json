@@ -1,0 +1,9 @@
+{
+  "id": "29",
+  "subject": "Phase 2: POST /api/reviews with Invariant C + D",
+  "description": "Validate booking ownership, coach match, end-time-passed; transaction inserts review + recalcs aggregate",
+  "activeForm": "Building reviews API",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

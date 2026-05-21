@@ -48,7 +48,24 @@
       "Bash(python3 *)",
       "Bash(PORT=8080 pnpm dev)",
       "Bash(pkill -9 -f \"dist/index.mjs\")",
-      "Bash(awk '{print $5, $6, $7, $8, $9}')"
+      "Bash(awk '{print $5, $6, $7, $8, $9}')",
+      "Bash(xargs ls -la)",
+      "Bash(ln -s /home/runner/workspace/.claude_data /home/runner/.claude)",
+      "Skill(frontend-design:frontend-design)",
+      "Bash(sort -k5 -rh)",
+      "Bash(sort -k2 -rh)",
+      "Bash(xargs cat)",
+      "Bash(sed *)",
+      "Bash(PORT=8080 NODE_ENV=development pnpm run start)",
+      "Bash(kill 317)",
+      "Bash(kill -9 7488 7486)",
+      "Bash(lsof -i:8080)",
+      "Bash(npx tsx *)",
+      "Bash(ps -eo pid,ppid,cmd)",
+      "Bash(kill 352)",
+      "Bash(PORT=8080 pnpm start *)",
+      "Bash(ps -o pid,etime,cmd -p 305)",
+      "Bash(kill 305)"
     ]
   },
   "enabledPlugins": {}

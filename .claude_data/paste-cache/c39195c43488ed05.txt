@@ -1,0 +1,26 @@
+The Dashboard CRUD is flawless. We are now executing the final step, Phase 5: The Interactive Booking Dialog & Checkout Bridge.
+
+Please implement this across 3 sub-phases:
+
+--- PHASE 5.1: The Server-Side Checkout Engine Update ---
+1. Update `POST /payments/create-checkout` in `routes/payments.ts`.
+2. The payload must now accept `coachServiceId` (optional, for Motifind-style bookings) instead of just `coachId`.
+3. If `coachServiceId` is provided:
+   - Fetch the service from the DB. Verify it is active.
+   - Use `service.durationMin` as the booking duration.
+   - Use `service.priceCents` as the exact `coachAmountCents` (Enforcing Invariant B: Historical Immutability). The client cannot pass a price.
+   - If the service is court-bound (`service.courtId != null`), force the booking to use that court. If it is floating, validate that the client-provided `courtId` is affiliated with the coach.
+4. Ensure the 15-minute `pending_checkout` distributed lock is still acquired before creating the Stripe session.
+
+--- PHASE 5.2: The Booking Dialog UI ---
+1. In `pages/coach.tsx`, replace the temporary `console.log` on the 'Užsakyti' button with a state variable that opens a `<Dialog>` component (`selectedServiceForBooking`).
+2. **Step 1 (Location):** If `selectedServiceForBooking.courtId` is null, render a RadioGroup of the coach's affiliated courts. The user MUST select one to proceed. If it is court-bound, skip this step or show the locked location.
+3. **Step 2 (Date & Time):** Render a DatePicker (limited to the next 30 days). When a date is selected, trigger a fetch to `GET /coaches/:id/services/:sid/slots?date=YYYY-MM-DD`. Render the available start times as clickable pills.
+4. **Step 3 (Summary):** Show the final Total Price (Court Price + Service Price), the location, and the selected time.
+
+--- PHASE 5.3: The Checkout Handshake ---
+1. Wire the primary "Apmokėti" (Pay) button in the summary step to call the updated `POST /payments/create-checkout` endpoint.
+2. Ensure the payload passes `coachServiceId`, the selected `date`/`startTime`, and the `courtId`.
+3. On success, redirect the user to the returned Stripe `checkoutUrl`.
+
+Run strict typechecks and ensure the financial invariants hold.

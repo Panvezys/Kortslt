@@ -1,0 +1,9 @@
+{
+  "id": "31",
+  "subject": "Run pnpm typecheck + confirm DB transaction boundaries",
+  "description": "Verify schema + routes compile cleanly and aggregate sync is wrapped in a transaction",
+  "activeForm": "Verifying",
+  "status": "pending",
+  "blocks": [],
+  "blockedBy": []
+}

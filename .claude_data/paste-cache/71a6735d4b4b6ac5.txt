@@ -1,0 +1,17 @@
+"The implementation plan is excellent. I approve the 5-phase rollout.
+
+To answer your specific questions:
+
+YES, auto-migrate existing pricePerHour into a default 'Individuali treniruotė (60 min)' service.
+
+YES, keep pricePerHour on the coachesTable to act as a denormalized "starting from" price for the marketplace cards.
+
+YES, you are cleared to start Step 1, but you MUST enforce the following two architectural invariants throughout all 5 phases:
+
+Invariant A: The Denormalized Price Sync
+Whenever a coach creates, updates (changes price/active status), or deletes a service, you must automatically calculate their lowest active hourly rate and update the pricePerHour field on the coachesTable. The marketplace UI must never show a stale minimum price.
+
+Invariant B: Historical Immutability
+When a booking is created, the server must read coach_services.priceCents as the ground truth to calculate the Stripe charge. However, once the booking is created, it must rely entirely on the snapshotted bookings.coachAmountCents. Modifying a service's price must NEVER alter the financial data of historical or pending bookings.
+
+Let's execute Phase 1 (Schema + Migration) and run a typecheck!"
