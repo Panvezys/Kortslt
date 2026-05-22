@@ -1,0 +1,35 @@
+"The execution on the settings, checkout, and webhook is perfect. We are now executing the final pieces of Strike 6 to close the loop on platform monetization.
+
+Please execute this in 3 phases:
+
+--- PHASE 1: The Marketplace Ranking ---
+
+Update GET /api/coaches and GET /api/courts list endpoints.
+
+Add an isPromoted: boolean to the returned formatters (evaluates to true if promotedUntil > now()).
+
+Update the ORDER BY logic to float promoted entities to the top. The primary sort should be the boolean evaluation (promotedUntil > now()) DESC, and the secondary sort remains averageRating DESC (or whatever the current default is).
+
+--- PHASE 2: Public UI Badges ---
+
+Update the OpenAPI schema and frontend types to include isPromoted?: boolean for coaches and courts.
+
+In components/coach-card.tsx and components/court-card.tsx (or their equivalents), check the isPromoted flag.
+
+If true, render a prominent '⭐ Remiama' (Sponsored) badge near the top of the card or next to the name. Ensure it matches the premium aesthetic of the site.
+
+--- PHASE 3: Admin Revenue Dashboard ---
+
+Create GET /api/admin/revenue (Strictly requireAdmin).
+
+This endpoint must return two things:
+
+totalRevenueCents: The SUM(amountCents) from platformPurchasesTable.
+
+recentTransactions: A paginated or limited (e.g., top 50) list of purchases from platformPurchasesTable, joined with the users table to get the purchaser's name/email, sorted by createdAt DESC.
+
+In pages/admin.tsx, add a 'Pajamos' (Revenue) tab.
+
+Build the RevenuePanel component. Display the total revenue prominently (converted to Euros). Below it, render a clean data table showing the date, user, target type (Coach/Court/Tournament), and amount.
+
+Run strict typechecks across all packages when complete."

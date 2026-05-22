@@ -1,0 +1,597 @@
+import { Router, type IRouter } from "express";
+import { eq, and, desc, sql, inArray, isNull, isNotNull } from "drizzle-orm";
+import { clerkClient } from "@clerk/express";
+import {
+  db,
+  reviewsTable,
+  courtsTable,
+  facilitiesTable,
+  bookingsTable,
+} from "@workspace/db";
+import { requireAuth, requireAdmin, getCurrentUserId } from "../lib/auth";
+import { vilniusToUtc } from "../lib/coach-availability";
+import { sendCourtReviewReminderEmail } from "../lib/email";
+import { logger } from "../lib/logger";
+import { z } from "zod";
+
+const router: IRouter = Router();
+
+const CreateReviewBody = z.object({
+  bookingId: z.number().int().positive(),
+  courtId: z.number().int().positive(),
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().trim().min(1).max(2000).optional().nullable(),
+});
+
+const EditReviewBody = z.object({
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().trim().max(2000).nullable().optional(),
+}).refine((d) => d.rating !== undefined || d.comment !== undefined, {
+  message: "Reikia atnaujinti bent vieną lauką",
+});
+
+const ReplyBody = z.object({
+  text: z.string().trim().min(1).max(2000).nullable(),
+});
+
+const ModerationBody = z.object({
+  status: z.enum(["published", "hidden", "flagged"]),
+});
+
+/**
+ * Invariant D: recompute (rating, reviewCount) aggregates from reviewsTable
+ * and write them back to courtsTable. We keep the existing `courts.rating`
+ * column (real) because the marketplace cards / map / home / facility pages
+ * already read it — repurposing it for verified-purchase averages means
+ * those surfaces gain rating accuracy without UI changes.
+ *
+ * Always called from inside the same transaction as the mutation that
+ * triggered it.
+ */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function syncCourtAverageRating(courtId: number, tx: Tx): Promise<void> {
+  const [agg] = await tx
+    .select({
+      avg: sql<string | null>`AVG(${reviewsTable.rating})::numeric(3,2)`,
+      count: sql<number>`COUNT(${reviewsTable.id})::int`,
+    })
+    .from(reviewsTable)
+    .where(and(
+      eq(reviewsTable.courtId, courtId),
+      eq(reviewsTable.status, "published"),
+    ));
+
+  await tx
+    .update(courtsTable)
+    .set({
+      // courts.rating is real, accepts string or number — pass parsed avg.
+      rating: agg?.avg != null ? Number(agg.avg) : null,
+      reviewCount: agg?.count ?? 0,
+    })
+    .where(eq(courtsTable.id, courtId));
+}
+
+// POST /court-reviews — submit a verified-purchase court review.
+//
+// Invariant C: requester owns the booking, booking points to submitted court,
+// booking's scheduled end is in the past, status is not cancelled/blocked.
+// unique(bookingId) is the last-line dedupe guard against concurrent posts.
+router.post("/court-reviews", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const parsed = CreateReviewBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Netinkami atsiliepimo duomenys" });
+    return;
+  }
+  const { bookingId, courtId, rating, comment } = parsed.data;
+
+  const [booking] = await db
+    .select({
+      id: bookingsTable.id,
+      bookerUserId: bookingsTable.bookerUserId,
+      courtId: bookingsTable.courtId,
+      date: bookingsTable.date,
+      endTime: bookingsTable.endTime,
+      status: bookingsTable.status,
+    })
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!booking) {
+    res.status(404).json({ error: "Rezervacija nerasta" });
+    return;
+  }
+  if (booking.bookerUserId !== userId) {
+    res.status(404).json({ error: "Rezervacija nerasta" });
+    return;
+  }
+  if (booking.courtId !== courtId) {
+    res.status(400).json({ error: "Rezervacija nesutampa su nurodyta aikštele" });
+    return;
+  }
+
+  const endUtc = vilniusToUtc(booking.date, booking.endTime).getTime();
+  if (endUtc > Date.now()) {
+    res.status(400).json({ error: "Atsiliepimą galima palikti tik po rezervacijos" });
+    return;
+  }
+  if (booking.status === "cancelled" || booking.status === "blocked") {
+    res.status(400).json({ error: "Atšauktos rezervacijos negali būti vertinamos" });
+    return;
+  }
+
+  try {
+    const inserted = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(reviewsTable)
+        .values({
+          reviewerUserId: userId,
+          courtId,
+          bookingId,
+          rating,
+          comment: comment ?? null,
+        })
+        .returning();
+      await syncCourtAverageRating(courtId, tx);
+      return row;
+    });
+
+    res.status(201).json({
+      id: inserted.id,
+      courtId: inserted.courtId,
+      bookingId: inserted.bookingId,
+      rating: inserted.rating,
+      comment: inserted.comment ?? null,
+      createdAt: inserted.createdAt.toISOString(),
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "23505") {
+      res.status(409).json({ error: "Šiai rezervacijai jau pateiktas atsiliepimas" });
+      return;
+    }
+    throw err;
+  }
+});
+
+// GET /courts/:id/reviews — page/limit paginated, published-only, newest first.
+router.get("/courts/:id/reviews", async (req, res): Promise<void> => {
+  const courtId = parseInt(String(req.params.id), 10);
+  if (isNaN(courtId)) {
+    res.status(400).json({ error: "Invalid court id" });
+    return;
+  }
+  const rawLimit = Number(req.query.limit ?? 20);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 50) : 20;
+  const rawPage = Number(req.query.page);
+  let offset: number;
+  if (Number.isFinite(rawPage) && rawPage >= 1) {
+    offset = (Math.trunc(rawPage) - 1) * limit;
+  } else {
+    const rawOffset = Number(req.query.offset ?? 0);
+    offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+  }
+
+  const rowsPlusOne = await db
+    .select({
+      id: reviewsTable.id,
+      reviewerUserId: reviewsTable.reviewerUserId,
+      rating: reviewsTable.rating,
+      comment: reviewsTable.comment,
+      ownerReplyText: reviewsTable.ownerReplyText,
+      ownerReplyCreatedAt: reviewsTable.ownerReplyCreatedAt,
+      createdAt: reviewsTable.createdAt,
+    })
+    .from(reviewsTable)
+    .where(and(
+      eq(reviewsTable.courtId, courtId),
+      eq(reviewsTable.status, "published"),
+    ))
+    .orderBy(desc(reviewsTable.createdAt))
+    .limit(limit + 1)
+    .offset(offset);
+
+  const hasMore = rowsPlusOne.length > limit;
+  const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
+
+  const userIds = Array.from(new Set(rows.map((r) => r.reviewerUserId)));
+  const nameByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    try {
+      const list = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length });
+      for (const u of list.data) {
+        const first = (u.firstName ?? "").trim();
+        const last = (u.lastName ?? "").trim();
+        const initial = last ? `${last[0]}.` : "";
+        const display = [first, initial].filter(Boolean).join(" ");
+        nameByUserId.set(u.id, display || "Vartotojas");
+      }
+    } catch {
+      /* fall back to "Vartotojas" */
+    }
+  }
+
+  const [agg] = await db
+    .select({ rating: courtsTable.rating, reviewCount: courtsTable.reviewCount })
+    .from(courtsTable)
+    .where(eq(courtsTable.id, courtId));
+
+  res.json({
+    courtId,
+    averageRating: agg?.rating ?? null,
+    reviewCount: agg?.reviewCount ?? 0,
+    items: rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment ?? null,
+      reviewerName: nameByUserId.get(r.reviewerUserId) ?? "Vartotojas",
+      ownerReplyText: r.ownerReplyText ?? null,
+      ownerReplyCreatedAt: r.ownerReplyCreatedAt ? r.ownerReplyCreatedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    limit,
+    offset,
+    hasMore,
+  });
+});
+
+// PATCH /court-reviews/:id — owner-edit. Locked once moderation has touched
+// the row (status !== 'published'), matching the coach-review pattern.
+router.patch("/court-reviews/:id", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const reviewId = parseInt(String(req.params.id), 10);
+  if (isNaN(reviewId)) {
+    res.status(400).json({ error: "Invalid review id" });
+    return;
+  }
+  const parsed = EditReviewBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Netinkami duomenys" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({
+      id: reviewsTable.id,
+      reviewerUserId: reviewsTable.reviewerUserId,
+      courtId: reviewsTable.courtId,
+      status: reviewsTable.status,
+    })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.id, reviewId));
+
+  if (!existing) {
+    res.status(404).json({ error: "Atsiliepimas nerastas" });
+    return;
+  }
+  if (existing.reviewerUserId !== userId) {
+    res.status(404).json({ error: "Atsiliepimas nerastas" });
+    return;
+  }
+  if (existing.status !== "published") {
+    res.status(403).json({ error: "Šio atsiliepimo redaguoti negalima — kreipkitės į administratorių" });
+    return;
+  }
+
+  const set: Record<string, unknown> = {};
+  if (parsed.data.rating !== undefined) set.rating = parsed.data.rating;
+  if (parsed.data.comment !== undefined) {
+    const c = parsed.data.comment;
+    set.comment = c == null || c.trim() === "" ? null : c.trim();
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(reviewsTable)
+      .set(set)
+      .where(eq(reviewsTable.id, reviewId))
+      .returning();
+    await syncCourtAverageRating(existing.courtId, tx);
+    return row;
+  });
+
+  res.json({
+    id: updated.id,
+    courtId: updated.courtId,
+    bookingId: updated.bookingId,
+    rating: updated.rating,
+    comment: updated.comment ?? null,
+    status: updated.status,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+// PATCH /owner/court-reviews/:id/reply — facility owner reply.
+// Object-level authz: signed-in user must own the facility that owns the
+// court the review was left on.
+router.patch("/owner/court-reviews/:id/reply", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const reviewId = parseInt(String(req.params.id), 10);
+  if (isNaN(reviewId)) {
+    res.status(400).json({ error: "Invalid review id" });
+    return;
+  }
+  const parsed = ReplyBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Netinkamas atsako tekstas" });
+    return;
+  }
+
+  const [row] = await db
+    .select({
+      reviewId: reviewsTable.id,
+      facilityOwnerUserId: facilitiesTable.ownerUserId,
+    })
+    .from(reviewsTable)
+    .innerJoin(courtsTable, eq(reviewsTable.courtId, courtsTable.id))
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(reviewsTable.id, reviewId));
+
+  if (!row) {
+    res.status(404).json({ error: "Atsiliepimas nerastas" });
+    return;
+  }
+  if (row.facilityOwnerUserId !== userId) {
+    res.status(403).json({ error: "Galite atsakyti tik į savo objekto atsiliepimus" });
+    return;
+  }
+
+  const text = parsed.data.text;
+  const [updated] = await db
+    .update(reviewsTable)
+    .set({
+      ownerReplyText: text,
+      ownerReplyCreatedAt: text == null ? null : new Date(),
+    })
+    .where(eq(reviewsTable.id, reviewId))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    ownerReplyText: updated.ownerReplyText ?? null,
+    ownerReplyCreatedAt: updated.ownerReplyCreatedAt ? updated.ownerReplyCreatedAt.toISOString() : null,
+  });
+});
+
+// PATCH /admin/court-reviews/:id/status — admin moderation.
+router.patch("/admin/court-reviews/:id/status", requireAdmin, async (req, res): Promise<void> => {
+  const reviewId = parseInt(String(req.params.id), 10);
+  if (isNaN(reviewId)) {
+    res.status(400).json({ error: "Invalid review id" });
+    return;
+  }
+  const parsed = ModerationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Netinkamas status'as" });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: reviewsTable.id, courtId: reviewsTable.courtId })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.id, reviewId));
+  if (!existing) {
+    res.status(404).json({ error: "Atsiliepimas nerastas" });
+    return;
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(reviewsTable)
+      .set({ status: parsed.data.status })
+      .where(eq(reviewsTable.id, reviewId))
+      .returning();
+    await syncCourtAverageRating(existing.courtId, tx);
+    return row;
+  });
+
+  res.json({ id: updated.id, status: updated.status });
+});
+
+// GET /admin/court-reviews — paginated full list, bypasses published filter.
+router.get("/admin/court-reviews", requireAdmin, async (req, res): Promise<void> => {
+  const rawLimit = Number(req.query.limit ?? 50);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 50;
+  const rawPage = Number(req.query.page);
+  let offset: number;
+  if (Number.isFinite(rawPage) && rawPage >= 1) {
+    offset = (Math.trunc(rawPage) - 1) * limit;
+  } else {
+    const rawOffset = Number(req.query.offset ?? 0);
+    offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+  }
+
+  const rowsPlusOne = await db
+    .select({
+      id: reviewsTable.id,
+      courtId: reviewsTable.courtId,
+      courtName: courtsTable.name,
+      reviewerUserId: reviewsTable.reviewerUserId,
+      rating: reviewsTable.rating,
+      comment: reviewsTable.comment,
+      status: reviewsTable.status,
+      ownerReplyText: reviewsTable.ownerReplyText,
+      createdAt: reviewsTable.createdAt,
+    })
+    .from(reviewsTable)
+    .innerJoin(courtsTable, eq(reviewsTable.courtId, courtsTable.id))
+    .orderBy(desc(reviewsTable.createdAt))
+    .limit(limit + 1)
+    .offset(offset);
+
+  const hasMore = rowsPlusOne.length > limit;
+  const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
+
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      courtId: r.courtId,
+      courtName: r.courtName,
+      reviewerUserId: r.reviewerUserId,
+      rating: r.rating,
+      comment: r.comment ?? null,
+      status: r.status,
+      ownerReplyText: r.ownerReplyText ?? null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    limit,
+    offset,
+    hasMore,
+  });
+});
+
+// GET /owner/court-reviews — review feed across all courts the signed-in
+// user owns (via facility ownership). Used by the owner-dashboard reviews
+// page so they can reply.
+router.get("/owner/court-reviews", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  // First resolve every court id owned by the signed-in user, via facility.
+  const owned = await db
+    .select({ id: courtsTable.id, name: courtsTable.name })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(facilitiesTable.ownerUserId, userId));
+  if (owned.length === 0) {
+    res.json({ items: [], limit: 50, offset: 0, hasMore: false });
+    return;
+  }
+  const courtIds = owned.map((c) => c.id);
+  const courtNameById = new Map(owned.map((c) => [c.id, c.name]));
+
+  const rawLimit = Number(req.query.limit ?? 50);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 50;
+  const rawPage = Number(req.query.page);
+  let offset: number;
+  if (Number.isFinite(rawPage) && rawPage >= 1) {
+    offset = (Math.trunc(rawPage) - 1) * limit;
+  } else {
+    const rawOffset = Number(req.query.offset ?? 0);
+    offset = Number.isFinite(rawOffset) ? Math.max(Math.trunc(rawOffset), 0) : 0;
+  }
+
+  const rowsPlusOne = await db
+    .select({
+      id: reviewsTable.id,
+      courtId: reviewsTable.courtId,
+      reviewerUserId: reviewsTable.reviewerUserId,
+      rating: reviewsTable.rating,
+      comment: reviewsTable.comment,
+      status: reviewsTable.status,
+      ownerReplyText: reviewsTable.ownerReplyText,
+      ownerReplyCreatedAt: reviewsTable.ownerReplyCreatedAt,
+      createdAt: reviewsTable.createdAt,
+    })
+    .from(reviewsTable)
+    .where(inArray(reviewsTable.courtId, courtIds))
+    .orderBy(desc(reviewsTable.createdAt))
+    .limit(limit + 1)
+    .offset(offset);
+
+  const hasMore = rowsPlusOne.length > limit;
+  const rows = hasMore ? rowsPlusOne.slice(0, limit) : rowsPlusOne;
+
+  const userIds = Array.from(new Set(rows.map((r) => r.reviewerUserId)));
+  const nameByUserId = new Map<string, string>();
+  if (userIds.length > 0) {
+    try {
+      const list = await clerkClient.users.getUserList({ userId: userIds, limit: userIds.length });
+      for (const u of list.data) {
+        const first = (u.firstName ?? "").trim();
+        const last = (u.lastName ?? "").trim();
+        const initial = last ? `${last[0]}.` : "";
+        const display = [first, initial].filter(Boolean).join(" ");
+        nameByUserId.set(u.id, display || "Vartotojas");
+      }
+    } catch {
+      /* fall back */
+    }
+  }
+
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      courtId: r.courtId,
+      courtName: courtNameById.get(r.courtId) ?? "—",
+      rating: r.rating,
+      comment: r.comment ?? null,
+      reviewerName: nameByUserId.get(r.reviewerUserId) ?? "Vartotojas",
+      status: r.status,
+      ownerReplyText: r.ownerReplyText ?? null,
+      ownerReplyCreatedAt: r.ownerReplyCreatedAt ? r.ownerReplyCreatedAt.toISOString() : null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    limit,
+    offset,
+    hasMore,
+  });
+});
+
+/**
+ * Compute "yesterday" in Europe/Vilnius local time as a YYYY-MM-DD string.
+ * Mirrors the helper in coach-reviews.ts — DST-correct via Intl.
+ */
+function vilniusYesterdayDateStr(): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Vilnius",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const todayStr = fmt.format(new Date());
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d - 1));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Daily sweep: find court-only bookings (no coach attached) that ended
+ * yesterday and aren't yet reviewed, then send the "Kaip patiko aikštelė?"
+ * reminder. Bookings with a coach are skipped — those go through the coach
+ * reminder so a player isn't double-pinged for a single lesson.
+ */
+export async function sweepCourtReviewReminders(): Promise<number> {
+  const yesterdayStr = vilniusYesterdayDateStr();
+
+  const rows = await db
+    .select({
+      bookingId: bookingsTable.id,
+      customerName: bookingsTable.customerName,
+      customerEmail: bookingsTable.customerEmail,
+      date: bookingsTable.date,
+      courtName: courtsTable.name,
+      reviewId: reviewsTable.id,
+    })
+    .from(bookingsTable)
+    .innerJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(reviewsTable, eq(reviewsTable.bookingId, bookingsTable.id))
+    .where(
+      and(
+        eq(bookingsTable.date, yesterdayStr),
+        eq(bookingsTable.status, "confirmed"),
+        isNotNull(bookingsTable.bookerUserId),
+        isNull(bookingsTable.coachId),
+        isNull(reviewsTable.id),
+      ),
+    );
+
+  if (rows.length === 0) return 0;
+
+  let sent = 0;
+  for (const r of rows) {
+    try {
+      await sendCourtReviewReminderEmail({
+        toEmail: r.customerEmail,
+        toName: r.customerName,
+        courtName: r.courtName,
+        bookingDate: r.date,
+        bookingId: r.bookingId,
+      });
+      sent++;
+    } catch (err) {
+      logger.error({ err, bookingId: r.bookingId }, "court review reminder failed");
+    }
+  }
+  return sent;
+}
+
+export default router;

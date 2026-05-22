@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 import { Layout } from "@/components/layout";
@@ -8,15 +8,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { centsToEuroString } from "@/lib/money";
+import { centsToEuroString, euroStringToCents } from "@/lib/money";
 import { customFetch, type Court } from "@workspace/api-client-react";
+import type { AdminDashboardMetricsResponse, AdminDashboardReservation } from "@workspace/api-zod";
 import { extractApiError } from "@/lib/api-errors";
 import { Link, useLocation } from "wouter";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
   CreditCard, MapPin, Phone, Mail, ChevronRight, Image as ImageIcon,
-  GraduationCap, Star, Clock, Trophy, Pencil, Trash2,
+  GraduationCap, Star, Clock, Trophy, Pencil, Trash2, Settings as SettingsIcon, Save, Wallet,
+  LayoutDashboard, CalendarRange, CalendarDays, Euro, TrendingUp, Search, ArrowUpDown,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -2076,7 +2078,7 @@ function EditRequestsPanel() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type AdminTab = "courts" | "users" | "facilities" | "coaches" | "owners" | "editRequests" | "reviews";
+type AdminTab = "commandCenter" | "courts" | "users" | "facilities" | "coaches" | "owners" | "editRequests" | "reviews" | "platformSettings" | "revenue";
 
 interface AdminReviewItem {
   id: number;
@@ -2291,12 +2293,671 @@ function ReviewsPanel() {
   );
 }
 
+// ─── Strike 7: Admin Command Center ───────────────────────────────────────────
+
+function currentMonthRange(): { start: string; end: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const first = new Date(y, m, 1);
+  const last = new Date(y, m + 1, 0);
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { start: fmt(first), end: fmt(last) };
+}
+
+const RESERVATION_STATUS_LT: Record<string, string> = {
+  pending: "Laukia",
+  awaiting_players: "Laukia žaidėjų",
+  confirmed: "Patvirtinta",
+  cancelled: "Atšaukta",
+  blocked: "Blokuota",
+};
+
+function ReservationStatusPill({ status }: { status: string }) {
+  // Color logic per Strike 7 spec: confirmed = green, cancelled = red, blocked = amber.
+  // The remaining transitional statuses get neutral tones so the eye locks onto the
+  // outliers.
+  const palette =
+    status === "confirmed"
+      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+      : status === "cancelled"
+      ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+      : status === "blocked"
+      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+      : status === "awaiting_players"
+      ? "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30"
+      : "bg-muted text-muted-foreground border-border";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${palette}`}>
+      {RESERVATION_STATUS_LT[status] ?? status}
+    </span>
+  );
+}
+
+function OccupancyBar({ value }: { value: number }) {
+  // Strike 7 traffic-light bar. > 75 = healthy, < 25 = underutilized inventory.
+  const v = Math.max(0, Math.min(100, value));
+  const palette =
+    v > 75
+      ? "bg-emerald-500"
+      : v < 25
+      ? "bg-red-500"
+      : "bg-amber-500";
+  return (
+    <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+      <div
+        className={`h-full ${palette} transition-[width] duration-500 ease-out`}
+        style={{ width: `${v}%` }}
+        aria-valuenow={v}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        role="progressbar"
+      />
+    </div>
+  );
+}
+
+function OccupancyList({
+  title,
+  emptyLabel,
+  entries,
+}: {
+  title: string;
+  emptyLabel: string;
+  entries: AdminDashboardMetricsResponse["occupancy"]["courts"];
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-5">
+      <h3 className="text-sm font-semibold mb-4">{title}</h3>
+      {entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-3.5">
+          {entries.map((row) => (
+            <li key={row.id} className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-medium truncate">{row.name}</span>
+                <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                  {row.bookedHours.toLocaleString("lt-LT", { maximumFractionDigits: 1 })} val · {" "}
+                  <span className="font-semibold text-foreground">{row.utilizationPercentage.toFixed(1)}%</span>
+                </span>
+              </div>
+              <OccupancyBar value={row.utilizationPercentage} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+type ReservationSortKey = "date" | "amount" | "status";
+type SortDirection = "asc" | "desc";
+
+function ReservationsLedger({ rows }: { rows: AdminDashboardReservation[] }) {
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<ReservationSortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDirection>("desc");
+
+  const filtered = rows.filter((r) => {
+    if (!search) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      (r.targetName ?? "").toLowerCase().includes(q) ||
+      (r.bookerName ?? "").toLowerCase().includes(q) ||
+      (r.bookerEmail ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    if (sortKey === "date") {
+      const cmp = `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`);
+      return cmp * dir;
+    }
+    if (sortKey === "amount") {
+      return (a.priceCents - b.priceCents) * dir;
+    }
+    return a.status.localeCompare(b.status) * dir;
+  });
+
+  const toggleSort = (key: ReservationSortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "date" ? "desc" : "asc");
+    }
+  };
+
+  const headerButton = (key: ReservationSortKey, label: string, extra?: string) => (
+    <button
+      type="button"
+      onClick={() => toggleSort(key)}
+      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${extra ?? ""}`}
+    >
+      {label}
+      <ArrowUpDown className={`w-3 h-3 ${sortKey === key ? "text-foreground" : "opacity-50"}`} />
+      {sortKey === key && (
+        <span className="text-[10px] text-muted-foreground" aria-hidden="true">
+          {sortDir === "asc" ? "↑" : "↓"}
+        </span>
+      )}
+    </button>
+  );
+
+  return (
+    <div className="rounded-2xl border bg-card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 p-4 border-b">
+        <div>
+          <h3 className="text-sm font-semibold">Rezervacijų žurnalas</h3>
+          <p className="text-xs text-muted-foreground">
+            Vėliausi {rows.length} įrašai pasirinktame laikotarpyje
+          </p>
+        </div>
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Ieškoti pagal aikštelę, vardą ar el. paštą..."
+            className="pl-8 h-9 text-sm"
+          />
+        </div>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="p-10 text-center text-sm text-muted-foreground">
+          {search ? "Nieko nerasta." : "Šiame laikotarpyje rezervacijų nėra."}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium">{headerButton("date", "Data")}</th>
+                <th className="text-left px-4 py-3 font-medium">Laikas</th>
+                <th className="text-left px-4 py-3 font-medium">{headerButton("status", "Būsena")}</th>
+                <th className="text-left px-4 py-3 font-medium">Objektas</th>
+                <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">Klientas</th>
+                <th className="text-right px-4 py-3 font-medium">{headerButton("amount", "Suma")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r) => (
+                <tr key={r.id} className="border-t hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+                    {new Date(`${r.date}T00:00:00`).toLocaleDateString("lt-LT")}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums text-xs">
+                    {r.startTime}–{r.endTime}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ReservationStatusPill status={r.status} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                        {r.targetType === "coach" ? "Treneris" : "Aikštelė"}
+                      </Badge>
+                      <span className="truncate max-w-[14rem]">{r.targetName ?? "—"}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <div className="text-sm font-medium truncate max-w-[12rem]">{r.bookerName ?? "—"}</div>
+                    {r.bookerEmail && (
+                      <div className="text-xs text-muted-foreground truncate max-w-[12rem]">{r.bookerEmail}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
+                    {(r.priceCents / 100).toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  sub?: string;
+  accent: string;
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-5">
+      <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl ${accent}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="mt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-3xl font-bold tabular-nums">{value}</div>
+      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function CommandCenterPanel() {
+  const defaultRange = currentMonthRange();
+  const [startDate, setStartDate] = useState<string>(defaultRange.start);
+  const [endDate, setEndDate] = useState<string>(defaultRange.end);
+  const rangeInvalid = endDate < startDate;
+
+  const { data, isLoading, isFetching, isError, error } = useQuery<AdminDashboardMetricsResponse>({
+    queryKey: ["admin-dashboard-metrics", startDate, endDate],
+    queryFn: () =>
+      customFetch<AdminDashboardMetricsResponse>(
+        `/api/admin/dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
+        { method: "GET" },
+      ),
+    enabled: !rangeInvalid,
+  });
+
+  const resetToCurrentMonth = () => {
+    const r = currentMonthRange();
+    setStartDate(r.start);
+    setEndDate(r.end);
+  };
+
+  const revenueEur = data
+    ? (data.kpis.monthlyRevenueCents / 100).toLocaleString("lt-LT", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : "—";
+
+  return (
+    <div className="space-y-6">
+      {/* Date range picker */}
+      <div className="rounded-2xl border bg-card p-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <CalendarRange className="w-4 h-4 text-primary" />
+          Ataskaitos laikotarpis
+          {isFetching && !isLoading && (
+            <span className="text-xs font-normal text-muted-foreground">atnaujinama…</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground" htmlFor="dash-start">Nuo</label>
+            <Input
+              id="dash-start"
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-9 text-sm w-[10.5rem]"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground" htmlFor="dash-end">Iki</label>
+            <Input
+              id="dash-end"
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-9 text-sm w-[10.5rem]"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={resetToCurrentMonth}>
+            Šis mėnuo
+          </Button>
+        </div>
+      </div>
+
+      {rangeInvalid && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          Pabaigos data turi būti vėlesnė už pradžios datą.
+        </div>
+      )}
+
+      {isError && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          Klaida įkeliant duomenis: {error instanceof Error ? error.message : "nežinoma klaida"}
+        </div>
+      )}
+
+      {/* KPI Hero Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
+        ) : data ? (
+          <>
+            <KpiCard
+              icon={CalendarDays}
+              label="Šiandienos rezervacijos"
+              value={data.kpis.todayBookings.toLocaleString("lt-LT")}
+              sub="Šiandien sukurta rezervacijų"
+              accent="bg-sky-500/15 text-sky-600 dark:text-sky-400"
+            />
+            <KpiCard
+              icon={Euro}
+              label="Pajamos (laikotarpiu)"
+              value={`${revenueEur} €`}
+              sub={`Patvirtintos rezervacijos · ${data.startDate} – ${data.endDate}`}
+              accent="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+            />
+            <KpiCard
+              icon={TrendingUp}
+              label="Aktyvūs vartotojai"
+              value={data.kpis.activeUsers.toLocaleString("lt-LT")}
+              sub="Unikalūs rezervaciją atlikę vartotojai"
+              accent="bg-violet-500/15 text-violet-600 dark:text-violet-400"
+            />
+          </>
+        ) : null}
+      </div>
+
+      {/* Occupancy Trackers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {isLoading ? (
+          <>
+            <Skeleton className="h-64 rounded-2xl" />
+            <Skeleton className="h-64 rounded-2xl" />
+          </>
+        ) : data ? (
+          <>
+            <OccupancyList
+              title="Trenerių užimtumas"
+              emptyLabel="Šiame laikotarpyje trenerių rezervacijų nėra."
+              entries={data.occupancy.coaches}
+            />
+            <OccupancyList
+              title="Aikštelių užimtumas"
+              emptyLabel="Šiame laikotarpyje aikštelių rezervacijų nėra."
+              entries={data.occupancy.courts}
+            />
+          </>
+        ) : null}
+      </div>
+
+      {/* Reservations Ledger */}
+      {isLoading ? (
+        <Skeleton className="h-72 rounded-2xl" />
+      ) : data ? (
+        <ReservationsLedger rows={data.recentReservations} />
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Platform Settings (Strike 6 — Bump pricing) ──────────────────────────────
+type PlatformSettings = {
+  id: number;
+  coachBumpPriceCents: number;
+  courtBumpPriceCents: number;
+  tournamentBumpPriceCents: number;
+  updatedAt: string;
+};
+
+function PlatformSettingsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<PlatformSettings>({
+    queryKey: ["platform-settings"],
+    queryFn: () => customFetch<PlatformSettings>("/api/platform/settings", { method: "GET" }),
+  });
+
+  const [coachEur, setCoachEur] = useState("");
+  const [courtEur, setCourtEur] = useState("");
+  const [tournamentEur, setTournamentEur] = useState("");
+
+  useEffect(() => {
+    if (data) {
+      setCoachEur(centsToEuroString(data.coachBumpPriceCents));
+      setCourtEur(centsToEuroString(data.courtBumpPriceCents));
+      setTournamentEur(centsToEuroString(data.tournamentBumpPriceCents));
+    }
+  }, [data]);
+
+  const save = useMutation({
+    mutationFn: (body: Partial<Pick<PlatformSettings, "coachBumpPriceCents" | "courtBumpPriceCents" | "tournamentBumpPriceCents">>) =>
+      customFetch<PlatformSettings>("/api/admin/platform/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["platform-settings"] });
+      toast({ title: "Nustatymai išsaugoti" });
+    },
+    onError: (err: unknown) => {
+      toast({
+        title: "Klaida saugant",
+        description: extractApiError(err) ?? "Bandykite vėliau",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const coach = euroStringToCents(coachEur);
+    const court = euroStringToCents(courtEur);
+    const tournament = euroStringToCents(tournamentEur);
+    if (coach == null || court == null || tournament == null) {
+      toast({ title: "Neteisinga kaina", description: "Įveskite teigiamą skaičių.", variant: "destructive" });
+      return;
+    }
+    save.mutate({
+      coachBumpPriceCents: coach,
+      courtBumpPriceCents: court,
+      tournamentBumpPriceCents: tournament,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full max-w-md" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Platformos nustatymai</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Iškėlimo (Bump) kainos. Pakeitimai įsigalioja iškart visoje platformoje.
+        </p>
+      </div>
+
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="bump-coach">
+            Trenerio iškėlimo kaina (€ / 7 d.)
+          </label>
+          <Input
+            id="bump-coach"
+            inputMode="decimal"
+            value={coachEur}
+            onChange={(e) => setCoachEur(e.target.value)}
+            className="max-w-[10rem]"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="bump-court">
+            Aikštelės iškėlimo kaina (€ / 7 d.)
+          </label>
+          <Input
+            id="bump-court"
+            inputMode="decimal"
+            value={courtEur}
+            onChange={(e) => setCourtEur(e.target.value)}
+            className="max-w-[10rem]"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium" htmlFor="bump-tournament">
+            Turnyro iškėlimo kaina (€ / 7 d.)
+          </label>
+          <Input
+            id="bump-tournament"
+            inputMode="decimal"
+            value={tournamentEur}
+            onChange={(e) => setTournamentEur(e.target.value)}
+            className="max-w-[10rem]"
+          />
+        </div>
+
+        <div className="pt-2">
+          <Button type="submit" disabled={save.isPending} className="gap-2">
+            <Save className="w-4 h-4" />
+            {save.isPending ? "Saugoma…" : "Išsaugoti"}
+          </Button>
+        </div>
+
+        {data && (
+          <p className="text-xs text-muted-foreground pt-2">
+            Paskutinį kartą atnaujinta: {new Date(data.updatedAt).toLocaleString("lt-LT")}
+          </p>
+        )}
+      </form>
+    </div>
+  );
+}
+
+// ─── Revenue dashboard (Strike 6 — Bump monetization) ─────────────────────────
+type RevenueTransaction = {
+  id: number;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  amountCents: number;
+  targetType: "coach" | "court" | "tournament";
+  targetId: number;
+  targetName: string | null;
+  stripeSessionId: string;
+  createdAt: string;
+};
+
+type RevenueResponse = {
+  totalRevenueCents: number;
+  totalPurchaseCount: number;
+  recentTransactions: RevenueTransaction[];
+};
+
+const TARGET_LABELS: Record<RevenueTransaction["targetType"], string> = {
+  coach: "Treneris",
+  court: "Aikštelė",
+  tournament: "Turnyras",
+};
+
+function RevenuePanel() {
+  const { data, isLoading } = useQuery<RevenueResponse>({
+    queryKey: ["admin-revenue"],
+    queryFn: () => customFetch<RevenueResponse>("/api/admin/revenue", { method: "GET" }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-28 w-full max-w-md" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return <div className="text-sm text-muted-foreground">Nepavyko įkelti.</div>;
+  }
+
+  const totalEur = (data.totalRevenueCents / 100).toLocaleString("lt-LT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Total revenue hero card */}
+      <div className="rounded-2xl border bg-gradient-to-br from-primary/10 to-primary/5 p-6 max-w-md">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <Wallet className="w-4 h-4" />
+          Bendros pajamos
+        </div>
+        <div className="mt-2 text-4xl font-bold tabular-nums">
+          {totalEur} €
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {data.totalPurchaseCount} {data.totalPurchaseCount === 1 ? "pirkimas" : "pirkimų"} iš viso
+        </p>
+      </div>
+
+      {/* Recent transactions table */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3">Paskutinės operacijos</h3>
+        {data.recentTransactions.length === 0 ? (
+          <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+            Operacijų dar nėra.
+          </div>
+        ) : (
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium">Data</th>
+                  <th className="text-left px-4 py-3 font-medium">Vartotojas</th>
+                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Tipas</th>
+                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Objektas</th>
+                  <th className="text-right px-4 py-3 font-medium">Suma</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentTransactions.map(tx => (
+                  <tr key={tx.id} className="border-t">
+                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(tx.createdAt).toLocaleString("lt-LT", {
+                        year: "numeric", month: "2-digit", day: "2-digit",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{tx.userName ?? <span className="text-muted-foreground">—</span>}</div>
+                      {tx.userEmail && (
+                        <div className="text-xs text-muted-foreground">{tx.userEmail}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <Badge variant="outline">{TARGET_LABELS[tx.targetType]}</Badge>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">
+                      {tx.targetName ?? `#${tx.targetId}`}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                      {(tx.amountCents / 100).toLocaleString("lt-LT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { isAdmin, isLoading: roleLoading } = useRole();
   const initialTab = (): AdminTab => {
     const p = new URLSearchParams(window.location.search).get("tab");
-    const valid: AdminTab[] = ["courts", "users", "facilities", "coaches", "owners", "editRequests", "reviews"];
-    return valid.includes(p as AdminTab) ? (p as AdminTab) : "facilities";
+    const valid: AdminTab[] = ["commandCenter", "courts", "users", "facilities", "coaches", "owners", "editRequests", "reviews", "platformSettings", "revenue"];
+    return valid.includes(p as AdminTab) ? (p as AdminTab) : "commandCenter";
   };
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
 
@@ -2325,6 +2986,7 @@ export default function AdminDashboard() {
   }
 
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
+    { id: "commandCenter", label: "Valdymo centras", icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: "facilities",   label: "Objektai",     icon: <ShieldCheck className="w-4 h-4" /> },
     { id: "courts",       label: "Aikštelės",    icon: <Building2 className="w-4 h-4" /> },
     { id: "coaches",      label: "Treneriai",    icon: <GraduationCap className="w-4 h-4" /> },
@@ -2332,6 +2994,8 @@ export default function AdminDashboard() {
     { id: "editRequests", label: "Redavimai",    icon: <FileText className="w-4 h-4" /> },
     { id: "reviews",      label: "Atsiliepimai", icon: <Star className="w-4 h-4" /> },
     { id: "users",        label: "Vartotojai",   icon: <Users className="w-4 h-4" /> },
+    { id: "revenue",      label: "Pajamos",      icon: <Wallet className="w-4 h-4" /> },
+    { id: "platformSettings", label: "Platformos nustatymai", icon: <SettingsIcon className="w-4 h-4" /> },
   ];
 
   return (
@@ -2362,6 +3026,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Panel */}
+        {activeTab === "commandCenter" && <CommandCenterPanel />}
         {activeTab === "facilities"   && <FacilitiesPanel />}
         {activeTab === "courts"       && <CourtsPanel />}
         {activeTab === "coaches"      && <CoachesPanel />}
@@ -2369,6 +3034,8 @@ export default function AdminDashboard() {
         {activeTab === "editRequests" && <EditRequestsPanel />}
         {activeTab === "reviews"      && <ReviewsPanel />}
         {activeTab === "users"        && <UsersPanel />}
+        {activeTab === "platformSettings" && <PlatformSettingsPanel />}
+        {activeTab === "revenue"      && <RevenuePanel />}
       </div>
     </Layout>
   );

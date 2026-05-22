@@ -1,0 +1,55 @@
+"We are executing Strike 6: Platform Monetization (The Bump Model).
+
+Our goal is to allow Coaches, Owners, and Tournament Organizers to buy 7-day promoted placements, and to build an Admin ledger to track the revenue.
+
+Please execute this in 5 distinct phases:
+
+--- PHASE 1: The Revenue Schema ---
+
+In lib/db/src/schema, add a promotedUntil: timestamp column to coachesTable, courtsTable, and tournamentsTable (if it exists).
+
+Create a new file purchases.ts with platformPurchasesTable.
+
+Columns: id (serial), userId (text, not null), amountCents (integer), targetType (enum: 'coach', 'court', 'tournament'), targetId (integer), stripeSessionId (text, unique), createdAt.
+
+Push the schema and run a typecheck.
+
+--- PHASE 2: The Checkout API ---
+
+Create POST /api/payments/create-bump-checkout. Require auth.
+
+Accept { targetType, targetId }. Verify the requesting user actually owns the target entity.
+
+Create a Stripe Checkout Session using line_items with dynamic price_data (e.g., €10 for coach, €5 for court, €20 for tournament). Set mode: 'payment'.
+
+CRITICAL: Pass metadata: { targetType, targetId, userId } into the session so the webhook can identify the purchase. Return the url.
+
+--- PHASE 3: The Fulfillment Webhook ---
+
+In stripe-webhook.ts, add a handler for checkout.session.completed.
+
+Read the metadata. If it is a bump purchase:
+
+Fulfill: UPDATE the correct table (coaches, courts, etc.), setting promotedUntil = now() + interval '7 days' where id = metadata.targetId.
+
+Audit: INSERT a record into platformPurchasesTable with the amount, user, and session ID.
+
+Wrap both the UPDATE and INSERT in a database transaction (db.transaction).
+
+--- PHASE 4: The Marketplace Ranking ---
+
+Update the GET /coaches and GET /courts list endpoints.
+
+Modify the ORDER BY logic: Primary sort should be a boolean evaluation (promotedUntil > now()) DESC (so active bumps float to the very top). Secondary sort remains averageRating DESC.
+
+Pass a isPromoted: boolean flag to the frontend formatter.
+
+--- PHASE 5: The Dashboards (User & Admin) ---
+
+Public UI: In the CoachCard and CourtCard, if isPromoted is true, render a prominent '⭐ Remiama' (Sponsored) badge.
+
+User Dashboards: In pages/coach/settings.tsx and the court/tournament list, add a 'Iškelti profilį - €10' (Promote Profile) button. Wire it to hit the checkout API and redirect to Stripe.
+
+Admin Dashboard: In pages/admin.tsx, add a 'Pajamos' (Revenue) tab. Create a GET /api/admin/revenue endpoint that sums amountCents from platformPurchasesTable and lists the latest transactions. Render the total revenue and the ledger.
+
+Run strict typechecks after each phase to ensure the Stripe metadata flows cleanly into the DB."

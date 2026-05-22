@@ -1,0 +1,591 @@
+import { Link, useLocation } from "wouter";
+import { ThemeProvider, useTheme } from "./theme-provider";
+import { useUser, useClerk } from "@clerk/react";
+import { SafeShow as Show } from "@/lib/safeAuth";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { LogOut, CalendarDays, LayoutDashboard, Sun, Moon, UserCircle, ShieldCheck, Trophy, Dumbbell, Heart, Mail, Phone, MapPin, Building2, Gamepad2, Settings, ArrowLeft } from "lucide-react";
+
+import { useState, lazy, Suspense } from "react";
+import { ChevronDown } from "lucide-react";
+import { useI18n, useT, type Locale } from "@/lib/i18n";
+import { useRole } from "@/lib/useRole";
+import { NotificationBell } from "@/components/notification-bell";
+const ChatBubble = lazy(() =>
+  import("@/components/chat-bubble").then(m => ({ default: m.ChatBubble }))
+);
+
+function TennisCourtIcon({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{
+        display: "inline-block",
+        backgroundColor: "currentColor",
+        maskImage: "url(/icons/court-icon.png)",
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskImage: "url(/icons/court-icon.png)",
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+      }}
+    />
+  );
+}
+
+function LogoBrand() {
+  return (
+    <Link
+      href="/"
+      className="flex items-center gap-2 font-bold text-xl tracking-tight shrink-0"
+    >
+      <span>
+        k
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-block",
+            width: "0.72em",
+            height: "0.72em",
+            verticalAlign: "middle",
+            backgroundColor: "currentColor",
+            maskImage: "url(/icons/tennis-ball.png)",
+            maskSize: "contain",
+            maskRepeat: "no-repeat",
+            maskPosition: "center",
+            WebkitMaskImage: "url(/icons/tennis-ball.png)",
+            WebkitMaskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+          }}
+        />
+        rts.lt
+      </span>
+    </Link>
+  );
+}
+
+function NavLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
+  const active = useLocation()[0] === href;
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center gap-1 text-sm font-medium text-foreground dark:text-foreground"
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        setLocation(href);
+      }}
+    >
+      <span className="flex items-center gap-1.5 text-inherit">
+        {icon}
+        {children}
+      </span>
+      <span
+        className={`h-1.5 w-1.5 rounded-full transition-all ${active ? "bg-primary opacity-100" : "bg-transparent opacity-0"}`}
+        aria-hidden="true"
+      />
+    </Link>
+  );
+}
+
+const LOCALES: { code: Locale; label: string }[] = [
+  { code: "lt", label: "LT" },
+  { code: "en", label: "EN" },
+  { code: "ru", label: "RU" },
+];
+
+function LanguageSelector() {
+  const { locale, setLocale } = useI18n();
+  const current = LOCALES.find(({ code }) => code === locale)?.label ?? "LT";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1 h-8 px-2 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-accent transition-colors">
+          {current}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-24">
+        {LOCALES.map(({ code, label }) => (
+          <DropdownMenuItem
+            key={code}
+            onClick={() => setLocale(code)}
+            className={locale === code ? "font-semibold" : ""}
+          >
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function UserMenu() {
+  const { user } = useUser();
+  const { signOut, openUserProfile } = useClerk();
+  const [, setLocation] = useLocation();
+  const t = useT();
+  const { isAdmin, isOwner, isCoach } = useRole();
+  const { theme, toggleTheme } = useTheme();
+
+  const initials = user
+    ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+      user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user?.imageUrl} alt={user?.fullName ?? "User"} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">
+              {user?.fullName || t("nav.account")}
+            </p>
+            <p className="text-xs leading-none text-muted-foreground truncate">
+              {user?.emailAddresses[0]?.emailAddress}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setLocation("/profile")}>
+          <UserCircle className="mr-2 h-4 w-4" />
+          {t("nav.myProfile")}
+        </DropdownMenuItem>
+        {(isCoach || isAdmin) && (
+          <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
+            <Trophy className="mr-2 h-4 w-4" />
+            Trenerio profilis
+          </DropdownMenuItem>
+        )}
+        {isOwner && (
+          <DropdownMenuItem onClick={() => setLocation("/owner")}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            {t("nav.ownerDashboard")}
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Administravimas
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => setLocation("/settings")}>
+          <Settings className="mr-2 h-4 w-4" />
+          Nustatymai
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {/* Theme toggle */}
+        <DropdownMenuItem onClick={toggleTheme}>
+          {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {t("nav.signOut")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function MobileUserAvatar() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [, setLocation] = useLocation();
+  const t = useT();
+  const { isAdmin, isOwner, isCoach } = useRole();
+  const { theme, toggleTheme } = useTheme();
+  const initials = user
+    ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() ||
+      user.emailAddresses[0]?.emailAddress?.[0]?.toUpperCase() ||
+      "U"
+    : "U";
+
+  if (!user) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="md:hidden flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Open profile menu"
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={user.imageUrl} alt={user.fullName ?? "User"} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">{user.fullName || t("nav.account")}</p>
+            <p className="text-xs leading-none text-muted-foreground truncate">
+              {user.emailAddresses[0]?.emailAddress}
+            </p>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setLocation("/profile")}>
+          <UserCircle className="mr-2 h-4 w-4" />
+          {t("nav.myProfile")}
+        </DropdownMenuItem>
+        {(isCoach || isAdmin) && (
+          <DropdownMenuItem onClick={() => setLocation("/coach/me")}>
+            <Trophy className="mr-2 h-4 w-4" />
+            Trenerio profilis
+          </DropdownMenuItem>
+        )}
+        {isOwner && (
+          <DropdownMenuItem onClick={() => setLocation("/owner")}>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            {t("nav.ownerDashboard")}
+          </DropdownMenuItem>
+        )}
+        {isAdmin && (
+          <DropdownMenuItem onClick={() => setLocation("/admin")} className="text-amber-500 focus:text-amber-400">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Administravimas
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => setLocation("/settings")}>
+          <Settings className="mr-2 h-4 w-4" />
+          Nustatymai
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={toggleTheme}>
+          {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+          {theme === "dark" ? "Šviesi tema" : "Tamsi tema"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => signOut({ redirectUrl: "/" })}
+          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          {t("nav.signOut")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function NavIconButton({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  const [location] = useLocation();
+  const active = location === href || location.startsWith(href + "/");
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={href}
+            aria-label={label}
+            className={`flex items-center justify-center w-8 h-8 rounded-md border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              active
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-border hover:bg-accent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {icon}
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function OwnerDashboardButton() {
+  const { isOwner } = useRole();
+  const [location] = useLocation();
+  const [, setLocation] = useLocation();
+  if (!isOwner) return null;
+  const active = location === "/owner" || location.startsWith("/owner/");
+  return (
+    <>
+      {/* Desktop: icon + text */}
+      <Button
+        size="sm"
+        variant="outline"
+        className={`hidden md:inline-flex h-8 gap-1.5 ${active ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+        onClick={() => setLocation("/owner")}
+      >
+        <LayoutDashboard className="h-4 w-4" />
+        Savininko skydelis
+      </Button>
+      {/* Mobile: icon-only with tooltip */}
+      <div className="md:hidden">
+        <NavIconButton href="/owner" icon={<LayoutDashboard className="h-4 w-4" />} label="Savininko skydelis" />
+      </div>
+    </>
+  );
+}
+
+function PlayerModeButton() {
+  const [, setLocation] = useLocation();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-8 gap-1.5"
+      onClick={() => setLocation("/")}
+    >
+      <ArrowLeft className="h-4 w-4" />
+      <span className="hidden sm:inline">Grįžti į žaidėjo vaizdą</span>
+      <span className="sm:hidden">Žaidėjo vaizdas</span>
+    </Button>
+  );
+}
+
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const t = useT();
+  const [location] = useLocation();
+
+  const isActive = (href: string) => location === href || location.startsWith(href + "/");
+  const navCls = (href: string) =>
+    `transition-colors flex items-center gap-1.5 ${isActive(href) ? "text-primary font-semibold" : "hover:text-primary text-foreground/80 dark:text-foreground/90"}`;
+  const mobileNavCls = (href: string) =>
+    `flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${isActive(href) ? "bg-primary/10 text-primary" : "hover:bg-accent hover:text-primary text-foreground/80 dark:text-foreground/90"}`;
+
+  // Business Mode: any /owner route hides consumer nav, mobile nav row, and footer.
+  const inBusinessMode = location === "/owner" || location.startsWith("/owner/");
+
+  return (
+    <ThemeProvider>
+      <div className="min-h-[100dvh] flex flex-col bg-background text-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground">
+        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto flex h-16 items-center justify-between px-4">
+            <LogoBrand />
+
+            {inBusinessMode ? (
+              <nav className="hidden md:flex items-center gap-2 text-sm font-medium text-foreground">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  Verslo režimas
+                </span>
+              </nav>
+            ) : (
+              <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-foreground">
+                <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
+                <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
+                <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
+                <NavLink href="/matches" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Mačai</NavLink>
+                <NavLink href="/list-your-court" icon={<Building2 className="w-3.5 h-3.5" />}>Aikštelių savininkai</NavLink>
+              </nav>
+            )}
+
+            <div className="flex items-center gap-2">
+              <LanguageSelector />
+              <Show when="signed-out">
+                <div className="hidden md:flex items-center gap-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/sign-in">{t("nav.signIn")}</Link>
+                  </Button>
+                  <Button size="sm" asChild>
+                    <Link href="/sign-up">{t("nav.register")}</Link>
+                  </Button>
+                </div>
+                <div className="md:hidden">
+                  <Button size="sm" className="h-8 text-xs px-3" asChild>
+                    <Link href="/sign-in">{t("nav.signIn")}</Link>
+                  </Button>
+                </div>
+              </Show>
+              <Show when="signed-in">
+                {inBusinessMode ? (
+                  <PlayerModeButton />
+                ) : (
+                  <>
+                    <NavIconButton href="/favorites" icon={<Heart className="h-4 w-4" />} label="Mėgstamiausi" />
+                    <NavIconButton href="/bookings" icon={<CalendarDays className="h-4 w-4" />} label="Mano rezervacijos" />
+                    <OwnerDashboardButton />
+                  </>
+                )}
+                <NotificationBell />
+                <div className="hidden md:block">
+                  <UserMenu />
+                </div>
+                <MobileUserAvatar />
+              </Show>
+            </div>
+          </div>
+
+          {/* Mobile always-visible nav row — only on consumer pages */}
+          {!inBusinessMode && (
+            <nav className="md:hidden border-t bg-background/98 backdrop-blur flex items-center justify-around px-2 py-1.5 text-xs font-medium text-foreground">
+              <Link href="/courts" className={mobileNavCls("/courts")}>
+                <TennisCourtIcon className="w-4 h-4" />
+                <span>{t("nav.findCourts")}</span>
+              </Link>
+              <Link href="/coaches" className={mobileNavCls("/coaches")}>
+                <Dumbbell className="w-4 h-4" />
+                <span>Treneriai</span>
+              </Link>
+              <Link href="/tournaments" className={mobileNavCls("/tournaments")}>
+                <Trophy className="w-4 h-4" />
+                <span>Turnyrai</span>
+              </Link>
+              <Link href="/matches" className={mobileNavCls("/matches")}>
+                <Gamepad2 className="w-4 h-4" />
+                <span>Mačai</span>
+              </Link>
+            </nav>
+          )}
+        </header>
+
+        <main className="flex-1 w-full">{children}</main>
+
+        {!inBusinessMode && <Suspense fallback={null}><ChatBubble /></Suspense>}
+
+        {!inBusinessMode && (
+        <footer className="border-t bg-muted/20 mt-auto">
+          {/* Main footer grid */}
+          <div className="container mx-auto px-4 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+
+            {/* Column 1 — Company */}
+            <div className="flex flex-col gap-4">
+              <Link href="/" className="font-extrabold text-xl tracking-tight text-foreground">
+                korts.lt
+              </Link>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+                Lietuva pirmaujanti sporto aikštelių rezervacijos platforma. Raskite, palyginkite ir užsisakykite aikštelę vos per kelias sekundes.
+              </p>
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground mt-1">
+                <a href="mailto:info@korts.lt" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                  <Mail className="h-3.5 w-3.5 shrink-0" />
+                  info@korts.lt
+                </a>
+                <a href="tel:+37052314567" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                  <Phone className="h-3.5 w-3.5 shrink-0" />
+                  +370 5 231 4567
+                </a>
+                <span className="flex items-start gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  Gedimino pr. 45-7, Vilnius LT-01504
+                </span>
+              </div>
+
+              {/* Social links */}
+              <div className="flex items-center gap-3 mt-1">
+                <a href="https://instagram.com/korts.lt" target="_blank" rel="noreferrer" aria-label="Instagram"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+                </a>
+                <a href="https://facebook.com/korts.lt" target="_blank" rel="noreferrer" aria-label="Facebook"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                </a>
+                <a href="https://t.me/kortslt" target="_blank" rel="noreferrer" aria-label="Telegram"
+                  className="w-8 h-8 rounded-full bg-muted flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M21.95 5.005l-3.306 15.617c-.25 1.118-.9 1.397-1.826.869l-5-3.683-2.415 2.321c-.267.267-.489.489-.999.489l.356-5.045 9.197-8.304c.4-.355-.087-.551-.619-.196L6.11 13.92l-4.92-1.541c-1.07-.333-1.087-1.07.222-1.583l19.16-7.391c.888-.335 1.667.216 1.378 1.6z"/></svg>
+                </a>
+              </div>
+
+            </div>
+
+            {/* Column 2 — Platform */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Platforma</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { href: "/courts", label: "Rasti aikštelę" },
+                  { href: "/coaches", label: "Treneriai" },
+                  { href: "/tournaments", label: "Turnyrai" },
+                  { href: "/matches", label: "Mačai" },
+                  { href: "/list-your-court", label: "Pridėti aikštelę" },
+                  { href: "/bookings", label: "Mano rezervacijos" },
+                  { href: "/profile", label: "Profilis" },
+                ].map(l => (
+                  <Link key={l.href} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {l.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            {/* Column 3 — Sports */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Sporto šakos</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { type: "tennis", label: "Tenisas" },
+                  { type: "basketball", label: "Krepšinis" },
+                  { type: "padel", label: "Padelis" },
+                  { type: "football", label: "Futbolas" },
+                  { type: "badminton", label: "Badmintonas" },
+                  { type: "squash", label: "Skvoše" },
+                ].map(s => (
+                  <Link key={s.type} href={`/courts?type=${s.type}`} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {s.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+
+            {/* Column 4 — Support */}
+            <div className="flex flex-col gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pagalba</h4>
+              <nav className="flex flex-col gap-2 text-sm">
+                {[
+                  { href: "/faq", label: "D.U.K." },
+                  { href: "/owners", label: "Aikštelių savininkams" },
+                  { href: "/privacy", label: "Privatumo politika" },
+                  { href: "/terms", label: "Naudojimo taisyklės" },
+                  { href: "/contact", label: "Kontaktai" },
+                ].map(l => (
+                  <Link key={l.label} href={l.href} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                    {l.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t">
+            <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
+              <p>© {new Date().getFullYear()} UAB Korts Digital. Visos teisės saugomos.</p>
+              <p className="text-center sm:text-right">
+                Įm. kodas 306 214 857 · PVM LT100012345678 · Lietuva
+              </p>
+            </div>
+          </div>
+        </footer>
+        )}
+      </div>
+    </ThemeProvider>
+  );
+}

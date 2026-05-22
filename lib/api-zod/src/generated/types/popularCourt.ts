@@ -10,8 +10,8 @@ export interface PopularCourt {
   id: number;
   name: string;
   type: string;
-  city: string;
-  address?: string;
+  city?: string | null;
+  address?: string | null;
   imageUrl?: string;
   pricePerHour?: number;
   /** Minimum displayable hourly price from active pricing slots (06:00–23:00). Falls back to pricePerHour when no custom pricing exists. */

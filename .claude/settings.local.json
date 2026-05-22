@@ -78,7 +78,20 @@
       "Bash(PORT=24213 pnpm dev)",
       "Bash(echo \"Started PID $!\")",
       "Bash(git checkout *)",
-      "Bash(kill 6812)"
+      "Bash(kill 6812)",
+      "Bash(awk '$4==\"0A\" {print $2}')",
+      "Bash(kill 301)",
+      "Bash(PORT=8080 NODE_ENV=development node --enable-source-maps ./dist/index.mjs)",
+      "Bash(fuser -k 8080/tcp)",
+      "Bash(PORT=8080 NODE_ENV=development node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)",
+      "Bash(kill -9 308 2516)",
+      "Bash(kill -9 306)",
+      "Bash(awk '{print $NF}')",
+      "Bash(PORT=8090 node dist/index.js)",
+      "Bash(tee /tmp/api-server.log)",
+      "Bash(PORT=8090 node /home/runner/workspace/artifacts/api-server/dist/index.mjs)",
+      "Bash(kill bk6g0od2b *)",
+      "Bash(pkill -f \"node.*dist/index.mjs\")"
     ]
   },
   "enabledPlugins": {}

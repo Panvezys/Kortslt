@@ -1,0 +1,56 @@
+"We are executing Strike 7: The Admin Command Center.
+
+Our goal is to replace the basic approval tabs with a high-performance, real-time administrative dashboard that tracks active reservations, resource occupancy (courts and coaches), and platform health.
+
+Please execute this in 4 distinct phases. Run a strict typecheck between each phase.
+
+--- PHASE 1: Database Optimization & Types ---
+
+Indexes: In lib/db/src/schema/bookings.ts, ensure there are composite indexes to support fast dashboard queries. Add an index on (date, status).
+
+Types: Define a strict Zod response schema for the dashboard payload in @workspace/api-zod. We need:
+
+kpis: { todayBookings: number, monthlyRevenueCents: number, activeUsers: number }
+
+occupancy: Arrays for courts and coaches containing { id, name, bookedHours, utilizationPercentage }.
+
+recentReservations: Array of { id, status, date, startTime, endTime, priceCents, targetName (Court or Coach name), bookerName, bookerEmail }.
+
+--- PHASE 2: The Aggregation API ---
+
+In artifacts/api-server/src/routes/admin.ts, create GET /api/admin/dashboard/metrics. Strictly requireAdmin.
+
+Accept query parameters for ?startDate and ?endDate (defaulting to the current month if omitted).
+
+The Data Fetching Strategy: Do NOT fetch the entire database.
+
+Use aggregate SQL queries (SUM, COUNT) grouped by courtId and coachId within the date range to calculate occupancy.
+
+Fetch the latest 100 reservations within the date range.
+
+CRITICAL: Use the exact same pattern we used in the Revenue tab to resolve booker PII. Collect the userIds from the bookings, query clerkClient.users.getUserList in chunks, and map the names/emails back to the payload.
+
+--- PHASE 3: Frontend Architecture & Layout ---
+
+In artifacts/courtbook/src/pages/admin.tsx, create a new primary tab: 'Valdymo Centras' (Command Center). Make this the default active tab.
+
+Fetch the data using TanStack Query: useQuery({ queryKey: ['admin-dashboard-metrics', dateRange], ... }).
+
+Implement a Date Range Picker at the top of the panel to allow the Admin to shift the reporting window.
+
+--- PHASE 4: The Interactive UI Components ---
+Build the Command Center UI in three sections:
+
+KPI Hero Cards: Top row. 3-4 distinct cards showing Total Bookings, Revenue, and Active Users for the selected date range. Use lucide-react icons and format currency correctly.
+
+Occupancy Trackers (Grid): Middle row. Split into two columns: 'Trenerių Užimtumas' (Coach Occupancy) and 'Aikštelių Užimtumas' (Court Occupancy). Render a list of resources with a visual progress bar (e.g., 80% full = green, 20% = red/gray) so the admin can instantly spot under-utilized inventory.
+
+The Reservations Ledger: Bottom section. Build a comprehensive Data Table for the recentReservations.
+
+Include local client-side sorting by Date, Status, and Amount.
+
+Include a local text search input to quickly filter by targetName or bookerEmail.
+
+Render visual pills for statuses (e.g., Confirmed = Green, Cancelled = Red).
+
+Execute Phase 1 and 2 first, then pause for my review before building the UI."

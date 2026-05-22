@@ -1,0 +1,43 @@
+"We need to make the Bump pricing dynamic so the platform owner can configure it from the Admin dashboard. We will build this into the Strike 6 execution.
+
+Please execute this in 5 distinct phases:
+
+--- PHASE 1: The Settings Schema ---
+
+In lib/db/src/schema, create a new file platform-settings.ts with platformSettingsTable.
+
+Columns: id (integer, primary key, always 1 to enforce a singleton), coachBumpPriceCents (integer, default 1000), courtBumpPriceCents (integer, default 500), tournamentBumpPriceCents (integer, default 2000), updatedAt.
+
+Add a seed script or an ON CONFLICT DO NOTHING insert in the database initialization to ensure row id=1 always exists. Push the schema.
+
+--- PHASE 2: The Settings API ---
+
+Create GET /api/platform/settings (Public or Auth required, depending on if unauthenticated users need to see prices). Returns the singleton row.
+
+Create PATCH /api/admin/platform/settings (Strictly requireAdmin). Allows updating the price columns.
+
+--- PHASE 3: Update the Checkout Flow ---
+
+In POST /api/payments/create-bump-checkout, remove the hardcoded prices.
+
+First, query platformSettingsTable where id = 1.
+
+Use the dynamic prices (coachBumpPriceCents, etc.) based on the requested targetType to set the unit_amount in the Stripe price_data.
+
+--- PHASE 4: The Admin Dashboard UI ---
+
+In pages/admin.tsx, add a new tab: 'Platformos Nustatymai' (Platform Settings).
+
+Build a simple form fetching from GET /api/platform/settings.
+
+Allow the Admin to edit the Euro values (convert to/from cents for the UI) and save via PATCH /api/admin/platform/settings. Invalidate the settings query on success.
+
+--- PHASE 5: The User Dashboard UI ---
+
+In pages/coach/settings.tsx and the owner dashboards, fetch GET /api/platform/settings.
+
+Make the 'Iškelti profilį' (Promote Profile) button dynamic. Instead of hardcoding '€10', render €${settings.coachBumpPriceCents / 100}.
+
+Now, when the Admin changes the price, the buttons across the entire platform instantly update.
+
+Run strict typechecks after each phase."

@@ -1,0 +1,63 @@
+import {
+  pgTable,
+  text,
+  serial,
+  timestamp,
+  integer,
+  check,
+  index,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { courtsTable } from "./courts";
+import { bookingsTable } from "./bookings";
+
+/**
+ * Verified-purchase reviews for courts. Mirrors coachReviewsTable: one row
+ * per booking, status-gated aggregates, facility-owner reply field. The
+ * legacy unauthenticated POST + reviewerName/photos pattern has been
+ * replaced — `reviewerUserId` is now Clerk-bound.
+ *
+ * Invariant C (verified purchase) is enforced application-side in
+ * POST /court-reviews: reviewerUserId must own the booking, the booking
+ * must reference the submitted courtId, the booking's scheduled end must
+ * be in the past, and the status must not be cancelled/blocked.
+ *
+ * Invariant D (denormalized aggregate sync): syncCourtAverageRating
+ * recomputes avg + count from this table (WHERE status='published') and
+ * writes them back to courtsTable.rating + courtsTable.reviewCount in the
+ * same transaction as the mutation that triggered it.
+ */
+export const reviewsTable = pgTable(
+  "reviews",
+  {
+    id: serial("id").primaryKey(),
+    // Clerk user id — text/no-FK to mirror bookings.bookerUserId.
+    reviewerUserId: text("reviewer_user_id").notNull(),
+    courtId: integer("court_id")
+      .notNull()
+      .references(() => courtsTable.id, { onDelete: "cascade" }),
+    bookingId: integer("booking_id")
+      .notNull()
+      .unique()
+      .references(() => bookingsTable.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    comment: text("comment"),
+    // Moderation state: 'published' (counts toward aggregates), 'hidden'
+    // (admin-removed), 'flagged' (under review). syncCourtAverageRating
+    // filters on this so flipping status mutates court.rating immediately.
+    status: text("status").notNull().default("published"),
+    // Facility owner's one-time reply to a review. Stored inline (one reply
+    // per review) so API responses can include it alongside the parent.
+    ownerReplyText: text("owner_reply_text"),
+    ownerReplyCreatedAt: timestamp("owner_reply_created_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => ({
+    ratingRange: check("reviews_rating_range", sql`${t.rating} BETWEEN 1 AND 5`),
+    byCourtCreated: index("reviews_court_created_idx").on(t.courtId, t.createdAt),
+  }),
+);
+
+export type Review = typeof reviewsTable.$inferSelect;

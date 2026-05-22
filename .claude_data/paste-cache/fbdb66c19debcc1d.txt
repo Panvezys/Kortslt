@@ -1,0 +1,36 @@
+"The backend data pipeline is perfect. We are now executing Phase 3 and Phase 4 to build the frontend Command Center.
+
+Please execute this in the following sequence:
+
+--- PHASE 3: Frontend Architecture & Global State ---
+
+In artifacts/courtbook/src/pages/admin.tsx, add a new primary tab: 'Valdymo Centras' (Command Center). Move this to be the very first (default) active tab.
+
+Create the CommandCenterPanel component.
+
+Implement a Date Range picker at the top of the panel (you can use two native <input type="date"> fields or an existing date picker component if one exists). Default the state to the current calendar month.
+
+Fetch the data using TanStack Query: useQuery({ queryKey: ['admin-dashboard-metrics', startDate, endDate], ... }). Ensure the UI shows a loading skeleton or spinner while fetching.
+
+--- PHASE 4: The Interactive UI Components ---
+Inside the CommandCenterPanel, build out three distinct visual sections:
+
+KPI Hero Cards (Top Row): >    - Create a responsive grid (3 columns on desktop).
+
+Render cards for Total Bookings, Revenue (convert cents to Euros and format beautifully), and Active Users. Use appropriate lucide-react icons for each.
+
+Occupancy Trackers (Middle Row): >    - Create a two-column layout: 'Trenerių Užimtumas' (Coaches) and 'Aikštelių Užimtumas' (Courts).
+
+For each resource array, render the name and a visual progress bar.
+
+Color logic: If utilizationPercentage > 75, render the bar in a success color (green). If < 25, render in a warning/danger color (red/amber). Otherwise, standard neutral.
+
+The Reservations Ledger (Bottom Section): >    - Render a comprehensive Data Table for recentReservations.
+
+Implement local React state for a search string: const [search, setSearch] = useState(''). Filter the 100 rows locally checking if targetName, bookerName, or bookerEmail includes the search string.
+
+Implement local React state for sorting (e.g., sort by Date, Amount, or Status) using standard array .sort().
+
+Render visual pills for status (e.g., green for confirmed, red for cancelled, amber for blocked).
+
+Run strict typechecks to ensure the Zod schemas from Phase 1 map perfectly to your frontend components."

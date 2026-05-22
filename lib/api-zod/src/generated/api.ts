@@ -85,6 +85,12 @@ export const ListCourtsResponseItem = zod.object({
     .describe(
       "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
     ),
+  isPromoted: zod
+    .boolean()
+    .optional()
+    .describe(
+      'True when the court has an active paid promotion (promotedUntil > now). Promoted courts float to the top of marketplace lists and render a \"Remiama\" badge.',
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListCourtsResponse = zod.array(ListCourtsResponseItem);
@@ -182,6 +188,12 @@ export const GetCourtResponse = zod.object({
     .describe(
       "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
     ),
+  isPromoted: zod
+    .boolean()
+    .optional()
+    .describe(
+      'True when the court has an active paid promotion (promotedUntil > now). Promoted courts float to the top of marketplace lists and render a \"Remiama\" badge.',
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -274,6 +286,12 @@ export const UpdateCourtResponse = zod.object({
     .nullish()
     .describe(
       "Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.",
+    ),
+  isPromoted: zod
+    .boolean()
+    .optional()
+    .describe(
+      'True when the court has an active paid promotion (promotedUntil > now). Promoted courts float to the top of marketplace lists and render a \"Remiama\" badge.',
     ),
   createdAt: zod.coerce.date(),
 });
@@ -912,8 +930,8 @@ export const GetPopularCourtsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
   type: zod.string(),
-  city: zod.string(),
-  address: zod.string().optional(),
+  city: zod.string().nullish(),
+  address: zod.string().nullish(),
   imageUrl: zod.string().optional(),
   pricePerHour: zod.number().optional(),
   minDisplayPrice: zod

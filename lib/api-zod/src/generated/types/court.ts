@@ -45,5 +45,7 @@ export interface Court {
   socialWebsite?: string | null;
   /** Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist. */
   minDisplayPrice?: number | null;
+  /** True when the court has an active paid promotion (promotedUntil > now). Promoted courts float to the top of marketplace lists and render a "Remiama" badge. */
+  isPromoted?: boolean;
   createdAt: Date;
 }

@@ -1,0 +1,29 @@
+"The Settings endpoints are bulletproof. Let's finish Strike 6 by wiring the dynamic prices to Stripe and building the UI.
+
+Please execute this in 3 phases:
+
+--- PHASE 3: The Checkout Flow ---
+
+In POST /api/payments/create-bump-checkout, query the platformSettingsTable first.
+
+Determine the unit_amount for the Stripe price_data dynamically based on the requested targetType (coach, court, tournament) by reading the appropriate column from the settings row.
+
+--- PHASE 4: The Admin UI ---
+
+In pages/admin.tsx, add a 'Platformos Nustatymai' tab.
+
+Fetch the prices via GET /api/platform/settings.
+
+Build a form to edit these three values (convert to Euro for display, convert back to cents for the API).
+
+PATCH /api/admin/platform/settings on submit, invalidate the query, and show a success toast.
+
+--- PHASE 5: The User UI ---
+
+In pages/coach/settings.tsx, query GET /api/platform/settings. Update the 'Iškelti profilį' (Promote Profile) button text to render the dynamic price (e.g., Iškelti profilį (${settings.coachBumpPriceCents / 100} €)).
+
+Implement the same for facility owners in pages/owner.tsx (or their respective dashboard list).
+
+Ensure clicking the button correctly passes { targetType, targetId } to the updated create-bump-checkout endpoint and redirects to the Stripe URL.
+
+Run strict typechecks across all packages when complete."

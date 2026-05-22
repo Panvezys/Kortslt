@@ -1,0 +1,1018 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: CourtBook API - Court booking platform for Lithuania
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: courts
+    description: Court management
+  - name: bookings
+    description: Booking management
+  - name: reviews
+    description: Court reviews and ratings
+  - name: payments
+    description: Payment processing
+  - name: stats
+    description: Statistics and summaries
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /courts:
+    get:
+      operationId: listCourts
+      tags: [courts]
+      summary: List all courts
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [tennis, basketball, padel, football, badminton, squash]
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: surface
+          in: query
+          schema:
+            type: string
+        - name: condition
+          in: query
+          schema:
+            type: string
+            enum: [excellent, good, fair]
+        - name: isIndoor
+          in: query
+          schema:
+            type: boolean
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: ownerUserId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of courts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Court"
+    post:
+      operationId: createCourt
+      tags: [courts]
+      summary: Create a new court
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourtBody"
+      responses:
+        "201":
+          description: Court created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+
+  /courts/{id}:
+    get:
+      operationId: getCourt
+      tags: [courts]
+      summary: Get court by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Court details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+        "404":
+          description: Court not found
+    put:
+      operationId: updateCourt
+      tags: [courts]
+      summary: Update a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCourtBody"
+      responses:
+        "200":
+          description: Court updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Court"
+    delete:
+      operationId: deleteCourt
+      tags: [courts]
+      summary: Delete a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Court deleted
+
+  /courts/{id}/availability:
+    get:
+      operationId: getCourtAvailability
+      tags: [courts]
+      summary: Get court availability for a date
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Available time slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+
+  /courts/{id}/pricing:
+    get:
+      operationId: getCourtPricing
+      tags: [courts]
+      summary: Get pricing schedule for a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pricing schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingSchedule"
+    put:
+      operationId: setCourtPricing
+      tags: [courts]
+      summary: Set pricing schedule for a court (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPricingBody"
+      responses:
+        "200":
+          description: Pricing updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricingSchedule"
+
+  /courts/{id}/price-overrides:
+    get:
+      operationId: getCourtPriceOverrides
+      tags: [courts]
+      summary: Get specific-date price overrides for a court
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Price overrides
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceOverridesResponse"
+    put:
+      operationId: setCourtPriceOverrides
+      tags: [courts]
+      summary: Set specific-date price overrides for a court (owner only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPriceOverridesBody"
+      responses:
+        "200":
+          description: Overrides updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceOverridesResponse"
+
+  /courts/cities:
+    get:
+      operationId: listCities
+      tags: [courts]
+      summary: List all cities that have courts
+      responses:
+        "200":
+          description: List of cities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List all bookings
+      parameters:
+        - name: courtId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled]
+        - name: customerEmail
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Create a booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingBody"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}:
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      summary: Get booking by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+    delete:
+      operationId: cancelBooking
+      tags: [bookings]
+      summary: Cancel a booking (with tiered partial refund)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /bookings/{id}/refund-preview:
+    get:
+      operationId: getRefundPreview
+      tags: [bookings]
+      summary: Preview refund amount for a booking cancellation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Refund preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundPreview"
+
+  # NOTE: court review endpoints (POST /court-reviews, GET /courts/{id}/reviews,
+  # PATCH variants for edit/reply/moderation) are deliberately NOT in this spec.
+  # They use customFetch directly to avoid forcing every consumer through the
+  # generated client churn — same pattern as the coach review endpoints.
+
+  /payments/create-checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [payments]
+      summary: Create a Stripe checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckoutBody"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSessionResponse"
+
+  /payments/confirm:
+    post:
+      operationId: confirmPayment
+      tags: [payments]
+      summary: Confirm payment and finalize booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmPaymentBody"
+      responses:
+        "200":
+          description: Payment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+
+  /stats/summary:
+    get:
+      operationId: getStatsSummary
+      tags: [stats]
+      summary: Get platform stats summary
+      responses:
+        "200":
+          description: Platform statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsSummary"
+
+  /stats/popular-courts:
+    get:
+      operationId: getPopularCourts
+      tags: [stats]
+      summary: Get most booked courts
+      responses:
+        "200":
+          description: Popular courts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PopularCourt"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Court:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+          enum: [tennis, basketball, padel, football, badminton, squash]
+        description:
+          type: string
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        postcode:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        pricePerHour:
+          type: number
+        rentableItems:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+        ownerUserId:
+          type: string
+          nullable: true
+        ownershipDocUrl:
+          type: string
+          nullable: true
+        amenities:
+          type: array
+          items:
+            type: string
+        amenityPhotos:
+          type: string
+          nullable: true
+        isIndoor:
+          type: boolean
+        maxPlayers:
+          type: integer
+        surface:
+          type: string
+        surfaceSpeed:
+          type: string
+          nullable: true
+        surfaceBounce:
+          type: string
+          nullable: true
+        hasSmartLock:
+          type: boolean
+        accessInstructions:
+          type: string
+          nullable: true
+        condition:
+          type: string
+          enum: [excellent, good, fair]
+        rating:
+          type: number
+        totalBookings:
+          type: integer
+        phone:
+          type: string
+        status:
+          type: string
+          enum: [draft, pending, pending_review, active, hidden, approved, rejected]
+        rejectionReason:
+          type: string
+          nullable: true
+        socialFacebook:
+          type: string
+          nullable: true
+        socialInstagram:
+          type: string
+          nullable: true
+        socialWhatsapp:
+          type: string
+          nullable: true
+        socialWebsite:
+          type: string
+          nullable: true
+        minDisplayPrice:
+          type: number
+          nullable: true
+          description: Minimum displayable hourly price derived from active pricing slots between 06:00–23:00. Falls back to pricePerHour when no custom pricing entries exist.
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - type
+        - pricePerHour
+        - isIndoor
+        - maxPlayers
+        - condition
+        - status
+        - createdAt
+
+    CreateCourtBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [tennis, basketball, padel, football, badminton, squash]
+        description:
+          type: string
+        pricePerHour:
+          type: number
+        imageUrl:
+          type: string
+        amenities:
+          type: array
+          items:
+            type: string
+        isIndoor:
+          type: boolean
+        maxPlayers:
+          type: integer
+        surface:
+          type: string
+        surfaceSpeed:
+          type: string
+          nullable: true
+        surfaceBounce:
+          type: string
+          nullable: true
+        hasSmartLock:
+          type: boolean
+        accessInstructions:
+          type: string
+          nullable: true
+        condition:
+          type: string
+          enum: [excellent, good, fair]
+        facilityId:
+          type: integer
+        rentableItems:
+          type: string
+          nullable: true
+        workingHours:
+          type: string
+          nullable: true
+        amenityPhotos:
+          type: string
+          nullable: true
+      required:
+        - name
+        - type
+        - pricePerHour
+        - isIndoor
+        - maxPlayers
+        - facilityId
+
+    PriceOverrideEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        startTime:
+          type: string
+          description: "HH:MM"
+        price:
+          type: number
+      required:
+        - date
+        - startTime
+        - price
+
+    PriceOverridesResponse:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOverrideEntry"
+      required:
+        - courtId
+        - overrides
+
+    SetPriceOverridesBody:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD — the specific date to replace overrides for
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceOverrideEntry"
+      required:
+        - date
+        - overrides
+
+    AvailabilityResponse:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        date:
+          type: string
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+      required:
+        - courtId
+        - date
+        - slots
+
+    TimeSlot:
+      type: object
+      properties:
+        startTime:
+          type: string
+        endTime:
+          type: string
+        isAvailable:
+          type: boolean
+        price:
+          type: number
+      required:
+        - startTime
+        - endTime
+        - isAvailable
+        - price
+
+    PricingEntry:
+      type: object
+      properties:
+        dayOfWeek:
+          type: integer
+          minimum: 0
+          maximum: 6
+        startTime:
+          type: string
+        price:
+          type: number
+      required:
+        - dayOfWeek
+        - startTime
+        - price
+
+    PricingSchedule:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingEntry"
+      required:
+        - courtId
+        - entries
+
+    SetPricingBody:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricingEntry"
+      required:
+        - entries
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: integer
+        courtId:
+          type: integer
+        courtName:
+          type: string
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        totalPrice:
+          type: number
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, awaiting_players, blocked, paid]
+        stripeSessionId:
+          type: string
+        refundAmount:
+          type: number
+        stripeRefundId:
+          type: string
+        managementToken:
+          type: string
+          nullable: true
+          description: Opaque token for guest bookings to manage the reservation without an account.
+        createdAt:
+          type: string
+          format: date-time
+        isSplit:
+          type: boolean
+          description: Whether this is a split-payment booking where multiple players each pay their share.
+        totalSlots:
+          type: integer
+          description: Total number of player slots for a split booking.
+        pricePerSlot:
+          type: number
+          description: Price each player pays for their slot in a split booking.
+        splitInviteToken:
+          type: string
+          description: Shareable token for players to join and pay their share of a split booking.
+        coachId:
+          type: string
+          nullable: true
+          description: Clerk user ID of the coach attached to this booking, if any.
+        coachServiceId:
+          type: integer
+          nullable: true
+          description: ID of the coach_services row this booking was created from, when booked via the coach-services flow.
+        coach:
+          type: object
+          nullable: true
+          description: Joined coach profile (id + display name) when coachId is set. Null for non-coach bookings.
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+          required:
+            - id
+            - name
+        coachReview:
+          type: object
+          nullable: true
+          description: The booker's existing review for this coach lesson, if any. Null when no review exists or this is not a coach booking. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode.
+          properties:
+            id:
+              type: integer
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+            comment:
+              type: string
+              nullable: true
+          required:
+            - id
+            - rating
+        courtReview:
+          type: object
+          nullable: true
+          description: The booker's existing review for this court, if any. Null when no review exists. Used by the player dashboard to switch the "Palikti atsiliepimą" CTA into edit mode for non-coach bookings.
+          properties:
+            id:
+              type: integer
+            rating:
+              type: integer
+              minimum: 1
+              maximum: 5
+            comment:
+              type: string
+              nullable: true
+          required:
+            - id
+            - rating
+      required:
+        - id
+        - courtId
+        - customerName
+        - customerEmail
+        - date
+        - startTime
+        - endTime
+        - totalPrice
+        - status
+        - createdAt
+
+    RefundPreview:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+        totalPrice:
+          type: number
+        hoursBeforeStart:
+          type: number
+        refundPercent:
+          type: integer
+        refundAmount:
+          type: number
+        refundable:
+          type: boolean
+        canCancel:
+          type: boolean
+        reason:
+          type: string
+      required:
+        - bookingId
+        - totalPrice
+        - hoursBeforeStart
+        - refundPercent
+        - refundAmount
+        - refundable
+        - canCancel
+
+    CreateBookingBody:
+      type: object
+      properties:
+        courtId:
+          type: integer
+        customerName:
+          type: string
+        customerEmail:
+          type: string
+        customerPhone:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        rentedItems:
+          type: string
+          description: JSON-encoded array of rented items selected at booking time.
+      required:
+        - courtId
+        - customerName
+        - customerEmail
+        - date
+        - startTime
+        - endTime
+
+    CreateCheckoutBody:
+      type: object
+      properties:
+        bookingId:
+          type: integer
+        successUrl:
+          type: string
+        cancelUrl:
+          type: string
+      required:
+        - bookingId
+        - successUrl
+        - cancelUrl
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        url:
+          type: string
+      required:
+        - sessionId
+        - url
+
+    ConfirmPaymentBody:
+      type: object
+      properties:
+        sessionId:
+          type: string
+      required:
+        - sessionId
+
+    StatsSummary:
+      type: object
+      properties:
+        totalCourts:
+          type: integer
+        totalBookings:
+          type: integer
+        confirmedBookings:
+          type: integer
+        totalRevenue:
+          type: number
+        tennisCourts:
+          type: integer
+        basketballCourts:
+          type: integer
+        padelCourts:
+          type: integer
+      required:
+        - totalCourts
+        - totalBookings
+        - confirmedBookings
+        - totalRevenue
+        - tennisCourts
+        - basketballCourts
+
+    PopularCourt:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        city:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+        pricePerHour:
+          type: number
+        minDisplayPrice:
+          type: number
+          nullable: true
+          description: Minimum displayable hourly price from active pricing slots (06:00–23:00). Falls back to pricePerHour when no custom pricing exists.
+        isIndoor:
+          type: boolean
+        condition:
+          type: string
+        bookingCount:
+          type: integer
+        revenue:
+          type: number
+      required:
+        - id
+        - name
+        - type
+        - bookingCount
+        - revenue
+
+    # Review and CreateReviewBody schemas removed — court reviews use the
+    # non-spec endpoints (POST /court-reviews, GET /courts/{id}/reviews,
+    # PATCH variants) via customFetch, mirroring the coach-review pattern.

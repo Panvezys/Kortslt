@@ -1,0 +1,166 @@
+import { pgTable, text, serial, timestamp, integer, boolean, numeric, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { courtsTable } from "./courts";
+
+export const coachesTable = pgTable("coaches", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  bio: text("bio"),
+  photoUrl: text("photo_url"),
+  videoUrl: text("video_url"),
+  // Hourly rate stored as integer cents — aligns with Stripe and avoids
+  // floating-point drift in financial math. UI must divide by 100 on display
+  // and multiply by 100 on submit.
+  pricePerHour: integer("price_per_hour"),
+  sports: text("sports").array().notNull().default([]),
+  availabilityDescription: text("availability_description"),
+  phone: text("phone"),
+  isAcceptingStudents: boolean("is_accepting_students").notNull().default(true),
+  experienceYears: integer("experience_years"),
+  qualifications: text("qualifications").array().notNull().default([]),
+  // travelPolicy: 'any_court' (free-agent, can teach anywhere) or
+  // 'affiliated_only' (only at courts they have an approved partnership with).
+  travelPolicy: text("travel_policy").notNull().default("affiliated_only"),
+  // courtPaymentModel: 'student_pays_court' (student books the court directly,
+  // coach earns lesson fee only) or 'coach_pays_court' (coach books and bills
+  // student a combined rate, then pays the court out of their fee).
+  courtPaymentModel: text("court_payment_model").notNull().default("student_pays_court"),
+  // cancellationPolicy: per-coach refund policy applied INDEPENDENTLY of the
+  // court's policy. Values:
+  //   'flexible' — 100% up to 24h before start, 0% inside 24h
+  //   'standard' — 80% > 48h, 50% > 24h, 0% inside 24h
+  //   'strict'   — 0% at any time
+  cancellationPolicy: text("cancellation_policy").notNull().default("standard"),
+  status: text("status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  // Denormalized review aggregates (Invariant D — kept in sync by
+  // syncCoachAverageRating on every reviews insert/update/delete). The
+  // marketplace list query reads these directly to avoid a per-coach
+  // sub-aggregate. Nullable averageRating signals "no reviews yet".
+  averageRating: numeric("average_rating", { precision: 3, scale: 2 }),
+  reviewCount: integer("review_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const courtCoachesTable = pgTable("court_coaches", {
+  id: serial("id").primaryKey(),
+  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqCourtCoach: uniqueIndex("court_coaches_court_id_coach_id_unique").on(t.courtId, t.coachId),
+}));
+
+export const courtCoachInvitationsTable = pgTable("court_coach_invitations", {
+  id: serial("id").primaryKey(),
+  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  targetUserId: text("target_user_id"),
+  targetEmail: text("target_email"),
+  targetName: text("target_name"),
+  initiatedBy: text("initiated_by").notNull().default("owner"),
+  status: text("status").notNull().default("pending"),
+  message: text("message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Recurring weekly availability for a coach. One row per (coachId, dayOfWeek,
+ * startTime, endTime) — coaches with split schedules (e.g. 09:00–12:00 and
+ * 16:00–20:00 on Mondays) get multiple rows for the same day. Times are
+ * stored as HH:MM strings interpreted in Europe/Vilnius local time so DST
+ * shifts don't move a coach's working hours twice a year.
+ */
+export const coachAvailabilitiesTable = pgTable("coach_availabilities", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 6 = Saturday
+  startTime: text("start_time").notNull(), // "HH:MM"
+  endTime: text("end_time").notNull(),     // "HH:MM"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCoachDay: index("coach_availabilities_coach_day_idx").on(t.coachId, t.dayOfWeek),
+}));
+
+/**
+ * One-off blocks (vacations, conflicts) overriding the recurring schedule.
+ * Stored as absolute UTC timestamps so range comparisons work without
+ * timezone gymnastics. The UI converts to Europe/Vilnius for display.
+ */
+export const coachBlockedSlotsTable = pgTable("coach_blocked_slots", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCoachStart: index("coach_blocked_slots_coach_start_idx").on(t.coachId, t.startTime),
+}));
+
+/**
+ * Per-sport target audiences. Stored as a junction table (not a flat array
+ * on `coaches`) so a coach can declare "I teach kids tennis but only adults
+ * for swimming" without cross-pollinating the audience tags. The marketplace
+ * filter joins on (sport, audience) — flattening would cause false-positive
+ * search matches when a coach teaches multiple sports for different levels.
+ *
+ * One row per (coachId, sport). The `audiences` column is a Postgres text[]
+ * holding the wizard's checkboxes: 'kids' | 'beginners' | 'advanced' | 'pros'.
+ */
+export const coachSportsTable = pgTable("coach_sports", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  sport: text("sport").notNull(),
+  audiences: text("audiences").array().notNull().default([]),
+}, (t) => ({
+  uniqCoachSport: uniqueIndex("coach_sports_coach_sport_unique").on(t.coachId, t.sport),
+  byCoach: index("coach_sports_coach_idx").on(t.coachId),
+}));
+
+/**
+ * Bookable services offered by a coach (motifind-style "service rows").
+ * A coach has ONE shared availability schedule but MANY services, each with
+ * its own price, duration, group size, and optional court binding.
+ *
+ * Invariant B (historical immutability): priceCents is the ground truth for
+ * the Stripe charge AT THE MOMENT a booking is created. Once a booking row
+ * exists, bookings.coachAmountCents is snapshotted and never recomputed
+ * even if priceCents later changes.
+ *
+ * Invariant A (denormalized price sync): coachesTable.pricePerHour is kept
+ * in sync as the lowest active hourly rate across this coach's services
+ * (computed as priceCents * 60 / durationMin). Updates to this table must
+ * trigger that recomputation on the server side.
+ */
+export const coachServicesTable = pgTable("coach_services", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").notNull().references(() => coachesTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  sport: text("sport").notNull(),
+  // Optional binding to a specific court. When set, this service is bookable
+  // only at that court. When null, the customer picks among the coach's
+  // affiliated courts at booking time.
+  courtId: integer("court_id").references(() => courtsTable.id, { onDelete: "set null" }),
+  durationMin: integer("duration_min").notNull().default(60),
+  priceCents: integer("price_cents").notNull(),
+  maxParticipants: integer("max_participants").notNull().default(1),
+  // Optional target audience for this specific service (e.g. a coach may
+  // teach all levels but offer a service explicitly for kids).
+  audienceLevel: text("audience_level"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byCoach: index("coach_services_coach_idx").on(t.coachId, t.isActive),
+}));
+
+export type Coach = typeof coachesTable.$inferSelect;
+export type CourtCoach = typeof courtCoachesTable.$inferSelect;
+export type CourtCoachInvitation = typeof courtCoachInvitationsTable.$inferSelect;
+export type CoachAvailability = typeof coachAvailabilitiesTable.$inferSelect;
+export type CoachBlockedSlot = typeof coachBlockedSlotsTable.$inferSelect;
+export type CoachSport = typeof coachSportsTable.$inferSelect;
+export type CoachService = typeof coachServicesTable.$inferSelect;

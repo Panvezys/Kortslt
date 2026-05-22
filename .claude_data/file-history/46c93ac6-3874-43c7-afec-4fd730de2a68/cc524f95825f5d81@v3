@@ -1,0 +1,71 @@
+import { sweepStalePendingGames, sweepAutoConfirmResults } from "../routes/games";
+import { sweepAbandonedPendingBookings } from "../routes/bookings";
+import { sweepHostGuarantees } from "../routes/split-payments";
+import { sweepCoachReviewReminders } from "../routes/coach-reviews";
+import { sweepCourtReviewReminders } from "../routes/reviews";
+import { logger } from "./logger";
+
+const TICK_INTERVAL_MS = 60 * 1000;
+const GUARANTEE_SWEEP_EVERY_N_TICKS = 15; // run guarantee sweep every ~15 minutes
+
+export function startCron(): void {
+  let running = false;
+  let tickCount = 0;
+  // Tracks the UTC date string of the last review-reminder sweep so it fires
+  // at most once per UTC day even though the per-minute tick keeps running.
+  // Initialized to empty so the first tick after startup triggers the sweep.
+  let lastDailyRunUtcDate = "";
+
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    tickCount++;
+    try {
+      const promises: Promise<number>[] = [
+        sweepStalePendingGames(),
+        sweepAutoConfirmResults(),
+        sweepAbandonedPendingBookings(),
+      ];
+      if (tickCount % GUARANTEE_SWEEP_EVERY_N_TICKS === 1) {
+        promises.push(sweepHostGuarantees());
+      }
+      // Once-per-UTC-day review reminder sweep. Reading UTC date (not Vilnius)
+      // means the boundary is consistent regardless of DST; the sweep itself
+      // converts to Vilnius local when selecting bookings.
+      const todayUtcDate = new Date().toISOString().slice(0, 10);
+      const shouldRunDaily = todayUtcDate !== lastDailyRunUtcDate;
+      if (shouldRunDaily) {
+        promises.push(sweepCoachReviewReminders());
+        promises.push(sweepCourtReviewReminders());
+        lastDailyRunUtcDate = todayUtcDate;
+      }
+
+      const counts = await Promise.all(promises);
+      const [staleCount, autoCount, abandonedBookingCount, ...rest] = counts;
+      let guaranteeCount = 0;
+      let coachReviewReminderCount = 0;
+      let courtReviewReminderCount = 0;
+      let idx = 0;
+      if (tickCount % GUARANTEE_SWEEP_EVERY_N_TICKS === 1) {
+        guaranteeCount = rest[idx++] ?? 0;
+      }
+      if (shouldRunDaily) {
+        coachReviewReminderCount = rest[idx++] ?? 0;
+        courtReviewReminderCount = rest[idx++] ?? 0;
+      }
+      if (staleCount > 0 || autoCount > 0 || abandonedBookingCount > 0 || guaranteeCount > 0 || coachReviewReminderCount > 0 || courtReviewReminderCount > 0) {
+        logger.info(
+          { staleCount, autoCount, abandonedBookingCount, guaranteeCount, coachReviewReminderCount, courtReviewReminderCount },
+          "cron: swept",
+        );
+      }
+    } catch (err) {
+      logger.error({ err }, "cron tick failed");
+    } finally {
+      running = false;
+    }
+  };
+  setInterval(tick, TICK_INTERVAL_MS);
+  setTimeout(tick, 5000);
+  logger.info({ intervalMs: TICK_INTERVAL_MS }, "cron started");
+}
