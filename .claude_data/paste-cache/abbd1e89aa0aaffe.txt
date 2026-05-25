@@ -1,0 +1,45 @@
+"We are executing a major UX refactor: Centralizing all coach management into the Coach Dashboard and converting the public profile into a read-only storefront.
+
+No database or API changes are required. This is purely component relocation and routing. Please execute this in 4 distinct phases:
+
+--- PHASE 1: Navigation & Layout ---
+
+User Menu: In the global site header/user dropdown menu, add a prominent link for 'Trenerio skydelis' (Coach Dashboard) pointing to /coach/dashboard.
+
+Sidebar: In components/coach-layout.tsx (the dashboard sidebar):
+
+Add a 'Paslaugos' (Services) tab.
+
+Rename 'Nustatymai' to 'Profilis ir nustatymai' (or keep them separate if better suited).
+
+Add a distinct button/link at the bottom of the sidebar: 'Žiūrėti viešą profilį' (View Public Profile) pointing to /coach/me.
+
+Router: Register the new routes (/coach/services, /coach/profile) in App.tsx under the <CoachRoute> wrapper.
+
+--- PHASE 2: Extracting the Services CRUD ---
+
+Create a new file pages/coach/services.tsx.
+
+Extract the entire 'Mano paslaugos' section (the list of services, the 'Pridėti paslaugą' button, and the ServiceDialog modal) out of pages/coach.tsx.
+
+Paste them into pages/coach/services.tsx. Ensure it fetches the coach's services and handles the POST/PATCH/DELETE mutations exactly as it did before.
+
+Ensure the read-only 'Bazinė valandinė kaina' (Baseline Price) strip is moved here as well.
+
+--- PHASE 3: Extracting the Profile Edit Forms ---
+
+Create a new file pages/coach/profile.tsx (or merge into pages/coach/settings.tsx).
+
+Extract the basic profile edit dialog/forms (Name, Photo upload, Sports selection, Audience selection, Availability Blurb) from pages/coach.tsx.
+
+Move them into this new dashboard tab so the coach can edit their public persona here.
+
+--- PHASE 4: The Read-Only Storefront ---
+
+Now, clean up pages/coach.tsx. It should no longer have any edit capabilities.
+
+Remove all isOwnProfile checks that render pencil icons, trash cans, or 'Pridėti' buttons.
+
+If isOwnProfile is true, render a prominent sticky banner at the top of the page: 'Tai yra jūsų viešas profilis. Visas valdymas perkeltas į Trenerio skydelį.' (This is your public profile. All management has been moved to the Coach Dashboard) with a button linking to /coach/dashboard.
+
+Run a strict typecheck across all workspace packages to ensure no imports were broken during the file shuffles."

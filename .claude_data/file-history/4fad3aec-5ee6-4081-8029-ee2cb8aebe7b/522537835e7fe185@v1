@@ -1,0 +1,309 @@
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { CoachLayout } from "@/components/coach-layout";
+import { CalendarDays, Users, Clock, AlertCircle, Loader2, ChevronRight, MapPin } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { customFetch } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import { useViewAsCoach, withCoachViewAs } from "@/lib/view-as-coach";
+import { CoachScheduleCalendar } from "@/components/coach-schedule-calendar";
+
+const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_URL = `${BASE_URL}/api`;
+
+interface MyCoachProfile {
+  id: number;
+  name: string;
+  isAcceptingStudents?: boolean;
+}
+
+interface StripeStatusResponse {
+  status: "not_connected" | "pending" | "active";
+  accountId: string | null;
+}
+
+interface UpcomingBooking {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  courtId: number | null;
+  courtName: string | null;
+  facilityName: string | null;
+  serviceName: string | null;
+  customerName: string;
+  isManual: boolean;
+}
+
+interface DashboardStats {
+  lessonsThisWeek: number;
+  activeStudents: number;
+  totalMinutesThisMonth: number;
+  week: { from: string; to: string };
+  upcomingBookings: UpcomingBooking[];
+}
+
+function StripeOnboardingBanner() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: status, isLoading } = useQuery<StripeStatusResponse>({
+    queryKey: ["coach-stripe-status"],
+    queryFn: async () => customFetch<StripeStatusResponse>(`${API_URL}/coaches/stripe/return`),
+    staleTime: 30_000,
+  });
+
+  // When the user returns from Stripe (?stripe_return=success), refresh the
+  // status query — the backend retrieves the live Stripe account and updates
+  // user_profiles, so a re-fetch reflects the new state.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("stripe_return") === "success") {
+      qc.invalidateQueries({ queryKey: ["coach-stripe-status"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [qc]);
+
+  const onboard = useMutation({
+    mutationFn: async () => {
+      return customFetch<{ url: string; status: string }>(`${API_URL}/coaches/stripe/onboard`, {
+        method: "POST",
+      });
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Stripe klaida",
+        description: err?.message ?? "Nepavyko pradėti Stripe registracijos.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading || status?.status === "active") return null;
+
+  return (
+    <div className="rounded-2xl border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+      <AlertCircle className="h-6 w-6 text-amber-600 dark:text-amber-400 shrink-0" />
+      <div className="flex-1 space-y-1">
+        <h3 className="font-semibold text-sm">Prijunkite banko sąskaitą mokėjimams gauti</h3>
+        <p className="text-xs text-muted-foreground">
+          {status?.status === "pending"
+            ? "Stripe sąskaita jau pradėta, bet dar nepatvirtinta. Užbaikite registraciją, kad galėtumėte priimti mokėjimus iš mokinių."
+            : "Kad mokiniai galėtų jums sumokėti per platformą, prijunkite Stripe sąskaitą."}
+        </p>
+      </div>
+      <Button onClick={() => onboard.mutate()} disabled={onboard.isPending}>
+        {onboard.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+        {status?.status === "pending" ? "Tęsti registraciją" : "Prijungti Stripe"}
+      </Button>
+    </div>
+  );
+}
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  loading,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  hint?: string;
+  loading?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border bg-card p-5 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-widest font-semibold">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      {loading ? (
+        <Skeleton className="h-8 w-24" />
+      ) : (
+        <div className="text-3xl font-semibold tracking-tight">{value}</div>
+      )}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// "180" → "3 val." / "90" → "1.5 val." / "45" → "45 min". Lithuanian formatting.
+function formatHoursLT(minutes: number): string {
+  if (minutes <= 0) return "0 val.";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = minutes / 60;
+  if (Number.isInteger(hours)) return `${hours} val.`;
+  return `${hours.toFixed(1).replace(".", ",")} val.`;
+}
+
+function formatBookingDate(ymdStr: string): string {
+  const [y, m, d] = ymdStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("lt-LT", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function UpcomingBookingsCard({ bookings, loading }: { bookings: UpcomingBooking[]; loading: boolean }) {
+  return (
+    <div className="rounded-2xl border bg-card">
+      <div className="flex items-center justify-between px-5 py-3 border-b">
+        <h2 className="text-sm font-semibold flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          Artimiausios pamokos
+        </h2>
+        {bookings.length > 0 && (
+          <Link
+            href="/coach/schedule"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Tvarkaraštis →
+          </Link>
+        )}
+      </div>
+      {loading ? (
+        <div className="p-4 space-y-2">
+          <Skeleton className="h-12 rounded-lg" />
+          <Skeleton className="h-12 rounded-lg" />
+          <Skeleton className="h-12 rounded-lg" />
+        </div>
+      ) : bookings.length === 0 ? (
+        <div className="px-6 py-10 text-center">
+          <CalendarDays className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">
+            Artimiausių pamokų nėra. Naujos rezervacijos atsiras čia.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y">
+          {bookings.map((b) => (
+            <li
+              key={b.id}
+              className="px-5 py-3 flex items-center gap-3"
+            >
+              <div className="flex flex-col items-center justify-center w-14 shrink-0">
+                <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {formatBookingDate(b.date).split(",")[0]}
+                </div>
+                <div className="text-sm font-semibold tabular-nums">
+                  {b.startTime}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                  {b.customerName}
+                  {b.isManual && (
+                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      Rankinis
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground truncate flex items-center gap-1.5">
+                  <span>{b.startTime}–{b.endTime}</span>
+                  {b.courtName && (
+                    <>
+                      <span>·</span>
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{b.courtName}</span>
+                    </>
+                  )}
+                  {b.serviceName && (
+                    <>
+                      <span>·</span>
+                      <span className="truncate">{b.serviceName}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export default function CoachDashboard() {
+  // Coaches are unique per user; /coaches/me returns the authenticated profile
+  // (or the impersonated coach when an admin is in view-as mode).
+  const { asCoachId } = useViewAsCoach();
+  const { data: profile } = useQuery<MyCoachProfile | null>({
+    queryKey: ["coach-me-profile", asCoachId],
+    queryFn: async () => {
+      try {
+        return await customFetch<MyCoachProfile>(withCoachViewAs(`${API_URL}/coaches/me`));
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 60_000,
+  });
+
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+    queryKey: ["coach-dashboard-stats", asCoachId],
+    queryFn: () => customFetch<DashboardStats>(withCoachViewAs(`${API_URL}/coaches/me/dashboard-stats`)),
+    staleTime: 60_000,
+  });
+
+  return (
+    <CoachLayout title="Apžvalga">
+      <div className="px-4 md:px-6 py-6 space-y-6 max-w-5xl">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Sveiki{profile?.name ? `, ${profile.name.split(" ")[0]}` : ""}!
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Apžvalga apie jūsų trenerio veiklą šią savaitę.
+          </p>
+        </header>
+
+        <StripeOnboardingBanner />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatCard
+            icon={CalendarDays}
+            label="Pamokos šią savaitę"
+            value={String(stats?.lessonsThisWeek ?? 0)}
+            hint="Patvirtintos pamokos nuo pirmadienio iki sekmadienio."
+            loading={statsLoading}
+          />
+          <StatCard
+            icon={Users}
+            label="Aktyvūs mokiniai"
+            value={String(stats?.activeStudents ?? 0)}
+            hint={
+              profile?.isAcceptingStudents === false
+                ? "Šiuo metu nepriimate naujų mokinių"
+                : "Unikalūs mokiniai per visą laiką"
+            }
+            loading={statsLoading}
+          />
+          <StatCard
+            icon={Clock}
+            label="Šio mėnesio valandos"
+            value={formatHoursLT(stats?.totalMinutesThisMonth ?? 0)}
+            hint="Bendra patvirtintų pamokų trukmė."
+            loading={statsLoading}
+          />
+        </div>
+
+        <CoachScheduleCalendar />
+
+        <UpcomingBookingsCard
+          bookings={stats?.upcomingBookings ?? []}
+          loading={statsLoading}
+        />
+      </div>
+    </CoachLayout>
+  );
+}

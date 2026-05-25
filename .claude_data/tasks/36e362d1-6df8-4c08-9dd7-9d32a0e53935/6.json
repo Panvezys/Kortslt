@@ -1,0 +1,9 @@
+{
+  "id": "6",
+  "subject": "Add create-recurring-checkout and confirm-recurring backend endpoints",
+  "description": "POST /payments/create-recurring-checkout: takes bookingIds[], creates one Stripe session covering all, saves stripeSessionId on each booking, handles mock Stripe. POST /payments/confirm-recurring: verifies Stripe payment, marks all bookings confirmed, updates totalBookings counters.",
+  "activeForm": "Adding backend payment endpoints",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,45 @@
+You have a fantastic eye for UI/UX. You are absolutely right on both counts.
+
+Here is exactly what is happening under the hood and how we fix it:
+
+1. The "Atgal" (Back) Button Bug
+Right now, your page layout is structured like a stacked sandwich. The Atgal button is sitting in a full-width container above the two-column grid. Because it spans the entire width of the page, it pushes both the left side (the image) and the right side (the widget) down.
+
+The Fix: We need to move the Atgal button inside the left column, right above the image. This will allow the right-side widget to slide all the way up and align perfectly with the top of the left column.
+
+2. Information Density (The "Chunky" Buttons)
+You are completely right; the UI feels a bit oversized. In professional SaaS design, this is called Information Density. Right now, the time slot buttons have too much internal padding, making the user scroll more than necessary.
+
+The Fix: We need to tighten the grid gap, reduce the padding inside the time buttons, and slightly scale down the text size. This will make the widget look much sharper and allow more time slots to fit on the screen at once without scrolling.
+
+Here is the exact command to give your AI agent to fix both of these issues simultaneously. Copy and paste this:
+
+"We need to fix a layout bug with the 'Atgal' button and improve the information density of the booking widget to make it feel more compact and professional.
+
+Please execute this in 2 phases:
+
+--- PHASE 1: The 'Atgal' Button Layout ---
+
+Locate the main page layout for the court details (e.g., pages/court-detail.tsx).
+
+Right now, the <Atgal> (Back) link/button is sitting above the main two-column grid (e.g., grid lg:grid-cols-3).
+
+Move the Atgal button inside the left-hand column (the lg:col-span-2 container), placing it immediately above the main court image.
+
+Ensure the right-hand column (the booking widget) now stretches all the way to the top, aligned with the Atgal button on the left.
+
+--- PHASE 2: Widget Information Density ---
+
+Inside the booking widget, locate the grid rendering the 30-min time slots.
+
+Reduce the gap between the buttons (e.g., change gap-3 or gap-4 to gap-2).
+
+Reduce the internal padding of the time slot buttons (e.g., change p-3 or p-4 to py-2 px-3 or p-2).
+
+Slightly reduce the text size inside the time slots (e.g., make the time text-sm font-medium and the price text-xs).
+
+Reduce the overall padding of the main widget container slightly (e.g., p-6 to p-4 or p-5) to tighten the outer margins.
+
+Run a strict typecheck and verify the layout visually."
+
+Once this is executed, the widget will slide up perfectly into place, and the time slots will look like a sleek, compact dashboard rather than chunky blocks.

@@ -1,0 +1,27 @@
+We have a layout bug in the court booking widget when the 'empty state' is triggered (when there are no available time slots). The empty state message box overlaps with the sticky footer, and the footer's background is bleeding content.
+
+Please execute this CSS layout fix:
+
+--- PHASE 1: The Opaque Footer ---
+
+Locate the footer container at the bottom of the widget (the wrapper holding the 'Pasirinkite laiką' button).
+
+Ensure it has a strict, solid background color matching the widget card (e.g., bg-white or bg-slate-50).
+
+Add z-10 and a top border (e.g., border-t border-gray-100) so it explicitly layers over the scrolling content.
+
+Ensure it does NOT use position: absolute. It must be a standard flex item.
+
+--- PHASE 2: The Flex-1 Middle Section ---
+
+Locate the middle wrapper (the container holding the Date Strip and the Time Slots / Empty State).
+
+Ensure this wrapper has flex-1 flex flex-col overflow-y-auto.
+
+Add bottom padding to this middle wrapper (e.g., pb-6) so that even when scrolled to the absolute bottom, the content doesn't crash tightly against the footer line.
+
+--- PHASE 3: The Main Wrapper ---
+
+Double-check that the absolute outermost wrapper of the entire widget card has flex flex-col overflow-hidden. The overflow-hidden will ensure the rounded corners of your card aren't broken by the solid background of the footer.
+
+Run a visual check on a day with NO time slots to ensure the empty state box sits cleanly above the footer without overlapping."

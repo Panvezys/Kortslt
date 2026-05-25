@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "subject": "Update booking-confirmed page for recurring bookings",
+  "description": "Detect ?recurring=1&session_id=X in URL, call confirm-recurring, show a success screen listing all confirmed bookings with dates.",
+  "activeForm": "Updating booking-confirmed page",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

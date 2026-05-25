@@ -1,0 +1,1181 @@
+import { Router, type IRouter } from "express";
+import { and, eq, ne, sql, inArray } from "drizzle-orm";
+import {
+  db,
+  bookingsTable,
+  courtsTable,
+  userProfilesTable,
+  facilitiesTable,
+  gamesTable,
+  coachesTable,
+  courtCoachesTable,
+  tournamentsTable,
+  platformSettingsTable,
+  platformPurchasesTable,
+} from "@workspace/db";
+import {
+  CreateCheckoutSessionBody,
+  CreateCheckoutSessionResponse,
+  ConfirmPaymentBody,
+  ConfirmPaymentResponse,
+} from "@workspace/api-zod";
+import { logger } from "../lib/logger";
+import { sendBookingConfirmationEmail, sendOwnerBookingNotificationEmail } from "../lib/email";
+import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
+import { getCurrentUserId, requireAuth, getUserRole } from "../lib/auth";
+import { timingSafeEqualToken } from "../lib/guestToken";
+import { getCoachAvailability, vilniusToUtc } from "../lib/coach-availability";
+import { maybeIssueCoachTransfer } from "../lib/coach-transfer";
+
+const COURT_PLATFORM_FEE_PCT = 5;
+const SLOT_MS = 30 * 60_000;
+
+/**
+ * Re-authorize a coach attachment at checkout time and compute the coach's
+ * share in integer cents. Returns either a valid attachment or an error
+ * code suitable for a 422 response. Mirrors the filters used by
+ * GET /courts/:id/available-coaches so a player can't bypass the picker.
+ */
+async function authorizeAndPriceCoach(args: {
+  coachId: number;
+  courtId: number;
+  date: string;     // YYYY-MM-DD (Europe/Vilnius)
+  startTime: string; // HH:MM
+  endTime: string;   // HH:MM
+}): Promise<
+  | { ok: true; coachUserId: string; coachCents: number }
+  | { ok: false; error: string }
+> {
+  const [coach] = await db
+    .select({
+      id: coachesTable.id,
+      userId: coachesTable.userId,
+      pricePerHour: coachesTable.pricePerHour,
+      status: coachesTable.status,
+      isAcceptingStudents: coachesTable.isAcceptingStudents,
+      courtPaymentModel: coachesTable.courtPaymentModel,
+      travelPolicy: coachesTable.travelPolicy,
+    })
+    .from(coachesTable)
+    .where(eq(coachesTable.id, args.coachId));
+
+  if (!coach) return { ok: false, error: "Coach not found" };
+  if (coach.status !== "approved") return { ok: false, error: "Coach not approved" };
+  if (!coach.isAcceptingStudents) return { ok: false, error: "Coach not accepting students" };
+  if (coach.courtPaymentModel !== "student_pays_court") {
+    return { ok: false, error: "Coach payment model unsupported" };
+  }
+  if (coach.pricePerHour == null || coach.pricePerHour <= 0) {
+    return { ok: false, error: "Coach price unset" };
+  }
+
+  // Coach Stripe Connect must be live — otherwise we can't transfer them
+  // their share and the booking would silently strand funds on platform.
+  const [profile] = await db
+    .select({ status: userProfilesTable.stripeAccountStatus })
+    .from(userProfilesTable)
+    .where(eq(userProfilesTable.userId, coach.userId));
+  if (profile?.status !== "active") {
+    return { ok: false, error: "Coach Stripe account not active" };
+  }
+
+  if (coach.travelPolicy === "affiliated_only") {
+    const [aff] = await db
+      .select({ id: courtCoachesTable.id })
+      .from(courtCoachesTable)
+      .where(and(
+        eq(courtCoachesTable.coachId, coach.id),
+        eq(courtCoachesTable.courtId, args.courtId),
+      ));
+    if (!aff) return { ok: false, error: "Coach not affiliated with this court" };
+  }
+
+  // Continuous coverage over the booking window. This catches the race where
+  // a coach blocks a slot between the picker query and the checkout call.
+  const winStart = vilniusToUtc(args.date, args.startTime).getTime();
+  const winEnd = vilniusToUtc(args.date, args.endTime).getTime();
+  if (winEnd <= winStart || (winEnd - winStart) % SLOT_MS !== 0) {
+    return { ok: false, error: "Invalid booking window" };
+  }
+  const slots = await getCoachAvailability(coach.id, args.date);
+  const slotStarts = new Set(slots.map((s) => new Date(s.start).getTime()));
+  for (let t = winStart; t < winEnd; t += SLOT_MS) {
+    if (!slotStarts.has(t)) return { ok: false, error: "Coach unavailable for window" };
+  }
+
+  const minutes = (winEnd - winStart) / 60_000;
+  const coachCents = Math.round((coach.pricePerHour * minutes) / 60);
+  return { ok: true, coachUserId: coach.userId, coachCents };
+}
+
+const router: IRouter = Router();
+
+// ─── Publishable key (safe for frontend) ─────────────────────────────────────
+router.get("/payments/config", async (_req, res) => {
+  try {
+    const publishableKey = await getStripePublishableKey();
+    res.json({ publishableKey });
+  } catch (err) {
+    logger.error({ err }, "Failed to get Stripe publishable key");
+    res.status(500).json({ error: "Stripe not configured" });
+  }
+});
+
+// ─── Create Checkout Session (player or guest booking) ───────────────────────
+// No requireAuth: a guest booking has no Clerk session, so we authorize via the
+// `managementToken` (returned to the client when the booking was created).
+// Authenticated callers are still authorized via session as before.
+router.post("/payments/create-checkout", async (req, res): Promise<void> => {
+  const parsed = CreateCheckoutSessionBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { bookingId, successUrl, cancelUrl } = parsed.data;
+  // Guest checkout passes the management token in the body (CreateCheckoutSessionBody
+  // doesn't list it, so read it raw — we never trust it without comparing to DB).
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : null;
+
+  const rows = await db
+    .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const { booking, court, facility } = rows[0];
+
+  // Authorization:
+  // 1) Authenticated booker / court owner / admin (existing behavior), OR
+  // 2) Guest path: booking.bookerUserId is null AND request supplied the matching managementToken.
+  const callerId = getCurrentUserId(req);
+  let authorized = false;
+  if (callerId) {
+    const isBooker = booking.bookerUserId === callerId;
+    const isCourtOwner = facility?.ownerUserId === callerId;
+    const callerRole = await getUserRole(callerId);
+    authorized = isBooker || isCourtOwner || callerRole === "admin";
+  }
+  if (!authorized && booking.bookerUserId === null && timingSafeEqualToken(providedToken, booking.managementToken)) {
+    authorized = true;
+  }
+  if (!authorized) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const linkGameIdRaw = (req.body as any).linkGameId;
+  const linkGameId: number | null = Number.isInteger(linkGameIdRaw) && linkGameIdRaw > 0 ? linkGameIdRaw : null;
+
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch (err) {
+    logger.warn("Stripe not configured — using mock checkout");
+    const mockSessionId = `mock_session_${bookingId}_${Date.now()}`;
+    await db
+      .update(bookingsTable)
+      .set({ stripeSessionId: mockSessionId, status: "confirmed" })
+      .where(eq(bookingsTable.id, bookingId));
+    await db
+      .update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + 1` })
+      .where(eq(courtsTable.id, booking.courtId));
+    if (linkGameId && booking.bookerUserId) {
+      const [game] = await db.select({ creatorUserId: gamesTable.creatorUserId })
+        .from(gamesTable).where(eq(gamesTable.id, linkGameId));
+      if (game && game.creatorUserId === booking.bookerUserId) {
+        const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+        await db.update(gamesTable)
+          .set({
+            bookingId: booking.id,
+            courtId: booking.courtId,
+            facilityId: facility?.id ?? null,
+            placeName: court?.name ?? null,
+            city: facility?.city ?? "",
+            datetime: `${booking.date}T${booking.startTime}:00`,
+            durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
+          })
+          .where(eq(gamesTable.id, linkGameId));
+      }
+    }
+    const mockSuccessUrl = `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id=${mockSessionId}`;
+    res.json(CreateCheckoutSessionResponse.parse({ sessionId: mockSessionId, url: mockSuccessUrl }));
+    return;
+  }
+
+  // Two ways a booking can carry coach attachment:
+  //  (a) Coach-service path — booking was created by POST /coach-bookings
+  //      with coachServiceId/coachId/coachAmountCents/totalPrice already
+  //      snapshotted (Invariant B). We MUST use those values verbatim;
+  //      re-deriving from coach.pricePerHour would drift if the coach
+  //      edited their service catalog after the booking was created.
+  //  (b) Legacy court+coach picker — frontend sends `coachId` in the body
+  //      and we re-authorize + price via authorizeAndPriceCoach. Path used
+  //      by the existing court booking page.
+  let courtCents: number;
+  let coachCents = 0;
+  let coachUserId: string | null = null;
+  let coachId: number | null = null;
+  let writeCoachOnBooking = false;
+
+  if (booking.coachServiceId != null && booking.coachId != null && booking.coachAmountCents != null) {
+    const storedTotalCents = Math.round(Number(booking.totalPrice) * 100);
+    coachCents = booking.coachAmountCents;
+    coachUserId = booking.coachId;
+    courtCents = storedTotalCents - coachCents;
+    if (courtCents < 0) {
+      res.status(422).json({ error: "Invalid booking totals" });
+      return;
+    }
+  } else {
+    courtCents = Math.round(Number(booking.totalPrice) * 100);
+    const coachIdRaw = (req.body as any).coachId;
+    coachId = Number.isInteger(coachIdRaw) && coachIdRaw > 0 ? coachIdRaw : null;
+    if (coachId !== null) {
+      const auth = await authorizeAndPriceCoach({
+        coachId,
+        courtId: booking.courtId,
+        date: booking.date,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+      });
+      if (!auth.ok) {
+        res.status(422).json({ error: auth.error });
+        return;
+      }
+      coachCents = auth.coachCents;
+      coachUserId = auth.coachUserId;
+      writeCoachOnBooking = true;
+    }
+  }
+
+  const totalCents = courtCents + coachCents;
+  const hasCoachAttachment = coachUserId !== null;
+
+  // Resolve payout destination: use the court owner's Connect account.
+  let connectAccountId: string | null = null;
+  if (facility?.ownerUserId) {
+    const [profile] = await db
+      .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, facility.ownerUserId));
+    if (profile?.stripeAccountId && profile.status === "active") {
+      connectAccountId = profile.stripeAccountId;
+    }
+  }
+
+  // With a coach attached we MUST be able to destination-charge the owner
+  // — otherwise platform balance holds both the coach and court portions
+  // and the booking strands the owner's share until manual reconciliation.
+  if (hasCoachAttachment && !connectAccountId) {
+    res.status(422).json({ error: "Court owner Stripe account not active" });
+    return;
+  }
+
+  const sessionParams: any = {
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${court?.name ?? "Kortas"} – rezervacija${hasCoachAttachment ? " + treneris" : ""}`,
+            description: `${booking.date} · ${booking.startTime}–${booking.endTime}`,
+          },
+          unit_amount: totalCents,
+        },
+        quantity: 1,
+      },
+    ],
+    mode: "payment",
+    success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: cancelUrl,
+    metadata: {
+      bookingId: String(bookingId),
+      ...(linkGameId ? { linkGameId: String(linkGameId) } : {}),
+      ...(hasCoachAttachment
+        ? {
+            coachAmountCents: String(coachCents),
+            ...(coachId !== null ? { coachId: String(coachId) } : {}),
+            ...(coachUserId ? { coachUserId } : {}),
+          }
+        : {}),
+    },
+    customer_email: booking.customerEmail,
+    locale: "lt",
+  };
+
+  if (connectAccountId) {
+    const platformFeeCourt = Math.round((courtCents * COURT_PLATFORM_FEE_PCT) / 100);
+    if (hasCoachAttachment) {
+      // Coach split: route only the court owner's net share via transfer_data;
+      // the coach's portion stays on the platform balance for a separate
+      // transfers.create call after payment confirmation. application_fee is
+      // omitted because it's ignored when transfer_data.amount is set.
+      sessionParams.payment_intent_data = {
+        transfer_data: {
+          destination: connectAccountId,
+          amount: courtCents - platformFeeCourt,
+        },
+      };
+    } else {
+      // Single-payer (existing behavior): 5% platform fee on the total.
+      sessionParams.payment_intent_data = {
+        application_fee_amount: platformFeeCourt,
+        transfer_data: { destination: connectAccountId },
+      };
+    }
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
+
+  // Persist coach attachment + updated total on the booking. Done after the
+  // Stripe call so we don't write coach data for a booking whose checkout
+  // session never materialized. Skipped for the coach-service path — those
+  // bookings already have coachId/coachAmountCents/totalPrice snapshotted at
+  // creation time (Invariant B). Overwriting them here would silently break
+  // historical immutability.
+  await db
+    .update(bookingsTable)
+    .set({
+      stripeSessionId: session.id,
+      ...(writeCoachOnBooking
+        ? {
+            coachId: coachUserId,
+            coachAmountCents: coachCents,
+            totalPrice: (totalCents / 100).toFixed(2),
+          }
+        : {}),
+    })
+    .where(eq(bookingsTable.id, bookingId));
+
+  res.json(CreateCheckoutSessionResponse.parse({ sessionId: session.id, url: session.url! }));
+});
+
+// ─── Confirm payment after redirect ──────────────────────────────────────────
+router.post("/payments/confirm", async (req, res): Promise<void> => {
+  const parsed = ConfirmPaymentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { sessionId } = parsed.data;
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+      courtPhone: courtsTable.phone,
+      courtImageUrl: courtsTable.imageUrl,
+      ownerName: facilitiesTable.name,
+      ownerEmail: facilitiesTable.email,
+      facilityId: facilitiesTable.id,
+      instantBookingEnabled: courtsTable.instantBookingEnabled,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.stripeSessionId, sessionId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found for session" });
+    return;
+  }
+
+  // Authorization: for authenticated-user bookings, the caller must be the booker.
+  // Guest bookings (bookerUserId = null) are authorized by possession of the session ID.
+  const confirmCallerId = getCurrentUserId(req);
+  if (rows[0].booking.bookerUserId !== null && confirmCallerId !== rows[0].booking.bookerUserId) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  let linkGameId: number | null = null;
+  let stripePaymentIntentId: string | null = null;
+  // Keep a reference to the Stripe client when configured so we can fire the
+  // coach transfer below without re-loading it.
+  let stripeClient: any = null;
+  if (!sessionId.startsWith("mock_")) {
+    try {
+      stripeClient = await getUncachableStripeClient();
+      const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        res.status(402).json({ error: "Payment not completed" });
+        return;
+      }
+      stripePaymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id ?? null;
+      const lgId = session.metadata?.linkGameId;
+      if (lgId) linkGameId = parseInt(lgId, 10);
+    } catch (err) {
+      logger.error({ err }, "Stripe retrieve session error");
+    }
+  }
+
+  const newStatus = "confirmed";
+
+  // Idempotent transition: only the first caller (race between Stripe webhook and
+  // the eager success-page POST) actually flips status and runs side effects.
+  // Subsequent calls return the already-confirmed booking without re-incrementing
+  // counters or re-sending emails.
+  const updated = await db
+    .update(bookingsTable)
+    .set({
+      status: newStatus,
+      ...(stripePaymentIntentId ? { stripePaymentIntentId } : {}),
+    })
+    .where(and(
+      eq(bookingsTable.stripeSessionId, sessionId),
+      ne(bookingsTable.status, "confirmed"),
+    ))
+    .returning();
+
+  if (updated.length === 0) {
+    // Already confirmed by webhook (or another concurrent call). Return current state.
+    res.json(ConfirmPaymentResponse.parse({
+      ...rows[0].booking,
+      totalPrice: Number(rows[0].booking.totalPrice),
+      refundAmount: Number(rows[0].booking.refundAmount ?? 0),
+      pricePerSlot: rows[0].booking.pricePerSlot != null ? Number(rows[0].booking.pricePerSlot) : undefined,
+      totalSlots: rows[0].booking.totalSlots ?? undefined,
+      splitInviteToken: rows[0].booking.splitInviteToken ?? undefined,
+      stripeSessionId: rows[0].booking.stripeSessionId ?? undefined,
+      stripeRefundId: rows[0].booking.stripeRefundId ?? undefined,
+      rentedItems: rows[0].booking.rentedItems ?? undefined,
+      courtName: rows[0].courtName ?? undefined,
+      status: "confirmed",
+      managementToken: undefined,
+    }));
+    return;
+  }
+
+  const booking = updated[0];
+
+  // Issue the coach's share via a separate Stripe transfer. Idempotent and
+  // safe to race with the webhook handler — only the first caller mutates
+  // the booking row.
+  if (stripeClient && booking.coachId) {
+    await maybeIssueCoachTransfer(booking, stripeClient);
+  }
+
+  if (linkGameId && booking.bookerUserId) {
+    const [game] = await db.select({ creatorUserId: gamesTable.creatorUserId })
+      .from(gamesTable).where(eq(gamesTable.id, linkGameId));
+    if (game && game.creatorUserId === booking.bookerUserId) {
+      const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+      await db.update(gamesTable)
+        .set({
+          bookingId: booking.id,
+          courtId: booking.courtId,
+          facilityId: rows[0].facilityId ?? null,
+          placeName: rows[0].courtName ?? null,
+          city: rows[0].courtCity ?? "",
+          datetime: `${booking.date}T${booking.startTime}:00`,
+          durationMinutes: toMin(booking.endTime) - toMin(booking.startTime),
+        })
+        .where(eq(gamesTable.id, linkGameId));
+    }
+  }
+
+  await db
+    .update(courtsTable)
+    .set({ totalBookings: sql`total_bookings + 1` })
+    .where(eq(courtsTable.id, rows[0].booking.courtId));
+
+  sendBookingConfirmationEmail({
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    courtName: rows[0].courtName ?? "Kortas",
+    courtId: rows[0].courtId ?? 0,
+    courtAddress: rows[0].courtAddress ?? "",
+    courtCity: rows[0].courtCity ?? "",
+    courtPhone: rows[0].courtPhone ?? undefined,
+    courtImageUrl: rows[0].courtImageUrl ?? undefined,
+    date: booking.date,
+    startTime: booking.startTime,
+    endTime: booking.endTime,
+    totalPrice: Number(booking.totalPrice),
+    bookingId: booking.id,
+    // Guest bookings have no Clerk session — pass the token so the email links to the
+    // public /guest/booking/[token] management page.
+    managementToken: booking.managementToken ?? undefined,
+  }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+
+  if (rows[0].ownerEmail) {
+    sendOwnerBookingNotificationEmail({
+      ownerName: rows[0].ownerName ?? "Savininkas",
+      ownerEmail: rows[0].ownerEmail,
+      customerName: booking.customerName,
+      courtName: rows[0].courtName ?? "Kortas",
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendOwnerBookingNotificationEmail failed"));
+  }
+
+  res.json(ConfirmPaymentResponse.parse({
+    ...booking,
+    totalPrice: Number(booking.totalPrice),
+    refundAmount: booking.refundAmount != null ? Number(booking.refundAmount) : undefined,
+    pricePerSlot: booking.pricePerSlot != null ? Number(booking.pricePerSlot) : undefined,
+    totalSlots: booking.totalSlots ?? undefined,
+    splitInviteToken: booking.splitInviteToken ?? undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    rentedItems: booking.rentedItems ?? undefined,
+    courtName: rows[0].courtName ?? undefined,
+    managementToken: undefined,
+  }));
+});
+
+// ─── Cancel pending booking (Stripe checkout abandoned) ──────────────────────
+router.post("/payments/cancel-booking", async (req, res): Promise<void> => {
+  const bookingId = Number(req.body?.bookingId);
+  if (!bookingId || isNaN(bookingId)) {
+    res.status(400).json({ error: "bookingId required" });
+    return;
+  }
+
+  // Two authorization paths (mirrors confirm-free / create-checkout):
+  // 1) Authenticated booker (existing behavior)
+  // 2) Guest with matching managementToken
+  const userId = getCurrentUserId(req);
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : null;
+
+  const rows = await db
+    .select({ booking: bookingsTable })
+    .from(bookingsTable)
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  const isBooker = !!userId && rows[0].booking.bookerUserId === userId;
+  const isGuestWithToken =
+    rows[0].booking.bookerUserId === null &&
+    timingSafeEqualToken(providedToken, rows[0].booking.managementToken);
+  if (!isBooker && !isGuestWithToken) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (rows[0].booking.status !== "pending") {
+    res.json({ status: rows[0].booking.status });
+    return;
+  }
+
+  const [updated] = await db
+    .update(bookingsTable)
+    .set({ status: "cancelled" })
+    .where(eq(bookingsTable.id, bookingId))
+    .returning();
+
+  logger.info({ bookingId, userId: userId ?? null, isGuest: userId == null }, "Booking cancelled after Stripe checkout abandonment");
+  res.json({ status: updated.status });
+});
+
+// ─── Free booking confirm ─────────────────────────────────────────────────────
+router.post("/payments/confirm-free", async (req, res): Promise<void> => {
+  const bookingId = Number(req.body?.bookingId);
+  if (!bookingId || isNaN(bookingId)) {
+    res.status(400).json({ error: "bookingId required" });
+    return;
+  }
+
+  // Two authorization paths:
+  // 1) Authenticated session — booker / court-owner / admin
+  // 2) Guest — booking has no booker and request supplies the matching managementToken
+  const userId = getCurrentUserId(req);
+  const providedToken =
+    typeof (req.body as any)?.managementToken === "string"
+      ? ((req.body as any).managementToken as string)
+      : undefined;
+  const linkGameIdRawFree = (req.body as any).linkGameId;
+  const linkGameIdFree: number | null = Number.isInteger(linkGameIdRawFree) && linkGameIdRawFree > 0 ? linkGameIdRawFree : null;
+
+  const rows = await db
+    .select({
+      booking: bookingsTable,
+      courtName: courtsTable.name,
+      courtId: courtsTable.id,
+      courtAddress: facilitiesTable.address,
+      courtCity: facilitiesTable.city,
+      courtPhone: courtsTable.phone,
+      courtImageUrl: courtsTable.imageUrl,
+      courtOwnerUserId: facilitiesTable.ownerUserId,
+      facilityId: facilitiesTable.id,
+      instantBookingEnabled: courtsTable.instantBookingEnabled,
+    })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(bookingsTable.id, bookingId));
+
+  if (!rows[0]) {
+    res.status(404).json({ error: "Booking not found" });
+    return;
+  }
+
+  if (rows[0].booking.customerEmail?.length === 0 && rows[0].booking.customerName?.length === 0) {
+    res.status(400).json({ error: "Invalid booking" });
+    return;
+  }
+
+  // Enforce that this endpoint is only for genuinely free bookings
+  if (Number(rows[0].booking.totalPrice) > 0) {
+    res.status(403).json({ error: "Payment required for this booking" });
+    return;
+  }
+
+  // Only the booker, the court owner, an admin, or a guest with the
+  // matching managementToken may confirm.
+  const isBooker = !!userId && rows[0].booking.bookerUserId === userId;
+  const isCourtOwner = !!userId && rows[0].courtOwnerUserId === userId;
+  const role = userId ? await getUserRole(userId) : null;
+  const isGuestWithToken =
+    rows[0].booking.bookerUserId === null &&
+    timingSafeEqualToken(providedToken, rows[0].booking.managementToken);
+  if (!isBooker && !isCourtOwner && role !== "admin" && !isGuestWithToken) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  if (rows[0].booking.status !== "pending") {
+    res.status(409).json({ error: "Booking already processed" });
+    return;
+  }
+
+  // All bookings are instant — no manual approval required
+  const newStatus = "confirmed";
+
+  const [booking] = await db
+    .update(bookingsTable)
+    .set({ status: newStatus })
+    .where(eq(bookingsTable.id, bookingId))
+    .returning();
+
+  {
+    await db
+      .update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + 1` })
+      .where(eq(courtsTable.id, rows[0].booking.courtId));
+
+    if (linkGameIdFree && booking.bookerUserId) {
+      const [game] = await db.select({ creatorUserId: gamesTable.creatorUserId })
+        .from(gamesTable).where(eq(gamesTable.id, linkGameIdFree));
+      if (game && game.creatorUserId === booking.bookerUserId) {
+        await db.update(gamesTable)
+          .set({
+            bookingId: booking.id,
+            courtId: booking.courtId,
+            facilityId: rows[0].facilityId ?? null,
+            placeName: rows[0].courtName ?? null,
+            city: rows[0].courtCity ?? "",
+          })
+          .where(eq(gamesTable.id, linkGameIdFree));
+      }
+    }
+
+    sendBookingConfirmationEmail({
+      customerName: booking.customerName,
+      customerEmail: booking.customerEmail,
+      courtName: rows[0].courtName ?? "Kortas",
+      courtId: rows[0].courtId ?? 0,
+      courtAddress: rows[0].courtAddress ?? "",
+      courtCity: rows[0].courtCity ?? "",
+      courtPhone: rows[0].courtPhone ?? undefined,
+      courtImageUrl: rows[0].courtImageUrl ?? undefined,
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendBookingConfirmationEmail failed"));
+  }
+
+  const freeCourtOwnerEmail = (await db
+    .select({ ownerEmail: facilitiesTable.email, ownerName: facilitiesTable.name })
+    .from(courtsTable)
+    .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(eq(courtsTable.id, rows[0].booking.courtId)))[0];
+  if (freeCourtOwnerEmail?.ownerEmail) {
+    sendOwnerBookingNotificationEmail({
+      ownerName: freeCourtOwnerEmail.ownerName ?? "Savininkas",
+      ownerEmail: freeCourtOwnerEmail.ownerEmail,
+      customerName: booking.customerName,
+      courtName: rows[0].courtName ?? "Kortas",
+      date: booking.date,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      totalPrice: Number(booking.totalPrice),
+      bookingId: booking.id,
+    }).catch(err => logger.error({ err }, "sendOwnerBookingNotificationEmail (free) failed"));
+  }
+
+  res.json({
+    ...booking,
+    totalPrice: Number(booking.totalPrice),
+    refundAmount: booking.refundAmount != null ? Number(booking.refundAmount) : undefined,
+    stripeRefundId: booking.stripeRefundId ?? undefined,
+    stripeSessionId: booking.stripeSessionId ?? undefined,
+    stripePaymentIntentId: booking.stripePaymentIntentId ?? undefined,
+    rentedItems: booking.rentedItems ?? undefined,
+    courtName: rows[0].courtName,
+  });
+});
+
+// ─── Bump (Promote) checkout ──────────────────────────────────────────────────
+// POST /payments/create-bump-checkout
+// Auth + server-verified ownership of the target. Reads the per-targetType
+// price from platform_settings (singleton row id=1). Creates a Stripe Checkout
+// Session with metadata { kind: "bump", targetType, targetId, userId } so the
+// webhook can fulfill the 7-day promotion in a single transaction.
+//
+// When STRIPE_SECRET_KEY is unset (dev), falls through to a mock_bump_* session
+// that immediately writes promotedUntil + platformPurchases — mirroring the
+// split-payments mock pattern.
+type BumpTargetType = "coach" | "court" | "tournament";
+
+async function verifyBumpOwnership(args: {
+  targetType: BumpTargetType;
+  targetId: number;
+  userId: string;
+}): Promise<{ ok: true; targetName: string } | { ok: false; status: number; error: string }> {
+  const { targetType, targetId, userId } = args;
+  if (targetType === "coach") {
+    const [coach] = await db
+      .select({ id: coachesTable.id, userId: coachesTable.userId, name: coachesTable.name })
+      .from(coachesTable)
+      .where(eq(coachesTable.id, targetId));
+    if (!coach) return { ok: false, status: 404, error: "coach_not_found" };
+    if (coach.userId !== userId) return { ok: false, status: 403, error: "not_owner" };
+    return { ok: true, targetName: coach.name };
+  }
+  if (targetType === "court") {
+    const [row] = await db
+      .select({
+        id: courtsTable.id,
+        name: courtsTable.name,
+        ownerUserId: facilitiesTable.ownerUserId,
+      })
+      .from(courtsTable)
+      .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+      .where(eq(courtsTable.id, targetId));
+    if (!row) return { ok: false, status: 404, error: "court_not_found" };
+    if (row.ownerUserId !== userId) return { ok: false, status: 403, error: "not_owner" };
+    return { ok: true, targetName: row.name };
+  }
+  if (targetType === "tournament") {
+    const [tournament] = await db
+      .select({
+        id: tournamentsTable.id,
+        name: tournamentsTable.name,
+        ownerUserId: tournamentsTable.ownerUserId,
+        organizerId: tournamentsTable.organizerId,
+      })
+      .from(tournamentsTable)
+      .where(eq(tournamentsTable.id, targetId));
+    if (!tournament) return { ok: false, status: 404, error: "tournament_not_found" };
+    const isOwner =
+      tournament.ownerUserId === userId || tournament.organizerId === userId;
+    if (!isOwner) return { ok: false, status: 403, error: "not_owner" };
+    return { ok: true, targetName: tournament.name };
+  }
+  return { ok: false, status: 400, error: "invalid_target_type" };
+}
+
+async function fulfillBumpLocally(args: {
+  userId: string;
+  targetType: BumpTargetType;
+  targetId: number;
+  amountCents: number;
+  stripeSessionId: string;
+}): Promise<void> {
+  const promotedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db.transaction(async (tx) => {
+    if (args.targetType === "coach") {
+      await tx
+        .update(coachesTable)
+        .set({ promotedUntil })
+        .where(eq(coachesTable.id, args.targetId));
+    } else if (args.targetType === "court") {
+      await tx
+        .update(courtsTable)
+        .set({ promotedUntil })
+        .where(eq(courtsTable.id, args.targetId));
+    } else {
+      await tx
+        .update(tournamentsTable)
+        .set({ promotedUntil })
+        .where(eq(tournamentsTable.id, args.targetId));
+    }
+    await tx
+      .insert(platformPurchasesTable)
+      .values({
+        userId: args.userId,
+        amountCents: args.amountCents,
+        targetType: args.targetType,
+        targetId: args.targetId,
+        stripeSessionId: args.stripeSessionId,
+      })
+      .onConflictDoNothing({ target: platformPurchasesTable.stripeSessionId });
+  });
+}
+
+router.post("/payments/create-bump-checkout", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rawTargetType = req.body?.targetType;
+  const rawTargetId = req.body?.targetId;
+  if (rawTargetType !== "coach" && rawTargetType !== "court" && rawTargetType !== "tournament") {
+    res.status(400).json({ error: "invalid_target_type" });
+    return;
+  }
+  const targetType: BumpTargetType = rawTargetType;
+  const targetId = Number(rawTargetId);
+  if (!Number.isInteger(targetId) || targetId <= 0) {
+    res.status(400).json({ error: "invalid_target_id" });
+    return;
+  }
+
+  const ownership = await verifyBumpOwnership({ targetType, targetId, userId });
+  if (!ownership.ok) {
+    res.status(ownership.status).json({ error: ownership.error });
+    return;
+  }
+
+  // Read singleton settings row; self-heal if missing (defensive — initDatabase
+  // seeds this at boot but a fresh DB could be hit before boot completes).
+  let [settings] = await db
+    .select()
+    .from(platformSettingsTable)
+    .where(eq(platformSettingsTable.id, 1));
+  if (!settings) {
+    await db
+      .insert(platformSettingsTable)
+      .values({ id: 1 })
+      .onConflictDoNothing({ target: platformSettingsTable.id });
+    [settings] = await db
+      .select()
+      .from(platformSettingsTable)
+      .where(eq(platformSettingsTable.id, 1));
+  }
+  if (!settings) { res.status(500).json({ error: "settings_unavailable" }); return; }
+
+  const amountCents =
+    targetType === "coach" ? settings.coachBumpPriceCents :
+    targetType === "court" ? settings.courtBumpPriceCents :
+    settings.tournamentBumpPriceCents;
+
+  if (amountCents <= 0) {
+    res.status(422).json({ error: "price_not_configured" });
+    return;
+  }
+
+  const headerOrigin = req.get("origin");
+  const host = req.get("host");
+  const origin = headerOrigin
+    ? headerOrigin
+    : host
+    ? `${req.protocol}://${host}`
+    : "https://korts.lt";
+  const base = process.env.BASE_PATH ?? "";
+  const successPath =
+    targetType === "coach" ? `/coach/settings?bumped=1` :
+    targetType === "court" ? `/owner?bumped=1&courtId=${targetId}` :
+    `/tournaments/${targetId}?bumped=1`;
+  const cancelPath =
+    targetType === "coach" ? `/coach/settings?bump_cancelled=1` :
+    targetType === "court" ? `/owner?bump_cancelled=1` :
+    `/tournaments/${targetId}?bump_cancelled=1`;
+  const successUrl = `${origin}${base}${successPath}`;
+  const cancelUrl = `${origin}${base}${cancelPath}`;
+
+  const productLabel =
+    targetType === "coach" ? "Trenerio profilio iškėlimas" :
+    targetType === "court" ? "Aikštelės iškėlimas" :
+    "Turnyro iškėlimas";
+
+  try {
+    const stripe = await getUncachableStripeClient();
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${productLabel}: ${ownership.targetName}`,
+            description: "7 dienų iškėlimas paieškos rezultatuose",
+          },
+          unit_amount: amountCents,
+        },
+        quantity: 1,
+      }],
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
+      locale: "lt",
+      metadata: {
+        kind: "bump",
+        targetType,
+        targetId: String(targetId),
+        userId,
+      },
+    });
+
+    res.json({ url: session.url, sessionId: session.id, amountCents, mock: false });
+    return;
+  } catch (err: any) {
+    if (err?.message?.includes("Stripe not configured") ||
+        err?.message?.includes("STRIPE_SECRET_KEY") ||
+        err?.type === "StripeAuthenticationError") {
+      // Mock fulfillment path: write the bump immediately, redirect straight
+      // to the success URL with a mock session id.
+      const mockId = `mock_bump_${targetType}_${targetId}_${Date.now()}`;
+      await fulfillBumpLocally({ userId, targetType, targetId, amountCents, stripeSessionId: mockId });
+      const url = `${successUrl}&session_id=${mockId}`;
+      res.json({ url, sessionId: mockId, amountCents, mock: true });
+      return;
+    }
+    logger.error({ err, targetType, targetId }, "create-bump-checkout failed");
+    res.status(500).json({ error: "stripe_error" });
+  }
+});
+
+// ─── Recurring batch checkout ─────────────────────────────────────────────────
+// Creates a single Stripe session covering multiple bookings that share a
+// recurringGroupId. All bookings must be pending and unpaid; all must belong
+// to the authenticated caller. On payment success the caller hits
+// POST /payments/confirm-recurring with the session ID to confirm them all.
+
+router.post("/payments/create-recurring-checkout", requireAuth, async (req, res): Promise<void> => {
+  const userId = getCurrentUserId(req)!;
+  const { bookingIds, successUrl, cancelUrl } = req.body as {
+    bookingIds: number[];
+    successUrl: string;
+    cancelUrl: string;
+  };
+
+  if (!Array.isArray(bookingIds) || bookingIds.length === 0 || !successUrl || !cancelUrl) {
+    res.status(400).json({ error: "bookingIds, successUrl, and cancelUrl required" });
+    return;
+  }
+
+  const rows = await db
+    .select({ booking: bookingsTable, court: courtsTable, facility: facilitiesTable })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .leftJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
+    .where(inArray(bookingsTable.id, bookingIds));
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: "No bookings found" });
+    return;
+  }
+
+  for (const r of rows) {
+    if (r.booking.bookerUserId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    if (r.booking.status !== "pending") {
+      res.status(400).json({ error: `Booking ${r.booking.id} is not pending` });
+      return;
+    }
+    if (r.booking.stripeSessionId) {
+      res.status(400).json({ error: `Booking ${r.booking.id} already has a payment session` });
+      return;
+    }
+    if (r.booking.isSplit) {
+      res.status(400).json({ error: "Split payment and recurring reservations are mutually exclusive", code: "SPLIT_RECURRING_CONFLICT" });
+      return;
+    }
+  }
+
+  const totalCents = rows.reduce((sum, r) => sum + Math.round(Number(r.booking.totalPrice) * 100), 0);
+  if (totalCents === 0) {
+    res.status(400).json({ error: "Total price is zero — use confirm-free instead" });
+    return;
+  }
+
+  const courtName = rows[0].court?.name ?? "Kortas";
+  const dates = rows.map(r => r.booking.date).sort();
+  const timeRange = `${rows[0].booking.startTime}–${rows[0].booking.endTime}`;
+  const n = rows.length;
+
+  // Resolve court owner's Stripe Connect account (all bookings share the same court)
+  let connectAccountId: string | null = null;
+  const ownerUserId = rows[0].facility?.ownerUserId;
+  if (ownerUserId) {
+    const [profile] = await db
+      .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+      .from(userProfilesTable)
+      .where(eq(userProfilesTable.userId, ownerUserId));
+    if (profile?.stripeAccountId && profile.status === "active") {
+      connectAccountId = profile.stripeAccountId;
+    }
+  }
+
+  // Mock Stripe path — immediately confirm all bookings
+  let stripe: any;
+  try {
+    stripe = await getUncachableStripeClient();
+  } catch {
+    const mockId = `mock_recurring_${Date.now()}`;
+    await db.update(bookingsTable)
+      .set({ stripeSessionId: mockId, status: "confirmed" })
+      .where(inArray(bookingsTable.id, bookingIds));
+    const mockSuccessUrl = `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id=${mockId}`;
+    res.json({ sessionId: mockId, url: mockSuccessUrl });
+    return;
+  }
+
+  const sessionParams: any = {
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: `${courtName} – ${n} rezervacij${n === 1 ? "a" : n < 10 ? "os" : "ų"}`,
+            description: `${dates[0]} – ${dates[dates.length - 1]} · ${timeRange}`,
+          },
+          unit_amount: totalCents,
+        },
+        quantity: 1,
+      },
+    ],
+    mode: "payment",
+    success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: cancelUrl,
+    metadata: { recurringBookingIds: bookingIds.join(",") },
+    customer_email: rows[0].booking.customerEmail,
+    locale: "lt",
+  };
+
+  if (connectAccountId) {
+    const platformFee = Math.round((totalCents * COURT_PLATFORM_FEE_PCT) / 100);
+    sessionParams.payment_intent_data = {
+      application_fee_amount: platformFee,
+      transfer_data: { destination: connectAccountId },
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
+
+  // Stamp all bookings with this session ID so confirm-recurring can find them
+  await db.update(bookingsTable)
+    .set({ stripeSessionId: session.id })
+    .where(inArray(bookingsTable.id, bookingIds));
+
+  res.json({ sessionId: session.id, url: session.url as string });
+});
+
+// POST /payments/confirm-recurring
+// Called from the success-redirect page after a batch recurring checkout.
+// Verifies Stripe payment and marks all bookings in the session as confirmed.
+
+router.post("/payments/confirm-recurring", requireAuth, async (req, res): Promise<void> => {
+  const { sessionId } = req.body as { sessionId: string };
+  if (!sessionId || typeof sessionId !== "string") {
+    res.status(400).json({ error: "sessionId required" });
+    return;
+  }
+
+  const userId = getCurrentUserId(req)!;
+
+  const rows = await db
+    .select({ booking: bookingsTable, courtName: courtsTable.name })
+    .from(bookingsTable)
+    .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
+    .where(
+      and(
+        eq(bookingsTable.stripeSessionId, sessionId),
+        eq(bookingsTable.bookerUserId, userId),
+      )
+    );
+
+  if (rows.length === 0) {
+    res.status(404).json({ error: "No bookings found for session" });
+    return;
+  }
+
+  let stripePaymentIntentId: string | null = null;
+  if (!sessionId.startsWith("mock_")) {
+    try {
+      const stripeClient = await getUncachableStripeClient();
+      const session = await stripeClient.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        res.status(402).json({ error: "Payment not completed" });
+        return;
+      }
+      stripePaymentIntentId = typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : (session.payment_intent as any)?.id ?? null;
+    } catch (err) {
+      logger.error({ err }, "Stripe retrieve session error (confirm-recurring)");
+    }
+  }
+
+  const bookingIds = rows.map(r => r.booking.id);
+
+  await db.update(bookingsTable)
+    .set({
+      status: "confirmed",
+      ...(stripePaymentIntentId ? { stripePaymentIntentId } : {}),
+    })
+    .where(
+      and(
+        inArray(bookingsTable.id, bookingIds),
+        ne(bookingsTable.status, "confirmed"),
+      )
+    );
+
+  // Increment totalBookings counter per court (idempotent: only count newly confirmed)
+  const courtIds = [...new Set(rows.map(r => r.booking.courtId))];
+  for (const courtId of courtIds) {
+    const count = rows.filter(r => r.booking.courtId === courtId).length;
+    await db.update(courtsTable)
+      .set({ totalBookings: sql`total_bookings + ${count}` })
+      .where(eq(courtsTable.id, courtId));
+  }
+
+  res.json({
+    confirmed: bookingIds.length,
+    bookings: rows.map(r => ({
+      id: r.booking.id,
+      date: r.booking.date,
+      startTime: r.booking.startTime,
+      endTime: r.booking.endTime,
+      courtName: r.courtName,
+      totalPrice: Number(r.booking.totalPrice),
+    })),
+  });
+});
+
+export default router;

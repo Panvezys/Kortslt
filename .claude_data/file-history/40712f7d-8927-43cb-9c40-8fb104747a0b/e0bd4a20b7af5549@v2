@@ -1,0 +1,146 @@
+import { chromium } from "playwright";
+import { mkdir } from "node:fs/promises";
+
+const OUT = "/tmp/screenshots";
+await mkdir(OUT, { recursive: true });
+
+const BYPASS_KEY = "test_bypass_key_local_only";
+const COACH_USER_ID = "demo-seed-coach-egle-tennis-kaunas";
+
+const chromiumPath = process.env.CHROMIUM_PATH;
+if (!chromiumPath) {
+  console.error("CHROMIUM_PATH env var required");
+  process.exit(1);
+}
+
+const browser = await chromium.launch({
+  executablePath: chromiumPath,
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+  ],
+});
+
+// We need bypass headers to flow to /api requests but NOT to third-party
+// CDNs (otherwise Clerk's preflight fails). Use a route handler instead of
+// extraHTTPHeaders so we control which requests get patched.
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 1100 },
+});
+
+// Dev-only escape hatch: SafeAuthBridge reads `window.__E2E_FAKE_SIGNIN` and
+// reports a signed-in session when true. Combined with the bypass headers
+// below, this lets Playwright reach gated coach pages without driving a real
+// Clerk sign-in flow.
+await context.addInitScript(() => {
+  window.__E2E_FAKE_SIGNIN = true;
+});
+
+const apiCalls = [];
+await context.route("**/*", (route, request) => {
+  const url = request.url();
+  if (url.includes("/api/")) {
+    apiCalls.push(`${request.method()} ${url}`);
+    const headers = {
+      ...request.headers(),
+      "x-replit-agent-auth": BYPASS_KEY,
+      "x-replit-agent-userid": COACH_USER_ID,
+      "x-replit-agent-role": "coach",
+    };
+    route.continue({ headers });
+  } else {
+    route.continue();
+  }
+});
+
+const page = await context.newPage();
+const consoleErrors = [];
+page.on("console", (msg) => {
+  if (msg.type() === "error") {
+    const t = msg.text();
+    // Filter out the unrelated Replit dev banner & CORS prefetch warnings.
+    if (t.includes("favicon") || t.includes("[vite]") || t.includes("DevTools")) return;
+    consoleErrors.push(`[err] ${t.slice(0, 200)}`);
+  }
+});
+page.on("pageerror", (err) => consoleErrors.push(`[pageerror] ${String(err).slice(0, 200)}`));
+
+async function shoot(label, path, { wait = 3500 } = {}) {
+  consoleErrors.length = 0;
+  console.log(`\n=== ${label} ${path} ===`);
+  try {
+    const resp = await page.goto(`http://localhost:5173${path}`, {
+      waitUntil: "networkidle",
+      timeout: 25000,
+    });
+    console.log(`  nav HTTP ${resp?.status()}`);
+  } catch (e) {
+    console.log(`  nav error: ${e.message.slice(0, 200)}`);
+  }
+  await page.waitForTimeout(wait);
+  const safe = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const out = `${OUT}/${safe}.png`;
+  await page.screenshot({ path: out, fullPage: true });
+  const url = page.url();
+  // Try grabbing a more specific h1 (page content), then fall back to body H1.
+  const h1 = await page.$$eval("main h1, [role='main'] h1, h1", (els) => {
+    for (const el of els) {
+      const t = el.textContent?.trim();
+      if (t && !t.toLowerCase().startsWith("korts.lt")) return t;
+    }
+    return els[0]?.textContent?.trim() ?? "(no h1)";
+  }).catch(() => "(no h1)");
+  console.log(`  final url=${url}`);
+  console.log(`  h1=${h1}`);
+  console.log(`  saved=${out}`);
+  if (consoleErrors.length) console.log(`  errors: ${consoleErrors.slice(0, 3).join(" || ")}`);
+}
+
+// Wait once for the SPA boot.
+await page.goto("http://localhost:5173/", { waitUntil: "networkidle" });
+await page.waitForTimeout(2500);
+
+console.log(`\nAPI calls observed so far: ${apiCalls.length}`);
+for (const c of apiCalls.slice(0, 10)) console.log(`  ${c}`);
+
+// Directly check what /api/me/role returns from the browser context.
+const roleProbe = await page.evaluate(async () => {
+  const r = await fetch("/api/me/role");
+  const body = await r.text();
+  return { status: r.status, body: body.slice(0, 300) };
+});
+console.log("\n/api/me/role from browser:", JSON.stringify(roleProbe));
+
+const envCheck = await page.evaluate(() => ({
+  fakeSignin: window.__E2E_FAKE_SIGNIN,
+  origin: window.location.origin,
+}));
+console.log("env in browser:", JSON.stringify(envCheck));
+
+// Now navigate to dashboard and probe role state from React tree.
+await page.goto("http://localhost:5173/coach/dashboard", { waitUntil: "networkidle" });
+await page.waitForTimeout(3000);
+const dashState = await page.evaluate(() => ({
+  url: window.location.pathname,
+  bodyText: document.body.innerText.slice(0, 400),
+}));
+console.log("after /coach/dashboard navigation:", JSON.stringify(dashState));
+
+await shoot("coach-dashboard", "/coach/dashboard");
+await shoot("coach-bookings-upcoming", "/coach/bookings");
+await shoot("coach-bookings-past", "/coach/bookings?scope=past");
+await shoot("coach-bookings-cancelled", "/coach/bookings?scope=all&status=cancelled");
+await shoot("coach-students", "/coach/students");
+await shoot("coach-settings-profile", "/coach/settings?tab=profile");
+await shoot("coach-settings-general", "/coach/settings?tab=general");
+await shoot("coach-settings-hours", "/coach/settings?tab=hours");
+await shoot("coach-settings-blocks", "/coach/settings?tab=blocks");
+await shoot("coach-services", "/coach/services");
+await shoot("coach-reviews", "/coach/reviews");
+await shoot("coach-messages", "/coach/messages");
+
+await browser.close();
+console.log("\nDone");

@@ -1,0 +1,39 @@
+The top alignment is exactly right. Moving the Atgal button inside the left column fixed the vertical offset perfectly, and the tighter information density makes the whole widget look much more refined.
+
+However, looking at the bottom of the widget in your new screenshot, I can see the internal scroll layout isn't quite locked in yet. The green "Pasirinkite laiką" button seems to be floating directly over the time slots, and the horizontal scrollbar under the dates is still visible.
+
+In a perfect SaaS layout, the bottom footer should have a solid background so content disappears cleanly behind it as you scroll, and the outer container needs a hard height limit so the browser itself doesn't scroll.
+
+Here is the precise command to give your AI agent to apply this final layer of polish. Copy and paste this:
+
+"The layout is looking much better, but we need to fix the internal scrolling of the booking widget so the bottom button doesn't float awkwardly over the content, and we need to hide the horizontal scrollbar.
+
+Please execute this in 3 phases:
+
+--- PHASE 1: Hard Container Constraints ---
+
+Locate the main wrapper div of the right-side booking widget card.
+
+Ensure it has a strict height constraint so it locks to the viewport. Use h-[calc(100vh-8rem)] (or similar, depending on your header height) instead of just max-h.
+
+Ensure this main wrapper is a flex column: flex flex-col overflow-hidden.
+
+--- PHASE 2: Opaque Sticky Footer ---
+
+Locate the bottom footer area containing the 'Pasirinkite laiką' (or 'Rezervuoti') button.
+
+Ensure this footer is NOT using position: absolute. It should just be the last item in the flex column.
+
+Give this footer a solid background matching the card (e.g., bg-white or bg-slate-50), a top border (border-t), and some padding (p-4). This guarantees that when the middle section scrolls, the time slots slide cleanly behind the footer without text overlapping.
+
+--- PHASE 3: Scrollbar Hiding ---
+
+Locate the wrapper for the middle section (the dates and time slots). Ensure it has flex-1 overflow-y-auto.
+
+Locate the horizontal Date Strip container (overflow-x-auto).
+
+Add Tailwind classes to hide the scrollbars visually while keeping them functional. If you don't have the scrollbar-hide plugin, use arbitrary variants: [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]. Apply this to BOTH the vertical middle section and the horizontal date strip.
+
+Run a quick visual check. The widget should act like a native app panel: the header and footer stay perfectly still, the middle scrolls, and no scrollbars are visible."
+
+This will give you that flawless, native-app feel where the content slides neatly under a solid footer. Once that is locked in, the booking flow UI is essentially bulletproof.

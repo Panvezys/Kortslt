@@ -1,0 +1,14 @@
+{
+  "pid": 4175,
+  "version": "2.1.150",
+  "jsonPath": "/home/runner/workspace/.claude_data/daemon.json",
+  "logPath": "/home/runner/workspace/.claude_data/daemon.log",
+  "startedAt": 1779563963381,
+  "origin": "transient",
+  "spawnedBy": {
+    "label": "claude",
+    "cwd": "/home/runner/workspace",
+    "pid": 328
+  },
+  "procStart": "310135"
+}

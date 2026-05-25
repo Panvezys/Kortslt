@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
-import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2, ExternalLink, CalendarDays } from "lucide-react";
+import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2, ExternalLink, CalendarDays, GraduationCap } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -168,7 +168,8 @@ function formatPresence(presence: { online: boolean; lastSeen: string } | undefi
 interface CtxInfo { label: string; href?: string; Icon: any; imageUrl?: string | null; }
 
 function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
-  const enabled = !!ctxType && !!ctxId;
+  // "coach" context has no associated numeric id — it's purely a role marker.
+  const enabled = !!ctxType && !!ctxId && ctxType !== "coach";
   const { data } = useQuery<any>({
     queryKey: ["chat-ctx", ctxType, ctxId],
     queryFn: async () => {
@@ -182,7 +183,7 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
     enabled,
     staleTime: 60_000,
   });
-  if (!enabled) return null;
+  if (!ctxType) return null;
   if (ctxType === "game") {
     const name = data?.sport ? `Žaidimas · ${data.city ?? ""}` : `Žaidimas #${ctxId}`;
     return { label: name, href: `/matches/${ctxId}`, Icon: UsersIcon };
@@ -329,7 +330,12 @@ function ChatThreadView({
                 <span className="text-muted-foreground">{formatPresence(presence)}</span>
               ) : (
                 <span className="text-muted-foreground">
-                  {effectiveCtxType === "booking" ? "Rezervacijos pokalbis" : effectiveCtxType === "court" ? "Klausimai dėl aikštelės" : effectiveCtxType === "tournament" ? "Turnyro pokalbis" : "Sporto partneris"}
+                  {effectiveCtxType === "coach"      ? "Treneris"
+                   : effectiveCtxType === "booking"  ? "Rezervacijos pokalbis"
+                   : effectiveCtxType === "court"    ? "Aikštelės savininkas"
+                   : effectiveCtxType === "facility" ? "Sporto centras"
+                   : effectiveCtxType === "tournament" ? "Turnyro pokalbis"
+                   : "Sporto partneris"}
                 </span>
               )}
             </div>
@@ -678,7 +684,17 @@ function ChatThreadsList({
       ) : (
         <div>
           {threads.map((t) => {
-            const isMatch = t.lastMessage.contextType === "game";
+            const ctxKey = t.lastMessage.contextType ?? undefined;
+            const isMatch = ctxKey === "game";
+            const BUBBLE_ROLE: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {
+              coach:      { label: "Treneris",   Icon: GraduationCap },
+              booking:    { label: "Rezervacija", Icon: CalendarDays },
+              court:      { label: "Aikštelė",   Icon: MapPin },
+              facility:   { label: "Centras",    Icon: Building2 },
+              tournament: { label: "Turnyras",   Icon: Trophy },
+              game:       { label: "Mačas",      Icon: UsersIcon },
+            };
+            const role = ctxKey ? BUBBLE_ROLE[ctxKey] : null;
             return (
               <button
                 key={t.otherUserId}
@@ -696,9 +712,9 @@ function ChatThreadsList({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <div className="font-semibold text-sm truncate">{t.otherUserName}</div>
-                      {isMatch && (
-                        <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full shrink-0 text-muted-foreground font-medium">
-                          Mačas
+                      {role && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] bg-muted px-1.5 py-0.5 rounded-full shrink-0 text-muted-foreground font-medium">
+                          <role.Icon className="w-2.5 h-2.5" />{role.label}
                         </span>
                       )}
                     </div>

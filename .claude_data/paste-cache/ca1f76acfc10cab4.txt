@@ -1,0 +1,49 @@
+"We are executing Strike 8: The Coach Command Center Polish.
+
+Our goal is to replace the hardcoded stubs on the Dashboard with real booking data and build out the empty Students list.
+
+Please execute this in 4 distinct phases:
+
+--- PHASE 1: The Backend Aggregation ---
+
+In routes/coaches.ts (or create routes/coach-dashboard.ts), create a new endpoint: GET /api/coaches/me/dashboard-stats. Require Auth.
+
+This endpoint must calculate and return three things:
+
+lessonsThisWeek: COUNT of bookings where coachId matches the user and the booking date is between Monday and Sunday of the current week (status: confirmed or awaiting_players).
+
+activeStudents: COUNT(DISTINCT bookerUserId) (or fallback to distinct customerEmail for guests) for all time confirmed bookings with this coach.
+
+upcomingBookings: An array of the next 5 upcoming confirmed bookings (to populate the 'Greitos nuorodos' or a new 'Artimiausios pamokos' widget).
+
+--- PHASE 2: The Dashboard UI (Apžvalga) ---
+
+In pages/coach/dashboard.tsx, fetch the new dashboard-stats endpoint using React Query.
+
+Replace the hardcoded 0 values in the stat cards ('Pamokos šią savaitę', 'Aktyvūs mokiniai') with the real data.
+
+Remove the redundant 'Valandinė kaina' stat card (it's duplicated in Services/Settings) and replace it with a 'Bendra pamokų trukmė šį mėnesį' (Total lesson hours this month) or keep it to two cards if that looks cleaner.
+
+Replace the filler 'Greitos nuorodos' (Quick Links) card with a 'Artimiausios pamokos' (Upcoming Lessons) list, mapping over the upcomingBookings array. If empty, show a polite empty state.
+
+--- PHASE 3: The Students Roster Backend ---
+
+Create GET /api/coaches/me/students.
+
+Query the bookings table for this coach. Use a GROUP BY on bookerUserId (or customerEmail) to get a list of unique students.
+
+For each student, calculate: totalLessons (count of bookings) and lastLessonDate (max date).
+
+Use the same Clerk batch resolution pattern (used in Admin Revenue) to fetch the real names/emails/avatars for bookerUserIds. Return an array of student objects.
+
+--- PHASE 4: The Students UI (Mokiniai) ---
+
+In pages/coach/students.tsx, remove the stub.
+
+Fetch the new coaches/me/students endpoint.
+
+Render a clean Data Table (or a list of cards). Columns should include: Mokinys (Name/Avatar + Email), Pamokų skaičius (Total Lessons), and Paskutinė pamoka (Last Lesson Date).
+
+Add a local text search input to filter the list by name/email instantly.
+
+Run a strict typecheck after completing Phase 4.

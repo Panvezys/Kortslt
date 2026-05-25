@@ -1,0 +1,29 @@
+"We are polishing the UX of the court booking widget (the right-side panel). The time selection logic is already perfect, but we need to optimize the vertical space and visual hierarchy.
+
+Please execute this in 3 phases:
+
+--- PHASE 1: The Horizontal Date Strip ---
+
+In the booking widget component, remove the fully expanded, always-visible monthly calendar.
+
+Replace it with a horizontal, horizontally-scrollable row of 'Date Chips' representing the next 7 days (e.g., 'Šiandien, Geg 25', 'Rytoj, Geg 26', 'Ketv, Geg 27').
+
+Add a small 'Calendar' icon button at the end of this strip. When clicked, it should open a standard Popover/Dropdown containing the full monthly calendar for users who need to book further in advance.
+
+--- PHASE 2: Summary Box Cleanup ---
+
+Locate the green summary box ('PASIRINKTA').
+
+Delete the large, permanent visual grid showing the cancellation policy tiers (80%, 50%, 0%).
+
+Replace it with a single, subtle informational line: 'ℹ️ Taikoma standartinė atšaukimo politika' (Standard cancellation policy applies), perhaps with a tooltip that shows the tiers on hover.
+
+Ensure the summary purely highlights: Start/End time, Duration (Trukmė), and Court Price (Aikštelės nuoma).
+
+--- PHASE 3: Sticky Footer Hierarchy ---
+
+In the sticky footer at the bottom, change the prominent 'Trash' icon button to a subtle text link that says 'Išvalyti' (Clear). It should not compete with the primary button.
+
+Ensure the Total Price ('Iš viso: XX.XX €') is bold and positioned clearly next to or above a large, prominent 'Rezervuoti' button.
+
+Run a strict typecheck after modifying these components."

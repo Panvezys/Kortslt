@@ -1,0 +1,47 @@
+. The "Double Vision" Problem
+Look at the space between the green summary box and the final checkout button. You are repeating three pieces of information right next to each other:
+
+The Policy: You have "Taikoma standartinė atšaukimo politika" inside the box, and then immediately below it in the footer, you repeat "Taikoma standartinė atšaukimo politika (iki 80% grąžinimas)."
+
+The Price: The summary box highlights 112.00 €, and the footer right below it says Serija iš viso: 112.00 €.
+
+The Time/Date: The box says "08:00 – 10:00", and the footer repeats "an, geg. 26 · 08:00 - 10:00 · 2...".
+
+2. The Cluttered Sticky Footer
+The sticky footer should be the cleanest, most undeniable part of the UI. Right now, it is trying to hold too much text, which is causing the date/time string to truncate (2...) and look broken. Furthermore, you have two trash can icons—one at the top ("Išvalyti") and one at the bottom next to the date. This makes it confusing for the user to know which one clears the form.
+
+3. The Chat Bubble Overlap (Critical)
+Notice the floating green chat bubble in the bottom right corner? It is physically overlapping your "4x Rezervuoti" button. On mobile devices, an overlapping floating action button (FAB) can completely prevent users from clicking "checkout."
+
+The Solution: Ruthless Simplification
+We need to strip the sticky footer down to its absolute essentials: Total Price and the Action Button. Everything else belongs inside the scrollable summary box above it.
+
+Here is the exact prompt to feed your AI agent to execute this final polish:
+
+"The court booking widget is functioning perfectly, but the summary state (especially for recurring bookings) has redundant information and a cluttered sticky footer. We need to streamline the UI for maximum conversion.
+
+Please execute this polish in 3 phases:
+
+--- PHASE 1: Deduplication ---
+
+In the sticky footer component, remove the secondary 'Taikoma standartinė atšaukimo politika' text line entirely. The policy information should strictly live inside the main green 'PASIRINKTA' summary box.
+
+Remove the date/time string (and the secondary trash icon next to it) from the sticky footer. The user can already see their selected time and the 'Išvalyti' clear button in the main summary box above.
+
+--- PHASE 2: Footer Simplification ---
+
+The sticky footer should now be an extremely clean flex container.
+
+On the left side, display purely the final total: 'Iš viso: 112.00 €' (use a large, bold font for the price).
+
+On the right side, display the primary action button (e.g., '4x Rezervuoti').
+
+Remove any extra padding or stacked rows inside the footer so it takes up less vertical space on the screen.
+
+--- PHASE 3: Chat Widget Avoidance ---
+
+Ensure the sticky footer has a slight padding adjustment on the right side, or ensure the action button is pulled slightly inward, so that global floating chat widgets (like Intercom/Zendesk) do not overlap the 'Rezervuoti' button. Alternatively, ensure the widget container has a higher z-index if it's meant to sit above the chat bubble.
+
+Run a visual check to ensure the footer is strictly Price + Button, with no truncated text."
+
+Once you execute this, that checkout area will be razor-sharp.

@@ -1,31 +1,20 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { useParams, useLocation, Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateCalendar } from "@/components/ui/date-calendar";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useUser, useClerk } from "@clerk/react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient, useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import { Phone, Mail, Euro, Clock, User, Edit2, X, Check, Video, MapPin, Building2, Send, CalendarDays, Search, Users, Sparkles, Plus, Trash2, PauseCircle, CreditCard, Loader2, AlertCircle, MessageCircle, Star } from "lucide-react";
+import { Phone, Mail, Euro, Clock, User, Video, MapPin, Building2, CalendarDays, Users, Sparkles, CreditCard, Loader2, AlertCircle, MessageCircle, Star, LayoutDashboard, Images, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { SportPill, getSportLabel } from "@/components/sport-icon";
-import { Link } from "wouter";
 import { BackButton } from "@/components/back-button";
-import { validateEmail, validatePhone } from "@/lib/validators";
-import { centsToEuroString, euroStringToCents } from "@/lib/money";
+import { centsToEuroString } from "@/lib/money";
 import { useViewAsCoach } from "@/lib/view-as-coach";
 import { useRole } from "@/lib/useRole";
 
@@ -99,6 +88,7 @@ interface CoachService {
   description: string | null;
   sport: string;
   courtId: number | null;
+  isLocationProvidedByCoach: boolean;
   durationMin: number;
   priceCents: number;
   maxParticipants: number;
@@ -114,70 +104,12 @@ const AUDIENCE_LT: Record<string, string> = {
   pros: "Profesionalai",
 };
 
-const AUDIENCE_OPTIONS = [
-  { value: "kids", label: "Vaikai" },
-  { value: "beginners", label: "Pradedantieji" },
-  { value: "advanced", label: "Pažengę" },
-  { value: "pros", label: "Profesionalai" },
-] as const;
-
-const DURATION_OPTIONS = [
-  { value: "30", label: "30 min" },
-  { value: "60", label: "1 val." },
-  { value: "90", label: "1.5 val." },
-  { value: "120", label: "2 val." },
-] as const;
-
-// Mirror of the server-side ceiling in routes/coach-services.ts. The button
-// is hidden once a coach reaches this many services so we don't dispatch a
-// POST we know will be rejected.
-const SERVICE_CATALOG_LIMIT = 15;
-
-const COURT_ANY_VALUE = "__any__";
-const AUDIENCE_NONE_VALUE = "__none__";
-
-const serviceFormSchema = z.object({
-  name: z.string().trim().min(1, "Pavadinimas yra privalomas").max(120, "Per ilgas"),
-  description: z.string().trim().max(1000, "Per ilgas aprašymas"),
-  sport: z.string().trim().min(1, "Pasirinkite sporto šaką"),
-  durationMin: z.string().refine(
-    v => ["30", "60", "90", "120"].includes(v),
-    { message: "Pasirinkite trukmę" },
-  ),
-  // Stored as a string for the controlled <Input>. Accepts comma OR dot
-  // decimal — converted to integer cents via Math.round at submit time.
-  priceEur: z.string()
-    .trim()
-    .min(1, "Įveskite kainą")
-    .regex(/^\d+([.,]\d{1,2})?$/, "Netinkamas formatas, pvz. 35 arba 35,50"),
-  maxParticipants: z.string().refine(
-    v => /^[1-8]$/.test(v),
-    { message: "Nuo 1 iki 8" },
-  ),
-  // Empty string = no audience filter applied to this service.
-  audienceLevel: z.string(),
-  // COURT_ANY_VALUE = bookable at any of the coach's affiliated courts (null
-  // on the wire). Otherwise the numeric courtId as a string.
-  courtBinding: z.string().min(1, "Pasirinkite aikštelę"),
-  isActive: z.boolean(),
-});
-
-type ServiceFormValues = z.infer<typeof serviceFormSchema>;
-
 function formatDuration(min: number): string {
   if (min < 60) return `${min} min`;
   const hours = min / 60;
   if (Number.isInteger(hours)) return `${hours} val.`;
   // 1.5 → "1,5 val." in Lithuanian locale convention
   return `${hours.toString().replace(".", ",")} val.`;
-}
-
-function priceEurToCents(raw: string): number {
-  const normalized = raw.replace(",", ".");
-  const euros = parseFloat(normalized);
-  if (!Number.isFinite(euros) || euros < 0) return 0;
-  // Math.round avoids floating-point drift: 35.50 → 3550 cents.
-  return Math.round(euros * 100);
 }
 
 // Format a Date as YYYY-MM-DD in local Europe/Vilnius time. We can't use
@@ -220,6 +152,7 @@ export default function CoachPage() {
   const { id } = useParams<{ id?: string }>();
   const { user, isSignedIn } = useUser();
   const { openSignIn } = useClerk();
+
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { isAdmin } = useRole();
@@ -282,110 +215,18 @@ export default function CoachPage() {
   const reviewItems: ReviewItem[] = reviewPages.flatMap((p) => p.items);
   const reviewMeta: ReviewsResponse | null = reviewPages[0] ?? null;
 
-  // Owner-only data: pending applications + facility picker
-  const applicationsQ = useQuery<CoachApplication[]>({
-    queryKey: ["coach", "me", "applications"],
-    queryFn: () => fetch(`${API}/coaches/me/applications`, { credentials: "include" }).then(r => r.ok ? r.json() : []),
-    enabled: !!isOwn && !!coachId,
+  // Gallery photos
+  type GalleryPhoto = { id: number; url: string; caption: string | null; displayOrder: number };
+  const galleryQ = useQuery<GalleryPhoto[]>({
+    queryKey: ["coach-gallery", coachId],
+    queryFn: () => fetch(`${API}/coaches/${coachId}/gallery`).then(r => r.json()),
+    enabled: !!coachId,
   });
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
-  const allFacilitiesQ = useQuery<FacilityOption[]>({
-    queryKey: ["facilities", "public"],
-    queryFn: () => fetch(`${API}/facilities/public`).then(r => r.ok ? r.json() : []),
-    enabled: !!isOwn && !!coachId,
-  });
-
-  const [applyOpen, setApplyOpen] = useState(false);
-  const [applyFacilityId, setApplyFacilityId] = useState<number | null>(null);
-  const [applyMessage, setApplyMessage] = useState("");
-  const [facilityFilter, setFacilityFilter] = useState("");
-
-  const applyMut = useMutation({
-    mutationFn: async () => {
-      if (!applyFacilityId) throw new Error("Pasirinkite vietą");
-      const r = await fetch(`${API}/coaches/apply-to-facility`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ facilityId: applyFacilityId, message: applyMessage || undefined }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error ?? "Nepavyko pateikti paraiškos");
-      }
-      return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["coach", "me", "applications"] });
-      qc.invalidateQueries({ queryKey: ["coach-facilities"] });
-      toast({ title: "Paraiška pateikta" });
-      setApplyOpen(false);
-      setApplyFacilityId(null);
-      setApplyMessage("");
-      setFacilityFilter("");
-    },
-    onError: (e: Error) => {
-      toast({ title: "Klaida", description: e.message, variant: "destructive" });
-    },
-  });
-
-  // Facility ids the coach already has a relationship with (pending or approved) — hide from picker
-  const usedFacilityIds = useMemo(() => {
-    const set = new Set<number>();
-    (facilitiesQ.data ?? []).forEach(f => { if (f.facilityId) set.add(f.facilityId); });
-    (applicationsQ.data ?? []).forEach(a => { if (a.status === "pending" && a.facilityId) set.add(a.facilityId); });
-    return set;
-  }, [facilitiesQ.data, applicationsQ.data]);
-
-  const pendingApplications = (applicationsQ.data ?? []).filter(a => a.status === "pending");
-  // Group pending by facility (one row per facility, not per court)
-  const pendingByFacility = useMemo(() => {
-    const map = new Map<string, CoachApplication & { courtNames: string[] }>();
-    for (const a of pendingApplications) {
-      const key = a.facilityId != null ? `f${a.facilityId}` : `c${a.courtId}`;
-      if (!map.has(key)) {
-        map.set(key, { ...a, courtNames: [a.courtName] });
-      } else {
-        map.get(key)!.courtNames.push(a.courtName);
-      }
-    }
-    return Array.from(map.values());
-  }, [pendingApplications]);
-
-  const filteredFacilityOptions = (allFacilitiesQ.data ?? []).filter(f => {
-    if (usedFacilityIds.has(f.id)) return false;
-    if (!facilityFilter.trim()) return true;
-    const q = facilityFilter.toLowerCase();
-    return f.name.toLowerCase().includes(q) || (f.city ?? "").toLowerCase().includes(q);
-  });
-
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Partial<Omit<Coach, 'pricePerHour'> & { pricePerHour?: string }>>({});
-
-  // ─── Services CRUD (Phase 4) ─────────────────────────────────────────────
-  const [serviceDialogOpen, setServiceDialogOpen] = useState(false);
-  const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
-  const [pendingDeleteServiceId, setPendingDeleteServiceId] = useState<number | null>(null);
-
-  const serviceForm = useForm<ServiceFormValues>({
-    resolver: zodResolver(serviceFormSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      sport: "",
-      durationMin: "60",
-      priceEur: "",
-      maxParticipants: "1",
-      audienceLevel: "",
-      courtBinding: COURT_ANY_VALUE,
-      isActive: true,
-    },
-  });
-
-  // Flatten the coach's approved court ids → friendly labels for the Court
-  // Select. We pull from facilitiesQ (which is the same source the public
-  // "Treniruoja čia" panel uses) so the picker can never offer a court the
-  // coach isn't approved at — matches the assertCoachOwnsCourt server check.
+  // Flatten the coach's approved court ids → friendly labels. Used by the
+  // student-facing booking dialog for the court selector. Pulls from
+  // facilitiesQ (same source the public "Treniruoja čia" panel uses).
   const approvedCourtOptions = useMemo(() => {
     const out: Array<{ id: number; label: string }> = [];
     for (const f of facilitiesQ.data ?? []) {
@@ -397,160 +238,7 @@ export default function CoachPage() {
     return out;
   }, [facilitiesQ.data]);
 
-  // Same invalidation block fires on every services mutation — keeps the
-  // public profile, owner panel, AND marketplace list in sync (Invariant A
-  // — pricePerHour is denormalized server-side, so the cards refetch).
-  function invalidateAfterServiceMutation() {
-    qc.invalidateQueries({ queryKey: ["coach-services", coachId] });
-    qc.invalidateQueries({ queryKey: ["coach"] });            // ["coach", id] + ["coach", "me"]
-    qc.invalidateQueries({ queryKey: ["coaches"] });          // marketplace
-  }
-
-  const createServiceMut = useMutation({
-    mutationFn: async (values: ServiceFormValues) => {
-      if (!coachId) throw new Error("Trūksta trenerio ID");
-      const r = await fetch(`${API}/coaches/${coachId}/services`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: values.name,
-          description: values.description.trim() || null,
-          sport: values.sport,
-          durationMin: parseInt(values.durationMin, 10),
-          priceCents: priceEurToCents(values.priceEur),
-          maxParticipants: parseInt(values.maxParticipants, 10),
-          audienceLevel: values.audienceLevel || null,
-          courtId: values.courtBinding === COURT_ANY_VALUE ? null : parseInt(values.courtBinding, 10),
-          isActive: values.isActive,
-        }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.message ?? err.error ?? "Nepavyko sukurti paslaugos");
-      }
-      return r.json();
-    },
-    onSuccess: () => {
-      invalidateAfterServiceMutation();
-      toast({ title: "Paslauga sukurta" });
-      setServiceDialogOpen(false);
-      setEditingServiceId(null);
-      serviceForm.reset();
-    },
-    onError: (e: Error) => {
-      toast({ title: "Klaida", description: e.message, variant: "destructive" });
-    },
-  });
-
-  const updateServiceMut = useMutation({
-    mutationFn: async ({ serviceId, values }: { serviceId: number; values: ServiceFormValues }) => {
-      if (!coachId) throw new Error("Trūksta trenerio ID");
-      const r = await fetch(`${API}/coaches/${coachId}/services/${serviceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: values.name,
-          description: values.description.trim() || null,
-          sport: values.sport,
-          durationMin: parseInt(values.durationMin, 10),
-          priceCents: priceEurToCents(values.priceEur),
-          maxParticipants: parseInt(values.maxParticipants, 10),
-          audienceLevel: values.audienceLevel || null,
-          courtId: values.courtBinding === COURT_ANY_VALUE ? null : parseInt(values.courtBinding, 10),
-          isActive: values.isActive,
-        }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.message ?? err.error ?? "Nepavyko atnaujinti");
-      }
-      return r.json();
-    },
-    onSuccess: () => {
-      invalidateAfterServiceMutation();
-      toast({ title: "Paslauga atnaujinta" });
-      setServiceDialogOpen(false);
-      setEditingServiceId(null);
-      serviceForm.reset();
-    },
-    onError: (e: Error) => {
-      toast({ title: "Klaida", description: e.message, variant: "destructive" });
-    },
-  });
-
-  const deleteServiceMut = useMutation({
-    mutationFn: async (serviceId: number) => {
-      if (!coachId) throw new Error("Trūksta trenerio ID");
-      const r = await fetch(`${API}/coaches/${coachId}/services/${serviceId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.message ?? err.error ?? "Nepavyko ištrinti");
-      }
-      return r.json() as Promise<{ deleted: boolean; deactivated: boolean }>;
-    },
-    onSuccess: (result) => {
-      invalidateAfterServiceMutation();
-      toast({
-        title: result.deactivated ? "Paslauga sustabdyta" : "Paslauga pašalinta",
-        description: result.deactivated
-          ? "Ji buvo susieta su rezervacijomis, todėl liko istorijoje."
-          : undefined,
-      });
-      setPendingDeleteServiceId(null);
-    },
-    onError: (e: Error) => {
-      toast({ title: "Klaida", description: e.message, variant: "destructive" });
-      setPendingDeleteServiceId(null);
-    },
-  });
-
-  function openServiceCreate() {
-    setEditingServiceId(null);
-    serviceForm.reset({
-      name: "",
-      description: "",
-      // Default to first sport so the Select renders with a value.
-      sport: (coach?.sports ?? [])[0] ?? "",
-      durationMin: "60",
-      priceEur: "",
-      maxParticipants: "1",
-      audienceLevel: "",
-      courtBinding: COURT_ANY_VALUE,
-      isActive: true,
-    });
-    setServiceDialogOpen(true);
-  }
-
-  function openServiceEdit(svc: CoachService) {
-    setEditingServiceId(svc.id);
-    serviceForm.reset({
-      name: svc.name,
-      description: svc.description ?? "",
-      sport: svc.sport,
-      durationMin: String(svc.durationMin),
-      priceEur: centsToEuroString(svc.priceCents),
-      maxParticipants: String(svc.maxParticipants),
-      audienceLevel: svc.audienceLevel ?? "",
-      courtBinding: svc.courtId == null ? COURT_ANY_VALUE : String(svc.courtId),
-      isActive: svc.isActive,
-    });
-    setServiceDialogOpen(true);
-  }
-
-  function submitServiceForm(values: ServiceFormValues) {
-    if (editingServiceId != null) {
-      updateServiceMut.mutate({ serviceId: editingServiceId, values });
-    } else {
-      createServiceMut.mutate(values);
-    }
-  }
-
-  // ─── Booking dialog (Phase 5) ────────────────────────────────────────────
+  // ─── Booking dialog (student-facing) ─────────────────────────────────────
   // Opens when a non-owner clicks "Užsakyti" on a service card. The dialog
   // collects (courtId, date, startTime), polls /coach-bookings/quote for a
   // server-priced breakdown, then on submit calls POST /coach-bookings →
@@ -566,7 +254,8 @@ export default function CoachPage() {
   // service (so reopening always starts clean).
   function openBookingDialog(svc: CoachService) {
     setBookingService(svc);
-    setBookingCourtId(svc.courtId ?? null);
+    // Independent services need no court — pre-set null and skip the picker.
+    setBookingCourtId(svc.isLocationProvidedByCoach ? null : (svc.courtId ?? null));
     setBookingDate(null);
     setBookingStartTime(null);
     setShowDatePicker(false);
@@ -604,9 +293,13 @@ export default function CoachPage() {
   // Live quote — fetched only when all three inputs are settled. A failed
   // quote (409 etc.) is surfaced as a banner instead of preventing display
   // of the other steps, so the user can adjust.
-  const quoteEnabled = !!bookingService && !!bookingCourtId && !!bookingDateYmd && !!bookingStartTime;
+  const quoteEnabled =
+    !!bookingService &&
+    !!bookingDateYmd &&
+    !!bookingStartTime &&
+    (bookingService.isLocationProvidedByCoach || !!bookingCourtId);
   const quoteQ = useQuery<{
-    courtId: number;
+    courtId: number | null;
     startTime: string;
     endTime: string;
     durationMin: number;
@@ -652,9 +345,8 @@ export default function CoachPage() {
   }
 
   async function submitCoachBooking() {
-    if (!bookingService || !bookingCourtId || !bookingDateYmd || !bookingStartTime) {
-      return;
-    }
+    if (!bookingService || !bookingDateYmd || !bookingStartTime) return;
+    if (!bookingService.isLocationProvidedByCoach && !bookingCourtId) return;
     if (!isSignedIn) {
       openSignIn();
       return;
@@ -662,16 +354,17 @@ export default function CoachPage() {
     setIsProcessingCheckout(true);
     try {
       // Step 1 — create the pending booking row.
+      const payload: Record<string, unknown> = {
+        coachServiceId: bookingService.id,
+        date: bookingDateYmd,
+        startTime: bookingStartTime,
+      };
+      // Only include courtId for non-independent services; the server ignores
+      // it for court-bound services but requires it for floating ones.
+      if (bookingCourtId != null) payload.courtId = bookingCourtId;
       const created = await customFetch<{ bookingId: number }>(`${API}/coach-bookings`, {
         method: "POST",
-        body: JSON.stringify({
-          coachServiceId: bookingService.id,
-          // Server ignores this when service.courtId is set, but we send it
-          // anyway so floating services route through the same payload shape.
-          courtId: bookingCourtId,
-          date: bookingDateYmd,
-          startTime: bookingStartTime,
-        }),
+        body: JSON.stringify(payload),
       });
 
       // Step 2 — kick off Stripe checkout with the same bookingId. The
@@ -695,73 +388,6 @@ export default function CoachPage() {
       setIsProcessingCheckout(false);
     }
   }
-
-  useEffect(() => {
-    if (coach) {
-      setForm({
-        name: coach.name,
-        email: coach.email,
-        bio: coach.bio ?? "",
-        photoUrl: coach.photoUrl ?? "",
-        videoUrl: coach.videoUrl ?? "",
-        pricePerHour: coach.pricePerHour != null ? centsToEuroString(coach.pricePerHour) : "",
-        sports: coach.sports ?? [],
-        availabilityDescription: coach.availabilityDescription ?? "",
-        phone: coach.phone ?? "",
-      });
-    } else if (isOwnProfileRoute && user && !coach && !asCoachId) {
-      // Admin without coach record lands here; auto-open the create form. Skip
-      // when the admin is in view-as mode — they should not be editing.
-      setForm({
-        name: user.fullName ?? "",
-        email: user.primaryEmailAddress?.emailAddress ?? "",
-        sports: [],
-      });
-      setEditing(true);
-    }
-  }, [coach, isOwnProfileRoute, user, asCoachId]);
-
-  const saveMutation = useMutation({
-    mutationFn: async (data: typeof form) => {
-      const emailErr = validateEmail(data.email);
-      if (emailErr) throw new Error(emailErr);
-      const phoneErr = validatePhone(data.phone, { required: false });
-      if (phoneErr) throw new Error(phoneErr);
-      const url = isOwnProfileRoute ? `${API}/coaches/me` : `${API}/coaches/${coach!.id}`;
-      const r = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...data,
-          pricePerHour: euroStringToCents(data.pricePerHour as string | null | undefined),
-        }),
-      });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to save");
-      }
-      return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["coach"] });
-      qc.invalidateQueries({ queryKey: ["coaches"] });
-      toast({ title: "Profilis išsaugotas" });
-      setEditing(false);
-    },
-    onError: (e: Error) => {
-      toast({ title: "Klaida", description: e.message, variant: "destructive" });
-    },
-  });
-
-  const toggleSport = (sport: string) => {
-    setForm(f => ({
-      ...f,
-      sports: (f.sports ?? []).includes(sport)
-        ? (f.sports ?? []).filter(s => s !== sport)
-        : [...(f.sports ?? []), sport],
-    }));
-  };
 
   if (isOwnProfileRoute && !isSignedIn) {
     return (
@@ -797,7 +423,9 @@ export default function CoachPage() {
     );
   }
 
-  const displayCoach = editing ? null : coach;
+  // /coach/me is now a pure read-only storefront preview. All editing lives
+  // under the coach dashboard (/coach/dashboard and its sidebar tabs).
+  const displayCoach = coach;
 
   return (
     <Layout>
@@ -816,6 +444,25 @@ export default function CoachPage() {
           >
             Išeiti
           </button>
+        </div>
+      )}
+      {isOwn && !asCoachName && (
+        <div
+          role="status"
+          className="sticky top-16 z-30 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 bg-primary/10 border-b border-primary/30 text-foreground"
+        >
+          <span className="text-sm flex-1 min-w-0">
+            <strong>Tai yra jūsų viešas profilis.</strong>{" "}
+            <span className="text-muted-foreground">Visas valdymas perkeltas į Trenerio skydelį.</span>
+          </span>
+          <Button
+            size="sm"
+            onClick={() => setLocation("/coach/dashboard")}
+            className="shrink-0 self-start sm:self-auto"
+          >
+            <LayoutDashboard className="w-4 h-4 mr-1.5" />
+            Eiti į skydelį
+          </Button>
         </div>
       )}
       <div className="container mx-auto px-4 py-12 max-w-2xl space-y-6">
@@ -854,12 +501,6 @@ export default function CoachPage() {
                 )}
               </div>
             </div>
-            {isOwn && !editing && !asCoachId && (
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-                <Edit2 className="w-4 h-4 mr-1.5" />
-                Redaguoti
-              </Button>
-            )}
             {isAdmin && !isOwn && !isOwnProfileRoute && displayCoach && (
               <Button
                 size="sm"
@@ -957,7 +598,7 @@ export default function CoachPage() {
                       openSignIn();
                       return;
                     }
-                    setLocation(`/messages?u=${encodeURIComponent(displayCoach.userId)}&n=${encodeURIComponent(displayCoach.name)}`);
+                    setLocation(`/messages?u=${encodeURIComponent(displayCoach.userId)}&n=${encodeURIComponent(displayCoach.name)}&ctx=coach`);
                   }}
                 >
                   <MessageCircle className="w-4 h-4 mr-1.5" />
@@ -984,7 +625,7 @@ export default function CoachPage() {
         {/* Kvalifikacija — unverified MVP credentials list. Coaches edit these
             in /coach/settings. Card hides entirely when the list is empty so
             new profiles aren't littered with empty sections. */}
-        {!editing && displayCoach && (displayCoach.qualifications?.length ?? 0) > 0 && (
+        {displayCoach && (displayCoach.qualifications?.length ?? 0) > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-sm">
             <h2 className="text-base font-semibold flex items-center gap-2 mb-3">
               <Sparkles className="w-4 h-4 text-primary" />
@@ -998,36 +639,16 @@ export default function CoachPage() {
           </div>
         )}
 
-        {/* Services — bookable lesson types. For non-owners we render only
-            isActive services (the API enforces this). For the owner we show
-            all rows + management controls. */}
-        {!editing && coach && (
+        {/* Services — read-only "starting from" catalog. Bookable for
+            students; owner sees the same list but with a CTA to the
+            dashboard instead of a self-book action. */}
+        {coach && (
           <div className="bg-card border rounded-2xl p-6 shadow-sm">
             <div className="flex items-start justify-between gap-3 mb-4">
               <h2 className="text-base font-semibold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
-                {isOwn ? "Mano paslaugos" : "Paslaugos"}
+                Paslaugos
               </h2>
-              {isOwn && (() => {
-                const total = (servicesQ.data ?? []).length;
-                const atLimit = total >= SERVICE_CATALOG_LIMIT;
-                return (
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      onClick={openServiceCreate}
-                      disabled={atLimit}
-                      title={atLimit ? `Pasiektas paslaugų limitas (${SERVICE_CATALOG_LIMIT})` : undefined}
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1.5" />
-                      Pridėti paslaugą
-                    </Button>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      {total}/{SERVICE_CATALOG_LIMIT}
-                    </span>
-                  </div>
-                );
-              })()}
             </div>
 
             {servicesQ.isLoading ? (
@@ -1036,13 +657,12 @@ export default function CoachPage() {
                 <Skeleton className="h-24 w-full rounded-xl" />
               </div>
             ) : (() => {
-              const allServices = servicesQ.data ?? [];
-              const visibleServices = isOwn ? allServices : allServices.filter(s => s.isActive);
+              const visibleServices = (servicesQ.data ?? []).filter(s => s.isActive);
               if (visibleServices.length === 0) {
                 return (
                   <div className="text-sm text-muted-foreground py-8 text-center bg-muted/30 rounded-lg border border-dashed">
                     {isOwn
-                      ? 'Dar neturite paslaugų. Paspauskite "Pridėti paslaugą", kad pridėtumėte pirmąją.'
+                      ? 'Dar neturite aktyvių paslaugų. Pridėkite jas Trenerio skydelyje.'
                       : "Šiuo metu treneris neturi aktyvių paslaugų."}
                   </div>
                 );
@@ -1052,21 +672,15 @@ export default function CoachPage() {
                   {visibleServices.map(svc => (
                     <div
                       key={svc.id}
-                      className={`border rounded-xl p-4 hover:border-primary/40 hover:shadow-sm transition-all bg-card ${
-                        !svc.isActive ? "opacity-60" : ""
-                      }`}
+                      className="border rounded-xl p-4 hover:border-primary/40 hover:shadow-sm transition-all bg-card"
                     >
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        {/* Left — name, sport pill, metadata */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-sm md:text-base text-foreground">
                               {svc.name}
                             </h3>
                             <SportPill sport={svc.sport} variant="subtle" size="sm" />
-                            {/* Format pill — derives individual vs group from
-                                maxParticipants so the coach doesn't need to
-                                bake it into the service name. */}
                             <Badge variant="secondary" className="text-[10px] gap-1 font-medium">
                               {svc.maxParticipants > 1 ? (
                                 <>
@@ -1080,12 +694,6 @@ export default function CoachPage() {
                                 </>
                               )}
                             </Badge>
-                            {!svc.isActive && (
-                              <Badge variant="outline" className="text-[10px] gap-1 border-muted-foreground/30 text-muted-foreground">
-                                <PauseCircle className="w-3 h-3" />
-                                Sustabdyta
-                              </Badge>
-                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
                             <span className="inline-flex items-center gap-1">
@@ -1106,35 +714,11 @@ export default function CoachPage() {
                           )}
                         </div>
 
-                        {/* Right — price + CTA / owner controls. On mobile this
-                            row sits below the name block; on md+ it floats
-                            right. */}
                         <div className="flex items-center justify-between md:justify-end md:flex-col md:items-end gap-3 md:gap-2 shrink-0 pt-1 md:pt-0 md:min-w-[140px]">
                           <div className="text-lg md:text-xl font-bold tabular-nums text-foreground">
                             {centsToEuroString(svc.priceCents)}€
                           </div>
-                          {isOwn ? (
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openServiceEdit(svc)}
-                                className="h-8 px-2"
-                              >
-                                <Edit2 className="w-3.5 h-3.5 md:mr-1.5" />
-                                <span className="hidden md:inline">Redaguoti</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setPendingDeleteServiceId(svc.id)}
-                                className="h-8 px-2 text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 md:mr-1.5" />
-                                <span className="hidden md:inline">Ištrinti</span>
-                              </Button>
-                            </div>
-                          ) : displayCoach?.isBookable === false ? (
+                          {isOwn ? null : displayCoach?.isBookable === false ? (
                             <div className="flex flex-col items-end gap-0.5">
                               <Button
                                 size="sm"
@@ -1172,7 +756,7 @@ export default function CoachPage() {
         {/* Atsiliepimai — verified-purchase reviews. Hides entirely while the
             initial fetch is pending so we don't flash an empty card; shows
             the empty state once the query lands. */}
-        {!editing && displayCoach && reviewMeta && (
+        {displayCoach && reviewMeta && (
           <div className="bg-card border rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold flex items-center gap-2">
@@ -1264,12 +848,89 @@ export default function CoachPage() {
           </div>
         )}
 
+        {/* Gallery — public read-only view; management lives in /coach/settings */}
+        {(galleryQ.data?.length ?? 0) > 0 && (
+          <div className="bg-card border rounded-2xl p-6 shadow-sm">
+            <h2 className="text-base font-semibold flex items-center gap-2 mb-4">
+              <Images className="w-4 h-4 text-primary" />
+              Galerija
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {galleryQ.data!.map((photo, idx) => (
+                <div key={photo.id} className="relative aspect-[4/3] rounded-xl overflow-hidden group">
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIdx(idx)}
+                    className="absolute inset-0 w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.caption ?? `Nuotrauka ${idx + 1}`}
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    {photo.caption && (
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p className="text-white text-[11px] truncate">{photo.caption}</p>
+                      </div>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Lightbox */}
+        {lightboxIdx !== null && galleryQ.data && (
+          <div
+            className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setLightboxIdx(null)}
+          >
+            <button
+              type="button"
+              className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/60 transition-colors"
+              onClick={() => setLightboxIdx(null)}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {lightboxIdx > 0 && (
+              <button
+                type="button"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/60 transition-colors"
+                onClick={e => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+            )}
+            {lightboxIdx < galleryQ.data.length - 1 && (
+              <button
+                type="button"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/60 transition-colors"
+                onClick={e => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            )}
+            <div className="max-w-4xl max-h-full flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+              <img
+                src={galleryQ.data[lightboxIdx].url}
+                alt={galleryQ.data[lightboxIdx].caption ?? `Nuotrauka ${lightboxIdx + 1}`}
+                className="max-h-[80vh] max-w-full rounded-xl object-contain shadow-2xl"
+              />
+              {galleryQ.data[lightboxIdx].caption && (
+                <p className="text-white/80 text-sm text-center">{galleryQ.data[lightboxIdx].caption}</p>
+              )}
+              <p className="text-white/40 text-xs">{lightboxIdx + 1} / {galleryQ.data.length}</p>
+            </div>
+          </div>
+        )}
+
         {/* Public facilities list — where this coach teaches */}
-        {!editing && coach && (facilitiesQ.data?.length ?? 0) > 0 && (
+        {coach && (facilitiesQ.data?.length ?? 0) > 0 && (
           <div className="bg-card border rounded-2xl p-6 shadow-sm">
             <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-primary" />
-              {isOwn ? "Mano vietos" : "Treniruoja čia"}
+              Treniruoja čia
             </h2>
             <div className="space-y-2">
               {facilitiesQ.data!.map((f, i) => (
@@ -1300,462 +961,9 @@ export default function CoachPage() {
           </div>
         )}
 
-        {/* Mano vietos — pending applications + apply form (own profile only) */}
-        {isOwn && !editing && coach && (
-          <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold flex items-center gap-2">
-                <Send className="w-4 h-4 text-primary" />
-                Paraiškos vietoms
-              </h2>
-              {!applyOpen && (
-                <Button size="sm" variant="outline" onClick={() => setApplyOpen(true)}>
-                  <Send className="w-4 h-4 mr-1.5" />
-                  Pateikti paraišką
-                </Button>
-              )}
-            </div>
-
-            {/* Pending applications list */}
-            {pendingByFacility.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Laukiama atsakymo</p>
-                {pendingByFacility.map(p => (
-                  <div key={p.invitationId} className="flex items-start justify-between gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
-                    <div className="flex items-start gap-2 min-w-0">
-                      <Clock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="font-medium text-sm">{p.facilityName ?? p.courtNames[0]}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {p.courtNames.length} aikštelė(-ės) · pateikta {new Date(p.createdAt).toLocaleDateString("lt-LT")}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-amber-700 border-amber-500/40 shrink-0">Laukia</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {pendingByFacility.length === 0 && !applyOpen && (facilitiesQ.data?.length ?? 0) === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Dar nesate pateikę nė vienos paraiškos. Pateikite paraišką vietai, kurioje norėtumėte treniruoti.
-              </p>
-            )}
-
-            {/* Apply form */}
-            {applyOpen && (
-              <div className="space-y-3 pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nauja paraiška</p>
-                  <Button size="sm" variant="ghost" onClick={() => { setApplyOpen(false); setApplyFacilityId(null); setFacilityFilter(""); setApplyMessage(""); }}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Ieškoti vietos pagal pavadinimą ar miestą..."
-                    value={facilityFilter}
-                    onChange={e => { setFacilityFilter(e.target.value); setApplyFacilityId(null); }}
-                    className="pl-9"
-                  />
-                </div>
-
-                {allFacilitiesQ.isLoading ? (
-                  <Skeleton className="h-32 w-full rounded-lg" />
-                ) : filteredFacilityOptions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    {facilityFilter ? "Nieko nerasta." : "Visos vietos jau įtrauktos."}
-                  </p>
-                ) : (
-                  <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
-                    {filteredFacilityOptions.slice(0, 30).map(f => {
-                      const selected = applyFacilityId === f.id;
-                      return (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setApplyFacilityId(f.id)}
-                          className={`w-full text-left px-3 py-2.5 text-sm transition-colors flex items-start gap-2 ${
-                            selected ? "bg-primary/10" : "hover:bg-muted/50"
-                          }`}
-                        >
-                          <MapPin className="w-3.5 h-3.5 text-muted-foreground mt-0.5 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">{f.name}</div>
-                            {f.city && <div className="text-xs text-muted-foreground truncate">{f.city}</div>}
-                          </div>
-                          {selected && <Check className="w-4 h-4 text-primary shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <Textarea
-                  placeholder="Žinutė savininkui (neprivaloma)"
-                  value={applyMessage}
-                  onChange={e => setApplyMessage(e.target.value)}
-                  rows={3}
-                />
-
-                <Button
-                  onClick={() => applyMut.mutate()}
-                  disabled={!applyFacilityId || applyMut.isPending}
-                  className="w-full"
-                >
-                  {applyMut.isPending ? "Siunčiama..." : (
-                    <><Send className="w-4 h-4 mr-1.5" /> Pateikti paraišką</>
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Edit form */}
-        {editing && (
-          <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{coach ? "Redaguoti profilį" : "Sukurti trenerio profilį"}</h2>
-              {coach && (
-                <Button size="sm" variant="ghost" onClick={() => { setEditing(false); }}>
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Vardas *</label>
-                <Input value={form.name ?? ""} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Vardas Pavardė" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">El. paštas *</label>
-                <Input value={form.email ?? ""} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="vardas@example.com" type="email" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Telefonas</label>
-                <Input value={form.phone ?? ""} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+370 600 00000" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kaina (€/val)</label>
-                <Input
-                  value={form.pricePerHour ?? ""}
-                  onChange={e => setForm(f => ({ ...f, pricePerHour: e.target.value }))}
-                  placeholder="30"
-                  type="number" min="0"
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nuotraukos URL</label>
-                <Input value={form.photoUrl ?? ""} onChange={e => setForm(f => ({ ...f, photoUrl: e.target.value }))} placeholder="https://..." />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Video URL</label>
-                <Input value={form.videoUrl ?? ""} onChange={e => setForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://youtube.com/..." />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Aprašymas</label>
-                <Textarea
-                  value={form.bio ?? ""}
-                  onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-                  placeholder="Papasakokite apie save, patirtį, treniravimo stilių..."
-                  rows={4}
-                />
-              </div>
-              <div className="sm:col-span-2 space-y-1">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Darbo laikas</label>
-                <Input
-                  value={form.availabilityDescription ?? ""}
-                  onChange={e => setForm(f => ({ ...f, availabilityDescription: e.target.value }))}
-                  placeholder="Pn–Pt 09:00–21:00, Š 10:00–18:00"
-                />
-              </div>
-            </div>
-
-            {/* Sport selection */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šakos</label>
-              <div className="flex flex-wrap gap-2">
-                {SPORT_OPTIONS.map(sport => {
-                  const active = (form.sports ?? []).includes(sport);
-                  return (
-                    <button
-                      key={sport}
-                      type="button"
-                      onClick={() => toggleSport(sport)}
-                      className="rounded-full transition-all"
-                    >
-                      <SportPill sport={sport} variant={active ? "solid" : "subtle"} size="sm" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                onClick={() => saveMutation.mutate(form)}
-                disabled={saveMutation.isPending || !form.name || !form.email}
-                className="flex-1"
-              >
-                {saveMutation.isPending ? "Saugoma..." : (
-                  <><Check className="w-4 h-4 mr-1.5" /> Išsaugoti</>
-                )}
-              </Button>
-              {coach && (
-                <Button variant="outline" onClick={() => setEditing(false)}>
-                  Atšaukti
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ─── Service upsert dialog ─────────────────────────────────────── */}
-      <Dialog open={serviceDialogOpen} onOpenChange={(o) => {
-        setServiceDialogOpen(o);
-        if (!o) { setEditingServiceId(null); serviceForm.reset(); }
-      }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingServiceId == null ? "Pridėti paslaugą" : "Redaguoti paslaugą"}</DialogTitle>
-            <DialogDescription>
-              Paslauga atsiranda viešame profilyje ir paieškoje. Žemiausia kaina automatiškai tampa „pradedant nuo" rodikliu.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...serviceForm}>
-            <form
-              onSubmit={serviceForm.handleSubmit(submitServiceForm)}
-              className="space-y-4"
-            >
-              <FormField
-                control={serviceForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pavadinimas</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Pvz. Individuali treniruotė" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={serviceForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Aprašymas (nebūtina)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={3}
-                        placeholder="Trumpas aprašymas, ką apima ši paslauga"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={serviceForm.control}
-                  name="sport"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sporto šaka</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pasirinkite" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {(coach?.sports ?? []).map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={serviceForm.control}
-                  name="durationMin"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Trukmė</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {DURATION_OPTIONS.map((d) => (
-                            <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={serviceForm.control}
-                  name="priceEur"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kaina (€)</FormLabel>
-                      <FormControl>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="35"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={serviceForm.control}
-                  name="maxParticipants"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Maks. dalyvių</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                            <SelectItem key={n} value={String(n)}>
-                              {n === 1 ? "1 (individualus)" : `${n}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={serviceForm.control}
-                name="audienceLevel"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Auditorija (nebūtina)</FormLabel>
-                    <Select
-                      value={field.value === "" ? AUDIENCE_NONE_VALUE : field.value}
-                      onValueChange={(v) => field.onChange(v === AUDIENCE_NONE_VALUE ? "" : v)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Visi" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={AUDIENCE_NONE_VALUE}>Visi (nenurodyta)</SelectItem>
-                        {AUDIENCE_OPTIONS.map((a) => (
-                          <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={serviceForm.control}
-                name="courtBinding"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Aikštelė</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={COURT_ANY_VALUE}>Bet kuri aikštelė (klientas pasirenka)</SelectItem>
-                        {approvedCourtOptions.map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>{c.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={serviceForm.control}
-                name="isActive"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <FormLabel className="text-sm">Aktyvi</FormLabel>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Sustabdytos paslaugos lieka jūsų istorijoje, bet nematomos klientams.
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <DialogFooter className="gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setServiceDialogOpen(false);
-                    setEditingServiceId(null);
-                    serviceForm.reset();
-                  }}
-                  disabled={createServiceMut.isPending || updateServiceMut.isPending}
-                >
-                  Atšaukti
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createServiceMut.isPending || updateServiceMut.isPending}
-                >
-                  {editingServiceId == null ? "Sukurti" : "Išsaugoti"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Coach service booking dialog (Phase 5) ─────────────────────── */}
+      {/* ─── Coach service booking dialog (student-facing) ───────────────── */}
       <Dialog
         open={bookingService != null}
         onOpenChange={(o) => { if (!o) closeBookingDialog(); }}
@@ -1781,12 +989,22 @@ export default function CoachPage() {
 
           {bookingService && (
             <div className="space-y-5">
-              {/* Step 1 — court selection */}
+              {/* Step 1 — court selection (skipped for independent services) */}
               <section className="space-y-2">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   1. Vieta
                 </h3>
-                {bookingService.courtId != null ? (
+                {bookingService.isLocationProvidedByCoach ? (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 text-sm">
+                    <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-medium text-foreground">Treneris pasirūpins vieta</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Treniruotė vyks trenerio nurodytoje vietoje. Susisiekite su treneriu dėl tikslios adreso informacijos.
+                      </div>
+                    </div>
+                  </div>
+                ) : bookingService.courtId != null ? (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/40 border text-sm">
                     <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                     <div>
@@ -1837,7 +1055,7 @@ export default function CoachPage() {
                   type="button"
                   variant="outline"
                   className="w-full justify-start font-normal"
-                  disabled={!bookingCourtId}
+                  disabled={!bookingService?.isLocationProvidedByCoach && !bookingCourtId}
                   onClick={() => setShowDatePicker(s => !s)}
                 >
                   <CalendarDays className="w-4 h-4 mr-2" />
@@ -1862,7 +1080,7 @@ export default function CoachPage() {
                 )}
 
                 {/* Time pills — only render once a date is picked */}
-                {bookingDate && bookingCourtId && (
+                {bookingDate && (bookingService?.isLocationProvidedByCoach || bookingCourtId) && (
                   <div className="pt-1">
                     {slotsQ.isLoading ? (
                       <div className="grid grid-cols-4 gap-1.5">
@@ -1906,7 +1124,9 @@ export default function CoachPage() {
                 </h3>
                 {!quoteEnabled ? (
                   <p className="text-xs text-muted-foreground py-3 text-center bg-muted/30 rounded-md border border-dashed">
-                    Pasirinkite vietą, datą ir laiką, kad pamatytumėte galutinę kainą.
+                    {bookingService?.isLocationProvidedByCoach
+                      ? "Pasirinkite datą ir laiką, kad pamatytumėte galutinę kainą."
+                      : "Pasirinkite vietą, datą ir laiką, kad pamatytumėte galutinę kainą."}
                   </p>
                 ) : quoteQ.isLoading ? (
                   <Skeleton className="h-24 w-full rounded-lg" />
@@ -1917,13 +1137,15 @@ export default function CoachPage() {
                   </div>
                 ) : quoteQ.data ? (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground inline-flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5" />
-                        Aikštelė
-                      </span>
-                      <span className="tabular-nums">{centsToEuroString(quoteQ.data.courtCents)}€</span>
-                    </div>
+                    {quoteQ.data.courtCents > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5" />
+                          Aikštelė
+                        </span>
+                        <span className="tabular-nums">{centsToEuroString(quoteQ.data.courtCents)}€</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground inline-flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
@@ -1939,7 +1161,10 @@ export default function CoachPage() {
                     <div className="text-xs text-muted-foreground pt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                       <span>{bookingDate?.toLocaleDateString("lt-LT", { day: "numeric", month: "long" })}</span>
                       <span>{quoteQ.data.startTime}–{quoteQ.data.endTime}</span>
-                      <span>{labelForCourt(quoteQ.data.courtId)}</span>
+                      {quoteQ.data.courtId != null
+                        ? <span>{labelForCourt(quoteQ.data.courtId)}</span>
+                        : <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />Trenerio vieta</span>
+                      }
                     </div>
                   </div>
                 ) : null}
@@ -1979,29 +1204,6 @@ export default function CoachPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Delete confirmation ──────────────────────────────────────── */}
-      <AlertDialog
-        open={pendingDeleteServiceId != null}
-        onOpenChange={(o) => { if (!o) setPendingDeleteServiceId(null); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Ištrinti paslaugą?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Jeigu paslauga jau yra susieta su rezervacijomis, ji bus tik sustabdyta (klientai jos nebematys). Priešingu atveju ji bus visiškai pašalinta.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteServiceMut.isPending}>Atšaukti</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { if (pendingDeleteServiceId != null) deleteServiceMut.mutate(pendingDeleteServiceId); }}
-              disabled={deleteServiceMut.isPending}
-            >
-              Ištrinti
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Layout>
   );
 }

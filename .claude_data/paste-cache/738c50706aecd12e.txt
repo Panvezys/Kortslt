@@ -1,0 +1,31 @@
+"We need to fix a critical business logic flaw in the court booking flow. Currently, 'Split Payment' (Skaldyti mokėjimą) and 'Recurring Reservation' (Kartotinė rezervacija) can be enabled simultaneously. This breaks the checkout routing and creates invalid business states.
+
+Please implement a flawless mutual exclusion between these two features, acting as a senior full-stack developer. Execute this in 3 phases:
+
+--- PHASE 1: Frontend State Mutual Exclusion ---
+
+Locate the booking widget where the toggles for splitEnabled and recurringEnabled are managed (likely pages/court-detail.tsx or similar).
+
+Update the toggle handlers:
+
+When splitEnabled is toggled ON, automatically set recurringEnabled to OFF.
+
+When recurringEnabled is toggled ON, automatically set splitEnabled to OFF.
+
+Do not allow the UI to enter a state where both are true.
+
+--- PHASE 2: UX Polish (The Senior Touch) ---
+
+Instead of just silently flipping the switches, improve the UX. If a user has one enabled and hovers/clicks the other, they should understand why it's behaving this way.
+
+Implement a disabled state or add a subtle description text/tooltip near the toggles (e.g., 'Padalintas mokėjimas negalimas pasikartojančioms rezervacijoms' / Split payments are not available for recurring reservations). Pick the pattern that best fits the existing UI library (e.g., shadcn/ui tooltips or disabled switches).
+
+--- PHASE 3: Backend API Hardening (Zero Trust) ---
+
+We cannot trust the client UI. Locate the Zod validation schemas or route controllers for the booking and checkout endpoints (e.g., POST /games/checkout-split, POST /bookings, POST /payments/create-recurring-checkout).
+
+Add a strict cross-field validation rule. If a request payload somehow contains truthy values for BOTH a split payment flag (e.g., isSplit) AND a recurring flag (e.g., isRecurring, recurringGroupId, or repeatConfig), throw a 400 Bad Request explicitly stating that split and recurring bookings are mutually exclusive.
+
+Use Zod's .refine() or .superRefine() method if the fields are in the same schema.
+
+Run a strict pnpm typecheck and ensure no existing tests or checkout payloads are broken by this new validation."

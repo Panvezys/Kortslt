@@ -1,0 +1,39 @@
+Regarding the hidden "Rezervuoti" button, you have identified a classic CSS viewport bug.
+
+It is not just the Atgal button pushing it down. The root cause is that your widget container is taller than the user's browser window, and it is not configured to flex internally. Right now, the browser treats the entire widget as one giant block, so the bottom gets cut off by the bottom of the screen.
+
+To fix this, the widget needs a specific CSS architecture: a fixed-height flexbox where the middle section scrolls, but the header and footer remain pinned to the top and bottom of the screen.
+
+Here is the exact command to give your AI agent to fix the viewport layout. Copy and paste this directly:
+
+"We need to fix a critical viewport bug on the court booking widget. Currently, on smaller screens or at the top of the page, the bottom sticky footer (with the 'Rezervuoti' button) is pushed below the screen fold and hidden from the user.
+
+Please execute this CSS layout fix:
+
+--- PHASE 1: Widget Container Constraints ---
+
+Locate the main wrapper div of the right-side booking widget.
+
+Ensure it has position: sticky and a top offset to clear the site header (e.g., sticky top-24).
+
+Add a maximum height constraint relative to the viewport so it never bleeds off the bottom of the screen. In Tailwind, add: max-h-[calc(100vh-8rem)] (adjust the 8rem to account for your top navbar height).
+
+Make this main wrapper a flex column: flex flex-col.
+
+--- PHASE 2: Internal Scrolling ---
+
+Wrap the middle content (the Date Strip, the Time Slots grid, and the Date/Time headers) in its own div.
+
+Apply flex-1 overflow-y-auto to this middle wrapper. This allows the time slots to scroll independently.
+
+(Optional but recommended) Add scrollbar-hide or custom thin scrollbar styling to this middle wrapper so the scrollbar doesn't look ugly.
+
+--- PHASE 3: Pinning the Footer ---
+
+Ensure the bottom summary/action footer (Iš viso: XX.XX € and the Rezervuoti button) is a direct sibling of the scrolling middle wrapper, sitting at the bottom of the main flex container.
+
+Remove any absolute positioning from this footer if it exists; the flex-col + flex-1 on the middle section will naturally push the footer to the bottom and keep it permanently visible within the max-h constraint.
+
+Run a strict typecheck and verify the layout visually."
+
+This structure guarantees that no matter how many time slots are loaded, or what size monitor the user has, the "Rezervuoti" button will always be visible on the screen.

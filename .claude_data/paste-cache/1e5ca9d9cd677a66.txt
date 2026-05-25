@@ -1,0 +1,51 @@
+With the entire marketplace engine hardened, validated, and accounted for, let’s officially turn our attention to the Coach Command Center.
+
+Right now, pages/coach/students.tsx is an empty file. Coaches have no way to track their clients, see who is buying their new independent or floating packages, or view their retention history. Let's change that.
+
+Here is the master prompt to pass to your AI agent to build the Mokiniai CRM system using the exact aggregation mechanics we discussed. Copy and paste this directly into your terminal or chat:
+
+"We are building out the Coach 'Mokiniai' (Students) CRM page. Currently, pages/coach/students.tsx is an empty stub. We need to aggregate raw booking history into a clean client roster.
+
+Please execute this full-stack feature in 2 phases:
+
+--- PHASE 1: The Roster Aggregation API (Backend) ---
+
+In your coach backend endpoints (e.g., server/routes/coaches.ts), expose a new authenticated route: GET /api/coaches/me/students.
+
+Query the bookingsTable for all records where coachId matches the logged-in coach's Clerk user ID and status is NOT 'cancelled'.
+
+Group these bookings to find unique students:
+
+If bookerUserId is present, group by bookerUserId (Registered Users).
+
+If bookerUserId is null, group by customerEmail (Guest Bookings).
+
+For each grouped student, calculate these aggregates via SQL:
+
+totalLessons: COUNT of all non-cancelled bookings.
+
+lastLessonDate: MAX(date) or max timestamp of their sessions.
+
+For registered users (bookerUserId), use the backend Clerk SDK client to batch-fetch real user details (First Name, Last Name, Email, Avatar URL) matching the user IDs, combining them with your aggregates. For guests, fallback gracefully to the email address and a placeholder avatar name (e.g., 'Svečias').
+
+Return the final array sorted by lastLessonDate in descending order.
+
+--- PHASE 2: The CRM Table UI (Frontend) ---
+
+In pages/coach/students.tsx, fetch data from the new endpoint.
+
+Implement a highly polished dashboard layout matching the rest of the Coach Command Center.
+
+Include a local search Input box at the top that filters the roster by name or email instantly on the client side.
+
+Render a clean table or grid of rows displaying:
+
+Mokinys: User avatar alongside their full name (or email for guests) and a small badge if they are a 'Svečias' (Guest).
+
+Pamokų skaičius: A simple badge showing totalLessons.
+
+Paskutinė treniruotė: The formatted date of lastLessonDate.
+
+Handle empty states gracefully with a clean layout indicating: 'Dar neturite registruotų mokinių. Mokiniai čia pasirodys, kai atliks pirmąją rezervaciją.'
+
+Run a strict typecheck and verify that the interface compiles flawlessly."

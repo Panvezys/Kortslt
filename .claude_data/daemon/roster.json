@@ -1,0 +1,64 @@
+{
+  "proto": 1,
+  "supervisorPid": 4175,
+  "updatedAt": 1779567563568,
+  "workers": {
+    "90754834": {
+      "pid": 4200,
+      "procStart": "310177",
+      "sessionId": "90754834-00ed-458f-9226-6b9c476e4ac0",
+      "rendezvousSock": "/tmp/cc-daemon-1000/264d5ad1/rv/90754834.sock",
+      "ptySock": "/tmp/cc-daemon-1000/264d5ad1/spare/2aef72cf.pty.sock",
+      "cliVersion": "2.1.150",
+      "startedAt": 1779563963519,
+      "attempt": 1,
+      "cwd": "/home/runner/workspace",
+      "dispatch": {
+        "proto": 1,
+        "short": "90754834",
+        "nonce": "03482a0c",
+        "sessionId": "90754834-00ed-458f-9226-6b9c476e4ac0",
+        "createdAt": 1779563963088,
+        "source": "slash",
+        "cwd": "/home/runner/workspace",
+        "launch": {
+          "mode": "resume",
+          "sessionId": "/home/runner/workspace/.claude_data/projects/-home-runner-workspace/40712f7d-8927-43cb-9c40-8fb104747a0b.jsonl",
+          "fork": true,
+          "flagArgs": [
+            "--effort",
+            "xhigh",
+            "--permission-mode",
+            "acceptEdits"
+          ]
+        },
+        "env": {
+          "CLAUDE_CONFIG_DIR": "/home/runner/workspace/.claude_data",
+          "CLAUDE_BG_ISOLATION": "none"
+        },
+        "isolation": "none",
+        "respawnFlags": [
+          "--effort",
+          "xhigh",
+          "--permission-mode",
+          "acceptEdits"
+        ],
+        "seed": {
+          "intent": "\"We are polishing the UX of the court booking widget (the right-side panel). The time selection logic is already perfect, but we need to optimize the vertical space and visual hierarchy.\n\nPlease execu",
+          "name": "Test dashboard and flesh out student features"
+        },
+        "cols": 123,
+        "rows": 33
+      },
+      "decModes": [
+        1000,
+        1002,
+        1003,
+        1006,
+        2004,
+        1004,
+        2031
+      ]
+    }
+  }
+}

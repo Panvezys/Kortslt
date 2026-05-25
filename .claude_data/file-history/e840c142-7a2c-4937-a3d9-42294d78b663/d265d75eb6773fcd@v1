@@ -1,0 +1,415 @@
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CoachLayout } from "@/components/coach-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Trash2, CalendarOff, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { customFetch } from "@workspace/api-client-react";
+import { useViewAsCoach, withCoachViewAs } from "@/lib/view-as-coach";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+// Sunday=0 to match coach_availabilities.day_of_week (JS getUTCDay/Date.getDay
+// convention). Display order starts on Monday — matches LT calendar norms.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+const WEEKDAY_LABELS: Record<number, string> = {
+  0: "Sekmadienis",
+  1: "Pirmadienis",
+  2: "Antradienis",
+  3: "Trečiadienis",
+  4: "Ketvirtadienis",
+  5: "Penktadienis",
+  6: "Šeštadienis",
+};
+
+interface AvailabilityRow {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
+interface BlockedSlot {
+  id: number;
+  startTime: string; // ISO
+  endTime: string;
+  reason: string | null;
+}
+
+interface DayForm {
+  enabled: boolean;
+  startTime: string;
+  endTime: string;
+}
+
+const DEFAULT_DAY: DayForm = { enabled: false, startTime: "09:00", endTime: "18:00" };
+
+// ─── Page ───────────────────────────────────────────────────────────────────
+
+export default function CoachSchedule() {
+  return (
+    <CoachLayout title="Tvarkaraštis">
+      <div className="px-4 md:px-6 py-6 space-y-8 max-w-3xl">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Tvarkaraštis</h1>
+          <p className="text-sm text-muted-foreground">
+            Nustatykite kassavaitines darbo valandas ir užblokuokite atskirus laikus
+            atostogoms ar kitiems įsipareigojimams.
+          </p>
+        </header>
+
+        <WeeklyHoursSection />
+        <BlockedSlotsSection />
+      </div>
+    </CoachLayout>
+  );
+}
+
+// ─── Weekly hours ───────────────────────────────────────────────────────────
+
+function WeeklyHoursSection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const { asCoachId } = useViewAsCoach();
+  const isViewingAs = asCoachId != null;
+  const { data: rows, isLoading } = useQuery<AvailabilityRow[]>({
+    queryKey: ["coach-availability", asCoachId],
+    queryFn: () => customFetch<AvailabilityRow[]>(withCoachViewAs(`${API}/coaches/me/availability`)),
+    staleTime: 60_000,
+  });
+
+  const [days, setDays] = useState<Record<number, DayForm>>(() => seedDays([]));
+
+  // When the server data arrives, snapshot it into local form state. If a
+  // weekday has multiple availability rows we collapse them to the earliest
+  // start + latest end — split schedules aren't supported in this UI yet,
+  // but the API + schema do support them for future expansion.
+  useEffect(() => {
+    if (!rows) return;
+    setDays(seedDays(rows));
+  }, [rows]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const entries: Array<{ dayOfWeek: number; startTime: string; endTime: string }> = [];
+      for (const dow of WEEK_ORDER) {
+        const d = days[dow];
+        if (!d?.enabled) continue;
+        if (!d.startTime || !d.endTime) continue;
+        if (d.startTime >= d.endTime) {
+          throw new Error(`${WEEKDAY_LABELS[dow]}: pabaigos laikas turi būti vėlesnis už pradžią.`);
+        }
+        entries.push({ dayOfWeek: dow, startTime: d.startTime, endTime: d.endTime });
+      }
+      return customFetch<AvailabilityRow[]>(`${API}/coaches/me/availability`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Darbo valandos išsaugotos" });
+      qc.invalidateQueries({ queryKey: ["coach-availability"] });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Savaitės valandos</h2>
+          <p className="text-xs text-muted-foreground">
+            Šios valandos kartojasi kiekvieną savaitę. Vienkartinius pakeitimus
+            pridėkite žemiau kaip blokus.
+          </p>
+        </div>
+        <Button onClick={() => save.mutate()} disabled={save.isPending || isLoading || isViewingAs} title={isViewingAs ? "Žiūrite kaip kitas treneris — keisti negalima" : undefined}>
+          {save.isPending ? "Saugoma..." : "Išsaugoti"}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 7 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+        </div>
+      ) : (
+        <div className="rounded-2xl border bg-card divide-y">
+          {WEEK_ORDER.map((dow) => (
+            <DayRow
+              key={dow}
+              day={days[dow] ?? DEFAULT_DAY}
+              label={WEEKDAY_LABELS[dow]}
+              onChange={(next) => setDays((prev) => ({ ...prev, [dow]: next }))}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function seedDays(rows: AvailabilityRow[]): Record<number, DayForm> {
+  const out: Record<number, DayForm> = {};
+  for (const dow of WEEK_ORDER) out[dow] = { ...DEFAULT_DAY };
+  // Collapse multiple ranges per day to a single envelope. Earliest start,
+  // latest end. Good enough for the V1 "one shift per day" UI.
+  for (const r of rows) {
+    const cur = out[r.dayOfWeek] ?? { ...DEFAULT_DAY };
+    const start = cur.enabled ? (r.startTime < cur.startTime ? r.startTime : cur.startTime) : r.startTime;
+    const end = cur.enabled ? (r.endTime > cur.endTime ? r.endTime : cur.endTime) : r.endTime;
+    out[r.dayOfWeek] = { enabled: true, startTime: start, endTime: end };
+  }
+  return out;
+}
+
+function DayRow({
+  day,
+  label,
+  onChange,
+}: {
+  day: DayForm;
+  label: string;
+  onChange: (next: DayForm) => void;
+}) {
+  return (
+    <div className="px-4 py-3 flex items-center gap-3">
+      <Switch
+        checked={day.enabled}
+        onCheckedChange={(checked) => onChange({ ...day, enabled: checked })}
+        aria-label={label}
+      />
+      <span className="text-sm font-medium w-32 shrink-0">{label}</span>
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <Input
+          type="time"
+          value={day.startTime}
+          onChange={(e) => onChange({ ...day, startTime: e.target.value })}
+          disabled={!day.enabled}
+          className="w-28"
+        />
+        <span className="text-muted-foreground text-xs">iki</span>
+        <Input
+          type="time"
+          value={day.endTime}
+          onChange={(e) => onChange({ ...day, endTime: e.target.value })}
+          disabled={!day.enabled}
+          className="w-28"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Blocked slots ──────────────────────────────────────────────────────────
+
+interface BlockForm {
+  date: string;
+  startTime: string;
+  endTime: string;
+  reason: string;
+}
+
+const EMPTY_BLOCK: BlockForm = { date: "", startTime: "09:00", endTime: "12:00", reason: "" };
+
+function BlockedSlotsSection() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState<BlockForm>(EMPTY_BLOCK);
+
+  const { asCoachId } = useViewAsCoach();
+  const isViewingAs = asCoachId != null;
+  const { data: blocks = [], isLoading } = useQuery<BlockedSlot[]>({
+    queryKey: ["coach-blocked-slots", asCoachId],
+    queryFn: () => customFetch<BlockedSlot[]>(withCoachViewAs(`${API}/coaches/me/blocked-slots`)),
+    staleTime: 60_000,
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!form.date) throw new Error("Pasirinkite datą.");
+      if (form.startTime >= form.endTime) {
+        throw new Error("Pabaigos laikas turi būti vėlesnis už pradžią.");
+      }
+      // Build a local-timezone Date — the browser's TZ matches what the
+      // coach is editing for, which is what we want. The server stores it
+      // as a UTC instant.
+      const start = new Date(`${form.date}T${form.startTime}:00`);
+      const end = new Date(`${form.date}T${form.endTime}:00`);
+      return customFetch(`${API}/coaches/me/blocked-slots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          reason: form.reason || null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Blokas pridėtas" });
+      setForm(EMPTY_BLOCK);
+      qc.invalidateQueries({ queryKey: ["coach-blocked-slots"] });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) =>
+      customFetch(`${API}/coaches/me/blocked-slots/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Blokas pašalintas" });
+      qc.invalidateQueries({ queryKey: ["coach-blocked-slots"] });
+    },
+    onError: (e: Error) => {
+      toast({ title: "Klaida", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const sortedBlocks = useMemo(
+    () => [...blocks].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [blocks],
+  );
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight">Blokai ir atostogos</h2>
+        <p className="text-xs text-muted-foreground">
+          Vienkartiniai laikai, kuriais nesate prieinami — atostogos, varžybos, asmeniniai reikalai.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-4 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="block-date">Data</Label>
+            <Input
+              id="block-date"
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="block-start">Nuo</Label>
+            <Input
+              id="block-start"
+              type="time"
+              value={form.startTime}
+              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="block-end">Iki</Label>
+            <Input
+              id="block-end"
+              type="time"
+              value={form.endTime}
+              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="block-reason">Priežastis (neprivaloma)</Label>
+          <Textarea
+            id="block-reason"
+            rows={2}
+            value={form.reason}
+            onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+            placeholder="Atostogos, varžybos..."
+          />
+        </div>
+        <div className="flex justify-end">
+          <Button
+            onClick={() => create.mutate()}
+            disabled={create.isPending || !form.date || isViewingAs}
+            size="sm"
+            title={isViewingAs ? "Žiūrite kaip kitas treneris — keisti negalima" : undefined}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Pridėti bloką
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card">
+        {isLoading ? (
+          <div className="p-4 space-y-2">
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+          </div>
+        ) : sortedBlocks.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
+            <CalendarOff className="h-8 w-8 opacity-30" />
+            Šiuo metu suplanuotų blokų nėra.
+          </div>
+        ) : (
+          <ul className="divide-y">
+            {sortedBlocks.map((b) => (
+              <BlockedSlotRow
+                key={b.id}
+                block={b}
+                onDelete={() => remove.mutate(b.id)}
+                disabled={remove.isPending || isViewingAs}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BlockedSlotRow({
+  block,
+  onDelete,
+  disabled,
+}: {
+  block: BlockedSlot;
+  onDelete: () => void;
+  disabled?: boolean;
+}) {
+  const start = new Date(block.startTime);
+  const end = new Date(block.endTime);
+  const dateLabel = start.toLocaleDateString("lt-LT", {
+    year: "numeric", month: "long", day: "numeric", weekday: "short",
+  });
+  const timeLabel = `${formatHM(start)} – ${formatHM(end)}`;
+  return (
+    <li className="px-4 py-3 flex items-center gap-3">
+      <CalendarOff className="h-4 w-4 text-amber-600 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{dateLabel}</div>
+        <div className="text-xs text-muted-foreground truncate">
+          {timeLabel}
+          {block.reason ? ` · ${block.reason}` : ""}
+        </div>
+      </div>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={onDelete}
+        disabled={disabled}
+        aria-label="Pašalinti bloką"
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </li>
+  );
+}
+
+function formatHM(d: Date): string {
+  return d.toLocaleTimeString("lt-LT", { hour: "2-digit", minute: "2-digit" });
+}

@@ -1,0 +1,23 @@
+"We are optimizing the court booking conversion funnel. We have decided to completely remove the 'Pridėti trenerį' (Add Coach) cross-sell feature from the court reservation widget.
+
+Please execute this cleanup in 3 phases:
+
+--- PHASE 1: UI Removal ---
+
+Locate the court booking widget component (likely pages/court-detail.tsx, components/booking-widget.tsx, or similar where the time slots and 'Rezervuoti' button live).
+
+Delete the entire JSX block rendering the 'Pridėti trenerį' section, including the 'Šiam laikui nėra prieinamų trenerių' empty state.
+
+--- PHASE 2: State & Data Cleanup ---
+
+Remove any React state associated with this feature (e.g., selectedCoachId, isCoachDropdownOpen).
+
+If there is a TanStack Query (useQuery) inside this component fetching available coaches specifically for this dropdown, delete it to save a network request. (Do not delete the query that populates the main 'Treneriai' list on the facility page).
+
+--- PHASE 3: Payload Simplification ---
+
+Update the onSubmit or handleReserve function. Ensure that when we POST to the checkout or booking endpoint, we are no longer trying to pass a coachId from this widget.
+
+Clean up any unused imports (e.g., Lucide icons like GraduationCap or User that were only used for the coach block).
+
+Run a strict typecheck to ensure the removal didn't leave any dangling variables or break the checkout payload."

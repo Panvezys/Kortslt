@@ -1,0 +1,60 @@
+I think there should be an option to book a coach without booking a court, as you said some coaches may have an agreement with courts and do not need to pay seperately.
+
+You make a completely valid point. If a coach already pays a monthly wholesale fee to a facility, or if they own their own private backyard court, forcing the student to pay an extra platform court fee is a terrible user experience. It would drive coaches off the platform.
+
+We absolutely need to support this, but we need to do it without tangling up the Stripe routing or accidentally giving away Facility courts for free.
+
+The cleanest architectural solution is to introduce the "Nepriklausoma paslauga" (Independent Service) model.
+
+How the "Independent Service" Model Works
+Instead of trying to hack the existing facility booking logic to process a 0€ payment, we separate the service from the platform's courts entirely.
+
+Service Creation: When the coach creates a service, they select a new option: "Treneris pasirūpina vieta (Aikštelė įskaičiuota į kainą)" (Coach provides the location / Court included in price).
+
+The Database: The service is saved with courtId = null AND a new flag: isLocationProvidedByCoach = true.
+
+The Booking Flow: When a student books this service, the widget skips the court selection step entirely. It only asks for the Date and Time.
+
+The Checkout: The student pays exactly what the coach asks (e.g., 40€). 100% of the funds route to the Coach.
+
+The Calendar: The booking is created in the database with a null court. It blocks the Coach's calendar, but it completely ignores the Facility's calendar. The coach communicates the exact location to the student via the built-in messaging system or the service description.
+
+This solves the payment routing perfectly and gives coaches total freedom.
+
+Here is the exact command to give your AI agent to build this bypass into the architecture. Copy and paste this directly:
+
+"We need to support coaches who have private court agreements by allowing them to offer 'Independent Services' where the coach provides the location and the student only pays the coach's fee.
+
+Please execute this in 3 phases acting as a senior backend engineer:
+
+--- PHASE 1: Database & Schema Updates ---
+
+Ensure the bookings table allows courtId to be nullable (if it isn't already). An independent coach booking will not have a court attached.
+
+In the services table schema, ensure we can distinguish between a 'Floating' service (student picks a platform court) and an 'Independent' service (coach provides location). This can be inferred if courtId is null AND a new boolean flag isLocationProvidedByCoach (or similar) is set to true.
+
+Update the booking API validation (POST /bookings) so it does NOT throw an error for missing courtId IF the service is flagged as independent. It should only check the coach's schedule for conflicts, bypassing the court availability check.
+
+--- PHASE 2: Coach Dashboard (Service Upsert) ---
+
+In pages/coach/services.tsx, update the 'Aikštelė' (Location) selection logic in the service form.
+
+Add a clear radio group or selector for Location Type:
+
+'Mokinys išsirenka ir apmoka platformos aikštelę' (Floating: student picks and pays).
+
+'Priskirti konkrečiai platformos aikštelei' (Court-bound: fixed court).
+
+'Treneris pasirūpina vieta (Kaina įskaičiuota)' (Independent: isLocationProvidedByCoach = true, courtId = null).
+
+--- PHASE 3: Student Booking Flow ---
+
+Update the student-facing booking dialog for coaches.
+
+If the user is booking an 'Independent' service, completely hide/skip the 'Pasirinkite aikštelę' (Select Court) step.
+
+Ensure the checkout payload only bills the service price (Coach Price) and routes the Stripe payment purely to the coach, with no split to any facility.
+
+Run a strict typecheck to ensure making courtId nullable in the booking flow doesn't break strict type assumptions elsewhere in the app."
+
+This completely bypasses the blocked coach_pays_court limitation your CLI assistant found, and it gives the coaches the exact flexibility you wanted them to have.

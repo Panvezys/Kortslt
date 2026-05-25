@@ -1,0 +1,40 @@
+You have identified a classic database consistency problem. The current implementation is a hybrid model that works, but it contains a structural vulnerability (the "drifting headline rate") that needs to be fixed to make Korts.lt a professional marketplace.
+
+Here is a breakdown of why the current setup is flawed and exactly how we need to fix it.
+
+The Problem: The "Drifting" Headline Rate
+Currently, a coach has two ways to set their price:
+
+The Real Price: The specific services they offer (e.g., "1 Hour Private - €50", "1.5 Hour Group - €40"). This is what the student actually pays.
+
+The Display Price: A manual input field (pricePerHour) in their settings page. This is what shows up on their public Marketplace card.
+
+This creates a serious UX vulnerability. A coach can manually type "€20/hr" in their settings to rank higher in the marketplace search results. But when a player clicks their profile, they discover the cheapest service is actually €60. This is "bait-and-switch" pricing, and it destroys trust in the platform.
+
+The Solution: The "Calculated Baseline" Pattern
+We need to enforce Invariant A strictly. The pricePerHour column should not be a manual input field; it should be a read-only, automatically calculated baseline derived strictly from the coach's active services.
+
+Think of Airbnb: you don't type in your "average nightly rate" for the search results. Airbnb calculates it based on your actual calendar prices.
+
+How to Fix It (The Implementation Plan)
+We need to remove the manual input from the frontend and automate the calculation on the backend.
+
+1. The Backend Transaction Sync (Crucial Step)
+Just like we did for the 5-star ratings, we need a helper function that recalculates the baseline price every time a service changes.
+
+Create a function syncCoachBaselinePrice(coachId, tx):
+
+It queries the coach_services table for that coach.
+
+It calculates the hourly rate for each service: (priceCents * 60) / durationMin.
+
+It finds the lowest resulting value.
+
+It updates the coaches.pricePerHour column with that value.
+
+This function MUST be called inside a database transaction (db.transaction) every time a coach creates, updates, or deletes a service (in routes/coach-services.ts).
+
+2. Clean Up the Frontend
+Remove the Input: Go into pages/coach/settings.tsx and delete the "Valandinė kaina (€)" manual input field entirely.
+
+Update the Profile UI: In pages/coach.tsx, where the coach edits their services, you might want to add a small read-only indicator near the top that says something like: "Bazinė valandinė kaina paieškoje: €XX (Apskaičiuota pagal pigiausią paslaugą)." (Base hourly rate in search: €XX (Calculated from cheapest service)).

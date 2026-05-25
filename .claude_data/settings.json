@@ -11,6 +11,5 @@
     "security-guidance@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
-  "theme": "dark",
-  "model": "opus"
+  "theme": "dark"
 }

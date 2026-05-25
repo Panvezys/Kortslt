@@ -1,0 +1,9 @@
+{
+  "id": "9",
+  "subject": "Typecheck and verify",
+  "description": "Run pnpm typecheck, fix errors, then run the app and verify the recurring flow end-to-end.",
+  "activeForm": "Typechecking",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

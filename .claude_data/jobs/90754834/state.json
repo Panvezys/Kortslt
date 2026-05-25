@@ -1,0 +1,41 @@
+{
+  "state": "done",
+  "detail": "changed flex-wrap to flex-col + pill width to full; toggles now stacked in separate rows, typecheck clean",
+  "tempo": "idle",
+  "inFlight": {
+    "tasks": 0,
+    "queued": 0,
+    "kinds": []
+  },
+  "output": {
+    "result": "toggles stacked vertically, one per row"
+  },
+  "children": null,
+  "linkScanOffset": 1655655,
+  "linkScanPath": "/home/runner/workspace/.claude_data/projects/-home-runner-workspace/90754834-00ed-458f-9226-6b9c476e4ac0.jsonl",
+  "template": "bg",
+  "respawnFlags": [
+    "--effort",
+    "xhigh",
+    "--permission-mode",
+    "acceptEdits",
+    "--model",
+    "opus"
+  ],
+  "intent": "\"We are polishing the UX of the court booking widget (the right-side panel). The time selection logic is already perfect, but we need to optimize the vertical space and visual hierarchy.\n\nPlease execu",
+  "name": "Test dashboard and flesh out student features",
+  "nameSource": "auto",
+  "sessionId": "90754834-00ed-458f-9226-6b9c476e4ac0",
+  "resumeSessionId": "90754834-00ed-458f-9226-6b9c476e4ac0",
+  "daemonShort": "90754834",
+  "cliVersion": "2.1.150",
+  "cwd": "/home/runner/workspace",
+  "bgIsolation": "none",
+  "providerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/runner/workspace/.claude_data"
+  },
+  "backend": "daemon",
+  "createdAt": "2026-05-23T19:19:22.901Z",
+  "updatedAt": "2026-05-23T21:23:29.738Z",
+  "firstTerminalAt": "2026-05-23T19:30:41.466Z"
+}

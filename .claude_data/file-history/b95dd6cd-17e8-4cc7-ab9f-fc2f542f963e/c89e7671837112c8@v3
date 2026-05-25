@@ -1,0 +1,607 @@
+import { useState, useMemo, useEffect } from "react";
+import { Link } from "wouter";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { CoachLayout } from "@/components/coach-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  CalendarDays, Clock, MapPin, Mail, Phone, Receipt, MessageCircle,
+  ArrowUpDown, ChevronDown, Search, X, AlertCircle, Loader2, XCircle,
+} from "lucide-react";
+import { customFetch } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import { useViewAsCoach, withCoachViewAs } from "@/lib/view-as-coach";
+import { centsToEuroString } from "@/lib/money";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API = `${BASE}/api`;
+
+type Scope = "all" | "upcoming" | "past";
+type StatusFilter = "all" | "confirmed" | "awaiting_players" | "pending" | "cancelled";
+type SortField = "date" | "price";
+type SortOrder = "asc" | "desc";
+
+interface BookingRow {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMin: number;
+  status: string;
+  courtId: number | null;
+  courtName: string | null;
+  facilityName: string | null;
+  serviceId: number | null;
+  serviceName: string | null;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string | null;
+  bookerUserId: string | null;
+  isManual: boolean;
+  totalPriceCents: number;
+  coachAmountCents: number | null;
+  coachTransferId: string | null;
+  refundCents: number;
+  notes: string | null;
+  createdAt: string;
+}
+
+interface BookingsResponse {
+  items: BookingRow[];
+  total: number;
+  hasMore: boolean;
+  limit: number;
+  offset: number;
+}
+
+const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
+
+const STATUS_LABEL: Record<string, string> = {
+  confirmed: "Patvirtinta",
+  awaiting_players: "Laukia žaidėjų",
+  pending: "Laukia mokėjimo",
+  cancelled: "Atšaukta",
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  confirmed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  awaiting_players: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+  pending: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  cancelled: "bg-muted text-muted-foreground border-border line-through-from-status",
+};
+
+const SCOPE_LABEL: Record<Scope, string> = {
+  all: "Visi",
+  upcoming: "Būsimi",
+  past: "Praėję",
+};
+
+function formatDateLT(ymdStr: string): string {
+  const [y, m, d] = ymdStr.split("-").map(Number);
+  if (!y || !m || !d) return ymdStr;
+  return new Date(y, m - 1, d).toLocaleDateString("lt-LT", {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatDurationLT(min: number): string {
+  if (min <= 0) return "—";
+  if (min < 60) return `${min} min`;
+  const hours = min / 60;
+  if (Number.isInteger(hours)) return `${hours} val.`;
+  return `${hours.toFixed(1).replace(".", ",")} val.`;
+}
+
+// "manual" → off-platform; "paid_transferred" → coach got their cut;
+// "paid_pending" → student paid platform but transfer hasn't fired yet;
+// "refunded" → at least partial refund issued.
+function paymentStateLabel(b: BookingRow): { label: string; variant: "muted" | "success" | "warning" | "danger" } {
+  if (b.status === "cancelled" && b.refundCents > 0) return { label: "Grąžinta", variant: "danger" };
+  if (b.isManual) return { label: "Be mokėjimo", variant: "muted" };
+  if (b.coachTransferId) return { label: "Pervesta", variant: "success" };
+  if (b.status === "confirmed" && b.totalPriceCents > 0) return { label: "Apmokėta", variant: "success" };
+  if (b.status === "awaiting_players") return { label: "Laukia žaidėjų", variant: "warning" };
+  if (b.status === "pending") return { label: "Laukia mokėjimo", variant: "warning" };
+  return { label: "—", variant: "muted" };
+}
+
+function PaymentBadge({ state }: { state: ReturnType<typeof paymentStateLabel> }) {
+  const cls = {
+    success: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+    warning: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+    danger: "bg-destructive/15 text-destructive border-destructive/30",
+    muted: "bg-muted text-muted-foreground border-border",
+  }[state.variant];
+  return (
+    <span className={`text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+      {state.label}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const label = STATUS_LABEL[status] ?? status;
+  const cls = STATUS_CLASS[status] ?? "bg-muted text-muted-foreground border-border";
+  return (
+    <span className={`text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full border ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function BookingCard({
+  b,
+  onCancel,
+  canCancel,
+}: {
+  b: BookingRow;
+  onCancel: (b: BookingRow) => void;
+  canCancel: boolean;
+}) {
+  const payment = paymentStateLabel(b);
+  // The student's coach-share cents only exist when the booking had a coach
+  // attached at checkout. For manual bookings or pre-coach-share bookings it's
+  // null; surface totalPrice as the headline number in that case.
+  const headlineCents = b.coachAmountCents ?? b.totalPriceCents;
+
+  return (
+    <li className="rounded-2xl border bg-card p-4 hover:border-primary/40 hover:shadow-sm transition-all">
+      <div className="flex flex-col md:flex-row md:items-start md:gap-4">
+        <div className="flex md:flex-col md:items-center md:justify-center md:w-20 shrink-0 gap-3 md:gap-1 mb-2 md:mb-0">
+          <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+            {formatDateLT(b.date).split(",")[0]}
+          </div>
+          <div className="text-base font-bold tabular-nums">
+            {b.startTime}
+          </div>
+          <div className="text-[11px] text-muted-foreground tabular-nums hidden md:block">
+            iki {b.endTime}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-sm truncate">
+              {b.customerName}
+            </h3>
+            <StatusBadge status={b.status} />
+            <PaymentBadge state={payment} />
+            {b.isManual && (
+              <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">Rankinis</Badge>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {formatDateLT(b.date)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {b.startTime}–{b.endTime} · {formatDurationLT(b.durationMin)}
+            </span>
+            {(b.courtName || b.facilityName) && (
+              <span className="inline-flex items-center gap-1 truncate">
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">
+                  {b.facilityName && b.courtName
+                    ? `${b.facilityName} · ${b.courtName}`
+                    : (b.facilityName ?? b.courtName)}
+                </span>
+              </span>
+            )}
+            {b.serviceName && (
+              <span className="inline-flex items-center gap-1 truncate">
+                <Receipt className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{b.serviceName}</span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 truncate">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              <a href={`mailto:${b.customerEmail}`} className="hover:text-foreground truncate">
+                {b.customerEmail}
+              </a>
+            </span>
+            {b.customerPhone && (
+              <span className="inline-flex items-center gap-1">
+                <Phone className="h-3.5 w-3.5" />
+                <a href={`tel:${b.customerPhone}`} className="hover:text-foreground">
+                  {b.customerPhone}
+                </a>
+              </span>
+            )}
+          </div>
+
+          {b.notes && (
+            <p className="text-xs text-muted-foreground italic line-clamp-2">
+              „{b.notes}"
+            </p>
+          )}
+        </div>
+
+        <div className="flex md:flex-col items-center md:items-end justify-between gap-2 md:gap-1.5 shrink-0 mt-3 md:mt-0 md:min-w-[120px] pt-3 md:pt-0 border-t md:border-t-0">
+          <div className="text-right">
+            <div className="text-lg font-bold tabular-nums">
+              {centsToEuroString(headlineCents)}€
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {b.coachAmountCents != null && b.coachAmountCents !== b.totalPriceCents
+                ? `iš ${centsToEuroString(b.totalPriceCents)}€`
+                : "iš viso"}
+            </div>
+            {b.refundCents > 0 && (
+              <div className="text-[10px] text-destructive mt-0.5">
+                Grąžinta {centsToEuroString(b.refundCents)}€
+              </div>
+            )}
+          </div>
+          <div className="flex md:flex-col gap-1.5 items-end">
+            {b.bookerUserId && (
+              <Button asChild size="sm" variant="outline" className="h-7 px-2 text-xs">
+                <Link
+                  href={`/messages?u=${b.bookerUserId}&n=${encodeURIComponent(b.customerName)}`}
+                >
+                  <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                  Žinutė
+                </Link>
+              </Button>
+            )}
+            {canCancel && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                onClick={() => onCancel(b)}
+              >
+                <XCircle className="h-3.5 w-3.5 mr-1" />
+                Atšaukti
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function todayYMD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export default function CoachBookingsPage() {
+  const { asCoachId } = useViewAsCoach();
+  const isViewingAs = asCoachId != null;
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [scope, setScope] = useState<Scope>("upcoming");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortOrder, setSortOrder] = useState<SortOrder | undefined>(undefined);
+  const [pendingCancel, setPendingCancel] = useState<BookingRow | null>(null);
+  const today = todayYMD();
+
+  // Debounce text input so we don't fire a request on every keystroke. 300ms
+  // is short enough to feel live while keeping the hit count down on large
+  // backlogs.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Effective order: explicit user choice wins; otherwise scope-derived
+  // (upcoming = asc/nearest first, past = desc/most recent first).
+  const effectiveOrder: SortOrder = sortOrder
+    ?? (scope === "past" ? "desc" : "asc");
+
+  const buildUrl = (offset: number): string => {
+    const params = new URLSearchParams();
+    params.set("scope", scope);
+    if (status !== "all") params.set("status", status);
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    params.set("sort", sortField);
+    params.set("order", effectiveOrder);
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
+    return withCoachViewAs(`${API}/coaches/me/bookings?${params.toString()}`);
+  };
+
+  const query = useInfiniteQuery<BookingsResponse>({
+    queryKey: ["coach-bookings", asCoachId, scope, status, debouncedSearch, sortField, effectiveOrder],
+    queryFn: ({ pageParam = 0 }) => customFetch<BookingsResponse>(buildUrl(pageParam as number)),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.hasMore ? last.offset + last.limit : undefined),
+    staleTime: 30_000,
+  });
+
+  // Cancellation goes through the same DELETE /bookings/:id endpoint the
+  // dashboard calendar uses; the route accepts the attached coach as a
+  // legitimate principal. We invalidate the inbox query and the dashboard
+  // queries (stats, upcoming, schedule) so all surfaces refresh together.
+  const cancelMutation = useMutation({
+    mutationFn: async (bookingId: number) =>
+      customFetch(`${API}/bookings/${bookingId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Rezervacija atšaukta" });
+      setPendingCancel(null);
+      qc.invalidateQueries({ queryKey: ["coach-bookings"] });
+      qc.invalidateQueries({ queryKey: ["coach-dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["coach-schedule"] });
+      qc.invalidateQueries({ queryKey: ["coach-students"] });
+    },
+    onError: (err: { data?: { error?: string; code?: string }; message?: string }) => {
+      const code = err?.data?.code;
+      const msg = code === "CANCEL_TOO_LATE"
+        ? "Pamoka jau prasidėjo arba pasibaigė — atšaukti negalima."
+        : err?.data?.error ?? err?.message ?? "Nepavyko atšaukti rezervacijos.";
+      toast({ title: "Klaida", description: msg, variant: "destructive" });
+    },
+  });
+
+  function canCancelBooking(b: BookingRow): boolean {
+    // Read-only when impersonating; already-cancelled is a no-op; only future
+    // (today or later) dates can plausibly cancel — same-day will get a
+    // server-side CANCEL_TOO_LATE if the start time has passed, which we
+    // surface as a toast.
+    if (isViewingAs) return false;
+    if (b.status === "cancelled") return false;
+    return b.date >= today;
+  }
+
+  const items: BookingRow[] = useMemo(
+    () => query.data?.pages.flatMap((p) => p.items) ?? [],
+    [query.data],
+  );
+  const total = query.data?.pages[0]?.total ?? 0;
+
+  function toggleSort(field: SortField) {
+    if (sortField !== field) {
+      // Switching field: pick the natural default for that field.
+      setSortField(field);
+      setSortOrder(field === "price" ? "desc" : (scope === "past" ? "desc" : "asc"));
+      return;
+    }
+    // Same field — flip direction.
+    setSortOrder((cur) => (cur === "asc" ? "desc" : "asc"));
+  }
+
+  function sortIndicator(field: SortField): string {
+    if (sortField !== field) return "";
+    return effectiveOrder === "asc" ? " ↑" : " ↓";
+  }
+
+  return (
+    <CoachLayout title="Rezervacijos">
+      <div className="px-4 md:px-6 py-6 space-y-6 max-w-5xl">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Rezervacijos</h1>
+          <p className="text-sm text-muted-foreground">
+            Visos jūsų pamokos — būsimos ir praėjusios — su mokinių kontaktais ir
+            mokėjimo būsena.
+          </p>
+        </header>
+
+        {/* Scope tabs */}
+        <div className="flex gap-1 p-1 rounded-lg border bg-muted/30 w-fit">
+          {(Object.keys(SCOPE_LABEL) as Scope[]).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                scope === s
+                  ? "bg-card shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {SCOPE_LABEL[s]}
+            </button>
+          ))}
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Ieškoti pagal mokinio vardą, el. paštą ar telefoną..."
+              className="pl-9 pr-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
+                aria-label="Išvalyti paiešką"
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+            <SelectTrigger className="sm:w-52">
+              <SelectValue placeholder="Būsena" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Visos būsenos</SelectItem>
+              <SelectItem value="confirmed">Patvirtinta</SelectItem>
+              <SelectItem value="awaiting_players">Laukia žaidėjų</SelectItem>
+              <SelectItem value="pending">Laukia mokėjimo</SelectItem>
+              <SelectItem value="cancelled">Atšaukta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Sort header */}
+        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground border-b pb-2">
+          <div className="tabular-nums">
+            {query.isLoading ? "Įkeliama..." : `${total} ${total === 1 ? "rezervacija" : "rezervacijos"}`}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="hidden sm:inline">Rikiuoti:</span>
+            <button
+              type="button"
+              onClick={() => toggleSort("date")}
+              className={`px-2 py-1 rounded hover:bg-muted transition-colors inline-flex items-center gap-1 ${
+                sortField === "date" ? "text-foreground font-semibold" : ""
+              }`}
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              Data{sortIndicator("date")}
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSort("price")}
+              className={`px-2 py-1 rounded hover:bg-muted transition-colors inline-flex items-center gap-1 ${
+                sortField === "price" ? "text-foreground font-semibold" : ""
+              }`}
+            >
+              <ArrowUpDown className="h-3 w-3" />
+              Kaina{sortIndicator("price")}
+            </button>
+          </div>
+        </div>
+
+        {/* Results */}
+        {query.isLoading ? (
+          <ul className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <li key={i} className="rounded-2xl border bg-card p-4 flex items-center gap-3">
+                <Skeleton className="h-12 w-12 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-72" />
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </li>
+            ))}
+          </ul>
+        ) : query.isError ? (
+          <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-3 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div>
+              Nepavyko įkelti rezervacijų sąrašo. Bandykite atnaujinti puslapį.
+            </div>
+          </div>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={<CalendarDays className="h-10 w-10" />}
+            title={
+              debouncedSearch || status !== "all"
+                ? "Nieko nerasta"
+                : scope === "past"
+                  ? "Praėjusių rezervacijų nėra"
+                  : scope === "upcoming"
+                    ? "Būsimų rezervacijų nėra"
+                    : "Rezervacijų dar nėra"
+            }
+            description={
+              debouncedSearch || status !== "all"
+                ? "Pakeiskite filtrus arba paieškos užklausą."
+                : "Kai mokiniai užregistruos pamokas, jos atsiras šiame sąraše."
+            }
+          />
+        ) : (
+          <>
+            <ul className="space-y-3">
+              {items.map((b) => (
+                <BookingCard
+                  key={b.id}
+                  b={b}
+                  onCancel={setPendingCancel}
+                  canCancel={canCancelBooking(b)}
+                />
+              ))}
+            </ul>
+            {query.hasNextPage && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => query.fetchNextPage()}
+                  disabled={query.isFetchingNextPage}
+                >
+                  {query.isFetchingNextPage ? (
+                    <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Įkeliama...</>
+                  ) : (
+                    <><ChevronDown className="h-4 w-4 mr-1.5" /> Daugiau</>
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <AlertDialog
+        open={pendingCancel != null}
+        onOpenChange={(o) => { if (!o && !cancelMutation.isPending) setPendingCancel(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Atšaukti rezervaciją?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingCancel && (
+                <>
+                  <span className="block">
+                    <strong>{pendingCancel.customerName}</strong>
+                    {" · "}
+                    {formatDateLT(pendingCancel.date)} {pendingCancel.startTime}–{pendingCancel.endTime}
+                  </span>
+                  <span className="block mt-2">
+                    Mokinys gaus pranešimą, o grąžinimo dydis bus apskaičiuotas pagal jūsų
+                    atšaukimo taisyklę.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelMutation.isPending}>
+              Palikti
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (pendingCancel && !cancelMutation.isPending) {
+                  cancelMutation.mutate(pendingCancel.id);
+                }
+              }}
+              disabled={cancelMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Atšaukiama...</>
+              ) : (
+                "Atšaukti rezervaciją"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </CoachLayout>
+  );
+}

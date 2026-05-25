@@ -29,6 +29,8 @@ app.use(
 
 const courtsDir = path.resolve(process.cwd(), "../courtbook/public/courts");
 const uploadsDir = path.resolve(process.cwd(), "../courtbook/public/courts/uploads");
+const coachesImgDir = path.resolve(process.cwd(), "../courtbook/public/coaches");
+const coachUploadsDir = path.resolve(process.cwd(), "../courtbook/public/coaches/uploads");
 
 // ─── WebP content-negotiation ─────────────────────────────────────────────────
 // If the browser sends Accept: image/webp and a .webp sibling exists, serve
@@ -68,6 +70,29 @@ app.use("/courts/uploads", express.static(uploadsDir, {
 // Seeded court images — 1 week cache
 app.use("/courts", webpNegotiation(courtsDir));
 app.use("/courts", express.static(courtsDir, {
+  maxAge: "7d",
+  immutable: false,
+  setHeaders(res) {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Vary", "Accept");
+  },
+}));
+
+// Coach uploaded gallery images — 1 week cache
+app.use("/coaches/uploads", webpNegotiation(coachUploadsDir));
+app.use("/coaches/uploads", express.static(coachUploadsDir, {
+  maxAge: "7d",
+  immutable: false,
+  setHeaders(res) {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Vary", "Accept");
+  },
+}));
+
+// Coach seeded gallery images — 1 week cache
+app.use("/coaches", webpNegotiation(coachesImgDir));
+app.use("/coaches", express.static(coachesImgDir, {
   maxAge: "7d",
   immutable: false,
   setHeaders(res) {

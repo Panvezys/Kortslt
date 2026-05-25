@@ -1,0 +1,23 @@
+Let's look at a critical edge case that this change introduces to make sure we don't accidentally leave a vulnerability in your calendar logic:
+
+The "Double-Booking" Hazard (Independent vs. Attached)
+Now that a coach has two types of services—some that automatically tie to a platform court (floating/court-bound) and some that skip the court entirely (independent)—the coach's calendar engine must handle conflicts defensively.
+
+Imagine a coach is booked for an Independent Service on Tuesday at 14:00.
+
+The Good: The coach's calendar is locked for that time slot.
+
+The Danger: Because an independent service doesn't lock a platform court, a standard player could navigate to a court page and try to book that same platform court for Tuesday at 14:00. This is perfectly fine because the court is free.
+
+The Conflict: However, if a second student tries to book that same coach at that same court for Tuesday at 14:00 via a floating service, the system must recognize that while the court is free, the coach is already busy coaching an independent lesson somewhere else.
+
+The Improvement Check
+Ensure that your POST /bookings verification logic checks calendar availability in the following order:
+
+Coach Check: If the requested booking includes a coachId, the system must query all bookings for that coach at that time block—regardless of whether those existing bookings have a courtId or are independent. If the coach is busy, fail immediately.
+
+Court Check: If the requested booking is not independent (i.e., it needs a platform court), the system then checks if that specific courtId is free.
+
+If your assistant already covered this global coachId check during Phase 2's validation updates, you are in the clear!
+
+Since the core booking widget, payment splits, and coach location variants are fully polished and completely type-safe, we have officially closed out the entire reservation engine.

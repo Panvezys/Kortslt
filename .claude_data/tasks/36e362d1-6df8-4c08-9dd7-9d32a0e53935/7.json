@@ -1,0 +1,9 @@
+{
+  "id": "7",
+  "subject": "Add conflict preview to recurring UI + update handleRecurringBookings",
+  "description": "Fetch availability for each future date when recurring is enabled; show which weeks are available/taken. After booking creation loop, for paid courts redirect to batch Stripe checkout instead of telling user to pay separately.",
+  "activeForm": "Updating court-detail recurring flow",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,33 @@
+Here are the specific improvements to make this recurring state feel as sharp as the rest of the flow:
+
+1. The "12-Week" Vertical Bloat Risk
+Right now, the specific recurring dates (05-24, sk, 05-31, sk, etc.) are stacking vertically.
+
+The Problem: For a 4-week series, it takes up 4 lines. If a user selects "12 sav.", that list will be 12 lines long, pushing the summary box and checkout button completely off the screen.
+
+The Fix: Change this vertical list into a horizontal flex container with flex-wrap and display the dates as small, compact chips (similar to your time slots). Alternatively, just show a summary string: Nuo 05-24 iki 06-14 (4 seansai) with an expand icon if they really want to see the exact dates.
+
+2. Logic Priority Bug on "Skaidyti mokėjimą"
+Look at the disabled message for the split payment toggle: "Paskutinės minutės rezervacijas būtina apmokėti pilnai." (Last-minute reservations must be paid in full).
+
+The Problem: While that rule makes sense, this is a recurring reservation. In our previous step, we established that split payments are completely forbidden for recurring bookings.
+
+The Fix: You have a rule collision. The "Recurring" rule should take absolute priority over the "Last Minute" rule because it fundamentally changes the Stripe checkout flow. Ensure the validation logic prioritizes the recurring block message ("Mokėjimo skaidymas negalimas kartotinėms rezervacijoms").
+
+3. The Final Price Redundancy
+We still have a bit of "double vision" going on with the total price. The exact same value (28.00 €) is currently displayed in four different places on the screen:
+
+Above the split payment toggle (4 iš 4 savaitių laisvos · 28.00 €)
+
+Inside the summary box (Aikštelės nuoma: 7.00 € ... wait, the total here says 28.00 € at the bottom)
+
+In the sticky footer (Serija iš viso: 28.00 €)
+
+The Fix: Be ruthless. Let the summary box handle the math (e.g., 4x 7.00 € = 28.00 €), but let the sticky footer definitively own the final, large total. You can remove Serija iš viso: 28.00 € from above the split toggle to reduce the clutter.
+
+4. Group the Recurring Controls
+The toggle "Kartoti kas savaitę" is inside a grey box with a border, but the week selectors (2 sav, 3 sav...) and the date results are floating below it on the white background.
+
+The Fix: Wrap the toggle, the week selector chips, and the date results inside a single unified card or border so the user understands all those controls belong to the "Recurring" feature.
+
+Fixing that vertical date list is the most critical item here before someone tries to book a 3-month block and breaks the layout.

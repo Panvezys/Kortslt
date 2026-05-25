@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { UserProfileCard } from "@/components/user-profile-card";
-import { Send, MessageSquare, ArrowLeft, Users as UsersIcon, MapPin, Building2, Trophy, CalendarDays } from "lucide-react";
+import { Send, MessageSquare, ArrowLeft, Users as UsersIcon, MapPin, Building2, Trophy, CalendarDays, GraduationCap } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -22,7 +22,7 @@ interface Thread {
   otherUserId: string;
   otherUserName: string;
   otherUserImageUrl: string | null;
-  lastMessage: { body: string; createdAt: string; senderUserId: string };
+  lastMessage: { body: string; createdAt: string; senderUserId: string; contextType?: string | null };
   unread: number;
 }
 interface DM {
@@ -49,11 +49,21 @@ function timeAgo(iso: string) {
 }
 
 const CTX_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  game: UsersIcon, court: MapPin, facility: Building2, tournament: Trophy, booking: CalendarDays,
+  game: UsersIcon, court: MapPin, facility: Building2, tournament: Trophy, booking: CalendarDays, coach: GraduationCap,
+};
+
+// Role badge shown next to the name in the thread list. Derived from the last
+// message's contextType so coaches and court owners are immediately identifiable.
+const ROLE_LABEL: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {
+  coach:    { label: "Treneris", Icon: GraduationCap },
+  booking:  { label: "Rezervacija", Icon: CalendarDays },
+  court:    { label: "Aikštelė", Icon: MapPin },
+  facility: { label: "Centras", Icon: Building2 },
+  tournament: { label: "Turnyras", Icon: Trophy },
 };
 
 function useCtxLabel(ctxType?: string, ctxId?: number) {
-  const enabled = !!ctxType && !!ctxId;
+  const enabled = !!ctxType && !!ctxId && ctxType !== "coach";
   const { data } = useQuery<any>({
     queryKey: ["msg-ctx", ctxType, ctxId],
     queryFn: () => {
@@ -61,12 +71,13 @@ function useCtxLabel(ctxType?: string, ctxId?: number) {
       if (ctxType === "court") return customFetch<any>(`${API}/courts/${ctxId}`);
       if (ctxType === "facility") return customFetch<any>(`${API}/facilities/${ctxId}`);
       if (ctxType === "tournament") return customFetch<any>(`${API}/tournaments/${ctxId}`);
+      if (ctxType === "booking") return customFetch<any>(`${API}/bookings/${ctxId}`).catch(() => null);
       return null;
     },
     enabled,
     staleTime: 300_000,
   });
-  if (!enabled) return null;
+  if (!ctxType) return null;
   const Icon = CTX_ICONS[ctxType] ?? UsersIcon;
   let label = "";
   let href = "";
@@ -74,6 +85,17 @@ function useCtxLabel(ctxType?: string, ctxId?: number) {
   else if (ctxType === "court") { label = data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`; href = `/courts/${ctxId}`; }
   else if (ctxType === "facility") { label = data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`; href = `/courts?facility=${ctxId}`; }
   else if (ctxType === "tournament") { label = data?.name ? `Turnyras · ${data.name}` : `Turnyras #${ctxId}`; href = `/tournaments/${ctxId}`; }
+  else if (ctxType === "booking") {
+    href = `/bookings/${ctxId}`;
+    if (data) {
+      const rawDate = String(data.date ?? "").slice(0, 10);
+      const dateStr = rawDate ? new Date(rawDate + "T00:00:00").toLocaleDateString("lt-LT", { month: "short", day: "numeric" }) : "";
+      const time = data.startTime && data.endTime ? `${data.startTime}–${data.endTime}` : "";
+      label = [`Rez. #${ctxId}`, data.courtName, dateStr, time].filter(Boolean).join(" · ");
+    } else {
+      label = `Rezervacija #${ctxId}`;
+    }
+  }
   return label ? { label, href, Icon } : null;
 }
 
@@ -163,11 +185,21 @@ function MessagesPanel({ otherUserId, otherUserName, otherUserImageUrl, ctxType,
           </Avatar>
         </button>
         <div>
-          <button onClick={() => setProfileOpen(true)} className="font-semibold hover:text-primary transition-colors text-left">
-            {otherUserName}
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setProfileOpen(true)} className="font-semibold hover:text-primary transition-colors text-left">
+              {otherUserName}
+            </button>
+            {effectiveCtxType && ROLE_LABEL[effectiveCtxType] && (() => {
+              const r = ROLE_LABEL[effectiveCtxType!];
+              return (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                  <r.Icon className="w-2.5 h-2.5" />{r.label}
+                </span>
+              );
+            })()}
+          </div>
           {ctx && (
-            <Link href={ctx.href} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            <Link href={ctx.href} className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-0.5">
               <ctx.Icon className="w-3 h-3"/>{ctx.label}
             </Link>
           )}
@@ -298,34 +330,45 @@ export default function MessagesPage() {
                   </div>
                 ) : (
                   <div>
-                    {(threads ?? []).map((t) => (
-                      <button
-                        key={t.otherUserId}
-                        onClick={() => setLocation(`/messages?u=${t.otherUserId}&n=${encodeURIComponent(t.otherUserName)}`)}
-                        className={`w-full text-left p-4 flex gap-3 border-b border-border/60 hover:bg-muted/40 transition-colors ${
-                          activeUserId === t.otherUserId ? "bg-muted/50" : ""
-                        }`}
-                      >
-                        <Avatar className="h-11 w-11 shrink-0">
-                          {t.otherUserImageUrl && <AvatarImage src={t.otherUserImageUrl} alt={t.otherUserName} />}
-                          <AvatarFallback className="bg-primary/15 text-primary font-semibold">
-                            {t.otherUserName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="font-semibold truncate">{t.otherUserName}</div>
-                            <div className="text-[10px] text-muted-foreground shrink-0">{timeAgo(t.lastMessage.createdAt)}</div>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 mt-0.5">
-                            <div className={`text-sm truncate ${t.unread > 0 ? "font-semibold" : "text-muted-foreground"}`}>
-                              {t.lastMessage.senderUserId === user?.id ? "Jūs: " : ""}{t.lastMessage.body}
+                    {(threads ?? []).map((t) => {
+                      const ctxKey = t.lastMessage?.contextType ?? undefined;
+                      const role = ctxKey ? ROLE_LABEL[ctxKey] : null;
+                      return (
+                        <button
+                          key={t.otherUserId}
+                          onClick={() => setLocation(`/messages?u=${t.otherUserId}&n=${encodeURIComponent(t.otherUserName)}`)}
+                          className={`w-full text-left p-4 flex gap-3 border-b border-border/60 hover:bg-muted/40 transition-colors ${
+                            activeUserId === t.otherUserId ? "bg-muted/50" : ""
+                          }`}
+                        >
+                          <Avatar className="h-11 w-11 shrink-0">
+                            {t.otherUserImageUrl && <AvatarImage src={t.otherUserImageUrl} alt={t.otherUserName} />}
+                            <AvatarFallback className="bg-primary/15 text-primary font-semibold">
+                              {t.otherUserName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className="font-semibold truncate">{t.otherUserName}</div>
+                                {role && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                                    <role.Icon className="w-2.5 h-2.5" />{role.label}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground shrink-0">{timeAgo(t.lastMessage.createdAt)}</div>
                             </div>
-                            {t.unread > 0 && <Badge className="h-5 min-w-5 px-1.5 shrink-0">{t.unread}</Badge>}
+                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                              <div className={`text-sm truncate ${t.unread > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+                                {t.lastMessage.senderUserId === user?.id ? "Jūs: " : ""}{t.lastMessage.body}
+                              </div>
+                              {t.unread > 0 && <Badge className="h-5 min-w-5 px-1.5 shrink-0">{t.unread}</Badge>}
+                            </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
