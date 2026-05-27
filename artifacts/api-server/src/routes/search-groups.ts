@@ -110,7 +110,7 @@ function formatGroup(row: SearchGroupRow): SearchGroupResult {
 // Public grouped search. All per-court filters are applied BEFORE GROUP BY so
 // courtCount and startingPrice reflect only the courts matching the filters.
 
-router.get("/api/search/groups", async (req, res): Promise<void> => {
+router.get("/search/groups", async (req, res): Promise<void> => {
   const sport    = typeof req.query.sport    === "string" ? req.query.sport.trim()    : null;
   const city     = typeof req.query.city     === "string" ? req.query.city.trim()     : null;
   const surface  = typeof req.query.surface  === "string" ? req.query.surface.trim()  : null;
@@ -207,7 +207,7 @@ router.get("/api/search/groups", async (req, res): Promise<void> => {
   res.json(rows.map(formatGroup));
 });
 
-router.get("/api/search/groups/:facilityId/:sport", async (req, res): Promise<void> => {
+router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> => {
   const facilityId = parseInt(req.params.facilityId, 10);
   const sportRaw   = req.params.sport;
   if (isNaN(facilityId) || !sportRaw) {
