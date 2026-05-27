@@ -174,14 +174,14 @@ export default function FacilitySportPage() {
           <div className="flex gap-2 flex-wrap">
             {isIndoorAvailable && isOutdoorAvailable && (
               <Select
-                value={isIndoor === true ? "true" : isIndoor === false ? "false" : ""}
-                onValueChange={v => updateFilter("isIndoor", v || undefined)}
+                value={isIndoor === true ? "true" : isIndoor === false ? "false" : "_all_"}
+                onValueChange={v => updateFilter("isIndoor", v === "_all_" ? undefined : v)}
               >
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Vidus/Lauk." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Visi</SelectItem>
+                  <SelectItem value="_all_">Visi</SelectItem>
                   <SelectItem value="true">Vidaus</SelectItem>
                   <SelectItem value="false">Lauko</SelectItem>
                 </SelectContent>
@@ -189,14 +189,14 @@ export default function FacilitySportPage() {
             )}
             {surfacesAvailable.length > 1 && (
               <Select
-                value={surfaceParam ?? ""}
-                onValueChange={v => updateFilter("surface", v || undefined)}
+                value={surfaceParam ?? "_all_"}
+                onValueChange={v => updateFilter("surface", v === "_all_" ? undefined : v)}
               >
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Pasirinkite dangą" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Visos dangos</SelectItem>
+                  <SelectItem value="_all_">Visos dangos</SelectItem>
                   {surfacesAvailable.map(s => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}

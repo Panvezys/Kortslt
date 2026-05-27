@@ -95,35 +95,35 @@ export default function ExplorePage() {
             />
           </div>
 
-          <Select value={sport} onValueChange={setSport}>
+          <Select value={sport || "_all_"} onValueChange={v => setSport(v === "_all_" ? "" : v)}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Sportas" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Visi sportai</SelectItem>
+              <SelectItem value="_all_">Visi sportai</SelectItem>
               {SPORT_OPTIONS.map(o => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <Select value={isIndoor} onValueChange={setIsIndoor}>
+          <Select value={isIndoor || "_all_"} onValueChange={v => setIsIndoor(v === "_all_" ? "" : v)}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Vidus/Lauk." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Visi</SelectItem>
+              <SelectItem value="_all_">Visi</SelectItem>
               <SelectItem value="true">Vidaus</SelectItem>
               <SelectItem value="false">Lauko</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select value={surface} onValueChange={setSurface}>
+          <Select value={surface || "_all_"} onValueChange={v => setSurface(v === "_all_" ? "" : v)}>
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Danga" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Visos dangos</SelectItem>
+              <SelectItem value="_all_">Visos dangos</SelectItem>
               <SelectItem value="clay">Molio</SelectItem>
               <SelectItem value="hard">Kieta</SelectItem>
               <SelectItem value="grass">Žolė</SelectItem>
