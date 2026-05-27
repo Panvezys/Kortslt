@@ -63,6 +63,8 @@ const JoinBookingPage    = lazyPage(() => import("@/pages/join-booking"));
 const OpenMatchesPage    = lazyPage(() => import("@/pages/open-matches"));
 const MyMatchesPage      = lazyPage(() => import("@/pages/my-matches"));
 const NotificationsPage  = lazyPage(() => import("@/pages/notifications"));
+const ExplorePage        = lazyPage(() => import("@/pages/explore"));
+const FacilitySportPage  = lazyPage(() => import("@/pages/facility-sport"));
 
 // Owner/admin management pages (keep as raw lazy() — routes already wrap them in Suspense)
 const AdminDashboard = lazy(() => import("@/pages/admin"));
@@ -244,6 +246,8 @@ function Router() {
       <Route path="/" component={HomeRoute} />
       <Route path="/courts" component={Courts} />
       <Route path="/courts/:id" component={CourtDetail} />
+      <Route path="/explore" component={ExplorePage} />
+      <Route path="/facility/:facilityId" component={FacilitySportPage} />
       <Route path="/facilities/:id" component={FacilityPage} />
       <Route path="/bookings/:id" component={BookingDetail} />
       <Route path="/bookings" component={BookingsRoute} />
