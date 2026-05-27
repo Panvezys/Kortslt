@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, doublePrecision, integer, boolean, smallint } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, doublePrecision, integer, boolean, smallint, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -60,7 +60,9 @@ export const facilitiesTable = pgTable("facilities", {
   socialInstagram: text("social_instagram"),
   socialWhatsapp: text("social_whatsapp"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  verificationStatusIdx: index("idx_facilities_verification_status").on(t.verificationStatus),
+}));
 
 export const insertFacilitySchema = createInsertSchema(facilitiesTable).omit({ id: true, createdAt: true });
 export type InsertFacility = z.infer<typeof insertFacilitySchema>;
