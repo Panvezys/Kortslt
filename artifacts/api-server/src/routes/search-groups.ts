@@ -116,8 +116,8 @@ router.get("/search/groups", async (req, res): Promise<void> => {
   const surface  = typeof req.query.surface  === "string" ? req.query.surface.trim()  : null;
   const condition = typeof req.query.condition === "string" ? req.query.condition.trim() : null;
   const isIndoor = req.query.isIndoor === "true" ? true : req.query.isIndoor === "false" ? false : null;
-  const minPrice = req.query.minPrice != null ? Number(req.query.minPrice) : null;
-  const maxPrice = req.query.maxPrice != null ? Number(req.query.maxPrice) : null;
+  const minPrice = typeof req.query.minPrice === "string" && req.query.minPrice.trim() !== "" && isFinite(Number(req.query.minPrice)) ? Number(req.query.minPrice) : null;
+  const maxPrice = typeof req.query.maxPrice === "string" && req.query.maxPrice.trim() !== "" && isFinite(Number(req.query.maxPrice)) ? Number(req.query.maxPrice) : null;
 
   const sportFilter    = sport    != null ? sql`AND REPLACE(c.type, '-', '_') = ${sport}`    : sql``;
   const cityFilter     = city     != null ? sql`AND f.city = ${city}`                         : sql``;
@@ -322,21 +322,8 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
 
   const courtRows = courtsResult.rows as unknown as CourtRow[];
 
-  // Merge photos from all matching courts
-  const allPhotoResults = await db.execute(sql`
-    SELECT url FROM court_photos
-    WHERE court_id IN (
-      SELECT id FROM courts
-      WHERE facility_id = ${facilityId}
-        AND REPLACE(type, '-', '_') = ${sport}
-        AND status IN ('approved', 'active')
-        ${indoorFilter}
-        ${surfaceFilter}
-        ${conditionFilter}
-    )
-    ORDER BY display_order
-  `);
-  const mergedPhotos = (allPhotoResults.rows as { url: string }[]).map(r => r.url);
+  // Merge photos — courtRows already fetches per-court photos; flatten here
+  const mergedPhotos = courtRows.flatMap(c => c.photos ?? []);
 
   const amenitySet = new Set<string>();
   for (const c of courtRows) {

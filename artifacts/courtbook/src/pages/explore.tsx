@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
@@ -10,9 +10,7 @@ import { Search, X } from "lucide-react";
 import { FacilitySportCard } from "@/components/facility-sport-card";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
 import { SPORT_LABELS } from "@/components/sport-icon";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const API = `${BASE}/api`;
+import { customFetch } from "@workspace/api-client-react";
 
 async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResult[]> {
   const p = new URLSearchParams();
@@ -24,9 +22,7 @@ async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResu
   if (filters.minPrice != null) p.set("minPrice", String(filters.minPrice));
   if (filters.maxPrice != null) p.set("maxPrice", String(filters.maxPrice));
   const qs = p.toString();
-  const res = await fetch(`${API}/search/groups${qs ? `?${qs}` : ""}`);
-  if (!res.ok) throw new Error("Search failed");
-  return res.json();
+  return customFetch<SearchGroupResult[]>(`/api/search/groups${qs ? `?${qs}` : ""}`);
 }
 
 // Build sport options from SPORT_LABELS — skip alias keys that contain "-"
@@ -43,6 +39,15 @@ export default function ExplorePage() {
   const [surface,  setSurface]  = useState<string>(sp.get("surface")  ?? "");
   const [isIndoor, setIsIndoor] = useState<string>(sp.get("isIndoor") ?? "");
   const [nameQ,    setNameQ]    = useState<string>("");
+
+  // Sync filter dropdowns when URL changes (e.g. back-navigation to /explore?sport=X)
+  useEffect(() => {
+    const p = new URLSearchParams(search);
+    setSport(p.get("sport")    ?? "");
+    setCity(p.get("city")      ?? "");
+    setSurface(p.get("surface") ?? "");
+    setIsIndoor(p.get("isIndoor") ?? "");
+  }, [search]);
 
   const filters: SearchGroupFilters = useMemo(() => ({
     sport:    sport    || undefined,

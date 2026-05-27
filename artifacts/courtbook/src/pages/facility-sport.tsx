@@ -13,9 +13,7 @@ import { SportPill, getSportLabel } from "@/components/sport-icon";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { Link } from "wouter";
 import type { GroupDetailResult } from "@/lib/search-groups-types";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const API = `${BASE}/api`;
+import { customFetch } from "@workspace/api-client-react";
 
 async function fetchGroupDetail(
   facilityId: string,
@@ -27,16 +25,16 @@ async function fetchGroupDetail(
   if (filters.surface)   p.set("surface",   filters.surface);
   if (filters.condition) p.set("condition", filters.condition);
   const qs = p.toString();
-  const res = await fetch(`${API}/search/groups/${facilityId}/${sport}${qs ? `?${qs}` : ""}`);
-  if (!res.ok) throw new Error("Group not found");
-  return res.json();
+  return customFetch<GroupDetailResult>(`/api/search/groups/${facilityId}/${sport}${qs ? `?${qs}` : ""}`);
 }
 
 async function fetchAvailableSports(facilityId: string): Promise<string[]> {
-  const res = await fetch(`${API}/facilities/${facilityId}/public`);
-  if (!res.ok) return [];
-  const data: { courts: { type: string }[] } = await res.json();
-  return [...new Set((data.courts ?? []).map(c => c.type.replace(/-/g, "_")))];
+  try {
+    const data = await customFetch<{ courts: { type: string }[] }>(`/api/facilities/${facilityId}/public`);
+    return [...new Set((data.courts ?? []).map(c => c.type.replace(/-/g, "_")))];
+  } catch {
+    return [];
+  }
 }
 
 export default function FacilitySportPage() {
@@ -154,7 +152,7 @@ export default function FacilitySportPage() {
               </div>
             )}
           </div>
-          <p className="text-sm text-muted-foreground">{courtCount} aikštelė{courtCount !== 1 ? "s" : ""}</p>
+          <p className="text-sm text-muted-foreground">{courtCount} aikštelė{courtCount === 1 ? "" : courtCount < 10 ? "s" : "ių"}</p>
         </div>
 
         {availableSports.length > 1 && (
