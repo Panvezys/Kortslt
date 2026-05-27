@@ -55,13 +55,15 @@ export default function FacilitySportPage() {
   const [redirecting, setRedirecting] = useState(!sportParam);
   useEffect(() => {
     if (!sportParam && facilityId) {
-      fetchAvailableSports(facilityId).then(sports => {
-        if (sports.length > 0) {
-          setLocation(`/facility/${facilityId}?sport=${sports[0]}`, { replace: true });
-        } else {
-          setRedirecting(false);
-        }
-      });
+      fetchAvailableSports(facilityId)
+        .then(sports => {
+          if (sports.length > 0) {
+            setLocation(`/facility/${facilityId}?sport=${sports[0]}`, { replace: true });
+          } else {
+            setRedirecting(false);
+          }
+        })
+        .catch(() => setRedirecting(false));
     }
   }, [facilityId, sportParam, setLocation]);
 
