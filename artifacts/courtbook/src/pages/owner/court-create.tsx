@@ -556,7 +556,7 @@ export default function CourtCreatePage() {
       for (const file of catGalleryFiles) {
         const fd = new FormData();
         fd.append("image", file);
-        const r = await fetch(`${API_URL}/upload/court-image`, { method: "POST", body: fd });
+        const r = await fetch(`${API_URL}/upload/court-image`, { method: "POST", body: fd, credentials: "include" });
         if (!r.ok) throw new Error("Nuotraukos įkėlimas nepavyko");
         const json = await r.json();
         photoUrls.push(json.path as string);

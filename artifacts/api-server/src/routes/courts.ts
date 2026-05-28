@@ -378,12 +378,12 @@ const BulkCreateCourtsBody = z.object({
   type: z.string().min(1),
   isIndoor: z.boolean().default(false),
   surface: z.string().optional(),
-  pricePerHour: z.coerce.number().positive(),
+  pricePerHour: z.coerce.number().min(1),
   quantity: z.coerce.number().int().min(1).max(20),
   amenities: z.array(z.string()).optional(),
   photoUrls: z.array(
     z.string().regex(/^courts\/uploads\/[\w.\-]+\.webp$/, "Invalid upload path")
-  ).max(10).optional(),
+  ).max(3).optional(),
 });
 
 router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
@@ -404,42 +404,42 @@ router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
   // Normalise slug so "table-tennis" and "table_tennis" both resolve correctly.
   const sport = type.replace(/-/g, "_");
 
-  // Find the highest trailing sequence number for this facility+sport so a
-  // second batch continues (e.g. Tennis - 3, 4, 5) instead of colliding.
-  const existingNames = await db
-    .select({ name: courtsTable.name })
-    .from(courtsTable)
-    .where(and(
-      eq(courtsTable.facilityId, facilityId),
-      sql`REPLACE(${courtsTable.type}, '-', '_') = ${sport}`,
-    ));
-
-  const trailingRe = /^.+ - (\d+)$/;
-  let maxN = 0;
-  for (const { name } of existingNames) {
-    const m = trailingRe.exec(name);
-    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
-  }
-
-  const sportLabel = SPORT_LT[sport] ?? SPORT_LT[type] ?? type;
-  const startIndex = maxN + 1;
   const uploaderId = getCurrentUserId(req);
 
-  const insertValues = Array.from({ length: quantity }, (_, i) => ({
-    name: `${sportLabel} - ${startIndex + i}`,
-    type,
-    isIndoor,
-    surface: surface ?? null,
-    pricePerHour: String(pricePerHour),
-    amenities: amenities ?? [],
-    facilityId,
-    maxPlayers: 4,
-    instantBookingEnabled: true,
-    status: "draft" as const,
-    condition: "good" as const,
-  }));
-
   const created = await db.transaction(async (tx) => {
+    // Lock: read existing names inside transaction to prevent concurrent sequence collision
+    const existingNames = await tx
+      .select({ name: courtsTable.name })
+      .from(courtsTable)
+      .where(and(
+        eq(courtsTable.facilityId, facilityId),
+        sql`REPLACE(${courtsTable.type}, '-', '_') = ${sport}`,
+      ));
+
+    const trailingRe = /^.+ - (\d+)$/;
+    let maxN = 0;
+    for (const { name } of existingNames) {
+      const m = trailingRe.exec(name);
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    }
+
+    const sportLabel = SPORT_LT[sport] ?? SPORT_LT[type] ?? type;
+    const startIndex = maxN + 1;
+
+    const insertValues = Array.from({ length: quantity }, (_, i) => ({
+      name: `${sportLabel} - ${startIndex + i}`,
+      type,
+      isIndoor,
+      surface: surface ?? null,
+      pricePerHour: String(pricePerHour),
+      amenities: amenities ?? [],
+      facilityId,
+      maxPlayers: 4,
+      instantBookingEnabled: true,
+      status: "draft" as const,
+      condition: "good" as const,
+    }));
+
     const rows = await tx
       .insert(courtsTable)
       .values(insertValues)
