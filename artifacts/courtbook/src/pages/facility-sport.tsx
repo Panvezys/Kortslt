@@ -18,6 +18,7 @@ import { GroupBookingWidget } from "@/components/group-booking-widget";
 import { WeatherWidget } from "@/components/weather-widget";
 import { useToast } from "@/hooks/use-toast";
 import { format as formatDate } from "date-fns";
+import { safeUrl } from "@/lib/validators";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -468,16 +469,16 @@ export default function FacilitySportPage() {
                   <a href={`mailto:${facility.email}`} className="hover:text-foreground">{facility.email}</a>
                 </p>
               )}
-              {facility.socialInstagram && (
+              {safeUrl(facility.socialInstagram) && (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Instagram className="w-4 h-4 shrink-0" />
-                  <a href={facility.socialInstagram} target="_blank" rel="noopener noreferrer" className="hover:text-foreground truncate">{facility.socialInstagram.replace(/^https?:\/\/(www\.)?/, "")}</a>
+                  <a href={safeUrl(facility.socialInstagram)} target="_blank" rel="noopener noreferrer" className="hover:text-foreground truncate">{facility.socialInstagram!.replace(/^https?:\/\/(www\.)?/, "")}</a>
                 </p>
               )}
-              {facility.socialFacebook && (
+              {safeUrl(facility.socialFacebook) && (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Facebook className="w-4 h-4 shrink-0" />
-                  <a href={facility.socialFacebook} target="_blank" rel="noopener noreferrer" className="hover:text-foreground truncate">{facility.socialFacebook.replace(/^https?:\/\/(www\.)?/, "")}</a>
+                  <a href={safeUrl(facility.socialFacebook)} target="_blank" rel="noopener noreferrer" className="hover:text-foreground truncate">{facility.socialFacebook!.replace(/^https?:\/\/(www\.)?/, "")}</a>
                 </p>
               )}
             </div>

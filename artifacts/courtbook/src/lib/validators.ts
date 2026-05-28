@@ -35,3 +35,14 @@ export function validatePhone(raw: unknown, opts: ValidatorOpts = {}): string | 
   if (!PHONE_DIGIT_RE.test(normalized)) return "Neteisingas telefono numeris";
   return null;
 }
+
+/** Validate a user-supplied URL, allowing only http/https schemes.
+ *  Returns the URL string on success, undefined otherwise.
+ *  Use on any anchor href that comes from user data to prevent javascript: XSS. */
+export function safeUrl(u?: string | null): string | undefined {
+  if (!u) return undefined;
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : undefined;
+  } catch { return undefined; }
+}
