@@ -22,6 +22,7 @@ import {
   SetCourtPricingResponse,
 } from "@workspace/api-zod";
 import { requireAuth, requireAdmin, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { z } from "zod";
 import { sendAdminNotification } from "../lib/notify";
 
 const router: IRouter = Router();
@@ -359,6 +360,103 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(formatCourt(court, facility));
+});
+
+// ── Bulk court creation helpers ───────────────────────────────────────────────
+
+const SPORT_LT: Record<string, string> = {
+  tennis: "Tenisas", basketball: "Krepšinis", padel: "Padelis",
+  football: "Futbolas", badminton: "Badmintonas", squash: "Skvošas",
+  table_tennis: "Stalo tenisas", golf: "Golfas", snooker: "Snukeris",
+  bowling: "Boulingas", volleyball: "Tinklinis", hockey: "Ledo ritulys",
+  futsal: "Futsalas", floorball: "Florbolas",
+  "beach-volleyball": "Paplūdimio tinklinis", pickleball: "Pickleball",
+};
+
+const BulkCreateCourtsBody = z.object({
+  facilityId: z.coerce.number().int().positive(),
+  type: z.string().min(1),
+  isIndoor: z.boolean().default(false),
+  surface: z.string().optional(),
+  pricePerHour: z.coerce.number().positive(),
+  quantity: z.coerce.number().int().min(1).max(20),
+  amenities: z.array(z.string()).optional(),
+  photoUrls: z.array(z.string()).optional(),
+});
+
+router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BulkCreateCourtsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { facilityId, type, isIndoor, surface, pricePerHour, quantity, amenities, photoUrls } = parsed.data;
+
+  const facility = await getFacility(facilityId);
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!(await isOwner(req, facility.ownerUserId))) {
+    res.status(403).json({ error: "Forbidden – you do not own this facility" }); return;
+  }
+
+  // Normalise slug so "table-tennis" and "table_tennis" both resolve correctly.
+  const sport = type.replace(/-/g, "_");
+
+  // Find the highest trailing sequence number for this facility+sport so a
+  // second batch continues (e.g. Tennis - 3, 4, 5) instead of colliding.
+  const existingNames = await db
+    .select({ name: courtsTable.name })
+    .from(courtsTable)
+    .where(and(
+      eq(courtsTable.facilityId, facilityId),
+      sql`REPLACE(${courtsTable.type}, '-', '_') = ${sport}`,
+    ));
+
+  const trailingRe = /^.+ - (\d+)$/;
+  let maxN = 0;
+  for (const { name } of existingNames) {
+    const m = trailingRe.exec(name);
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  }
+
+  const sportLabel = SPORT_LT[sport] ?? SPORT_LT[type] ?? type;
+  const startIndex = maxN + 1;
+  const uploaderId = getCurrentUserId(req);
+
+  const insertValues = Array.from({ length: quantity }, (_, i) => ({
+    name: `${sportLabel} - ${startIndex + i}`,
+    type,
+    isIndoor,
+    surface: surface ?? null,
+    pricePerHour: String(pricePerHour),
+    amenities: amenities ?? [],
+    facilityId,
+    maxPlayers: 4,
+    instantBookingEnabled: true,
+    status: "draft" as const,
+    condition: "good" as const,
+  }));
+
+  const created = await db
+    .insert(courtsTable)
+    .values(insertValues)
+    .returning({ id: courtsTable.id, name: courtsTable.name });
+
+  // Duplicate photo URLs into court_photos for every generated court so each
+  // court is a fully autonomous entity (deleting one doesn't affect siblings).
+  if (photoUrls && photoUrls.length > 0) {
+    const photoRows = created.flatMap((court) =>
+      photoUrls.map((url, displayOrder) => ({
+        courtId: court.id,
+        url,
+        displayOrder,
+        uploadedBy: uploaderId ?? null,
+      }))
+    );
+    await db.insert(courtPhotosTable).values(photoRows);
+  }
+
+  res.status(201).json({ courts: created });
 });
 
 // GET /courts/available-for-slot?date=YYYY-MM-DD&startTime=HH:MM&endTime=HH:MM&sport=tennis
