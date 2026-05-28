@@ -102,7 +102,7 @@ const dayNames: Record<string, string> = {
   "4": "Ketvirtadienis", "5": "Penktadienis", "6": "Šeštadienis",
 };
 
-const courtSchema = z.object({
+const editCourtSchema = z.object({
   name: z.string().min(2, "Pavadinimas privalomas"),
   type: z.enum(["tennis", "basketball", "padel", "football", "badminton", "squash", "table_tennis", "golf", "snooker", "bowling"]),
   description: z.string().optional(),
@@ -116,7 +116,21 @@ const courtSchema = z.object({
   hasSmartLock: z.boolean().default(false),
   accessInstructions: z.string().optional(),
 });
-type CourtFormValues = z.infer<typeof courtSchema>;
+type EditCourtFormValues = z.infer<typeof editCourtSchema>;
+
+const categorySchema = z.object({
+  type: z.string().min(1, "Pasirinkite sporto šaką"),
+  isIndoor: z.boolean().default(false),
+  surface: z.string().optional(),
+  pricePerHour: z.coerce.number().min(1, "Kaina turi būti bent 1 €"),
+  quantity: z.coerce.number().int().min(1).max(20).default(1),
+});
+type CategoryFormValues = z.infer<typeof categorySchema>;
+
+const CATEGORY_SPORTS = [
+  "tennis", "basketball", "padel", "football", "badminton",
+  "squash", "table_tennis", "golf", "snooker", "bowling",
+] as const;
 
 interface FacilityData {
   id: number;
@@ -187,6 +201,16 @@ export default function CourtCreatePage() {
   const [amenityPhotos, setAmenityPhotos] = useState<Record<string, string>>({});
   const [uploadingAmenity, setUploadingAmenity] = useState<string | null>(null);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [catGalleryFiles, setCatGalleryFiles] = useState<File[]>([]);
+  const [catGalleryPreviews, setCatGalleryPreviews] = useState<string[]>([]);
+  const catGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  const categoryForm = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: { type: "tennis", isIndoor: false, surface: "", pricePerHour: 20, quantity: 1 },
+  });
+
   useEffect(() => {
     if (!facilityId) return;
     customFetch<FacilityData>(`${API_URL}/facilities/${facilityId}`)
@@ -210,8 +234,8 @@ export default function CourtCreatePage() {
     return () => { galleryPreviews.forEach((u) => URL.revokeObjectURL(u)); };
   }, [galleryPreviews]);
 
-  const form = useForm<CourtFormValues>({
-    resolver: zodResolver(courtSchema),
+  const form = useForm<EditCourtFormValues>({
+    resolver: zodResolver(editCourtSchema),
     defaultValues: {
       name: "",
       type: "tennis",
@@ -335,6 +359,18 @@ export default function CourtCreatePage() {
     setGalleryPreviews((p) => p.filter((_, i) => i !== idx));
   };
 
+  const handleCatGalleryFiles = (files: FileList) => {
+    const toAdd = Array.from(files).slice(0, 3 - catGalleryFiles.length);
+    setCatGalleryFiles(prev => [...prev, ...toAdd]);
+    setCatGalleryPreviews(prev => [...prev, ...toAdd.map(f => URL.createObjectURL(f))]);
+  };
+
+  const removeCatGalleryFile = (idx: number) => {
+    URL.revokeObjectURL(catGalleryPreviews[idx]);
+    setCatGalleryFiles(prev => prev.filter((_, i) => i !== idx));
+    setCatGalleryPreviews(prev => prev.filter((_, i) => i !== idx));
+  };
+
   // Map form field name → tab id (for routing validation errors to the right tab)
   const FIELD_TO_TAB: Record<string, TabId> = {
     name: "info",
@@ -361,7 +397,7 @@ export default function CourtCreatePage() {
     accessInstructions: "Prieigos instrukcijos",
   };
 
-  const onInvalid = (errors: Record<string, { message?: string } | undefined>) => {
+  const onInvalid = (errors: Partial<Record<keyof EditCourtFormValues, { message?: string }>>) => {
     const fields = Object.keys(errors);
     if (fields.length === 0) return;
     // Switch to the first tab that has an error (in tab order)
@@ -379,7 +415,7 @@ export default function CourtCreatePage() {
     });
   };
 
-  const buildPayload = (data: Partial<CourtFormValues>): Record<string, unknown> => {
+  const buildPayload = (data: Partial<EditCourtFormValues>): Record<string, unknown> => {
     const cleanStr = (v: unknown): string | undefined => {
       if (typeof v !== "string") return undefined;
       const t = v.trim();
@@ -455,7 +491,7 @@ export default function CourtCreatePage() {
     }
   };
 
-  const onSubmit = async (data: CourtFormValues) => {
+  const onSubmit = async (data: EditCourtFormValues) => {
     try {
       const payload = buildPayload(data);
       let courtIdResult: number;
@@ -510,12 +546,223 @@ export default function CourtCreatePage() {
     }
   };
 
+  const onCategorySubmit = async (data: CategoryFormValues) => {
+    setSubmitting(true);
+    try {
+      const photoUrls: string[] = [];
+      for (const file of catGalleryFiles) {
+        const fd = new FormData();
+        fd.append("image", file);
+        const r = await fetch(`${API_URL}/upload/court-image`, { method: "POST", body: fd });
+        if (!r.ok) throw new Error("Nuotraukos įkėlimas nepavyko");
+        const json = await r.json();
+        photoUrls.push(json.path as string);
+      }
+
+      const result = await customFetch<{ courts: { id: number; name: string }[] }>(
+        `/api/courts/bulk`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            facilityId,
+            type: data.type,
+            isIndoor: data.isIndoor,
+            surface: data.surface?.trim() || undefined,
+            pricePerHour: data.pricePerHour,
+            quantity: data.quantity,
+            photoUrls: photoUrls.length > 0 ? photoUrls : undefined,
+          }),
+          responseType: "json",
+        }
+      );
+
+      queryClient.invalidateQueries({ queryKey: ["facility-detail", String(facilityId)] });
+      queryClient.invalidateQueries({ queryKey: ["owner-facilities"] });
+      queryClient.invalidateQueries({
+        queryKey: getListCourtsQueryKey(facility?.ownerUserId ? { ownerUserId: facility.ownerUserId } : undefined),
+      });
+      navigate(`/owner/facility/${facilityId}?generated=${result.courts.length}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bandykite dar kartą";
+      toast({
+        title: "Klaida kuriant aikšteles",
+        description: msg,
+        variant: "destructive",
+      });
+      setSubmitting(false);
+    }
+  };
+
   if (loading || !facility || (isEdit && !editingCourt)) {
     return (
       <OwnerLayout facilityId={facilityId} title={isEdit ? "Redaguoti aikštelę" : "Pridėti aikštelę"}>
         <div className="p-4 md:p-6 space-y-4">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="h-80 rounded-2xl" />
+        </div>
+      </OwnerLayout>
+    );
+  }
+
+  if (!isEdit) {
+    return (
+      <OwnerLayout facilityId={facilityId} facilityName={facility.name} title="Pridėti aikšteles">
+        <div className="p-4 md:p-6 max-w-xl mx-auto space-y-6">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/owner/facility/${facilityId}`)}
+              className="p-1 hover:bg-muted rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold">Pridėti aikšteles</h1>
+              <p className="text-sm text-muted-foreground">{facility.name}</p>
+            </div>
+          </div>
+
+          <Form {...categoryForm}>
+            <form onSubmit={categoryForm.handleSubmit(onCategorySubmit)} className="space-y-5">
+
+              <FormField control={categoryForm.control} name="type" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sporto šaka</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Pasirinkite" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {CATEGORY_SPORTS.map(s => (
+                        <SelectItem key={s} value={s}>{SPORT_LABELS[s] ?? s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={categoryForm.control} name="isIndoor" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vieta</FormLabel>
+                  <FormControl>
+                    <div className="flex rounded-md border overflow-hidden w-48">
+                      {([false, true] as const).map(val => (
+                        <button
+                          key={String(val)}
+                          type="button"
+                          onClick={() => field.onChange(val)}
+                          className={`flex-1 text-sm py-2.5 font-medium transition-colors ${
+                            field.value === val
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-background hover:bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {val ? "Vidaus" : "Lauko"}
+                        </button>
+                      ))}
+                    </div>
+                  </FormControl>
+                </FormItem>
+              )} />
+
+              <FormField control={categoryForm.control} name="surface" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Danga <span className="text-muted-foreground font-normal text-xs">(neprivaloma)</span></FormLabel>
+                  <Select value={field.value || "_none_"} onValueChange={v => field.onChange(v === "_none_" ? "" : v)}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Pasirinkite dangą" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="_none_">Nenurodyta</SelectItem>
+                      <SelectItem value="clay">Molis</SelectItem>
+                      <SelectItem value="hard">Kieta danga</SelectItem>
+                      <SelectItem value="grass">Žolė</SelectItem>
+                      <SelectItem value="carpet">Kilimas</SelectItem>
+                      <SelectItem value="wood">Mediena</SelectItem>
+                      <SelectItem value="rubber">Guma</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+
+              <FormField control={categoryForm.control} name="pricePerHour" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kaina / val (€)</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} step={0.5} {...field} className="w-36" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={categoryForm.control} name="quantity" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kiekis</FormLabel>
+                  <FormControl>
+                    <Input type="number" min={1} max={20} {...field} className="w-24" />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Maks. 20 aikštelių vienu kartu</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div>
+                <Label className="mb-2 block text-sm font-medium">
+                  Kategorijos nuotraukos{" "}
+                  <span className="text-muted-foreground font-normal text-xs">(neprivaloma, maks. 3)</span>
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {catGalleryPreviews.map((src, i) => (
+                    <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+                      <img src={src} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removeCatGalleryFile(i)}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  {catGalleryFiles.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() => catGalleryInputRef.current?.click()}
+                      className="w-24 h-24 rounded-lg border-2 border-dashed border-border hover:border-primary/60 flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Images className="w-5 h-5" />
+                      <span className="text-xs">Įkelti</span>
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={catGalleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={e => e.target.files && handleCatGalleryFiles(e.target.files)}
+                />
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground flex gap-3">
+                <Lightbulb className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+                <span>
+                  Išplėstiniai nustatymai (Smart Lock, darbo laikas, įranga) bus prieinami kiekvienai
+                  aikštelei atskirai po sukūrimo.
+                </span>
+              </div>
+
+              <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+                {submitting
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Kuriama…</>
+                  : "Sukurti aikšteles"
+                }
+              </Button>
+
+            </form>
+          </Form>
         </div>
       </OwnerLayout>
     );
