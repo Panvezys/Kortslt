@@ -7,7 +7,7 @@
  * GET  /api/bookings/:bookingId/split-status — host/participant: see all payment statuses
  */
 import { Router, type IRouter } from "express";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql, inArray } from "drizzle-orm";
 import {
   db,
   bookingsTable,
@@ -1013,6 +1013,226 @@ router.get("/test/sweep-host-guarantees", async (_req, res): Promise<void> => {
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err?.message ?? String(err) });
   }
+});
+
+// ─── POST /search/groups/:facilityId/:sport/checkout-split ────────────────────
+// Group split checkout: auto-allocates a court (wear-balancing) then runs the
+// same split booking + game + Stripe flow as /games/checkout-split.
+
+const GroupSplitCheckoutBody = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  totalSlots: z.number().int().min(2).max(8),
+  skillLevel: z.string().optional().default("any"),
+  description: z.string().optional(),
+  customerName: z.string().min(1),
+  customerEmail: z.string().email(),
+  customerPhone: z.string().optional(),
+  isPublic: z.boolean().optional().default(false),
+  minSkillLevel: z.number().min(0).max(10).optional(),
+  maxSkillLevel: z.number().min(0).max(10).optional(),
+  matchType: z.enum(["casual", "competitive"]).optional().default("casual"),
+});
+
+router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = parseInt(String(req.params.facilityId), 10);
+  const sportRaw   = String(req.params.sport);
+  if (isNaN(facilityId) || !sportRaw) { res.status(400).json({ error: "Invalid parameters" }); return; }
+  const sport = sportRaw.replace(/-/g, "_");
+
+  const userId = getCurrentUserId(req)!;
+  const parsed = GroupSplitCheckoutBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const {
+    date, startTime, endTime, totalSlots, skillLevel, description,
+    customerName, customerEmail, customerPhone,
+    isPublic, minSkillLevel, maxSkillLevel, matchType,
+  } = parsed.data;
+
+  const reqStartMin = toMin(startTime);
+  const reqEndMin   = toMin(endTime);
+  if (reqEndMin <= reqStartMin) { res.status(400).json({ error: "endTime must be after startTime" }); return; }
+
+  const dateInt = parseInt(date.replace(/-/g, ""), 10);
+
+  // ── Wear-balancing court list (same as group-book endpoint) ─────────────────
+  const courtsRaw = await db.execute(sql`
+    SELECT c.id, c.price_per_hour AS "pricePerHour", c.facility_id AS "facilityId",
+           COUNT(b.id) FILTER (
+             WHERE b.status IN ('confirmed','awaiting_players')
+               OR  (b.status = 'pending' AND b.created_at > NOW() - INTERVAL '15 minutes')
+           ) AS booking_count
+    FROM courts c
+    LEFT JOIN bookings b ON b.court_id = c.id AND b.created_at >= NOW() - INTERVAL '7 days'
+    WHERE c.facility_id = ${facilityId}
+      AND REPLACE(c.type, '-', '_') = ${sport}
+      AND c.status IN ('approved', 'active')
+    GROUP BY c.id, c.price_per_hour, c.facility_id
+    ORDER BY booking_count ASC, c.id ASC
+  `);
+  const courts = (courtsRaw.rows as { id: number; pricePerHour: string; facilityId: number; booking_count: string }[])
+    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, facilityId: r.facilityId }));
+
+  if (courts.length === 0) { res.status(404).json({ error: "No active courts for this group" }); return; }
+
+  // ── Fetch facility once ────────────────────────────────────────────────────
+  const [facilityRow] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  if (!facilityRow) { res.status(404).json({ error: "Facility not found" }); return; }
+
+  class ConflictError extends Error { constructor() { super("Conflict"); } }
+
+  // ── Try each court; first free one wins ────────────────────────────────────
+  for (const courtCandidate of courts) {
+    const defaultSlotPrice = Number(courtCandidate.pricePerHour) / 2;
+
+    try {
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${sql.raw(String(courtCandidate.id))}::int, ${sql.raw(String(dateInt))}::int)`);
+
+        const [conflicting, blocked] = await Promise.all([
+          tx.select({ s: bookingsTable.startTime, e: bookingsTable.endTime })
+            .from(bookingsTable)
+            .where(and(
+              eq(bookingsTable.courtId, courtCandidate.id),
+              eq(bookingsTable.date, date),
+              sql`${bookingsTable.status} IN ('confirmed','blocked','awaiting_players')
+                  OR (${bookingsTable.status} = 'pending' AND ${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes')`,
+            )),
+          tx.select({ s: courtBlockedSlotsTable.startTime, e: courtBlockedSlotsTable.endTime })
+            .from(courtBlockedSlotsTable)
+            .where(and(eq(courtBlockedSlotsTable.courtId, courtCandidate.id), eq(courtBlockedSlotsTable.date, date))),
+        ]);
+
+        for (const b of [...conflicting, ...blocked]) {
+          if (reqStartMin < toMin(b.e) && reqEndMin > toMin(b.s)) throw new ConflictError();
+        }
+
+        // Court is free — compute price
+        const { priceMap } = await buildDayPriceMap(courtCandidate.id, date, defaultSlotPrice);
+        let courtPrice = 0;
+        for (const s of slotsBetween(startTime, endTime)) courtPrice += priceMap.get(s) ?? defaultSlotPrice;
+        const pricePerSlot = Math.round((courtPrice / totalSlots) * 100) / 100;
+        const durationMinutes = reqEndMin - reqStartMin;
+        const splitInviteToken = crypto.randomBytes(20).toString("hex");
+        const datetime = `${date}T${startTime}:00`;
+
+        const [booking] = await tx.insert(bookingsTable).values({
+          courtId: courtCandidate.id,
+          bookerUserId: userId,
+          customerName,
+          customerEmail,
+          customerPhone: customerPhone ?? null,
+          date, startTime, endTime,
+          totalPrice: String(courtPrice),
+          status: "pending",
+          isSplit: true,
+          totalSlots,
+          pricePerSlot: String(pricePerSlot),
+          splitInviteToken,
+        }).returning();
+
+        const [game] = await tx.insert(gamesTable).values({
+          creatorUserId: userId,
+          creatorName: customerName,
+          creatorEmail: customerEmail,
+          sport,
+          city: facilityRow.city ?? "",
+          placeName: facilityRow.name,
+          facilityId,
+          courtId: courtCandidate.id,
+          bookingId: booking.id,
+          playersNeeded: totalSlots,
+          skillLevel: skillLevel ?? "any",
+          datetime,
+          durationMinutes,
+          description: description ?? null,
+          status: "pending_payment",
+          matchType: matchType ?? "casual",
+          isPrivate: !isPublic,
+          visibility: isPublic ? "public" : "private",
+          minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
+          maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
+          requiresApproval: false,
+          teamCount: 2,
+        }).returning();
+
+        const [hostParticipant] = await tx.insert(gameParticipantsTable).values({
+          gameId: game.id,
+          userId,
+          userName: customerName,
+          userEmail: customerEmail,
+          status: "joined",
+          source: "join_request",
+          paymentStatus: "pending",
+        }).returning();
+
+        return { booking, game, hostParticipant, courtPrice, pricePerSlot, splitInviteToken, durationMinutes };
+      });
+
+      // ── Stripe ──────────────────────────────────────────────────────────────
+      const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
+      const base = process.env.BASE_PATH ?? "";
+      const successUrl = `${origin}${base}/booking-confirmed?id=${result.booking.id}&split=1`;
+      const cancelUrl  = `${origin}${base}/facility/${facilityId}?sport=${sport}`;
+
+      let checkoutUrl: string;
+      try {
+        const stripe = await getUncachableStripeClient();
+        let connectAccountId: string | null = null;
+        if (facilityRow.ownerUserId) {
+          const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+            .from(userProfilesTable).where(eq(userProfilesTable.userId, facilityRow.ownerUserId));
+          if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
+        }
+
+        const amountCents = Math.round(result.pricePerSlot * 100);
+        const sessionParams: any = {
+          payment_method_types: ["card"],
+          line_items: [{ price_data: { currency: "eur", product_data: { name: `${facilityRow.name} – mokėjimo dalis (1/${totalSlots})`, description: `${date} · ${startTime}–${endTime}` }, unit_amount: amountCents }, quantity: 1 }],
+          mode: "payment",
+          success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: cancelUrl,
+          metadata: { bookingId: String(result.booking.id), splitParticipantId: String(result.hostParticipant.id) },
+          customer_email: customerEmail,
+          customer_creation: "always",
+          locale: "lt",
+          payment_intent_data: { setup_future_usage: "off_session" },
+        };
+        if (connectAccountId) {
+          const feeAmount = Math.round(amountCents * 5 / 100);
+          sessionParams.payment_intent_data = { setup_future_usage: "off_session", application_fee_amount: feeAmount, transfer_data: { destination: connectAccountId } };
+        }
+        const session = await stripe.checkout.sessions.create(sessionParams);
+        await db.update(bookingsTable).set({ stripeSessionId: session.id }).where(eq(bookingsTable.id, result.booking.id));
+        await db.update(gameParticipantsTable).set({ stripeSessionId: session.id }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
+        checkoutUrl = session.url!;
+      } catch (err: any) {
+        if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
+          const mockId = `mock_split_${result.booking.id}_${Date.now()}`;
+          await db.update(bookingsTable).set({ stripeSessionId: mockId, status: "awaiting_players" }).where(eq(bookingsTable.id, result.booking.id));
+          await db.update(gameParticipantsTable).set({ stripeSessionId: mockId, paymentStatus: "paid" }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
+          await db.update(gamesTable).set({ status: "awaiting_players" }).where(eq(gamesTable.id, result.game.id));
+          checkoutUrl = `${successUrl}&session_id=${mockId}`;
+        } else {
+          logger.error({ err }, "Group split: Stripe session failed");
+          await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, result.booking.id));
+          await db.delete(gamesTable).where(eq(gamesTable.id, result.game.id));
+          res.status(500).json({ error: "Failed to create payment session" }); return;
+        }
+      }
+
+      res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.game.id, shareToken: result.splitInviteToken, pricePerSlot: result.pricePerSlot });
+      return;
+
+    } catch (err) {
+      if (err instanceof ConflictError) continue;
+      throw err;
+    }
+  }
+
+  res.status(409).json({ error: "No available court for the selected time slot", code: "SLOT_UNAVAILABLE" });
 });
 
 export default router;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearch, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { BackButton } from "@/components/back-button";
 import { EmptyState } from "@/components/empty-state";
@@ -9,13 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MapPin, Star, Phone, Mail, AlertCircle, Instagram, Facebook, ChevronLeft, ChevronRight, Heart, Share2, Clock, ChevronDown, Navigation, X, Images, Loader2 } from "lucide-react";
+import { MapPin, Star, Phone, Mail, AlertCircle, Instagram, Facebook, ChevronLeft, ChevronRight, Heart, Share2, Clock, ChevronDown, Navigation, X, Images, Loader2, Trophy, Users, Zap, Euro, Dumbbell } from "lucide-react";
 import { SportPill, getSportLabel } from "@/components/sport-icon";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import type { GroupDetailResult } from "@/lib/search-groups-types";
 import { customFetch } from "@workspace/api-client-react";
 import { GroupBookingWidget } from "@/components/group-booking-widget";
 import { WeatherWidget } from "@/components/weather-widget";
+import { SurfaceSpecs } from "@/components/surface-specs";
 import { useToast } from "@/hooks/use-toast";
 import { format as formatDate } from "date-fns";
 import { safeUrl } from "@/lib/validators";
@@ -120,6 +122,17 @@ async function fetchAvailableSports(facilityId: string): Promise<string[]> {
   }
 }
 
+interface Coach {
+  id: number;
+  userId: string;
+  name: string;
+  bio?: string;
+  photoUrl?: string;
+  pricePerHour?: number;
+  sports: string[];
+  availabilityDescription?: string;
+}
+
 interface ReviewItem {
   id: number;
   rating: number;
@@ -204,6 +217,30 @@ export default function FacilitySportPage() {
 
   const reviews = reviewsQ.data?.pages.flatMap(p => p.items) ?? [];
   const reviewMeta = reviewsQ.data?.pages[0] ?? null;
+
+  const { data: groupCoaches = [] } = useQuery<Coach[]>({
+    queryKey: ["group-coaches", facilityId, sportParam],
+    queryFn: async () => {
+      if (!data?.courts?.length) return [];
+      const results = await Promise.allSettled(
+        data.courts.map(c =>
+          customFetch<Coach[]>(`/api/courts/${c.id}/coaches`, { responseType: "json" })
+        )
+      );
+      const seen = new Set<number>();
+      const coaches: Coach[] = [];
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          for (const coach of Array.isArray(r.value) ? r.value : []) {
+            if (!seen.has(coach.id)) { seen.add(coach.id); coaches.push(coach); }
+          }
+        }
+      }
+      return coaches;
+    },
+    enabled: !!data?.courts?.length,
+    staleTime: 60_000,
+  });
 
   async function handleShare(name: string) {
     const url = window.location.href;
@@ -442,6 +479,118 @@ export default function FacilitySportPage() {
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Patogumais</p>
                 <div className="flex flex-wrap gap-1.5">
                   {mergedAmenities.map(a => <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>)}
+                </div>
+              </div>
+            )}
+
+            {/* Individual court cards */}
+            {data.courts.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold mb-3 flex items-center gap-2 after:flex-1 after:h-px after:bg-border after:ml-2">
+                  Aikštelės
+                </h2>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {data.courts.map(court => (
+                    <div key={court.id} className="border border-border rounded-xl p-4 bg-card space-y-2.5 hover:border-primary/40 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-sm leading-tight">{court.name}</p>
+                        {court.instantBookingEnabled && (
+                          <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                            <Zap className="w-2.5 h-2.5" />Greita
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {court.surface && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{court.surface}</span>
+                        )}
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
+                          {court.isIndoor ? "Vidaus" : "Lauko"}
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium flex items-center gap-1">
+                          <Users className="w-2.5 h-2.5" />{court.maxPlayers} žaid.
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-foreground flex items-center gap-0.5">
+                          <Euro className="w-3.5 h-3.5 text-muted-foreground" />
+                          {court.effectiveHourlyPrice % 1 === 0 ? court.effectiveHourlyPrice.toFixed(0) : court.effectiveHourlyPrice.toFixed(2)}/val
+                        </span>
+                        {court.rating != null && (
+                          <span className="text-xs flex items-center gap-1 text-muted-foreground">
+                            <Star className="w-3 h-3 fill-yellow-400 stroke-yellow-400" />
+                            {court.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      {court.amenities.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {court.amenities.slice(0, 4).map(a => (
+                            <span key={a} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">{a}</span>
+                          ))}
+                          {court.amenities.length > 4 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">+{court.amenities.length - 4}</span>
+                          )}
+                        </div>
+                      )}
+                      <Link href={`/courts/${court.id}`} className="block w-full text-center text-xs text-primary hover:underline pt-0.5">
+                        Rezervuoti šią aikštelę →
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Surface specs */}
+            {surfacesAvailable.length > 0 && (
+              <SurfaceSpecs sport={sport} surface={surfacesAvailable[0]} />
+            )}
+
+            {/* Equipment */}
+            {facility.equipment?.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold mb-3 flex items-center gap-2 after:flex-1 after:h-px after:bg-border after:ml-2">
+                  <Dumbbell className="w-4 h-4 text-primary" />Įranga
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {facility.equipment.map(item => (
+                    <Badge key={item} variant="secondary" className="text-xs">{item}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Coaches */}
+            {groupCoaches.length > 0 && (
+              <div>
+                <h2 className="text-base font-semibold mb-3 flex items-center gap-2 after:flex-1 after:h-px after:bg-border after:ml-2">
+                  <Trophy className="w-4 h-4 text-primary" />Treneriai
+                </h2>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {groupCoaches.map(coach => (
+                    <a key={coach.id} href={`/coach/${coach.id}`}
+                      className="flex gap-3 p-4 bg-card border rounded-xl hover:border-primary/50 hover:shadow-md transition-all group">
+                      {coach.photoUrl ? (
+                        <img src={coach.photoUrl} alt={coach.name} className="w-12 h-12 rounded-full object-cover border-2 border-muted shrink-0" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Trophy className="w-6 h-6 text-primary/50" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{coach.name}</p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          {coach.pricePerHour != null && (
+                            <span className="font-semibold text-foreground flex items-center gap-0.5">
+                              <Euro className="w-3 h-3" />{coach.pricePerHour}/val
+                            </span>
+                          )}
+                          {coach.availabilityDescription && <span>{coach.availabilityDescription}</span>}
+                        </div>
+                      </div>
+                    </a>
+                  ))}
                 </div>
               </div>
             )}
