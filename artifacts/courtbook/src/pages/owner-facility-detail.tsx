@@ -854,6 +854,7 @@ export default function OwnerFacilityDetail() {
   const [amenityPhotos, setAmenityPhotos] = useState<Record<string, string>>({});
   const [uploadingAmenity, setUploadingAmenity] = useState<string | null>(null);
   const [qrCourt, setQrCourt] = useState<{ id: number; name: string; type: string } | null>(null);
+  const [generatedCount, setGeneratedCount] = useState<number | null>(null);
 
   const { data: facility, isLoading: facilityLoading } = useQuery<FacilityData>({
     queryKey: ["facility-detail", id],
@@ -1006,6 +1007,15 @@ export default function OwnerFacilityDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facility, courts]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get("generated");
+    if (g && /^\d+$/.test(g)) {
+      setGeneratedCount(parseInt(g, 10));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   if (facilityLoading || courtsLoading) {
     return (
       <OwnerLayout facilityId={id ? Number(id) : undefined} title="Aikštelės">
@@ -1067,6 +1077,25 @@ export default function OwnerFacilityDetail() {
             </div>
           </div>
 
+        {generatedCount !== null && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20 px-4 py-3 text-sm">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex-1">
+              <p className="font-medium text-emerald-800 dark:text-emerald-200">
+                {generatedCount} aikštelė{generatedCount === 1 ? "" : generatedCount < 10 ? "s" : "ių"} sukurta sėkmingai
+              </p>
+              <p className="mt-0.5 text-emerald-700/70 dark:text-emerald-400/70">
+                Spustelėkite „Redaguoti" norėdami pridėti išplėstinius nustatymus kiekvienai aikštelei.
+              </p>
+            </div>
+            <button
+              onClick={() => setGeneratedCount(null)}
+              className="shrink-0 text-emerald-600 hover:text-emerald-800 dark:text-emerald-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold">Aikštelės</h2>
           <Button onClick={() => navigate(`/owner/facility/${id}/court/new`)} className="gap-2">
