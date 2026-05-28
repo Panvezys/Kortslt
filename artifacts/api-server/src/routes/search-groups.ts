@@ -234,13 +234,9 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
   const surface   = typeof req.query.surface  === "string" ? req.query.surface  : null;
   const condition = typeof req.query.condition === "string" ? req.query.condition : null;
 
-  // ── Pass 1: full group metadata (unfiltered, visibility gate only) ──────────
-  const metaResult = await db.execute(sql`
-    SELECT
-      ARRAY_AGG(DISTINCT REPLACE(c.type, '-', '_')) FILTER (WHERE c.type IS NOT NULL) AS available_sports,
-      ARRAY_AGG(DISTINCT c.surface)                 FILTER (WHERE c.surface IS NOT NULL) AS surfaces_available,
-      BOOL_OR(c.is_indoor)                                                               AS is_indoor_available,
-      BOOL_OR(NOT c.is_indoor)                                                           AS is_outdoor_available
+  // ── Pass 1a: available sports across the whole facility (unfiltered) ─────────
+  const sportsResult = await db.execute(sql`
+    SELECT ARRAY_AGG(DISTINCT REPLACE(c.type, '-', '_')) FILTER (WHERE c.type IS NOT NULL) AS available_sports
     FROM courts c
     JOIN facilities f ON c.facility_id = f.id
     WHERE c.facility_id = ${facilityId}
@@ -248,19 +244,41 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
       AND f.verification_status = 'active'
   `);
 
+  // ── Pass 1b: surface/indoor metadata scoped to this sport only ───────────────
+  const metaResult = await db.execute(sql`
+    SELECT
+      ARRAY_AGG(DISTINCT c.surface) FILTER (WHERE c.surface IS NOT NULL) AS surfaces_available,
+      BOOL_OR(c.is_indoor)                                                AS is_indoor_available,
+      BOOL_OR(NOT c.is_indoor)                                            AS is_outdoor_available
+    FROM courts c
+    JOIN facilities f ON c.facility_id = f.id
+    WHERE c.facility_id = ${facilityId}
+      AND REPLACE(c.type, '-', '_') = ${sport}
+      AND c.status IN ('approved', 'active')
+      AND f.verification_status = 'active'
+  `);
+
+  const availableSportsRow = sportsResult.rows[0] as { available_sports: string[] | null } | undefined;
   const meta = metaResult.rows[0] as {
-    available_sports: string[] | null;
     surfaces_available: string[] | null;
     is_indoor_available: boolean;
     is_outdoor_available: boolean;
   } | undefined;
 
-  if (!meta || !meta.available_sports?.length) {
+  // Merge into a single shape matching the rest of the handler
+  const mergedMeta = meta && availableSportsRow ? {
+    available_sports: availableSportsRow.available_sports,
+    surfaces_available: meta.surfaces_available,
+    is_indoor_available: meta.is_indoor_available,
+    is_outdoor_available: meta.is_outdoor_available,
+  } : undefined;
+
+  if (!mergedMeta || !mergedMeta.available_sports?.length) {
     res.status(404).json({ error: "Facility not found or no active courts" });
     return;
   }
 
-  if (!meta.available_sports.includes(sport)) {
+  if (!mergedMeta.available_sports.includes(sport)) {
     res.status(404).json({ error: "Sport not available at this facility" });
     return;
   }
@@ -392,10 +410,10 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
     groupRating,
     mergedPhotos,
     mergedAmenities: [...amenitySet],
-    surfacesAvailable: meta.surfaces_available ?? [],
-    isIndoorAvailable: meta.is_indoor_available,
-    isOutdoorAvailable: meta.is_outdoor_available,
-    availableSports: meta.available_sports ?? [],
+    surfacesAvailable: mergedMeta.surfaces_available ?? [],
+    isIndoorAvailable: mergedMeta.is_indoor_available,
+    isOutdoorAvailable: mergedMeta.is_outdoor_available,
+    availableSports: mergedMeta.available_sports ?? [],
     courts,
   };
 
