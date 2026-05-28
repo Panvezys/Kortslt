@@ -743,15 +743,15 @@ export default function FacilitySportPage() {
           </div>
 
           {/* ── Right column: booking widget ── */}
-          <div className="lg:col-span-1">
-            <div className="lg:sticky lg:top-20 border border-border rounded-2xl bg-card shadow-md overflow-hidden flex flex-col" style={{ maxHeight: "calc(100vh - 6rem)" }}>
-              <div className="shrink-0 px-4 pt-4 pb-2 border-b">
-                <p className="font-semibold text-foreground">Rezervuoti laiką</p>
-                {startingPrice != null && (
-                  <p className="text-sm text-muted-foreground">Nuo {startingPrice.toFixed(0)} €/val</p>
-                )}
-              </div>
-              <div className="flex-1 flex flex-col min-h-0">
+          <div className="lg:col-span-1" id="reserve">
+            <div className="lg:sticky lg:top-20">
+              <div className="border border-border rounded-2xl bg-card shadow-sm overflow-hidden">
+                <div className="px-5 pt-5 pb-3 border-b">
+                  <h3 className="font-bold text-lg text-foreground">Rezervuoti laiką</h3>
+                  {startingPrice != null && (
+                    <p className="text-sm text-muted-foreground">Nuo {startingPrice.toFixed(0)} €/val</p>
+                  )}
+                </div>
                 <GroupBookingWidget facilityId={Number(facilityId)} sport={sport} />
               </div>
             </div>
