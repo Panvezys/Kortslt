@@ -381,7 +381,9 @@ const BulkCreateCourtsBody = z.object({
   pricePerHour: z.coerce.number().positive(),
   quantity: z.coerce.number().int().min(1).max(20),
   amenities: z.array(z.string()).optional(),
-  photoUrls: z.array(z.string()).optional(),
+  photoUrls: z.array(
+    z.string().regex(/^courts\/uploads\/[\w.\-]+\.webp$/, "Invalid upload path")
+  ).max(10).optional(),
 });
 
 router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
@@ -437,24 +439,28 @@ router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
     condition: "good" as const,
   }));
 
-  const created = await db
-    .insert(courtsTable)
-    .values(insertValues)
-    .returning({ id: courtsTable.id, name: courtsTable.name });
+  const created = await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(courtsTable)
+      .values(insertValues)
+      .returning({ id: courtsTable.id, name: courtsTable.name });
 
-  // Duplicate photo URLs into court_photos for every generated court so each
-  // court is a fully autonomous entity (deleting one doesn't affect siblings).
-  if (photoUrls && photoUrls.length > 0) {
-    const photoRows = created.flatMap((court) =>
-      photoUrls.map((url, displayOrder) => ({
-        courtId: court.id,
-        url,
-        displayOrder,
-        uploadedBy: uploaderId ?? null,
-      }))
-    );
-    await db.insert(courtPhotosTable).values(photoRows);
-  }
+    // Duplicate photo URLs into court_photos for every generated court so each
+    // court is a fully autonomous entity (deleting one doesn't affect siblings).
+    if (photoUrls && photoUrls.length > 0) {
+      const photoRows = rows.flatMap((court) =>
+        photoUrls.map((url, displayOrder) => ({
+          courtId: court.id,
+          url,
+          displayOrder,
+          uploadedBy: uploaderId ?? null,
+        }))
+      );
+      await tx.insert(courtPhotosTable).values(photoRows);
+    }
+
+    return rows;
+  });
 
   res.status(201).json({ courts: created });
 });
