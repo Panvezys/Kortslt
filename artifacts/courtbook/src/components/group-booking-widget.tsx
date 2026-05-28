@@ -62,14 +62,19 @@ async function goToCheckout(booking: BookingResponse | BookGroupResponse, facili
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-interface Props { facilityId: number; sport: string; }
+interface Props {
+  facilityId: number;
+  sport: string;
+  /** Controlled: which court is pre-selected ("auto" = wear-balancing). */
+  selectedCourtId: string;
+  onCourtIdChange: (id: string) => void;
+}
 
-export function GroupBookingWidget({ facilityId, sport }: Props) {
+export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange }: Props) {
   const today = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
   const [date,          setDate]          = useState<Date>(today);
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
   const [selectedEnd,   setSelectedEnd]   = useState<number | null>(null);
-  const [selectedCourtId, setSelectedCourtId] = useState<string>("auto");
   const [calendarOpen,  setCalendarOpen]  = useState(false);
   const [isBooking,     setIsBooking]     = useState(false);
   const [showGuestForm, setShowGuestForm] = useState(false);
@@ -373,7 +378,7 @@ export function GroupBookingWidget({ facilityId, sport }: Props) {
         {courts.length > 1 && (
           <div className="mt-3">
             <Label className="text-xs text-muted-foreground mb-1.5 block">Aikštelė (Neprivaloma)</Label>
-            <Select value={selectedCourtId} onValueChange={setSelectedCourtId}>
+            <Select value={selectedCourtId} onValueChange={onCourtIdChange}>
               <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">Man nesvarbu (geriausia laisva)</SelectItem>

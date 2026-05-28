@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearch, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { BackButton } from "@/components/back-button";
 import { EmptyState } from "@/components/empty-state";
@@ -173,8 +172,9 @@ export default function FacilitySportPage() {
   const [favorited, setFavorited] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const [selectedCourtId, setSelectedCourtId] = useState<string>("auto");
 
-  useEffect(() => { setActivePhotoIdx(0); }, [facilityId, sportParam]);
+  useEffect(() => { setActivePhotoIdx(0); setSelectedCourtId("auto"); }, [facilityId, sportParam]);
 
   useEffect(() => {
     if (!sportParam && facilityId) {
@@ -533,9 +533,20 @@ export default function FacilitySportPage() {
                           )}
                         </div>
                       )}
-                      <Link href={`/courts/${court.id}`} className="block w-full text-center text-xs text-primary hover:underline pt-0.5">
-                        Rezervuoti šią aikštelę →
-                      </Link>
+                      <button
+                        onClick={() => {
+                          const id = String(court.id);
+                          setSelectedCourtId(prev => prev === id ? "auto" : id);
+                          document.getElementById("reserve")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }}
+                        className={`w-full text-center text-xs font-medium py-1 rounded-lg transition-colors pt-1 ${
+                          selectedCourtId === String(court.id)
+                            ? "bg-primary/10 text-primary border border-primary/30"
+                            : "text-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        {selectedCourtId === String(court.id) ? "✓ Pasirinkta — pakeisti?" : "Pasirinkti šią aikštelę"}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -752,7 +763,12 @@ export default function FacilitySportPage() {
                     <p className="text-sm text-muted-foreground">Nuo {startingPrice.toFixed(0)} €/val</p>
                   )}
                 </div>
-                <GroupBookingWidget facilityId={Number(facilityId)} sport={sport} />
+                <GroupBookingWidget
+                  facilityId={Number(facilityId)}
+                  sport={sport}
+                  selectedCourtId={selectedCourtId}
+                  onCourtIdChange={setSelectedCourtId}
+                />
               </div>
             </div>
           </div>
