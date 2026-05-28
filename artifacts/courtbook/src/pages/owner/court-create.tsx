@@ -233,6 +233,9 @@ export default function CourtCreatePage() {
   useEffect(() => {
     return () => { galleryPreviews.forEach((u) => URL.revokeObjectURL(u)); };
   }, [galleryPreviews]);
+  useEffect(() => {
+    return () => { catGalleryPreviews.forEach((u) => URL.revokeObjectURL(u)); };
+  }, [catGalleryPreviews]);
 
   const form = useForm<EditCourtFormValues>({
     resolver: zodResolver(editCourtSchema),
@@ -589,6 +592,7 @@ export default function CourtCreatePage() {
         description: msg,
         variant: "destructive",
       });
+    } finally {
       setSubmitting(false);
     }
   };
