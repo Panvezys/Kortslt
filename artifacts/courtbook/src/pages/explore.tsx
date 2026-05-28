@@ -5,160 +5,412 @@ import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, X } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { FacilitySportCard } from "@/components/facility-sport-card";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
-import { SPORT_LABELS } from "@/components/sport-icon";
+import { SPORT_LABELS, SportIcon, sportColor } from "@/components/sport-icon";
 import { customFetch } from "@workspace/api-client-react";
 
 async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResult[]> {
   const p = new URLSearchParams();
-  if (filters.sport)     p.set("sport",     filters.sport);
-  if (filters.city)      p.set("city",      filters.city);
   if (filters.surface)   p.set("surface",   filters.surface);
-  if (filters.condition) p.set("condition", filters.condition);
   if (filters.isIndoor !== undefined) p.set("isIndoor", String(filters.isIndoor));
-  if (filters.minPrice != null) p.set("minPrice", String(filters.minPrice));
-  if (filters.maxPrice != null) p.set("maxPrice", String(filters.maxPrice));
   const qs = p.toString();
-  return customFetch<SearchGroupResult[]>(`/api/search/groups${qs ? `?${qs}` : ""}`);
+  const result = await customFetch<SearchGroupResult[]>(`/api/search/groups${qs ? `?${qs}` : ""}`, { responseType: "json" });
+  return Array.isArray(result) ? result : [];
 }
-
-// Build sport options from SPORT_LABELS — skip alias keys that contain "-"
-const SPORT_OPTIONS = Object.entries(SPORT_LABELS)
-  .filter(([key]) => !key.includes("-"))
-  .map(([key, label]) => ({ value: key, label }));
 
 export default function ExplorePage() {
   const search = useSearch();
   const sp = new URLSearchParams(search);
 
-  const [sport,    setSport]    = useState<string>(sp.get("sport")    ?? "");
-  const [city,     setCity]     = useState<string>(sp.get("city")     ?? "");
+  // Server-side filters (trigger re-fetch)
   const [surface,  setSurface]  = useState<string>(sp.get("surface")  ?? "");
   const [isIndoor, setIsIndoor] = useState<string>(sp.get("isIndoor") ?? "");
-  const [nameQ,    setNameQ]    = useState<string>("");
 
-  // Sync filter dropdowns when URL changes (e.g. back-navigation to /explore?sport=X)
+  // Client-side filters (instant, no re-fetch)
+  const [activeSport, setActiveSport] = useState<string>(sp.get("sport") ?? "");
+  const [city,        setCity]        = useState<string>(sp.get("city")  ?? "");
+  const [nameQ,       setNameQ]       = useState<string>("");
+  const [minPrice,    setMinPrice]    = useState<string>("");
+  const [maxPrice,    setMaxPrice]    = useState<string>("");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
   useEffect(() => {
     const p = new URLSearchParams(search);
-    setSport(p.get("sport")    ?? "");
-    setCity(p.get("city")      ?? "");
     setSurface(p.get("surface") ?? "");
     setIsIndoor(p.get("isIndoor") ?? "");
+    setActiveSport(p.get("sport") ?? "");
+    setCity(p.get("city") ?? "");
+    setMinPrice("");
+    setMaxPrice("");
   }, [search]);
 
-  const filters: SearchGroupFilters = useMemo(() => ({
-    sport:    sport    || undefined,
-    city:     city     || undefined,
+  const apiFilters: SearchGroupFilters = useMemo(() => ({
     surface:  surface  || undefined,
     isIndoor: isIndoor === "true" ? true : isIndoor === "false" ? false : undefined,
-  }), [sport, city, surface, isIndoor]);
+  }), [surface, isIndoor]);
 
   const { data: groups = [], isLoading } = useQuery({
-    queryKey: ["search-groups", filters],
-    queryFn: () => fetchGroups(filters),
+    queryKey: ["search-groups", apiFilters],
+    queryFn: () => fetchGroups(apiFilters),
     staleTime: 60_000,
   });
 
-  const displayed = useMemo(() =>
-    nameQ.trim()
-      ? groups.filter(g => g.facilityName.toLowerCase().includes(nameQ.toLowerCase()))
-      : groups,
-    [groups, nameQ]);
+  // Sport list with per-sport group counts
+  const groupsBySport = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const g of groups) map.set(g.sport, (map.get(g.sport) ?? 0) + 1);
+    return map;
+  }, [groups]);
 
-  const hasFilters = !!(sport || city || surface || isIndoor);
+  // City list derived from sport-filtered groups
+  const sportFilteredGroups = useMemo(() =>
+    activeSport ? groups.filter(g => g.sport === activeSport) : groups,
+    [groups, activeSport]);
+
+  const cityCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const g of sportFilteredGroups) {
+      if (g.city) map.set(g.city, (map.get(g.city) ?? 0) + 1);
+    }
+    return map;
+  }, [sportFilteredGroups]);
+
+  const sortedCities = useMemo(() =>
+    [...cityCounts.keys()].sort((a, b) => (cityCounts.get(b) ?? 0) - (cityCounts.get(a) ?? 0)),
+    [cityCounts]);
+
+  // Final list after all client-side filters
+  const displayed = useMemo(() => {
+    let result = groups;
+    if (activeSport) result = result.filter(g => g.sport === activeSport);
+    if (city)        result = result.filter(g => g.city === city);
+    if (nameQ.trim()) result = result.filter(g => g.facilityName.toLowerCase().includes(nameQ.toLowerCase()));
+    const min = minPrice !== "" ? Number(minPrice) : NaN;
+    const max = maxPrice !== "" ? Number(maxPrice) : NaN;
+    if (!isNaN(min)) result = result.filter(g => g.startingPrice == null || g.startingPrice >= min);
+    if (!isNaN(max)) result = result.filter(g => g.startingPrice == null || g.startingPrice <= max);
+    return result;
+  }, [groups, activeSport, city, nameQ, minPrice, maxPrice]);
+
+  const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice].filter(Boolean).length;
 
   function clearFilters() {
-    setSport(""); setCity(""); setSurface(""); setIsIndoor("");
+    setActiveSport(""); setCity(""); setSurface(""); setIsIndoor("");
+    setMinPrice(""); setMaxPrice("");
   }
+
+  function toggleSport(sport: string) {
+    setActiveSport(prev => {
+      if (prev === sport) return "";
+      setCity(""); // clear city when sport changes
+      return sport;
+    });
+  }
+
+  const filterControls = (
+    <div className="space-y-6">
+      {/* Sport filter */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Sporto šakos</Label>
+          {activeSport && (
+            <button onClick={() => setActiveSport("")} className="text-[10px] font-medium text-primary hover:underline">
+              Visi
+            </button>
+          )}
+        </div>
+        <div className="space-y-1">
+          {[...groupsBySport.keys()].sort().map(sport => {
+            const isSelected = activeSport === sport;
+            const isActive   = !activeSport || isSelected;
+            const color      = sportColor[sport] ?? "#888";
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                  isSelected
+                    ? "bg-muted/60 hover:bg-muted"
+                    : isActive
+                      ? "hover:bg-muted/30"
+                      : "opacity-40 hover:opacity-70 hover:bg-muted/30"
+                }`}
+              >
+                <div
+                  className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all"
+                  style={{ background: isSelected ? color : "transparent", borderColor: color }}
+                >
+                  <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: isSelected ? "white" : color }} />
+                </div>
+                <span className={`flex-1 font-medium transition-colors ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                  {SPORT_LABELS[sport] ?? sport}
+                </span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {groupsBySport.get(sport)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* City filter */}
+      {sortedCities.length > 1 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Miestas</Label>
+            {city && (
+              <button onClick={() => setCity("")} className="text-[10px] font-medium text-primary hover:underline">
+                Valyti
+              </button>
+            )}
+          </div>
+          <div className="space-y-1">
+            {sortedCities.map(c => {
+              const active = city === c;
+              return (
+                <button
+                  key={c}
+                  onClick={() => setCity(prev => prev === c ? "" : c)}
+                  className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all text-left text-sm ${
+                    active ? "bg-primary/10 hover:bg-primary/15" : "opacity-60 hover:opacity-90 hover:bg-muted/40"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${active ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
+                    {active && (
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                        <path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className={`flex-1 font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}>{c}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground/60">{cityCounts.get(c)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Indoor / Outdoor toggle */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Vieta</Label>
+        <div className="flex rounded-md border overflow-hidden">
+          {(["", "true", "false"] as const).map((val, i) => (
+            <button
+              key={val}
+              onClick={() => setIsIndoor(val)}
+              className={`flex-1 text-xs py-2.5 font-medium transition-colors ${
+                isIndoor === val
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              {i === 0 ? "Visi" : i === 1 ? "Vidaus" : "Lauko"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Surface */}
+      <div>
+        <Label className="mb-1.5 block text-xs font-medium text-muted-foreground uppercase tracking-wider">Danga</Label>
+        <Select value={surface || "_all_"} onValueChange={v => setSurface(v === "_all_" ? "" : v)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Visos dangos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all_">Visos dangos</SelectItem>
+            <SelectItem value="clay">Molis</SelectItem>
+            <SelectItem value="hard">Kieta</SelectItem>
+            <SelectItem value="grass">Žolė</SelectItem>
+            <SelectItem value="carpet">Kilimas</SelectItem>
+            <SelectItem value="wood">Mediena</SelectItem>
+            <SelectItem value="rubber">Guma</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Price range */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Kaina (€/val)</Label>
+          {(minPrice || maxPrice) && (
+            <button
+              onClick={() => { setMinPrice(""); setMaxPrice(""); }}
+              className="text-[10px] font-medium text-primary hover:underline"
+            >
+              Valyti
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            placeholder="Nuo"
+            value={minPrice}
+            onChange={e => setMinPrice(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="shrink-0 text-muted-foreground text-xs">–</span>
+          <input
+            type="number"
+            min={0}
+            placeholder="Iki"
+            value={maxPrice}
+            onChange={e => setMaxPrice(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const detailFilters: SearchGroupFilters = {
+    isIndoor: isIndoor === "true" ? true : isIndoor === "false" ? false : undefined,
+    surface:  surface || undefined,
+  };
 
   return (
     <Layout>
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Rasti aikštelę</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {groups.length > 0 ? `${groups.length} grupės` : ""}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-8 w-48"
-              placeholder="Ieškoti..."
-              value={nameQ}
-              onChange={e => setNameQ(e.target.value)}
-            />
-          </div>
-
-          <Select value={sport || "_all_"} onValueChange={v => setSport(v === "_all_" ? "" : v)}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Sportas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all_">Visi sportai</SelectItem>
-              {SPORT_OPTIONS.map(o => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={isIndoor || "_all_"} onValueChange={v => setIsIndoor(v === "_all_" ? "" : v)}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Vidus/Lauk." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all_">Visi</SelectItem>
-              <SelectItem value="true">Vidaus</SelectItem>
-              <SelectItem value="false">Lauko</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={surface || "_all_"} onValueChange={v => setSurface(v === "_all_" ? "" : v)}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="Danga" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all_">Visos dangos</SelectItem>
-              <SelectItem value="clay">Molio</SelectItem>
-              <SelectItem value="hard">Kieta</SelectItem>
-              <SelectItem value="grass">Žolė</SelectItem>
-              <SelectItem value="carpet">Kilimas</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
-              <X className="w-3 h-3" /> Išvalyti
+      {/* Mobile: sticky top bar */}
+      <div className="md:hidden sticky top-[7rem] z-30 border-b bg-background/95 backdrop-blur">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 flex-1"
+            onClick={() => setMobileFiltersOpen(true)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filtrai
+            {activeFilterCount > 0 && (
+              <Badge className="h-5 px-1.5 text-xs ml-1">{activeFilterCount}</Badge>
+            )}
+          </Button>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" className="text-muted-foreground px-2" onClick={clearFilters}>
+              <X className="h-4 w-4" />
             </Button>
           )}
         </div>
+      </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-64 rounded-xl" />
-            ))}
+      {/* Mobile: filter sheet */}
+      <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+        <SheetContent side="left" className="w-80 flex flex-col gap-0 p-4">
+          <SheetHeader className="flex-row items-center justify-between pb-3 border-b mb-4">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <SlidersHorizontal className="h-4 w-4" />
+              Filtrai
+              {activeFilterCount > 0 && <Badge className="h-5 px-1.5 text-xs">{activeFilterCount}</Badge>}
+            </SheetTitle>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearFilters}>
+                <X className="h-3 w-3 mr-1" /> Išvalyti
+              </Button>
+            )}
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto py-1">{filterControls}</div>
+          <div className="shrink-0 border-t pt-4 pb-2">
+            <SheetClose asChild>
+              <Button className="w-full" size="lg">
+                Rasta {displayed.length} grupių
+              </Button>
+            </SheetClose>
           </div>
-        ) : displayed.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            Nerasta aikštelių pagal pasirinktus filtrus.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {displayed.map(group => (
-              <FacilitySportCard
-                key={`${group.facilityId}-${group.sport}`}
-                group={group}
-                href={buildDetailHref(group, filters)}
-              />
-            ))}
-          </div>
-        )}
+        </SheetContent>
+      </Sheet>
+
+      <div className="container mx-auto px-4 py-6 md:py-8">
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+
+          {/* Desktop sidebar */}
+          <aside className="hidden md:flex w-64 shrink-0 flex-col sticky top-24 max-h-[calc(100vh-7rem)] pr-1">
+            <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Filtrai
+                  {activeFilterCount > 0 && (
+                    <Badge className="ml-1 h-5 px-1.5 text-xs">{activeFilterCount}</Badge>
+                  )}
+                </div>
+                {activeFilterCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={clearFilters}
+                  >
+                    <X className="h-3 w-3 mr-1" /> Išvalyti
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="space-y-6 overflow-y-auto flex-1 pb-4">
+              {filterControls}
+            </div>
+            <div className="shrink-0 border-t pt-3 bg-background/95 backdrop-blur-sm">
+              <p className="text-center text-sm text-muted-foreground py-2">
+                {isLoading ? "Kraunama…" : `Rasta ${displayed.length} grupių`}
+              </p>
+            </div>
+          </aside>
+
+          {/* Main content */}
+          <main className="flex-1 w-full min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <h1 className="text-xl font-bold text-foreground">
+                Rasti aikštelę
+                {!isLoading && (
+                  <span className="ml-2 text-base font-normal text-muted-foreground">
+                    ({displayed.length})
+                  </span>
+                )}
+              </h1>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8 w-full sm:w-52"
+                  placeholder="Ieškoti pavadinimo..."
+                  value={nameQ}
+                  onChange={e => setNameQ(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-72 rounded-xl" />
+                ))}
+              </div>
+            ) : displayed.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                Nerasta aikštelių pagal pasirinktus filtrus.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayed.map(group => (
+                  <FacilitySportCard
+                    key={`${group.facilityId}-${group.sport}`}
+                    group={group}
+                    href={buildDetailHref(group, detailFilters)}
+                  />
+                ))}
+              </div>
+            )}
+          </main>
+
+        </div>
       </div>
     </Layout>
   );

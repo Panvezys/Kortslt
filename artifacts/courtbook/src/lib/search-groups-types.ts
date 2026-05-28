@@ -13,6 +13,8 @@ export interface SearchGroupResult {
   isPromoted: boolean;
   groupRating: number | null;
   instantBookable: boolean;
+  isIndoorAvailable: boolean;
+  isOutdoorAvailable: boolean;
 }
 
 export interface GroupDetailCourt {
