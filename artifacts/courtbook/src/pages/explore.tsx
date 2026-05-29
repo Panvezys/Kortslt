@@ -9,11 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X, ArrowUpDown, Map as MapIcon, List } from "lucide-react";
 import { FacilitySportCard } from "@/components/facility-sport-card";
+import { CourtMap, type CourtHrefBuilder } from "@/components/court-map";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
 import { SPORT_LABELS, SportIcon, sportColor } from "@/components/sport-icon";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, type Court } from "@workspace/api-client-react";
+
+type SortKey = "default" | "price_asc" | "price_desc" | "rating_desc";
+type ViewMode = "list" | "map";
 
 async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResult[]> {
   const p = new URLSearchParams();
@@ -38,6 +42,8 @@ export default function ExplorePage() {
   const [nameQ,       setNameQ]       = useState<string>("");
   const [minPrice,    setMinPrice]    = useState<string>("");
   const [maxPrice,    setMaxPrice]    = useState<string>("");
+  const [sortBy,      setSortBy]      = useState<SortKey>("default");
+  const [viewMode,    setViewMode]    = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
@@ -95,8 +101,18 @@ export default function ExplorePage() {
     const max = maxPrice !== "" ? Number(maxPrice) : NaN;
     if (!isNaN(min)) result = result.filter(g => g.startingPrice == null || g.startingPrice >= min);
     if (!isNaN(max)) result = result.filter(g => g.startingPrice == null || g.startingPrice <= max);
+
+    if (sortBy !== "default") {
+      result = [...result].sort((a, b) => {
+        if (sortBy === "rating_desc") return (b.groupRating ?? 0) - (a.groupRating ?? 0);
+        // price sorts: groups without a price sink to the bottom
+        const ap = a.startingPrice ?? (sortBy === "price_asc" ? Infinity : -Infinity);
+        const bp = b.startingPrice ?? (sortBy === "price_asc" ? Infinity : -Infinity);
+        return sortBy === "price_asc" ? ap - bp : bp - ap;
+      });
+    }
     return result;
-  }, [groups, activeSport, city, nameQ, minPrice, maxPrice]);
+  }, [groups, activeSport, city, nameQ, minPrice, maxPrice, sortBy]);
 
   const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice].filter(Boolean).length;
 
@@ -278,6 +294,80 @@ export default function ExplorePage() {
     surface:  surface || undefined,
   };
 
+  // Synthetic Court-shaped objects so the shared CourtMap can render venue pins.
+  // `id` is a list index (unique within this map); the real facility id + sport
+  // ride along on `_facilityId`/`_sport` for the info-window link builder below.
+  const mapCourts = useMemo<Court[]>(() =>
+    displayed
+      .filter(g => g.latitude != null && g.longitude != null)
+      .map((g, i) => ({
+        id: i,
+        name: g.facilityName,
+        type: g.sport,
+        city: g.city,
+        address: g.address,
+        latitude: g.latitude,
+        longitude: g.longitude,
+        pricePerHour: g.startingPrice ?? 0,
+        minDisplayPrice: g.startingPrice ?? null,
+        imageUrl: g.photos?.[0],
+        isIndoor: g.isIndoorAvailable && !g.isOutdoorAvailable,
+        rating: g.groupRating ?? undefined,
+        isPromoted: g.isPromoted,
+        maxPlayers: 0,
+        condition: "good",
+        status: "active",
+        createdAt: "",
+        _facilityId: g.facilityId,
+        _sport: g.sport,
+      } as unknown as Court)),
+    [displayed]);
+
+  const mapSports = useMemo(() => new Set(displayed.map(g => g.sport)), [displayed]);
+
+  const mapHref: CourtHrefBuilder = (court) => {
+    const fid = (court as unknown as { _facilityId: number })._facilityId;
+    const sportSlug = (court as unknown as { _sport: string })._sport;
+    const p = new URLSearchParams({ sport: sportSlug });
+    if (detailFilters.isIndoor !== undefined) p.set("isIndoor", String(detailFilters.isIndoor));
+    if (detailFilters.surface) p.set("surface", detailFilters.surface);
+    const base = `/facility/${fid}?${p.toString()}`;
+    return { detail: base, reserve: `${base}#reserve` };
+  };
+
+  const sortAndView = (
+    <div className="flex items-center gap-2">
+      <Select value={sortBy} onValueChange={(v: SortKey) => setSortBy(v)}>
+        <SelectTrigger className="h-9 w-auto gap-1.5 text-xs" aria-label="Rūšiuoti">
+          <ArrowUpDown className="h-3.5 w-3.5" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="default">Rekomenduojama</SelectItem>
+          <SelectItem value="rating_desc">Geriausiai vertinami</SelectItem>
+          <SelectItem value="price_asc">Pigiausi</SelectItem>
+          <SelectItem value="price_desc">Brangiausi</SelectItem>
+        </SelectContent>
+      </Select>
+      <div className="flex gap-1 rounded-md border p-0.5">
+        <button
+          onClick={() => setViewMode("list")}
+          aria-label="Sąrašas"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+        >
+          <List className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => setViewMode("map")}
+          aria-label="Žemėlapis"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === "map" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}
+        >
+          <MapIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <Layout>
       {/* Mobile: sticky top bar */}
@@ -286,7 +376,7 @@ export default function ExplorePage() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 flex-1"
+            className="gap-2 flex-1 min-w-0"
             onClick={() => setMobileFiltersOpen(true)}
           >
             <SlidersHorizontal className="h-4 w-4" />
@@ -300,6 +390,7 @@ export default function ExplorePage() {
               <X className="h-4 w-4" />
             </Button>
           )}
+          {sortAndView}
         </div>
       </div>
 
@@ -368,7 +459,7 @@ export default function ExplorePage() {
           {/* Main content */}
           <main className="flex-1 w-full min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-              <h1 className="text-xl font-bold text-foreground">
+              <h1 className="text-xl font-bold text-foreground shrink-0">
                 Rasti aikštelę
                 {!isLoading && (
                   <span className="ml-2 text-base font-normal text-muted-foreground">
@@ -376,22 +467,34 @@ export default function ExplorePage() {
                   </span>
                 )}
               </h1>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="pl-8 w-full sm:w-52"
-                  placeholder="Ieškoti pavadinimo..."
-                  value={nameQ}
-                  onChange={e => setNameQ(e.target.value)}
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-8 w-full sm:w-52"
+                    placeholder="Ieškoti pavadinimo..."
+                    value={nameQ}
+                    onChange={e => setNameQ(e.target.value)}
+                  />
+                </div>
+                {/* Sort + view toggle (desktop only — mobile has it in the top bar) */}
+                <div className="hidden md:block">{sortAndView}</div>
               </div>
             </div>
 
             {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} className="h-72 rounded-xl" />
-                ))}
+              viewMode === "map" ? (
+                <Skeleton className="h-[400px] md:h-[600px] w-full rounded-xl" />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-72 rounded-xl" />
+                  ))}
+                </div>
+              )
+            ) : viewMode === "map" ? (
+              <div className="h-[400px] md:h-[600px]">
+                <CourtMap courts={mapCourts} activeSports={mapSports} getHref={mapHref} />
               </div>
             ) : displayed.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">

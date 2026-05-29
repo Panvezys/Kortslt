@@ -162,10 +162,19 @@ function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: 
   return cache;
 }
 
+/** Builds the detail + reserve URLs for a court's info-window CTAs. */
+export type CourtHrefBuilder = (court: Court) => { detail: string; reserve: string };
+
+const defaultHrefBuilder: CourtHrefBuilder = (court) => ({
+  detail: `/courts/${court.id}`,
+  reserve: `/courts/${court.id}#reserve`,
+});
+
 interface CourtInfoWindowProps {
   court: Court;
   onClose: () => void;
   theme: "light" | "dark";
+  getHref: CourtHrefBuilder;
 }
 
 /** Inject once — strips ALL Google InfoWindow chrome globally */
@@ -205,10 +214,11 @@ function useInfoWindowStyles() {
   }, []);
 }
 
-function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
+function CourtInfoWindow({ court, onClose, theme, getHref }: CourtInfoWindowProps) {
   useInfoWindowStyles();
   const color = getSportColor(court.type);
   const img = resolveCourtImage(court.imageUrl);
+  const { detail: detailHref, reserve: reserveHref } = getHref(court);
   const isDark = theme === "dark";
   const bg = isDark ? "#0d0f14" : "#ffffff";
   const textPrimary = isDark ? "#f9fafb" : "#111827";
@@ -367,7 +377,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <a
-                href={`/courts/${court.id}`}
+                href={detailHref}
                 aria-label="Peržiūrėti"
                 title="Peržiūrėti"
                 style={{
@@ -392,7 +402,7 @@ function CourtInfoWindow({ court, onClose, theme }: CourtInfoWindowProps) {
                 </svg>
               </a>
               <a
-                href={`/courts/${court.id}#reserve`}
+                href={reserveHref}
                 style={{
                   background: color, color: "black",
                   padding: "5px 12px", borderRadius: "8px",
@@ -439,10 +449,12 @@ export function CourtMap({
   courts,
   activeSports: activeSportsProp,
   showFilterPanel = false,
+  getHref = defaultHrefBuilder,
 }: {
   courts: Court[];
   activeSports?: Set<string>;
   showFilterPanel?: boolean;
+  getHref?: CourtHrefBuilder;
 }) {
   const { theme } = useTheme();
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
@@ -752,7 +764,7 @@ export function CourtMap({
         }}
       >
         {selectedCourt && (
-          <CourtInfoWindow court={selectedCourt} onClose={() => setSelectedCourt(null)} theme={theme} />
+          <CourtInfoWindow court={selectedCourt} onClose={() => setSelectedCourt(null)} theme={theme} getHref={getHref} />
         )}
       </GoogleMap>
 
