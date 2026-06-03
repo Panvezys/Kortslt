@@ -1,9 +1,12 @@
 import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
 import { courtsTable } from "./courts";
+import { facilitiesTable } from "./facilities";
 
 export const courtMembershipsTable = pgTable("court_memberships", {
   id: serial("id").primaryKey(),
-  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  courtId: integer("court_id").references(() => courtsTable.id, { onDelete: "cascade" }),
+  facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "cascade" }),
+  sport: text("sport"),
   name: text("name").notNull(),
   description: text("description"),
   pricePerYear: integer("price_per_year").notNull(),
@@ -18,7 +21,9 @@ export const courtMembershipsTable = pgTable("court_memberships", {
 export const userMembershipsTable = pgTable("user_memberships", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
-  courtId: integer("court_id").notNull().references(() => courtsTable.id, { onDelete: "cascade" }),
+  courtId: integer("court_id").references(() => courtsTable.id, { onDelete: "cascade" }),
+  facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "cascade" }),
+  sport: text("sport"),
   membershipPlanId: integer("membership_plan_id").notNull().references(() => courtMembershipsTable.id, { onDelete: "cascade" }),
   dayOfWeek: integer("day_of_week").notNull(),
   startTime: text("start_time").notNull(),

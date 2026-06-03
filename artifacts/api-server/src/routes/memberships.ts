@@ -24,6 +24,8 @@ router.post("/courts/:id/memberships", requireAuth, async (req, res): Promise<vo
   if (!name || pricePerYear == null) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
   const [plan] = await db.insert(courtMembershipsTable).values({
     courtId,
+    facilityId: court.facilityId,
+    sport: court.type,
     name,
     description: description ?? null,
     pricePerYear: Number(pricePerYear),
@@ -63,6 +65,8 @@ router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req
   const planId = parseInt(String(req.params.planId));
   const userId = await getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
+  if (!court) { res.status(404).json({ error: "Court not found" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(eq(courtMembershipsTable.id, planId));
   if (!plan || plan.courtId !== courtId) { res.status(404).json({ error: "Plan not found" }); return; }
   const { dayOfWeek, startTime } = req.body as any;
@@ -70,7 +74,56 @@ router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req
   const expiresAt = new Date();
   expiresAt.setFullYear(expiresAt.getFullYear() + 1);
   const [membership] = await db.insert(userMembershipsTable).values({
-    userId, courtId, membershipPlanId: planId, dayOfWeek: Number(dayOfWeek), startTime, status: "active", expiresAt,
+    userId, courtId, facilityId: court.facilityId, sport: court.type, membershipPlanId: planId,
+    dayOfWeek: Number(dayOfWeek), startTime, status: "active", expiresAt,
+  }).returning();
+  res.status(201).json(membership);
+});
+
+// ── Group-level (facility + sport) plan creation ─────────────────────────────
+
+router.post("/facilities/:facilityId/:sport/memberships", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = parseInt(String(req.params.facilityId));
+  const sport = String(req.params.sport);
+  if (isNaN(facilityId)) { res.status(400).json({ error: "Invalid facilityId" }); return; }
+  const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!(await isOwner(req, facility.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const { name, description, pricePerYear, pricePerMonth, weeklySlots, conditions, discountPercent } = req.body as any;
+  if (!name || pricePerYear == null) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
+  const [plan] = await db.insert(courtMembershipsTable).values({
+    courtId: null,
+    facilityId,
+    sport,
+    name,
+    description: description ?? null,
+    pricePerYear: Number(pricePerYear),
+    pricePerMonth: pricePerMonth != null && pricePerMonth !== "" ? Number(pricePerMonth) : null,
+    weeklySlots: Number(weeklySlots ?? 1),
+    conditions: conditions ?? null,
+    discountPercent: discountPercent != null && discountPercent !== "" ? Number(discountPercent) : null,
+  }).returning();
+  res.status(201).json(plan);
+});
+
+// ── Group-level (facility + sport) subscribe ──────────────────────────────────
+
+router.post("/facilities/:facilityId/:sport/memberships/:planId/subscribe", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = parseInt(String(req.params.facilityId));
+  const sport = String(req.params.sport);
+  const planId = parseInt(String(req.params.planId));
+  if (isNaN(facilityId) || isNaN(planId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const userId = await getCurrentUserId(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const [plan] = await db.select().from(courtMembershipsTable).where(eq(courtMembershipsTable.id, planId));
+  if (!plan || plan.facilityId !== facilityId || plan.sport !== sport) { res.status(404).json({ error: "Plan not found" }); return; }
+  const { dayOfWeek, startTime } = req.body as any;
+  if (dayOfWeek === undefined || !startTime) { res.status(400).json({ error: "dayOfWeek and startTime required" }); return; }
+  const expiresAt = new Date();
+  expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+  const [membership] = await db.insert(userMembershipsTable).values({
+    userId, courtId: null, facilityId, sport, membershipPlanId: planId,
+    dayOfWeek: Number(dayOfWeek), startTime, status: "active", expiresAt,
   }).returning();
   res.status(201).json(membership);
 });
