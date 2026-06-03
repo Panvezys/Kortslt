@@ -420,7 +420,11 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
       inArray(bookingsTable.status, ["confirmed", "awaiting_players"]),
     ));
     const raw: unknown = row?.last ?? null;
-    lastBookedAt = raw instanceof Date ? raw.toISOString() : (typeof raw === "string" ? raw : null);
+    // Normalize to ISO 8601 — pg returns a non-ISO string ("2026-06-03 13:20:16+00")
+    // for the aggregate, which the client's Date math expects in ISO form.
+    lastBookedAt = raw instanceof Date
+      ? raw.toISOString()
+      : (raw ? new Date(raw as string).toISOString() : null);
   }
 
   const response: GroupDetailResult = {
