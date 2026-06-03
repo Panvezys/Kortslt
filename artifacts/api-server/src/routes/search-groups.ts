@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { sql, eq, and, or, inArray, desc } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, courtBlockedSlotsTable, reviewsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, courtBlockedSlotsTable, reviewsTable, courtMembershipsTable } from "@workspace/db";
 import { buildDayPriceMap } from "../lib/pricing";
 import { generateManagementToken } from "./bookings";
 import { getCurrentUserId } from "../lib/auth";
@@ -24,7 +24,6 @@ export interface SearchGroupResult {
   photos: string[];
   isPromoted: boolean;
   groupRating: number | null;
-  instantBookable: boolean;
   isIndoorAvailable: boolean;
   isOutdoorAvailable: boolean;
 }
@@ -36,13 +35,23 @@ export interface GroupDetailCourt {
   isIndoor: boolean;
   maxPlayers: number;
   effectiveHourlyPrice: number;
-  instantBookingEnabled: boolean;
   rating: number | null;
   photos: string[];
   amenities: string[];
   workingHours: string | null;
   hasSmartLock: boolean;
   accessInstructions: string | null;
+}
+
+export interface GroupMembership {
+  id: number;
+  name: string;
+  description: string | null;
+  pricePerYear: number;
+  pricePerMonth: number | null;
+  weeklySlots: number;
+  discountPercent: number | null;
+  conditions: string | null;
 }
 
 export interface GroupDetailResult {
@@ -73,6 +82,8 @@ export interface GroupDetailResult {
   isOutdoorAvailable: boolean;
   availableSports: string[];
   courts: GroupDetailCourt[];
+  memberships: GroupMembership[];
+  lastBookedAt: string | null;
 }
 
 // Raw row shape returned by postgres driver (snake_case, bigint as string)
@@ -110,7 +121,6 @@ function formatGroup(row: SearchGroupRow): SearchGroupResult {
     photos: row.photos ?? [],
     isPromoted: row.is_promoted ?? false,
     groupRating: row.group_rating != null ? Number(row.group_rating) : null,
-    instantBookable: row.instant_bookable ?? false,
     isIndoorAvailable: row.is_indoor_available ?? false,
     isOutdoorAvailable: row.is_outdoor_available ?? false,
   };
@@ -147,7 +157,6 @@ router.get("/search/groups", async (req, res): Promise<void> => {
         c.surface,
         c.condition,
         c.rating,
-        c.instant_booking_enabled,
         c.promoted_until,
         COALESCE(
           (SELECT MIN(cp.price)::numeric * 2
@@ -179,7 +188,6 @@ router.get("/search/groups", async (req, res): Promise<void> => {
         ARRAY_AGG(fc.id)                      AS court_ids,
         AVG(fc.rating)                        AS group_rating,
         BOOL_OR(fc.promoted_until > NOW())    AS is_promoted,
-        BOOL_OR(fc.instant_booking_enabled)   AS instant_bookable,
         BOOL_OR(fc.is_indoor)                 AS is_indoor_available,
         BOOL_OR(NOT fc.is_indoor)             AS is_outdoor_available
       FROM filtered_courts fc
@@ -198,7 +206,6 @@ router.get("/search/groups", async (req, res): Promise<void> => {
       g.starting_price,
       g.group_rating,
       g.is_promoted,
-      g.instant_bookable,
       g.is_indoor_available,
       g.is_outdoor_available,
       (
@@ -324,7 +331,6 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
         (SELECT MIN(cp.price)::numeric * 2 FROM court_pricing cp WHERE cp.court_id = c.id),
         c.price_per_hour::numeric
       )                             AS effective_hourly_price,
-      c.instant_booking_enabled,
       c.rating,
       c.amenities,
       c.working_hours,
@@ -347,7 +353,7 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
 
   type CourtRow = {
     id: number; name: string; surface: string | null; is_indoor: boolean;
-    max_players: number; effective_hourly_price: string; instant_booking_enabled: boolean;
+    max_players: number; effective_hourly_price: string;
     rating: number | null; amenities: string[] | null; working_hours: string | null;
     has_smart_lock: boolean; access_instructions: string | null; photos: string[] | null;
   };
@@ -369,7 +375,6 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
     isIndoor: c.is_indoor,
     maxPlayers: c.max_players,
     effectiveHourlyPrice: Number(c.effective_hourly_price),
-    instantBookingEnabled: c.instant_booking_enabled,
     rating: c.rating != null ? Number(c.rating) : null,
     photos: c.photos ?? [],
     amenities: c.amenities ?? [],
@@ -386,6 +391,37 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
   const groupRating = ratedCourts.length > 0
     ? ratedCourts.reduce((sum, c) => sum + (c.rating ?? 0), 0) / ratedCourts.length
     : null;
+
+  // ── Memberships query ─────────────────────────────────────────────────────
+  const courtIds = courtRows.map(c => c.id);
+
+  const membershipRows = await db.select({
+    id: courtMembershipsTable.id,
+    name: courtMembershipsTable.name,
+    description: courtMembershipsTable.description,
+    pricePerYear: courtMembershipsTable.pricePerYear,
+    pricePerMonth: courtMembershipsTable.pricePerMonth,
+    weeklySlots: courtMembershipsTable.weeklySlots,
+    discountPercent: courtMembershipsTable.discountPercent,
+    conditions: courtMembershipsTable.conditions,
+  }).from(courtMembershipsTable).where(and(
+    eq(courtMembershipsTable.isActive, true),
+    eq(courtMembershipsTable.facilityId, facilityId),
+    sql`REPLACE(${courtMembershipsTable.sport}, '-', '_') = ${sport}`,
+  ));
+
+  // ── lastBookedAt ──────────────────────────────────────────────────────────
+  let lastBookedAt: string | null = null;
+  if (courtIds.length > 0) {
+    const [row] = await db.select({
+      last: sql<string | null>`MAX(${bookingsTable.createdAt})`,
+    }).from(bookingsTable).where(and(
+      inArray(bookingsTable.courtId, courtIds),
+      inArray(bookingsTable.status, ["confirmed", "awaiting_players"]),
+    ));
+    const raw: unknown = row?.last ?? null;
+    lastBookedAt = raw instanceof Date ? raw.toISOString() : (typeof raw === "string" ? raw : null);
+  }
 
   const response: GroupDetailResult = {
     facility: {
@@ -415,6 +451,8 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
     isOutdoorAvailable: mergedMeta.is_outdoor_available,
     availableSports: mergedMeta.available_sports ?? [],
     courts,
+    memberships: membershipRows,
+    lastBookedAt,
   };
 
   res.json(response);
@@ -535,6 +573,20 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     return;
   }
 
+  // Optional equipment rental. Prices are NEVER trusted from the client — only
+  // the item name + quantity. Pricing & stock are validated per-court below.
+  let clientEquip: Array<{ name: string; quantity: number }> = [];
+  if (typeof (req.body as any)?.rentedItems === "string" && (req.body as any).rentedItems) {
+    try {
+      const raw = JSON.parse((req.body as any).rentedItems);
+      if (Array.isArray(raw)) {
+        clientEquip = raw
+          .map((r: any) => ({ name: String(r?.name ?? ""), quantity: Math.max(1, Math.min(Math.floor(Number(r?.quantity ?? 1)), 20)) }))
+          .filter((r) => r.name);
+      }
+    } catch { /* ignore malformed equipment payload */ }
+  }
+
   const bookerUserId = getCurrentUserId(req);
 
   // Get all active courts for this group, ordered by least-used first (wear & tear balancer).
@@ -544,6 +596,7 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     SELECT
       c.id,
       c.price_per_hour AS "pricePerHour",
+      c.rentable_items AS "rentableItems",
       COUNT(b.id) FILTER (
         WHERE b.status IN ('confirmed', 'awaiting_players')
            OR (b.status = 'pending' AND b.created_at > NOW() - INTERVAL '15 minutes')
@@ -555,11 +608,11 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     WHERE c.facility_id = ${facilityId}
       AND REPLACE(c.type, '-', '_') = ${sport}
       AND c.status IN ('approved', 'active')
-    GROUP BY c.id, c.price_per_hour
+    GROUP BY c.id, c.price_per_hour, c.rentable_items
     ORDER BY booking_count ASC, c.id ASC
   `);
-  const courts = (courtsRaw.rows as { id: number; pricePerHour: string; booking_count: string }[])
-    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour }));
+  const courts = (courtsRaw.rows as { id: number; pricePerHour: string; rentableItems: string | null; booking_count: string }[])
+    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, rentableItems: r.rentableItems }));
 
   if (courts.length === 0) {
     res.status(404).json({ error: "No active courts found for this group" });
@@ -582,8 +635,12 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
   class ConflictError extends Error {
     constructor(public readonly body: unknown) { super("Conflict"); }
   }
+  // Court is slot-free but can't supply the requested equipment — try the next one.
+  class EquipmentShortError extends Error {}
 
-  // Try each court in turn; first one without a conflict wins.
+  let equipmentWasShort = false;
+
+  // Try each court in turn; first one that is free AND can supply the equipment wins.
   for (const court of courts) {
     const defaultSlotPrice = Number(court.pricePerHour) / 2;
 
@@ -624,11 +681,47 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
           }
         }
 
-        // Court is free — compute price and insert
+        // Court is free — compute slot price
+        const slotList = slotsBetween(startTime, endTime);
         const { priceMap } = await buildDayPriceMap(court.id, date, defaultSlotPrice);
         let courtPrice = 0;
-        for (const s of slotsBetween(startTime, endTime)) {
+        for (const s of slotList) {
           courtPrice += priceMap.get(s) ?? defaultSlotPrice;
+        }
+
+        // ── Equipment: validate against THIS court's stock (server-priced) ──
+        let equipmentCost = 0;
+        let validatedRentedItems: string | null = null;
+        if (clientEquip.length > 0) {
+          const courtEquipment: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> =
+            court.rentableItems ? JSON.parse(court.rentableItems) : [];
+
+          const existing = await tx
+            .select({ rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+            .from(bookingsTable)
+            .where(and(eq(bookingsTable.courtId, court.id), eq(bookingsTable.date, date)));
+          const bookedQty: Record<string, number> = {};
+          for (const b of existing) {
+            if (!b.rentedItems || b.status === "cancelled") continue;
+            if (toMin(b.endTime) <= reqStartMin || toMin(b.startTime) >= reqEndMin) continue;
+            try {
+              for (const it of JSON.parse(b.rentedItems) as Array<{ name: string; quantity: number }>) {
+                bookedQty[it.name] = (bookedQty[it.name] ?? 0) + it.quantity;
+              }
+            } catch { /* skip malformed */ }
+          }
+
+          const slotCount = slotList.length;
+          const validated: Array<{ name: string; pricePerSlot: number; quantity: number }> = [];
+          for (const ci of clientEquip) {
+            const canonical = courtEquipment.find(e => e.name === ci.name);
+            if (!canonical) throw new EquipmentShortError();          // this court doesn't offer it
+            if ((bookedQty[ci.name] ?? 0) + ci.quantity > canonical.stock) throw new EquipmentShortError();
+            const price = canonical.pricePerSlot ?? canonical.pricePerBooking ?? 0;
+            validated.push({ name: canonical.name, pricePerSlot: price, quantity: ci.quantity });
+            equipmentCost += price * ci.quantity * slotCount;
+          }
+          if (validated.length > 0) validatedRentedItems = JSON.stringify(validated);
         }
 
         const managementToken = bookerUserId ? null : generateManagementToken();
@@ -642,7 +735,8 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
           date,
           startTime,
           endTime,
-          totalPrice: String(courtPrice),
+          totalPrice: String(courtPrice + equipmentCost),
+          rentedItems: validatedRentedItems,
           status: "pending",
           managementToken,
         }).returning();
@@ -663,13 +757,93 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
       });
       return;
     } catch (err) {
+      if (err instanceof EquipmentShortError) { equipmentWasShort = true; continue; } // try next court
       if (err instanceof ConflictError) continue; // try next court
       throw err;
     }
   }
 
-  // All courts were busy
+  // No court could be booked. If the slot itself was free somewhere but equipment
+  // couldn't be supplied, surface that as the (more actionable) reason.
+  if (clientEquip.length > 0 && equipmentWasShort) {
+    res.status(409).json({ error: "Pasirinkta įranga nepasiekiama šiam laikui.", code: "EQUIPMENT_UNAVAILABLE" });
+    return;
+  }
   res.status(409).json({ error: "No available court for the selected time slot", code: "SLOT_UNAVAILABLE" });
+});
+
+// ── GET /search/groups/:facilityId/:sport/equipment ───────────────────────────
+// Aggregated rentable equipment for a facility+sport group at a given slot.
+// Because each court is a single sport, this is inherently sport-scoped — a
+// tennis group only ever surfaces equipment attached to its tennis courts.
+// Pass ?courtId= to scope to one specific court. Availability is the MAX a single
+// court can supply (a booking lands on one court), so the quantity offered is
+// always fulfillable by the equipment-aware allocator in /book.
+
+router.get("/search/groups/:facilityId/:sport/equipment", async (req, res): Promise<void> => {
+  const facilityId = parseInt(req.params.facilityId, 10);
+  const sport = (req.params.sport ?? "").replace(/-/g, "_");
+  const { date, startTime, endTime } = req.query as Record<string, string>;
+  const courtIdParam = req.query.courtId ? parseInt(String(req.query.courtId), 10) : null;
+
+  if (isNaN(facilityId) || !sport || !date || !startTime || !endTime) {
+    res.status(400).json({ error: "facilityId, sport, date, startTime, endTime required" });
+    return;
+  }
+
+  let courts = await db
+    .select({ id: courtsTable.id, rentableItems: courtsTable.rentableItems })
+    .from(courtsTable)
+    .where(and(
+      eq(courtsTable.facilityId, facilityId),
+      sql`REPLACE(${courtsTable.type}, '-', '_') = ${sport}`,
+      sql`${courtsTable.status} IN ('approved', 'active')`,
+    ));
+  if (courtIdParam) courts = courts.filter(c => c.id === courtIdParam);
+  if (courts.length === 0) { res.json([]); return; }
+
+  const courtIds = courts.map(c => c.id);
+  const existing = await db
+    .select({ courtId: bookingsTable.courtId, rentedItems: bookingsTable.rentedItems, startTime: bookingsTable.startTime, endTime: bookingsTable.endTime, status: bookingsTable.status })
+    .from(bookingsTable)
+    .where(and(inArray(bookingsTable.courtId, courtIds), eq(bookingsTable.date, date)));
+
+  const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const reqS = toMin(startTime), reqE = toMin(endTime);
+
+  // booked qty per court per item, for bookings overlapping the requested slot
+  const bookedByCourt: Record<number, Record<string, number>> = {};
+  for (const b of existing) {
+    if (!b.rentedItems || b.status === "cancelled" || b.courtId == null) continue;
+    if (toMin(b.endTime) <= reqS || toMin(b.startTime) >= reqE) continue;
+    const perCourt = (bookedByCourt[b.courtId] ??= {});
+    try {
+      for (const it of JSON.parse(b.rentedItems) as Array<{ name: string; quantity: number }>) {
+        perCourt[it.name] = (perCourt[it.name] ?? 0) + it.quantity;
+      }
+    } catch { /* skip malformed */ }
+  }
+
+  // Aggregate by item name: price = cheapest across courts, available/stock = best single court.
+  const agg: Record<string, { name: string; pricePerSlot: number; available: number; stock: number }> = {};
+  for (const c of courts) {
+    let items: Array<{ name: string; pricePerSlot?: number; pricePerBooking?: number; stock: number }> = [];
+    try { items = c.rentableItems ? JSON.parse(c.rentableItems) : []; } catch { items = []; }
+    for (const e of items) {
+      if (!e?.name || !(e.stock > 0)) continue;
+      const price = e.pricePerSlot ?? e.pricePerBooking ?? 0;
+      const avail = Math.max(0, e.stock - (bookedByCourt[c.id]?.[e.name] ?? 0));
+      const cur = agg[e.name];
+      if (!cur) agg[e.name] = { name: e.name, pricePerSlot: price, available: avail, stock: e.stock };
+      else {
+        cur.pricePerSlot = Math.min(cur.pricePerSlot, price);
+        cur.available = Math.max(cur.available, avail);
+        cur.stock = Math.max(cur.stock, e.stock);
+      }
+    }
+  }
+
+  res.json(Object.values(agg).sort((a, b) => a.name.localeCompare(b.name)));
 });
 
 // ── GET /search/groups/:facilityId/:sport/reviews ─────────────────────────────
