@@ -68,7 +68,15 @@ router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req
   const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, courtId));
   if (!court) { res.status(404).json({ error: "Court not found" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(eq(courtMembershipsTable.id, planId));
-  if (!plan || plan.courtId !== courtId) { res.status(404).json({ error: "Plan not found" }); return; }
+  if (!plan || plan.courtId !== courtId || !plan.isActive) { res.status(404).json({ error: "Plan not found" }); return; }
+  const [existing] = await db.select({ id: userMembershipsTable.id })
+    .from(userMembershipsTable)
+    .where(and(
+      eq(userMembershipsTable.userId, userId),
+      eq(userMembershipsTable.membershipPlanId, planId),
+      eq(userMembershipsTable.status, "active"),
+    ));
+  if (existing) { res.status(409).json({ error: "Already subscribed" }); return; }
   const { dayOfWeek, startTime } = req.body as any;
   if (dayOfWeek === undefined || !startTime) { res.status(400).json({ error: "dayOfWeek and startTime required" }); return; }
   const expiresAt = new Date();
@@ -89,6 +97,9 @@ router.post("/facilities/:facilityId/:sport/memberships", requireAuth, async (re
   const [facility] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
   if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
   if (!(await isOwner(req, facility.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [sportCourt] = await db.select({ id: courtsTable.id }).from(courtsTable)
+    .where(and(eq(courtsTable.facilityId, facilityId), eq(courtsTable.type, sport)));
+  if (!sportCourt) { res.status(400).json({ error: "No courts of this sport in facility" }); return; }
   const { name, description, pricePerYear, pricePerMonth, weeklySlots, conditions, discountPercent } = req.body as any;
   if (!name || pricePerYear == null) { res.status(400).json({ error: "name and pricePerYear required" }); return; }
   const [plan] = await db.insert(courtMembershipsTable).values({
@@ -116,7 +127,15 @@ router.post("/facilities/:facilityId/:sport/memberships/:planId/subscribe", requ
   const userId = await getCurrentUserId(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const [plan] = await db.select().from(courtMembershipsTable).where(eq(courtMembershipsTable.id, planId));
-  if (!plan || plan.facilityId !== facilityId || plan.sport !== sport) { res.status(404).json({ error: "Plan not found" }); return; }
+  if (!plan || plan.facilityId !== facilityId || plan.sport !== sport || !plan.isActive) { res.status(404).json({ error: "Plan not found" }); return; }
+  const [existing] = await db.select({ id: userMembershipsTable.id })
+    .from(userMembershipsTable)
+    .where(and(
+      eq(userMembershipsTable.userId, userId),
+      eq(userMembershipsTable.membershipPlanId, planId),
+      eq(userMembershipsTable.status, "active"),
+    ));
+  if (existing) { res.status(409).json({ error: "Already subscribed" }); return; }
   const { dayOfWeek, startTime } = req.body as any;
   if (dayOfWeek === undefined || !startTime) { res.status(400).json({ error: "dayOfWeek and startTime required" }); return; }
   const expiresAt = new Date();
