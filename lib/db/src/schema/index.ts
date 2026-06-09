@@ -25,3 +25,4 @@ export * from "./price-overrides";
 export * from "./pricing-rules";
 export * from "./platform-settings";
 export * from "./purchases";
+export * from "./sport-icons";

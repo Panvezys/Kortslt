@@ -48,6 +48,22 @@ const STANDARD_AMENITIES = [
 
 interface RentableItem { name: string; pricePerSlot: number; stock: number; }
 
+// Sport-scoped equipment suggestions. A court is a single sport, so we only ever
+// suggest gear that fits it — a tennis court suggests rackets, never a padel racket.
+const SUGGESTED_EQUIPMENT: Record<string, string[]> = {
+  tennis:       ["Teniso raketė", "Kamuoliukų rinkinys"],
+  padel:        ["Padelio raketė", "Kamuoliukų rinkinys"],
+  badminton:    ["Badmintono raketė", "Plunksniukų rinkinys"],
+  squash:       ["Skvošo raketė", "Kamuoliukas"],
+  table_tennis: ["Stalo teniso raketė", "Kamuoliukų rinkinys"],
+  basketball:   ["Krepšinio kamuolys"],
+  football:     ["Futbolo kamuolys", "Skiriamieji marškinėliai"],
+  volleyball:   ["Tinklinio kamuolys"],
+  golf:         ["Golfo lazdų rinkinys", "Kamuoliukų kibiras"],
+  snooker:      ["Kijas (lazda)", "Kreidos rinkinys"],
+  bowling:      ["Boulingo batai", "Boulingo kamuolys"],
+};
+
 type WorkingHourDay = { open: string; close: string; closed: boolean };
 type WorkingHoursMap = Record<string, WorkingHourDay>;
 
@@ -1134,6 +1150,23 @@ export default function CourtCreatePage() {
                         <ShoppingBag className="w-4 h-4 text-primary" />
                         <span className="font-semibold text-sm">Nuomojama įranga</span>
                       </div>
+                      {(() => {
+                        const sportType = (form.watch("type") || "").replace(/-/g, "_");
+                        const suggestions = (SUGGESTED_EQUIPMENT[sportType] ?? [])
+                          .filter(s => !rentableItems.some(it => it.name.toLowerCase() === s.toLowerCase()) && s.toLowerCase() !== newItemName.trim().toLowerCase());
+                        if (suggestions.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] text-muted-foreground">Siūloma:</span>
+                            {suggestions.map(s => (
+                              <button key={s} type="button" onClick={() => setNewItemName(s)}
+                                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-dashed border-primary/40 text-primary hover:bg-primary/5 transition-colors">
+                                <Plus className="w-3 h-3" />{s}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       <div className="space-y-2">
                         {rentableItems.map((item, i) => (
                           <div key={i} className="flex items-center justify-between gap-2 bg-muted/30 rounded-lg px-3 py-2 text-sm">

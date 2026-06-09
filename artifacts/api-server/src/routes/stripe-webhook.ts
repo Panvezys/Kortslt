@@ -178,7 +178,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       courtImageUrl: courtsTable.imageUrl,
       ownerName: facilitiesTable.companyName,
       ownerEmail: facilitiesTable.email,
-      instantBookingEnabled: courtsTable.instantBookingEnabled,
       hasSmartLock: courtsTable.hasSmartLock,
     })
     .from(bookingsTable)

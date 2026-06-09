@@ -126,7 +126,7 @@ Only routes defined in `lib/api-spec/openapi.yaml` get generated clients. New ro
 ## Feature patterns
 
 ### Court lifecycle
-Court `status` values: `draft` → `pending_review` → `active` | `hidden`. `instantBookingEnabled` is a per-court boolean. Courts have buffer minutes, amenity toggles, and rentable equipment fields.
+Court `status` values: `draft` → `pending_review` → `active` | `hidden`. All courts are instant-bookable (there is no per-court instant-booking flag). Courts have buffer minutes, amenity toggles, and rentable equipment fields.
 
 ### Facility lifecycle & Stripe Connect
 - Facility `status` values: `draft | pending_review | active | suspended`. There is **no** `onboarding` status.

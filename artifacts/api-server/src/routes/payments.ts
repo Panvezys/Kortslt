@@ -390,7 +390,6 @@ router.post("/payments/confirm", async (req, res): Promise<void> => {
       ownerName: facilitiesTable.name,
       ownerEmail: facilitiesTable.email,
       facilityId: facilitiesTable.id,
-      instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
@@ -636,7 +635,6 @@ router.post("/payments/confirm-free", async (req, res): Promise<void> => {
       courtImageUrl: courtsTable.imageUrl,
       courtOwnerUserId: facilitiesTable.ownerUserId,
       facilityId: facilitiesTable.id,
-      instantBookingEnabled: courtsTable.instantBookingEnabled,
     })
     .from(bookingsTable)
     .leftJoin(courtsTable, eq(bookingsTable.courtId, courtsTable.id))
