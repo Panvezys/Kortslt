@@ -1202,45 +1202,45 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
         // Membership covered the host's entire share — no payment session needed.
         checkoutUrl = await settleHostShareWithoutStripe(`free_split_${result.booking.id}_${Date.now()}`);
       } else {
-      try {
-        const stripe = await getUncachableStripeClient();
-        let connectAccountId: string | null = null;
-        if (facilityRow.ownerUserId) {
-          const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
-            .from(userProfilesTable).where(eq(userProfilesTable.userId, facilityRow.ownerUserId));
-          if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
-        }
+        try {
+          const stripe = await getUncachableStripeClient();
+          let connectAccountId: string | null = null;
+          if (facilityRow.ownerUserId) {
+            const [profile] = await db.select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+              .from(userProfilesTable).where(eq(userProfilesTable.userId, facilityRow.ownerUserId));
+            if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
+          }
 
-        const sessionParams: any = {
-          payment_method_types: ["card"],
-          line_items: [{ price_data: { currency: "eur", product_data: { name: `${facilityRow.name} – mokėjimo dalis (1/${totalSlots})`, description: `${date} · ${startTime}–${endTime}` }, unit_amount: amountCents }, quantity: 1 }],
-          mode: "payment",
-          success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: cancelUrl,
-          metadata: { bookingId: String(result.booking.id), splitParticipantId: String(result.hostParticipant.id) },
-          customer_email: customerEmail,
-          customer_creation: "always",
-          locale: "lt",
-          payment_intent_data: { setup_future_usage: "off_session" },
-        };
-        if (connectAccountId) {
-          const feeAmount = Math.round(amountCents * 5 / 100);
-          sessionParams.payment_intent_data = { setup_future_usage: "off_session", application_fee_amount: feeAmount, transfer_data: { destination: connectAccountId } };
+          const sessionParams: any = {
+            payment_method_types: ["card"],
+            line_items: [{ price_data: { currency: "eur", product_data: { name: `${facilityRow.name} – mokėjimo dalis (1/${totalSlots})`, description: `${date} · ${startTime}–${endTime}` }, unit_amount: amountCents }, quantity: 1 }],
+            mode: "payment",
+            success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: cancelUrl,
+            metadata: { bookingId: String(result.booking.id), splitParticipantId: String(result.hostParticipant.id) },
+            customer_email: customerEmail,
+            customer_creation: "always",
+            locale: "lt",
+            payment_intent_data: { setup_future_usage: "off_session" },
+          };
+          if (connectAccountId) {
+            const feeAmount = Math.round(amountCents * 5 / 100);
+            sessionParams.payment_intent_data = { setup_future_usage: "off_session", application_fee_amount: feeAmount, transfer_data: { destination: connectAccountId } };
+          }
+          const session = await stripe.checkout.sessions.create(sessionParams);
+          await db.update(bookingsTable).set({ stripeSessionId: session.id }).where(eq(bookingsTable.id, result.booking.id));
+          await db.update(gameParticipantsTable).set({ stripeSessionId: session.id }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
+          checkoutUrl = session.url!;
+        } catch (err: any) {
+          if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
+            checkoutUrl = await settleHostShareWithoutStripe(`mock_split_${result.booking.id}_${Date.now()}`);
+          } else {
+            logger.error({ err }, "Group split: Stripe session failed");
+            await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, result.booking.id));
+            await db.delete(gamesTable).where(eq(gamesTable.id, result.game.id));
+            res.status(500).json({ error: "Failed to create payment session" }); return;
+          }
         }
-        const session = await stripe.checkout.sessions.create(sessionParams);
-        await db.update(bookingsTable).set({ stripeSessionId: session.id }).where(eq(bookingsTable.id, result.booking.id));
-        await db.update(gameParticipantsTable).set({ stripeSessionId: session.id }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
-        checkoutUrl = session.url!;
-      } catch (err: any) {
-        if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
-          checkoutUrl = await settleHostShareWithoutStripe(`mock_split_${result.booking.id}_${Date.now()}`);
-        } else {
-          logger.error({ err }, "Group split: Stripe session failed");
-          await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, result.booking.id));
-          await db.delete(gamesTable).where(eq(gamesTable.id, result.game.id));
-          res.status(500).json({ error: "Failed to create payment session" }); return;
-        }
-      }
       }
 
       res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.game.id, shareToken: result.splitInviteToken, pricePerSlot: result.hostShareEur });
