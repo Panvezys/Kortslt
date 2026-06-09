@@ -5,6 +5,7 @@ import { buildDayPriceMap } from "../lib/pricing";
 import { generateManagementToken } from "./bookings";
 import { getCurrentUserId } from "../lib/auth";
 import { clerkClient } from "@clerk/express";
+import { applyMembershipDiscount } from "../lib/membership-pricing";
 
 const router: IRouter = Router();
 
@@ -730,6 +731,12 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
 
         const managementToken = bookerUserId ? null : generateManagementToken();
 
+        // Membership discount applies to the COURT price only — equipment is
+        // always full price. Must run inside this tx (FOR UPDATE cap check).
+        const discount = await applyMembershipDiscount(tx, {
+          userId: bookerUserId, facilityId, sport, playDate: date, amountEur: courtPrice,
+        });
+
         const [inserted] = await tx.insert(bookingsTable).values({
           courtId: court.id,
           bookerUserId: bookerUserId ?? null,
@@ -739,10 +746,11 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
           date,
           startTime,
           endTime,
-          totalPrice: String(courtPrice + equipmentCost),
+          totalPrice: String(Math.round((discount.discounted + equipmentCost) * 100) / 100),
           rentedItems: validatedRentedItems,
           status: "pending",
           managementToken,
+          appliedMembershipId: discount.membershipId,
         }).returning();
 
         return inserted;
