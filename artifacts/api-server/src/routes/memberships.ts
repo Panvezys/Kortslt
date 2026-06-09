@@ -77,13 +77,15 @@ router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req
       eq(userMembershipsTable.status, "active"),
     ));
   if (existing) { res.status(409).json({ error: "Already subscribed" }); return; }
+  // dayOfWeek/startTime are optional relics of the reserved-slot model.
   const { dayOfWeek, startTime } = req.body as any;
-  if (dayOfWeek === undefined || !startTime) { res.status(400).json({ error: "dayOfWeek and startTime required" }); return; }
   const expiresAt = new Date();
   expiresAt.setFullYear(expiresAt.getFullYear() + 1);
   const [membership] = await db.insert(userMembershipsTable).values({
     userId, courtId, facilityId: court.facilityId, sport: court.type, membershipPlanId: planId,
-    dayOfWeek: Number(dayOfWeek), startTime, status: "active", expiresAt,
+    dayOfWeek: dayOfWeek !== undefined && dayOfWeek !== null ? Number(dayOfWeek) : null,
+    startTime: startTime || null,
+    status: "active", expiresAt,
   }).returning();
   res.status(201).json(membership);
 });
@@ -136,13 +138,15 @@ router.post("/facilities/:facilityId/:sport/memberships/:planId/subscribe", requ
       eq(userMembershipsTable.status, "active"),
     ));
   if (existing) { res.status(409).json({ error: "Already subscribed" }); return; }
+  // dayOfWeek/startTime are optional relics of the reserved-slot model.
   const { dayOfWeek, startTime } = req.body as any;
-  if (dayOfWeek === undefined || !startTime) { res.status(400).json({ error: "dayOfWeek and startTime required" }); return; }
   const expiresAt = new Date();
   expiresAt.setFullYear(expiresAt.getFullYear() + 1);
   const [membership] = await db.insert(userMembershipsTable).values({
     userId, courtId: null, facilityId, sport, membershipPlanId: planId,
-    dayOfWeek: Number(dayOfWeek), startTime, status: "active", expiresAt,
+    dayOfWeek: dayOfWeek !== undefined && dayOfWeek !== null ? Number(dayOfWeek) : null,
+    startTime: startTime || null,
+    status: "active", expiresAt,
   }).returning();
   res.status(201).json(membership);
 });

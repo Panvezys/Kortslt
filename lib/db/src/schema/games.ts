@@ -1,5 +1,6 @@
 import { pgTable, text, serial, timestamp, integer, boolean, jsonb, real } from "drizzle-orm/pg-core";
 import { bookingsTable } from "./bookings";
+import { userMembershipsTable } from "./memberships";
 
 export const gamesTable = pgTable("games", {
   id: serial("id").primaryKey(),
@@ -46,6 +47,8 @@ export const gameParticipantsTable = pgTable("game_participants", {
   // Split-payment tracking
   paymentStatus: text("payment_status").notNull().default("paid"), // paid | pending
   stripeSessionId: text("stripe_session_id"),
+  // Membership that discounted THIS participant's split share.
+  appliedMembershipId: integer("applied_membership_id").references(() => userMembershipsTable.id, { onDelete: "set null" }),
   inviteEmail: text("invite_email"),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
 });

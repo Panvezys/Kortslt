@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, numeric, integer, boolean, index } from "drizzle-orm/pg-core";
+import { userMembershipsTable } from "./memberships";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -34,6 +35,10 @@ export const bookingsTable = pgTable("bookings", {
   accessCode: text("access_code"),
   // Recurring booking group (null = one-off, uuid string = part of a weekly series)
   recurringGroupId: text("recurring_group_id"),
+  // Membership that discounted this booking's totalPrice (whole-booking
+  // discounts only — split shares track theirs on game_participants).
+  // Counted against the plan's weeklySlots cap for the play-date's ISO week.
+  appliedMembershipId: integer("applied_membership_id").references(() => userMembershipsTable.id, { onDelete: "set null" }),
   // Coach userId when this booking represents a coaching lesson. Nullable
   // because regular court bookings have no coach attached. Mirrors the
   // bookerUserId text-no-FK pattern in this table.

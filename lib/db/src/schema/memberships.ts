@@ -28,8 +28,10 @@ export const userMembershipsTable = pgTable("user_memberships", {
   facilityId: integer("facility_id").references(() => facilitiesTable.id, { onDelete: "cascade" }),
   sport: text("sport"),
   membershipPlanId: integer("membership_plan_id").notNull().references(() => courtMembershipsTable.id, { onDelete: "cascade" }),
-  dayOfWeek: integer("day_of_week").notNull(),
-  startTime: text("start_time").notNull(),
+  // Nullable relics of the old reserved-recurring-slot model. The discount
+  // model has no fixed slot; kept for legacy rows only.
+  dayOfWeek: integer("day_of_week"),
+  startTime: text("start_time"),
   status: text("status").notNull().default("active"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
