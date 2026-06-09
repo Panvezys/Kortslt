@@ -47,6 +47,7 @@ import coachReviewsRouter from "./coach-reviews";
 import coachDashboardRouter from "./coach-dashboard";
 import platformSettingsRouter from "./platform-settings";
 import searchGroupsRouter from "./search-groups";
+import sportIconsRouter from "./sport-icons";
 
 const router: IRouter = Router();
 
@@ -98,5 +99,6 @@ router.use(coachReviewsRouter);
 router.use(coachDashboardRouter);
 router.use(platformSettingsRouter);
 router.use(searchGroupsRouter);
+router.use(sportIconsRouter);
 
 export default router;

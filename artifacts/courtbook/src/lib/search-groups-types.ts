@@ -12,7 +12,6 @@ export interface SearchGroupResult {
   photos: string[];
   isPromoted: boolean;
   groupRating: number | null;
-  instantBookable: boolean;
   isIndoorAvailable: boolean;
   isOutdoorAvailable: boolean;
 }
@@ -24,7 +23,6 @@ export interface GroupDetailCourt {
   isIndoor: boolean;
   maxPlayers: number;
   effectiveHourlyPrice: number;
-  instantBookingEnabled: boolean;
   rating: number | null;
   photos: string[];
   amenities: string[];
@@ -50,6 +48,17 @@ export interface GroupDetailFacility {
   socialWhatsapp: string | null;
 }
 
+export interface GroupMembership {
+  id: number;
+  name: string;
+  description: string | null;
+  pricePerYear: number;
+  pricePerMonth: number | null;
+  weeklySlots: number;
+  discountPercent: number | null;
+  conditions: string | null;
+}
+
 export interface GroupDetailResult {
   facility: GroupDetailFacility;
   sport: string;
@@ -63,6 +72,8 @@ export interface GroupDetailResult {
   isOutdoorAvailable: boolean;
   availableSports: string[];
   courts: GroupDetailCourt[];
+  memberships: GroupMembership[];
+  lastBookedAt: string | null;
 }
 
 export interface SearchGroupFilters {

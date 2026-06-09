@@ -32,7 +32,6 @@ export const courtsTable = pgTable("courts", {
   socialInstagram: text("social_instagram"),
   socialWhatsapp: text("social_whatsapp"),
   socialWebsite: text("social_website"),
-  instantBookingEnabled: boolean("instant_booking_enabled").notNull().default(true),
   facilityId: integer("facility_id").notNull().references(() => facilitiesTable.id, { onDelete: "cascade" }),
   workingHours: text("working_hours"),
   amenityPhotos: text("amenity_photos"),

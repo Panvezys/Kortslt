@@ -61,7 +61,6 @@ function formatCourt(c: CourtRow, facility: FacilityRow | null) {
     socialWebsite: c.socialWebsite ?? undefined,
     workingHours: c.workingHours ?? undefined,
     amenityPhotos: c.amenityPhotos ?? undefined,
-    instantBookingEnabled: c.instantBookingEnabled ?? true,
   };
 }
 
@@ -98,7 +97,6 @@ function formatPublicCourt(c: CourtRow, facility: FacilityRow | null) {
     socialInstagram: c.socialInstagram ?? undefined,
     socialWhatsapp: c.socialWhatsapp ?? undefined,
     socialWebsite: c.socialWebsite ?? undefined,
-    instantBookingEnabled: c.instantBookingEnabled ?? true,
     facilityId: c.facilityId,
     facilityName: facility?.name ?? undefined,
     cancellationPolicy: (facility?.cancellationPolicy ?? "standard") as "standard" | "strict",
@@ -353,7 +351,6 @@ router.post("/courts", requireAuth, async (req, res): Promise<void> => {
       accessInstructions: (parsed.data as any).accessInstructions ?? null,
       condition: (parsed.data.condition ?? "good") as string,
       status: "draft",
-      instantBookingEnabled: true,
       facilityId: parsed.data.facilityId,
       workingHours: parsed.data.workingHours ?? null,
     })
@@ -435,7 +432,6 @@ router.post("/courts/bulk", requireAuth, async (req, res): Promise<void> => {
       amenities: amenities ?? [],
       facilityId,
       maxPlayers: 4,
-      instantBookingEnabled: true,
       status: "draft" as const,
       condition: "good" as const,
     }));
@@ -590,9 +586,6 @@ router.put("/courts/:id", requireAuth, async (req, res): Promise<void> => {
 
   // Preserve extra owner-settable fields that aren't in the Zod schema
   const extraFields: Record<string, unknown> = {};
-  if (typeof (req.body as any).instantBookingEnabled === "boolean") {
-    extraFields.instantBookingEnabled = (req.body as any).instantBookingEnabled;
-  }
   const rb = req.body as any;
   if ("surfaceSpeed" in rb) extraFields.surfaceSpeed = rb.surfaceSpeed ?? null;
   if ("surfaceBounce" in rb) extraFields.surfaceBounce = rb.surfaceBounce ?? null;

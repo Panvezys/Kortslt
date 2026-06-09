@@ -9,13 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { MapPin, Star, Phone, Mail, AlertCircle, Instagram, Facebook, ChevronLeft, ChevronRight, Heart, Share2, Clock, ChevronDown, Navigation, X, Images, Loader2, Trophy, Users, Zap, Euro, Dumbbell } from "lucide-react";
-import { SportPill, getSportLabel } from "@/components/sport-icon";
+import { MapPin, Star, Phone, Mail, AlertCircle, Instagram, Facebook, ChevronLeft, ChevronRight, Share2, Clock, ChevronDown, Navigation, X, Images, Loader2, Trophy, Users, Euro, Dumbbell } from "lucide-react";
+import { SportPill, getSportLabel, SportCourtIcon } from "@/components/sport-icon";
+import { useSportIconConfig } from "@/lib/sport-icons";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import type { GroupDetailResult } from "@/lib/search-groups-types";
 import { customFetch } from "@workspace/api-client-react";
 import { GroupBookingWidget } from "@/components/group-booking-widget";
-import { WeatherWidget } from "@/components/weather-widget";
+import { GroupMembershipSection } from "@/components/group-membership-section";
 import { SurfaceSpecs } from "@/components/surface-specs";
 import { useToast } from "@/hooks/use-toast";
 import { format as formatDate } from "date-fns";
@@ -82,6 +83,15 @@ function WorkingHoursAccordion({ json }: { json: string }) {
       </div>
     </div>
   );
+}
+
+/** Lithuanian plural for "atsiliepimas" (review): 1 → atsiliepimas, 2–9 → atsiliepimai, else → atsiliepimų. */
+function reviewsLabel(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "atsiliepimas";
+  if (mod10 >= 2 && mod10 <= 9 && (mod100 < 11 || mod100 > 19)) return "atsiliepimai";
+  return "atsiliepimų";
 }
 
 function StarDisplay({ rating }: { rating: number }) {
@@ -168,13 +178,25 @@ export default function FacilitySportPage() {
 
   const isIndoor = isIndoorStr === "true" ? true : isIndoorStr === "false" ? false : undefined;
 
+  const iconCfg = useSportIconConfig(sportParam);
+
   const [redirecting, setRedirecting] = useState(!sportParam);
-  const [favorited, setFavorited] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [selectedCourtId, setSelectedCourtId] = useState<string>("auto");
+  const [showReserveBar, setShowReserveBar] = useState(false);
 
   useEffect(() => { setActivePhotoIdx(0); setSelectedCourtId("auto"); }, [facilityId, sportParam]);
+
+  // Mobile: show a sticky "Rezervuoti" bar until the booking widget scrolls into view,
+  // so the booking CTA is reachable without scrolling past reviews/coaches/contact.
+  useEffect(() => {
+    const el = document.getElementById("reserve");
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => setShowReserveBar(!entry.isIntersecting), { threshold: 0.12 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [facilityId, sportParam, redirecting]);
 
   useEffect(() => {
     if (!sportParam && facilityId) {
@@ -297,7 +319,8 @@ export default function FacilitySportPage() {
 
   const { facility, sport, mergedPhotos, mergedAmenities,
           surfacesAvailable, isIndoorAvailable, isOutdoorAvailable,
-          availableSports, courtCount, startingPrice, groupRating } = data;
+          availableSports, courtCount, startingPrice, groupRating,
+          memberships, lastBookedAt } = data;
 
   const allPhotos = mergedPhotos;
   const sportFallback = resolveCourtImage(null, sport);
@@ -410,7 +433,15 @@ export default function FacilitySportPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">
+                  <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <SportCourtIcon
+                      sport={iconCfg.iconKey}
+                      size={14}
+                      strokeWidth={2}
+                      style={{ color: iconCfg.color }}
+                      className="shrink-0"
+                      aria-hidden="true"
+                    />
                     {courtCount} aikštelė{courtCount === 1 ? "" : courtCount < 10 ? "s" : "ių"}
                     {startingPrice != null && (
                       <> · nuo <span className="font-semibold text-foreground">{startingPrice.toFixed(0)} €/val</span></>
@@ -419,13 +450,6 @@ export default function FacilitySportPage() {
                 </div>
                 {/* Header actions */}
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => setFavorited(v => !v)}
-                    className="flex items-center justify-center w-9 h-9 rounded-full border bg-background hover:bg-muted transition-colors"
-                    aria-label="Įsiminti"
-                  >
-                    <Heart className={`w-4 h-4 transition-colors ${favorited ? "fill-red-500 text-red-500" : "text-muted-foreground"}`} />
-                  </button>
                   <button
                     onClick={() => handleShare(facility.name)}
                     className="flex items-center justify-center w-9 h-9 rounded-full border bg-background hover:bg-muted transition-colors"
@@ -476,7 +500,7 @@ export default function FacilitySportPage() {
             {/* Amenities */}
             {mergedAmenities.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Patogumais</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Patogumai</p>
                 <div className="flex flex-wrap gap-1.5">
                   {mergedAmenities.map(a => <Badge key={a} variant="secondary" className="text-xs">{a}</Badge>)}
                 </div>
@@ -494,11 +518,6 @@ export default function FacilitySportPage() {
                     <div key={court.id} className="border border-border rounded-xl p-4 bg-card space-y-2.5 hover:border-primary/40 transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-semibold text-sm leading-tight">{court.name}</p>
-                        {court.instantBookingEnabled && (
-                          <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                            <Zap className="w-2.5 h-2.5" />Greita
-                          </span>
-                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {court.surface && (
@@ -571,6 +590,13 @@ export default function FacilitySportPage() {
                 </div>
               </div>
             )}
+
+            {/* Memberships */}
+            <GroupMembershipSection
+              facilityId={Number(facilityId)}
+              sport={sport}
+              memberships={memberships}
+            />
 
             {/* Coaches */}
             {groupCoaches.length > 0 && (
@@ -665,16 +691,6 @@ export default function FacilitySportPage() {
               </div>
             )}
 
-            {/* Weather widget — only for outdoor groups */}
-            {facility.latitude != null && (
-              <WeatherWidget
-                lat={facility.latitude}
-                lon={facility.longitude}
-                date={new Date().toISOString().slice(0, 10)}
-                isIndoor={!isOutdoorAvailable}
-              />
-            )}
-
             {/* Reviews */}
             <div>
               <div className="flex items-center justify-between mb-4">
@@ -687,7 +703,7 @@ export default function FacilitySportPage() {
                     <span className="text-xl font-bold">{reviewMeta.averageRating.toFixed(1)}</span>
                     <div>
                       <StarDisplay rating={reviewMeta.averageRating} />
-                      <p className="text-[10px] text-muted-foreground">{reviewMeta.reviewCount} atsiliepimai</p>
+                      <p className="text-[10px] text-muted-foreground">{reviewMeta.reviewCount} {reviewsLabel(reviewMeta.reviewCount)}</p>
                     </div>
                   </div>
                 )}
@@ -768,12 +784,40 @@ export default function FacilitySportPage() {
                   sport={sport}
                   selectedCourtId={selectedCourtId}
                   onCourtIdChange={setSelectedCourtId}
+                  latitude={facility.latitude}
+                  longitude={facility.longitude}
+                  isOutdoor={isOutdoorAvailable}
+                  lastBookedAt={lastBookedAt}
                 />
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Mobile sticky reserve bar — jumps to the booking widget */}
+      {showReserveBar && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur-md border-t shadow-2xl px-4 pr-20 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground leading-none mb-0.5 truncate">
+                {getSportLabel(sport)}{facility.city ? ` · ${facility.city}` : ""}
+              </p>
+              <p className="font-bold text-lg leading-tight">
+                {startingPrice != null
+                  ? <>Nuo {startingPrice.toFixed(0)} €<span className="text-xs font-normal text-muted-foreground">/val</span></>
+                  : "Rezervuoti laiką"}
+              </p>
+            </div>
+            <Button
+              className="h-11 px-6 font-semibold shrink-0"
+              onClick={() => document.getElementById("reserve")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              Rezervuoti
+            </Button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

@@ -12,7 +12,7 @@ import { SportPill } from "@/components/sport-icon";
 import {
   CheckCircle2, XCircle, MapPin, Euro, User, Building2,
   ChevronLeft, RefreshCw, Image as ImageIcon,
-  Clock, Zap, Trophy, Phone, Mail, Euro as EuroIcon,
+  Clock, Trophy, Phone, Mail, Euro as EuroIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -33,7 +33,6 @@ interface PendingCourt {
   photos?: string[];
   status: string;
   createdAt: string;
-  instantBookingEnabled?: boolean;
 }
 
 function CourtCard({
@@ -99,12 +98,7 @@ function CourtCard({
           </div>
         </div>
 
-        {/* Instant booking indicator */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${court.instantBookingEnabled !== false ? "text-blue-500 bg-blue-500/10" : "text-muted-foreground bg-muted/40"}`}>
-            <Zap className="h-3 w-3" />
-            {court.instantBookingEnabled !== false ? "Momentinė rez." : "Rankinis patvirtinimas"}
-          </span>
           {!mainPhoto && (
             <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full text-orange-500 bg-orange-500/10 font-medium">
               <ImageIcon className="h-3 w-3" />

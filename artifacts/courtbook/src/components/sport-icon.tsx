@@ -289,6 +289,270 @@ export function CourtIcon(props: SvgProps) {
   );
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Top-down COURT diagrams — one per sport. These are distinct from the
+// ball/equipment glyphs above: each depicts the sport's playing surface seen
+// from above (lines, net, key, pockets, etc.). Used for court/venue contexts
+// such as court-count badges. Dispatched by <SportCourtIcon>, with the
+// per-sport color/label/iconKey overridable via the `sport_icons` DB table
+// (see src/lib/sport-icons.tsx).
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Thin inner-line weight derived from the frame stroke. */
+function courtThin(sw: number) {
+  return Math.max(0.7, sw * 0.55);
+}
+
+/** Tennis court — sidelines/alleys, net, service boxes (vertical). */
+export function TennisCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="4" y="2.5" width="16" height="19" rx="0.5" strokeWidth={sw} />
+      <line x1="6.5" y1="2.5" x2="6.5" y2="21.5" strokeWidth={t} />
+      <line x1="17.5" y1="2.5" x2="17.5" y2="21.5" strokeWidth={t} />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={sw} />
+      <line x1="6.5" y1="7.5" x2="17.5" y2="7.5" strokeWidth={t} />
+      <line x1="6.5" y1="16.5" x2="17.5" y2="16.5" strokeWidth={t} />
+      <line x1="12" y1="7.5" x2="12" y2="16.5" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Padel court — enclosed walls, net, service lines + center service line. */
+export function PadelCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="4" y="3" width="16" height="18" rx="0.5" strokeWidth={sw} />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={sw} />
+      <line x1="4" y1="7.5" x2="20" y2="7.5" strokeWidth={t} />
+      <line x1="4" y1="16.5" x2="20" y2="16.5" strokeWidth={t} />
+      <line x1="12" y1="7.5" x2="12" y2="16.5" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Badminton court — tramlines, net, short service lines, split center line. */
+export function BadmintonCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="4.5" y="2.5" width="15" height="19" rx="0.5" strokeWidth={sw} />
+      <line x1="6.5" y1="2.5" x2="6.5" y2="21.5" strokeWidth={t} />
+      <line x1="17.5" y1="2.5" x2="17.5" y2="21.5" strokeWidth={t} />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={sw} />
+      <line x1="4.5" y1="9" x2="19.5" y2="9" strokeWidth={t} />
+      <line x1="4.5" y1="15" x2="19.5" y2="15" strokeWidth={t} />
+      <line x1="12" y1="2.5" x2="12" y2="9" strokeWidth={t} />
+      <line x1="12" y1="15" x2="12" y2="21.5" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Squash court — short line, half-court line, two back service boxes. */
+export function SquashCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="4" y="2.5" width="16" height="19" rx="0.5" strokeWidth={sw} />
+      <line x1="4" y1="14" x2="20" y2="14" strokeWidth={t} />
+      <line x1="12" y1="14" x2="12" y2="21.5" strokeWidth={t} />
+      <rect x="4" y="14" width="4" height="4" strokeWidth={t} />
+      <rect x="16" y="14" width="4" height="4" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Table tennis table — net across the middle + lengthwise center line. */
+export function TableTennisCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="6" width="18" height="12" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="4.5" x2="12" y2="19.5" strokeWidth={sw} />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Volleyball court — net + attack (3m) lines on both sides. */
+export function VolleyballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="3.5" x2="12" y2="20.5" strokeWidth={sw} />
+      <line x1="8.5" y1="5" x2="8.5" y2="19" strokeWidth={t} />
+      <line x1="15.5" y1="5" x2="15.5" y2="19" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Beach volleyball — net over court with a wavy sand line below. */
+export function BeachVolleyballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      <rect x="3.5" y="4.5" width="17" height="12" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="3" x2="12" y2="18" strokeWidth={sw} />
+      <path d="M2 21 Q5 19.5 8 21 T14 21 T20 21" strokeWidth={courtThin(sw)} fill="none" />
+    </Svg>
+  );
+}
+
+/** Basketball court — center line/circle, keys, three-point arcs. */
+export function BasketballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="4" x2="12" y2="20" strokeWidth={t} />
+      <circle cx="12" cy="12" r="2" strokeWidth={t} />
+      <rect x="3" y="9" width="4" height="6" strokeWidth={t} />
+      <rect x="17" y="9" width="4" height="6" strokeWidth={t} />
+      <path d="M3 7 Q8 12 3 17" strokeWidth={t} fill="none" />
+      <path d="M21 7 Q16 12 21 17" strokeWidth={t} fill="none" />
+    </Svg>
+  );
+}
+
+/** Football pitch — halfway line/circle, penalty boxes, goals. */
+export function FootballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="0.5" strokeWidth={sw} />
+      <line x1="12" y1="5" x2="12" y2="19" strokeWidth={t} />
+      <circle cx="12" cy="12" r="2" strokeWidth={t} />
+      <rect x="3" y="8" width="3.5" height="8" strokeWidth={t} />
+      <rect x="17.5" y="8" width="3.5" height="8" strokeWidth={t} />
+      <line x1="2.5" y1="10.5" x2="2.5" y2="13.5" strokeWidth={sw} />
+      <line x1="21.5" y1="10.5" x2="21.5" y2="13.5" strokeWidth={sw} />
+    </Svg>
+  );
+}
+
+/** Ice hockey rink — rounded boards, center + blue lines, goal creases. */
+export function HockeyCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="4" strokeWidth={sw} />
+      <line x1="12" y1="4" x2="12" y2="20" strokeWidth={sw} />
+      <circle cx="12" cy="12" r="1.8" strokeWidth={t} />
+      <line x1="8.5" y1="4.6" x2="8.5" y2="19.4" strokeWidth={t} />
+      <line x1="15.5" y1="4.6" x2="15.5" y2="19.4" strokeWidth={t} />
+      <path d="M5 10.5 A2 2 0 0 1 5 13.5" strokeWidth={t} fill="none" />
+      <path d="M19 10.5 A2 2 0 0 0 19 13.5" strokeWidth={t} fill="none" />
+    </Svg>
+  );
+}
+
+/** Floorball rink — rounded boards, center line/spot, end goals. */
+export function FloorballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="4" strokeWidth={sw} />
+      <line x1="12" y1="4" x2="12" y2="20" strokeWidth={t} />
+      <circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none" />
+      <rect x="4.2" y="10.5" width="1.6" height="3" strokeWidth={t} />
+      <rect x="18.2" y="10.5" width="1.6" height="3" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Pickleball court — net, non-volley zones (kitchen), split center line. */
+export function PickleballCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="4" y="3" width="16" height="18" rx="0.5" strokeWidth={sw} />
+      <line x1="3" y1="12" x2="21" y2="12" strokeWidth={sw} />
+      <line x1="4" y1="9" x2="20" y2="9" strokeWidth={t} />
+      <line x1="4" y1="15" x2="20" y2="15" strokeWidth={t} />
+      <line x1="12" y1="3" x2="12" y2="9" strokeWidth={t} />
+      <line x1="12" y1="15" x2="12" y2="21" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Snooker table — six pockets, baulk line and the "D". */
+export function SnookerCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  return (
+    <Svg {...props}>
+      <rect x="3" y="6" width="18" height="12" rx="1" strokeWidth={sw} />
+      <line x1="7.5" y1="6" x2="7.5" y2="18" strokeWidth={t} />
+      <path d="M7.5 9.5 A2.5 2.5 0 0 0 7.5 14.5" strokeWidth={t} fill="none" />
+      <circle cx="4" cy="7" r="0.9" strokeWidth={t} />
+      <circle cx="20" cy="7" r="0.9" strokeWidth={t} />
+      <circle cx="4" cy="17" r="0.9" strokeWidth={t} />
+      <circle cx="20" cy="17" r="0.9" strokeWidth={t} />
+      <circle cx="12" cy="6" r="0.9" strokeWidth={t} />
+      <circle cx="12" cy="18" r="0.9" strokeWidth={t} />
+    </Svg>
+  );
+}
+
+/** Bowling lane — narrow lane, foul line, and a pin triangle. */
+export function BowlingCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6; const t = courtThin(sw);
+  const pin = (cx: number, cy: number) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="0.7" fill="currentColor" stroke="none" />;
+  return (
+    <Svg {...props}>
+      <rect x="8" y="2.5" width="8" height="19" rx="0.5" strokeWidth={sw} />
+      <line x1="8" y1="17" x2="16" y2="17" strokeWidth={t} />
+      {pin(12, 4)}
+      {pin(10.7, 6)}{pin(13.3, 6)}
+      {pin(9.4, 8)}{pin(12, 8)}{pin(14.6, 8)}
+      {pin(8.8, 10)}{pin(11, 10)}{pin(13, 10)}{pin(15.2, 10)}
+    </Svg>
+  );
+}
+
+/** Golf green — putting green outline with hole and flag. */
+export function GolfCourtIcon(props: SvgProps) {
+  const sw = props.strokeWidth ?? 1.6;
+  return (
+    <Svg {...props}>
+      <ellipse cx="11" cy="13" rx="8" ry="6" strokeWidth={sw} />
+      <circle cx="9" cy="13" r="0.9" fill="currentColor" stroke="none" />
+      <line x1="9" y1="13" x2="9" y2="4" strokeWidth={sw} />
+      <path d="M9 4 L14 5.5 L9 7 Z" strokeWidth={sw} />
+    </Svg>
+  );
+}
+
+/**
+ * Court-diagram dispatcher (parallel to {@link SportIcon}, which renders the
+ * ball/equipment glyphs). Unknown sports fall back to the generic
+ * {@link CourtIcon}.
+ */
+export function SportCourtIcon({ sport, ...props }: SvgProps & { sport: string }) {
+  switch (sport) {
+    case "tennis":            return <TennisCourtIcon {...props} />;
+    case "padel":             return <PadelCourtIcon {...props} />;
+    case "badminton":         return <BadmintonCourtIcon {...props} />;
+    case "squash":            return <SquashCourtIcon {...props} />;
+    case "table_tennis":
+    case "table-tennis":      return <TableTennisCourtIcon {...props} />;
+    case "volleyball":        return <VolleyballCourtIcon {...props} />;
+    case "beach-volleyball":  return <BeachVolleyballCourtIcon {...props} />;
+    case "basketball":        return <BasketballCourtIcon {...props} />;
+    case "football":          return <FootballCourtIcon {...props} />;
+    case "futsal":            return <FutsalIcon {...props} />;
+    case "hockey":            return <HockeyCourtIcon {...props} />;
+    case "floorball":         return <FloorballCourtIcon {...props} />;
+    case "pickleball":        return <PickleballCourtIcon {...props} />;
+    case "snooker":           return <SnookerCourtIcon {...props} />;
+    case "bowling":           return <BowlingCourtIcon {...props} />;
+    case "golf":              return <GolfCourtIcon {...props} />;
+    default:                  return <CourtIcon {...props} />;
+  }
+}
+
 export type SportType =
   | "tennis"
   | "basketball"

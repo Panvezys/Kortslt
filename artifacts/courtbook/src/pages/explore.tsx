@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, SlidersHorizontal, X, ArrowUpDown, Map as MapIcon, List } from "lucide-react";
+import { Search, SlidersHorizontal, X, ArrowUpDown, Map as MapIcon, List, Navigation } from "lucide-react";
 import { FacilitySportCard } from "@/components/facility-sport-card";
 import { CourtMap, type CourtHrefBuilder } from "@/components/court-map";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
@@ -18,6 +18,18 @@ import { customFetch, type Court } from "@workspace/api-client-react";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "rating_desc";
 type ViewMode = "list" | "map";
+
+const NEARBY_KM = 30;
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResult[]> {
   const p = new URLSearchParams();
@@ -45,6 +57,24 @@ export default function ExplorePage() {
   const [sortBy,      setSortBy]      = useState<SortKey>("default");
   const [viewMode,    setViewMode]    = useState<ViewMode>("list");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  // Nearby (geolocation) filter
+  const [nearbyMode,    setNearbyMode]    = useState(false);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError,   setNearbyError]   = useState<string | null>(null);
+  const [userLocation,  setUserLocation]  = useState<{ lat: number; lng: number } | null>(null);
+
+  function handleNearby() {
+    if (nearbyMode) { setNearbyMode(false); setUserLocation(null); setNearbyError(null); return; }
+    if (!navigator.geolocation) { setNearbyError("Jūsų naršyklė nepalaiko geolokacijos."); return; }
+    setNearbyLoading(true);
+    setNearbyError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setNearbyMode(true); setNearbyLoading(false); },
+      (err) => { setNearbyLoading(false); setNearbyError(err.code === 1 ? "Leiskite prieigą prie vietos." : "Nepavyko nustatyti vietos."); },
+      { timeout: 8000, maximumAge: 60000 },
+    );
+  }
 
   useEffect(() => {
     const p = new URLSearchParams(search);
@@ -101,6 +131,10 @@ export default function ExplorePage() {
     const max = maxPrice !== "" ? Number(maxPrice) : NaN;
     if (!isNaN(min)) result = result.filter(g => g.startingPrice == null || g.startingPrice >= min);
     if (!isNaN(max)) result = result.filter(g => g.startingPrice == null || g.startingPrice <= max);
+    if (nearbyMode && userLocation) {
+      result = result.filter(g => g.latitude != null && g.longitude != null &&
+        haversineKm(userLocation.lat, userLocation.lng, g.latitude, g.longitude) <= NEARBY_KM);
+    }
 
     if (sortBy !== "default") {
       result = [...result].sort((a, b) => {
@@ -112,13 +146,14 @@ export default function ExplorePage() {
       });
     }
     return result;
-  }, [groups, activeSport, city, nameQ, minPrice, maxPrice, sortBy]);
+  }, [groups, activeSport, city, nameQ, minPrice, maxPrice, sortBy, nearbyMode, userLocation]);
 
-  const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice].filter(Boolean).length;
+  const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice, nearbyMode].filter(Boolean).length;
 
   function clearFilters() {
     setActiveSport(""); setCity(""); setSurface(""); setIsIndoor("");
     setMinPrice(""); setMaxPrice("");
+    setNearbyMode(false); setUserLocation(null); setNearbyError(null);
   }
 
   function toggleSport(sport: string) {
@@ -131,6 +166,27 @@ export default function ExplorePage() {
 
   const filterControls = (
     <div className="space-y-6">
+      {/* Nearby location */}
+      <div>
+        <button
+          onClick={handleNearby}
+          disabled={nearbyLoading}
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all disabled:opacity-60 ${
+            nearbyMode ? "bg-primary text-primary-foreground border-primary" : "border-border bg-muted/40 hover:bg-muted text-foreground"
+          }`}
+        >
+          {nearbyLoading ? (
+            <svg className="h-4 w-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <Navigation className="h-4 w-4 shrink-0" />
+          )}
+          <span className="flex-1 text-left">{nearbyMode ? `Netoliese (${NEARBY_KM} km) ✕` : "Ieškoti netoliese"}</span>
+        </button>
+        {nearbyError && <p className="mt-1.5 text-xs text-destructive">{nearbyError}</p>}
+      </div>
+
       {/* Sport filter */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -339,8 +395,8 @@ export default function ExplorePage() {
     <div className="flex items-center gap-2">
       <Select value={sortBy} onValueChange={(v: SortKey) => setSortBy(v)}>
         <SelectTrigger className="h-9 w-auto gap-1.5 text-xs" aria-label="Rūšiuoti">
-          <ArrowUpDown className="h-3.5 w-3.5" />
-          <SelectValue />
+          <ArrowUpDown className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline"><SelectValue /></span>
         </SelectTrigger>
         <SelectContent align="end">
           <SelectItem value="default">Rekomenduojama</SelectItem>
@@ -391,6 +447,34 @@ export default function ExplorePage() {
             </Button>
           )}
           {sortAndView}
+        </div>
+        {/* Row 2: scrollable sport chips for quick single-sport switching */}
+        <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button
+            onClick={() => setActiveSport("")}
+            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+              !activeSport ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            Visi
+          </button>
+          {[...groupsBySport.keys()].sort().map(sport => {
+            const active = activeSport === sport;
+            const color  = sportColor[sport] ?? "#888";
+            return (
+              <button
+                key={sport}
+                onClick={() => toggleSport(sport)}
+                className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                  active ? "border-transparent text-white" : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+                style={active ? { backgroundColor: color } : {}}
+              >
+                <SportIcon sport={sport} size={11} strokeWidth={2} style={{ color: active ? "white" : color }} />
+                {SPORT_LABELS[sport] ?? sport}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -493,12 +577,30 @@ export default function ExplorePage() {
                 </div>
               )
             ) : viewMode === "map" ? (
-              <div className="h-[400px] md:h-[600px]">
-                <CourtMap courts={mapCourts} activeSports={mapSports} getHref={mapHref} />
-              </div>
+              mapCourts.length === 0 ? (
+                <div className="h-[400px] md:h-[600px] flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 text-center text-muted-foreground px-6">
+                  <MapIcon className="h-8 w-8 opacity-40" />
+                  <p className="text-sm">
+                    {displayed.length === 0
+                      ? "Nerasta aikštelių pagal pasirinktus filtrus."
+                      : "Šių aikštelių žemėlapyje parodyti negalime (trūksta vietos koordinačių)."}
+                  </p>
+                </div>
+              ) : (
+                <div className="h-[400px] md:h-[600px]">
+                  <CourtMap courts={mapCourts} activeSports={mapSports} getHref={mapHref} />
+                </div>
+              )
             ) : displayed.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                Nerasta aikštelių pagal pasirinktus filtrus.
+              <div className="text-center py-16 border rounded-xl bg-muted/10 border-dashed">
+                <div className="text-4xl mb-4">🎾</div>
+                <h3 className="text-xl font-bold mb-2">Nerasta aikštelių</h3>
+                <p className="text-muted-foreground mb-4 px-4">Pabandykite pakeisti arba išvalyti filtrus.</p>
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" onClick={clearFilters}>
+                    <X className="h-4 w-4 mr-1" /> Išvalyti filtrus
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

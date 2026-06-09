@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { addDays, format, isSameDay } from "date-fns";
 import { lt as ltLocale } from "date-fns/locale";
 import { useUser, useClerk } from "@clerk/react";
-import { Loader2, CalendarDays, Users, RotateCcw, AlertCircle, CheckCircle2, Globe } from "lucide-react";
+import { Loader2, CalendarDays, Users, RotateCcw, AlertCircle, CheckCircle2, Globe, ShoppingBag, ChevronDown, Trash2, Check } from "lucide-react";
+import { WeatherWidget } from "@/components/weather-widget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import { customFetch } from "@workspace/api-client-react";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface GroupCourt { id: number; name: string; surface: string | null; }
+interface GroupEquipItem { name: string; pricePerSlot: number; available: number; stock: number; }
 interface GroupSlot  { startTime: string; endTime: string; isAvailable: boolean; price: number; }
 interface GroupAvailabilityResponse { facilityId: number; sport: string; date: string; slots: GroupSlot[]; courts: GroupCourt[]; }
 interface BookGroupResponse { id: number; courtId: number; date: string; startTime: string; endTime: string; totalPrice: number; status: string; managementToken?: string; }
@@ -62,15 +64,36 @@ async function goToCheckout(booking: BookingResponse | BookGroupResponse, facili
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+// ── Social-proof helper ────────────────────────────────────────────────────────
+
+function lastBookedLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return null;
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return "ką tik";
+  if (min < 60) return `prieš ${min} min.`;
+  const hrs = Math.floor(min / 60);
+  if (hrs < 24) return `prieš ${hrs} val.`;
+  const days = Math.floor(hrs / 24);
+  return `prieš ${days} d.`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 interface Props {
   facilityId: number;
   sport: string;
   /** Controlled: which court is pre-selected ("auto" = wear-balancing). */
   selectedCourtId: string;
   onCourtIdChange: (id: string) => void;
+  latitude?: number | null;
+  longitude?: number | null;
+  isOutdoor?: boolean;
+  lastBookedAt?: string | null;
 }
 
-export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange }: Props) {
+export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt }: Props) {
   const today = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
   const [date,          setDate]          = useState<Date>(today);
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
@@ -80,6 +103,12 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestName,     setGuestName]     = useState("");
   const [guestEmail,    setGuestEmail]    = useState("");
+
+  // Equipment rental
+  const [selectedEquipment, setSelectedEquipment] = useState<Map<string, number>>(new Map());
+  const [equipAvail,        setEquipAvail]        = useState<GroupEquipItem[]>([]);
+  const [equipLoading,      setEquipLoading]      = useState(false);
+  const [equipmentOpen,     setEquipmentOpen]     = useState(false);
 
   // Waitlist
   const [waitlistOpen, setWaitlistOpen] = useState(false);
@@ -109,11 +138,13 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   const nowStr  = new Date().toTimeString().slice(0, 5);
 
   // Reset on date/context change
-  useEffect(() => { setSelectedStart(null); setSelectedEnd(null); }, [dateStr, facilityId, sport]);
+  useEffect(() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }, [dateStr, facilityId, sport]);
 
   // Mutual exclusion
   useEffect(() => { if (splitEnabled)     setRecurringEnabled(false); }, [splitEnabled]);
   useEffect(() => { if (recurringEnabled) setSplitEnabled(false);     }, [recurringEnabled]);
+  // Equipment applies to standard single bookings only — clear it when split/recurring is on.
+  useEffect(() => { if (splitEnabled || recurringEnabled) setSelectedEquipment(new Map()); }, [splitEnabled, recurringEnabled]);
 
   // Auto-scroll date strip to selected chip
   useEffect(() => {
@@ -177,6 +208,37 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     return new Date(`${dateStr}T${selectedSlotRange.startTime}:00`).getTime() - Date.now() < 2 * 60 * 60 * 1000;
   }, [selectedSlotRange, dateStr]);
 
+  // Equipment only makes sense for a standard single booking.
+  const equipmentApplies = !splitEnabled && !recurringEnabled;
+  const slotCount = selectedSlotRange ? selectedSlotRange.rangeEnd - selectedSlotRange.rangeStart + 1 : 0;
+
+  const equipmentTotal = useMemo(() => {
+    if (!equipmentApplies) return 0;
+    let total = 0;
+    selectedEquipment.forEach((qty, name) => {
+      const item = equipAvail.find(e => e.name === name);
+      if (item && qty > 0) total += item.pricePerSlot * qty * Math.max(1, slotCount);
+    });
+    return total;
+  }, [selectedEquipment, equipAvail, slotCount, equipmentApplies]);
+
+  // Fetch aggregated equipment availability for the selected slot (scoped to the
+  // chosen court when one is picked). Skipped while split/recurring is active.
+  useEffect(() => {
+    if (!selectedSlotRange || !equipmentApplies) { setEquipAvail([]); return; }
+    const { startTime, endTime } = selectedSlotRange;
+    const ctrl = new AbortController();
+    setEquipLoading(true);
+    const p = new URLSearchParams({ date: dateStr, startTime, endTime });
+    if (selectedCourtId !== "auto") p.set("courtId", selectedCourtId);
+    fetch(`${API}/search/groups/${facilityId}/${sport}/equipment?${p.toString()}`, { signal: ctrl.signal })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: GroupEquipItem[]) => { if (!ctrl.signal.aborted) setEquipAvail(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!ctrl.signal.aborted) setEquipAvail([]); })
+      .finally(() => { if (!ctrl.signal.aborted) setEquipLoading(false); });
+    return () => ctrl.abort();
+  }, [selectedSlotRange?.startTime, selectedSlotRange?.endTime, dateStr, facilityId, sport, selectedCourtId, equipmentApplies]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hasVisibleSlots = useMemo(() => {
     if (!slots.length) return false;
     if (!isSameDay(date, today)) return true;
@@ -211,10 +273,15 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   async function doBook(customerName: string, customerEmail: string) {
     if (!selectedSlotRange) return;
     setIsBooking(true);
+    // Equipment (server re-prices & re-validates stock; we only send name + qty).
+    const equipPayload = equipmentApplies
+      ? [...selectedEquipment.entries()].filter(([, q]) => q > 0).map(([name, quantity]) => ({ name, quantity }))
+      : [];
+    const rentedItems = equipPayload.length > 0 ? JSON.stringify(equipPayload) : undefined;
     try {
       const booking = selectedCourtId === "auto"
-        ? await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, { method: "POST", body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail }), responseType: "json" })
-        : await customFetch<BookingResponse>(`/api/bookings`, { method: "POST", body: JSON.stringify({ courtId: parseInt(selectedCourtId, 10), date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail }), responseType: "json" });
+        ? await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, { method: "POST", body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail, rentedItems }), responseType: "json" })
+        : await customFetch<BookingResponse>(`/api/bookings`, { method: "POST", body: JSON.stringify({ courtId: parseInt(selectedCourtId, 10), date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail, rentedItems }), responseType: "json" });
       await goToCheckout(booking, facilityId, sport);
     } catch (err) {
       toast({ title: "Rezervacija nepavyko", description: err instanceof Error ? err.message : "Klaida", variant: "destructive" });
@@ -242,22 +309,56 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   async function doRecurring(customerName: string, customerEmail: string) {
     if (!selectedSlotRange) return;
     setRecurringPending(true);
-    let booked = 0;
-    for (let i = 0; i < recurringWeeks; i++) {
-      if (weekStatuses[i] === false) continue;
-      try {
-        const booking = await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, {
-          method: "POST", body: JSON.stringify({ date: format(addDays(date, i * 7), "yyyy-MM-dd"), startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail }), responseType: "json",
-        });
-        if (Number(booking.totalPrice ?? 0) === 0) {
-          await fetch(`${API}/payments/confirm-free`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ bookingId: booking.id }) });
-        }
-        booked++;
-      } catch { /* skip conflicts */ }
+    try {
+      // 1. Create a pending booking for each available week (auto court allocation).
+      const createdIds: number[] = [];
+      let totalPrice = 0;
+      for (let i = 0; i < recurringWeeks; i++) {
+        if (weekStatuses[i] === false) continue;
+        try {
+          const booking = await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, {
+            method: "POST",
+            body: JSON.stringify({ date: format(addDays(date, i * 7), "yyyy-MM-dd"), startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail }),
+            responseType: "json",
+          });
+          createdIds.push(booking.id);
+          totalPrice += Number(booking.totalPrice ?? 0);
+        } catch { /* slot taken between pre-check and booking — skip this week */ }
+      }
+
+      if (createdIds.length === 0) {
+        toast({ title: "Nepavyko sukurti rezervacijų", description: "Pasirinkti laikai gali būti užimti.", variant: "destructive" });
+        return;
+      }
+
+      const n = createdIds.length;
+      const plural = `rezervacij${n === 1 ? "a" : n % 10 >= 2 && n % 10 <= 9 && (n % 100 < 11 || n % 100 > 19) ? "os" : "ų"}`;
+
+      // 2a. Free slots — confirm each directly, no payment step.
+      if (totalPrice === 0) {
+        await Promise.all(createdIds.map(id =>
+          fetch(`${API}/payments/confirm-free`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ bookingId: id }) })
+        ));
+        toast({ title: `${n} ${plural} sukurta!` });
+        setSelectedStart(null); setSelectedEnd(null); setRecurringEnabled(false);
+        return;
+      }
+
+      // 2b. Paid slots — one combined Stripe checkout covering every week.
+      const origin = window.location.origin;
+      const successUrl = `${origin}${BASE}/booking-confirmed?recurring=1`;
+      const cancelUrl  = `${origin}${BASE}/facility/${facilityId}?sport=${sport}`;
+      const { url } = await customFetch<{ sessionId: string; url: string }>(`/api/payments/create-recurring-checkout`, {
+        method: "POST",
+        body: JSON.stringify({ bookingIds: createdIds, successUrl, cancelUrl }),
+        responseType: "json",
+      });
+      window.location.href = url;
+    } catch (err) {
+      toast({ title: "Klaida", description: err instanceof Error ? err.message : "Bandykite dar kartą.", variant: "destructive" });
+    } finally {
+      setRecurringPending(false);
     }
-    setRecurringPending(false);
-    if (booked === 0) toast({ title: "Nepavyko sukurti rezervacijų", description: "Pasirinkti laikai gali būti užimti.", variant: "destructive" });
-    else { toast({ title: `${booked} rezervacij${booked === 1 ? "a" : booked < 10 ? "os" : "ų"} sukurta!` }); setSelectedStart(null); setSelectedEnd(null); setRecurringEnabled(false); }
   }
 
   function handleReserve(): void {
@@ -276,6 +377,11 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   return (
     <TooltipProvider delayDuration={300}>
     <div className="space-y-5 p-5">
+
+      {/* ── Weather forecast (outdoor only) ── */}
+      {latitude != null && (
+        <WeatherWidget lat={latitude} lon={longitude ?? undefined} date={dateStr} isIndoor={!isOutdoor} />
+      )}
 
       {/* ── Step 1: Date ── */}
       <div>
@@ -385,6 +491,87 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
                 {courts.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}{c.surface ? ` · ${c.surface}` : ""}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {/* Equipment rental — sport-scoped to this group; standard bookings only */}
+        {selectedSlotRange && equipmentApplies && equipAvail.length > 0 && (
+          <div className="mt-3 rounded-xl border overflow-hidden">
+            <div className="flex items-center">
+              <button type="button" onClick={() => setEquipmentOpen(o => !o)}
+                className="flex-1 flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors text-left">
+                <span className="text-sm font-semibold flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-primary" />
+                  Pridėti įrangą
+                  {equipmentTotal > 0 && (
+                    <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">+{fmtPrice(equipmentTotal)} €</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-2">
+                  {equipLoading && <span className="text-xs text-muted-foreground animate-pulse">Tikrinama…</span>}
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${equipmentOpen ? "rotate-180" : ""}`} />
+                </span>
+              </button>
+              {equipmentTotal > 0 && (
+                <button type="button" onClick={() => setSelectedEquipment(new Map())}
+                  className="shrink-0 px-3 py-2.5 text-destructive hover:bg-destructive/10 transition-colors border-l"
+                  aria-label="Pašalinti visą įrangą" title="Pašalinti visą įrangą">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {equipmentOpen && (
+              <div className="px-3 pb-3 space-y-1.5 border-t pt-2.5">
+                {equipAvail.map(item => {
+                  const qty = selectedEquipment.get(item.name) ?? 0;
+                  const isSelected = qty > 0;
+                  const isUnavailable = item.available === 0;
+                  const maxQty = Math.max(0, item.available);
+                  const itemTotal = item.pricePerSlot * qty * Math.max(1, slotCount);
+                  return (
+                    <div key={item.name} className={`flex items-center justify-between rounded-lg px-3 py-2 border transition-colors ${isUnavailable ? "opacity-50 bg-muted/20 border-transparent" : isSelected ? "bg-primary/5 border-primary/30" : "bg-muted/30 border-transparent"}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button type="button" disabled={isUnavailable}
+                          onClick={() => {
+                            if (isUnavailable) return;
+                            setSelectedEquipment(prev => {
+                              const next = new Map(prev);
+                              if (isSelected) next.delete(item.name); else next.set(item.name, 1);
+                              return next;
+                            });
+                          }}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isUnavailable ? "border-muted-foreground/20 cursor-not-allowed" : isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
+                          {isSelected && !isUnavailable && <Check className="w-3 h-3" />}
+                        </button>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium truncate block">{item.name}</span>
+                          {isUnavailable
+                            ? <span className="text-[10px] text-destructive font-medium">Nepasiekiama</span>
+                            : <span className="text-[10px] text-muted-foreground">Likę: {item.available} vnt.</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isSelected && !isUnavailable && (
+                          <div className="flex items-center gap-1 bg-background border rounded-md">
+                            <button type="button" onClick={() => setSelectedEquipment(prev => { const next = new Map(prev); if (qty <= 1) next.delete(item.name); else next.set(item.name, qty - 1); return next; })}
+                              className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">−</button>
+                            <span className="text-xs font-medium w-4 text-center">{qty}</span>
+                            <button type="button" disabled={qty >= maxQty}
+                              onClick={() => setSelectedEquipment(prev => { const next = new Map(prev); if (qty < maxQty) next.set(item.name, qty + 1); return next; })}
+                              className="px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30">+</button>
+                          </div>
+                        )}
+                        <div className="text-right">
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">{fmtPrice(item.pricePerSlot)} €</div>
+                          {isSelected && slotCount > 1 && <div className="text-[10px] text-primary font-medium">{fmtPrice(itemTotal)} € iš viso</div>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {slotCount > 1 && <p className="text-[10px] text-muted-foreground pl-1">Kaina × kiekis × {slotCount} laikotarpiai</p>}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -539,9 +726,15 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
               <span className="text-muted-foreground">{format(date, "EEE, MMM d", { locale: ltLocale })} · {selectedSlotRange.startTime}–{selectedSlotRange.endTime}</span>
               {isLastMinute && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">Last minute</span>}
             </div>
+            {equipmentTotal > 0 && (
+              <div className="space-y-0.5 text-xs text-muted-foreground border-b pb-1 mb-1">
+                <div className="flex items-center justify-between"><span>Aikštelė ({selectedSlotRange.durationLabel})</span><span>{fmtPrice(selectedSlotRange.totalPrice)} €</span></div>
+                <div className="flex items-center justify-between"><span>Įranga</span><span>+{fmtPrice(equipmentTotal)} €</span></div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">{selectedSlotRange.durationLabel}</span>
-              <span className="text-lg font-bold text-foreground">{fmtPrice(selectedSlotRange.totalPrice)} €</span>
+              <span className="text-sm text-muted-foreground">{equipmentTotal > 0 ? "Iš viso" : selectedSlotRange.durationLabel}</span>
+              <span className="text-lg font-bold text-foreground">{fmtPrice(selectedSlotRange.totalPrice + equipmentTotal)} €</span>
             </div>
             {splitEnabled && !recurringEnabled && (
               <p className="text-xs text-muted-foreground border-t pt-1 mt-1">
@@ -581,9 +774,16 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
           <Button className="w-full" size="lg" disabled={!selectedSlotRange || anyPending}
             onClick={handleReserve}>
             {anyPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {!selectedSlotRange ? "Pasirinkite laiką" : splitEnabled ? `Rezervuoti ir pakviesti (${splitCount} žaid.)` : recurringEnabled ? `Rezervuoti ${weekStatuses.filter(s => s === true).length || recurringWeeks} kartų` : `Rezervuoti · ${fmtPrice(selectedSlotRange.totalPrice)} €`}
+            {!selectedSlotRange ? "Pasirinkite laiką" : splitEnabled ? `Rezervuoti ir pakviesti (${splitCount} žaid.)` : recurringEnabled ? `Rezervuoti ${weekStatuses.filter(s => s === true).length || recurringWeeks} kartų` : `Rezervuoti · ${fmtPrice(selectedSlotRange.totalPrice + equipmentTotal)} €`}
           </Button>
         )}
+
+        {(() => { const lbl = lastBookedLabel(lastBookedAt); return lbl ? (
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" aria-hidden="true" />
+            Paskutinė rezervacija {lbl}
+          </p>
+        ) : null; })()}
       </div>
 
     </div>
