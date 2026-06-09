@@ -35,6 +35,7 @@ import {
   sendSplitParticipantRefundedEmail,
 } from "../lib/email";
 import { sendNotification } from "../lib/notify";
+import { applyMembershipDiscount } from "../lib/membership-pricing";
 import { z } from "zod";
 import crypto from "node:crypto";
 
@@ -1114,6 +1115,13 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
         let courtPrice = 0;
         for (const s of slotsBetween(startTime, endTime)) courtPrice += priceMap.get(s) ?? defaultSlotPrice;
         const pricePerSlot = Math.round((courtPrice / totalSlots) * 100) / 100;
+
+        // Host's own membership discounts the host's share only. Booking keeps
+        // full totalPrice/pricePerSlot — other participants pay full shares.
+        const hostDiscount = await applyMembershipDiscount(tx, {
+          userId, facilityId, sport, playDate: date, amountEur: pricePerSlot,
+        });
+
         const durationMinutes = reqEndMin - reqStartMin;
         const splitInviteToken = crypto.randomBytes(20).toString("hex");
         const datetime = `${date}T${startTime}:00`;
@@ -1166,9 +1174,10 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
           status: "joined",
           source: "join_request",
           paymentStatus: "pending",
+          appliedMembershipId: hostDiscount.membershipId,
         }).returning();
 
-        return { booking, game, hostParticipant, courtPrice, pricePerSlot, splitInviteToken, durationMinutes };
+        return { booking, game, hostParticipant, courtPrice, pricePerSlot, splitInviteToken, durationMinutes, hostShareEur: hostDiscount.discounted };
       });
 
       // ── Stripe ──────────────────────────────────────────────────────────────
@@ -1178,6 +1187,21 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
       const cancelUrl  = `${origin}${base}/facility/${facilityId}?sport=${sport}`;
 
       let checkoutUrl: string;
+      const amountCents = Math.round(result.hostShareEur * 100);
+
+      // Shared by the €0-share path and the Stripe-not-configured fallback:
+      // mark host paid, move booking + game to awaiting_players.
+      async function settleHostShareWithoutStripe(sessionId: string): Promise<string> {
+        await db.update(bookingsTable).set({ stripeSessionId: sessionId, status: "awaiting_players" }).where(eq(bookingsTable.id, result.booking.id));
+        await db.update(gameParticipantsTable).set({ stripeSessionId: sessionId, paymentStatus: "paid" }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
+        await db.update(gamesTable).set({ status: "awaiting_players" }).where(eq(gamesTable.id, result.game.id));
+        return `${successUrl}&session_id=${sessionId}`;
+      }
+
+      if (amountCents === 0) {
+        // Membership covered the host's entire share — no payment session needed.
+        checkoutUrl = await settleHostShareWithoutStripe(`free_split_${result.booking.id}_${Date.now()}`);
+      } else {
       try {
         const stripe = await getUncachableStripeClient();
         let connectAccountId: string | null = null;
@@ -1187,7 +1211,6 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
           if (profile?.stripeAccountId && profile.status === "active") connectAccountId = profile.stripeAccountId;
         }
 
-        const amountCents = Math.round(result.pricePerSlot * 100);
         const sessionParams: any = {
           payment_method_types: ["card"],
           line_items: [{ price_data: { currency: "eur", product_data: { name: `${facilityRow.name} – mokėjimo dalis (1/${totalSlots})`, description: `${date} · ${startTime}–${endTime}` }, unit_amount: amountCents }, quantity: 1 }],
@@ -1210,11 +1233,7 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
         checkoutUrl = session.url!;
       } catch (err: any) {
         if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
-          const mockId = `mock_split_${result.booking.id}_${Date.now()}`;
-          await db.update(bookingsTable).set({ stripeSessionId: mockId, status: "awaiting_players" }).where(eq(bookingsTable.id, result.booking.id));
-          await db.update(gameParticipantsTable).set({ stripeSessionId: mockId, paymentStatus: "paid" }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
-          await db.update(gamesTable).set({ status: "awaiting_players" }).where(eq(gamesTable.id, result.game.id));
-          checkoutUrl = `${successUrl}&session_id=${mockId}`;
+          checkoutUrl = await settleHostShareWithoutStripe(`mock_split_${result.booking.id}_${Date.now()}`);
         } else {
           logger.error({ err }, "Group split: Stripe session failed");
           await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, result.booking.id));
@@ -1222,8 +1241,9 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
           res.status(500).json({ error: "Failed to create payment session" }); return;
         }
       }
+      }
 
-      res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.game.id, shareToken: result.splitInviteToken, pricePerSlot: result.pricePerSlot });
+      res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.game.id, shareToken: result.splitInviteToken, pricePerSlot: result.hostShareEur });
       return;
 
     } catch (err) {
