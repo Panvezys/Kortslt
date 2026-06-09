@@ -5,7 +5,7 @@ import { buildDayPriceMap } from "../lib/pricing";
 import { generateManagementToken } from "./bookings";
 import { getCurrentUserId } from "../lib/auth";
 import { clerkClient } from "@clerk/express";
-import { applyMembershipDiscount } from "../lib/membership-pricing";
+import { applyMembershipDiscount, getMembershipDiscountState } from "../lib/membership-pricing";
 
 const router: IRouter = Router();
 
@@ -550,7 +550,13 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
   }
 
   const courtList = courts.map(c => ({ id: c.id, name: c.name, surface: c.surface }));
-  res.json({ facilityId, sport, date, slots, courts: courtList });
+
+  // Caller-aware membership discount preview for this play date's week.
+  // customFetch attaches the Clerk JWT, so getCurrentUserId works here;
+  // anonymous users and non-members get null.
+  const membershipDiscount = await getMembershipDiscountState(getCurrentUserId(req), facilityId, sport, date);
+
+  res.json({ facilityId, sport, date, slots, courts: courtList, membershipDiscount });
 });
 
 // ── POST /search/groups/:facilityId/:sport/book ───────────────────────────────
