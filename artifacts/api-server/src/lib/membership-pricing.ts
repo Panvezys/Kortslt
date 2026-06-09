@@ -30,7 +30,7 @@ export interface DiscountState {
  * cap window is a pure string range — no timezone conversion needed.
  */
 export function isoWeekBounds(playDate: string): { weekStart: string; weekEnd: string } {
-  const d = new Date(`${playDate}T12:00:00`); // noon avoids UTC day-shift
+  const d = new Date(`${playDate}T12:00:00`); // noon anchor keeps day-bucketing TZ-independent regardless of server TZ
   const mondayOffset = (d.getDay() + 6) % 7;  // Mon=0 … Sun=6
   const start = new Date(d); start.setDate(d.getDate() - mondayOffset);
   const end = new Date(start); end.setDate(start.getDate() + 6);
@@ -82,6 +82,12 @@ function activeMembershipFilter(userId: string, facilityId: number, sportNorm: s
  * candidate user_memberships rows FOR UPDATE to serialize concurrent
  * checkouts against the weekly cap.
  *
+ * LOCK ORDERING CONTRACT: user_memberships rows must be the LAST lock a
+ * transaction acquires. All call sites honor this — group /book and
+ * checkout-split take their pg_advisory_xact_lock first, share-checkout
+ * takes its booking-row FOR UPDATE first — and after this call they only
+ * INSERT new rows. Never call this before acquiring booking/advisory locks.
+ *
  * Rules (from the Epic 3 spec):
  *  - highest discountPercent with remaining weekly cap wins
  *  - weeklySlots null/0 = unlimited; cap reached → full price, never blocked
@@ -116,7 +122,9 @@ export async function applyMembershipDiscount(
       const used = await countWeeklyUses(tx, c.membershipId, weekStart, weekEnd);
       if (used >= c.weeklySlots) { sawCapped = true; continue; }
     }
-    const discounted = Math.round(amountEur * (100 - pct)) / 100;
+    // Integer-cents arithmetic: floats like 16.65*50 = 832.4999… would
+    // mis-round; converting to cents first keeps the result deterministic.
+    const discounted = Math.round(Math.round(amountEur * 100) * (100 - pct) / 100) / 100;
     return { discounted, membershipId: c.membershipId, capReached: false, percent: pct };
   }
   return { ...none, capReached: sawCapped };
