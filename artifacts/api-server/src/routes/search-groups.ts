@@ -553,8 +553,15 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
 
   // Caller-aware membership discount preview for this play date's week.
   // customFetch attaches the Clerk JWT, so getCurrentUserId works here;
-  // anonymous users and non-members get null.
-  const membershipDiscount = await getMembershipDiscountState(getCurrentUserId(req), facilityId, sport, date);
+  // anonymous users and non-members get null. Degrades to null on error so
+  // a preview failure never breaks the availability grid (same pattern as
+  // buildDayPriceMap).
+  let membershipDiscount: Awaited<ReturnType<typeof getMembershipDiscountState>> = null;
+  try {
+    membershipDiscount = await getMembershipDiscountState(getCurrentUserId(req), facilityId, sport, date);
+  } catch {
+    // fall through with null — widget simply shows standard prices
+  }
 
   res.json({ facilityId, sport, date, slots, courts: courtList, membershipDiscount });
 });
