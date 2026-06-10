@@ -551,7 +551,20 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
   }
 
   const courtIds = courts.map(c => c.id);
-  const minDefaultSlotPrice = Math.min(...courts.map(c => Number(c.pricePerHour) / 2));
+
+  // Effective per-slot prices per court (court_pricing overrides + base-price
+  // fallback) — the same waterfall /book charges with, so the grid never
+  // shows a price lower than what the allocated court would actually cost.
+  const priceMaps = new Map<number, { def: number; map: Map<string, number> }>();
+  await Promise.all(courts.map(async c => {
+    const def = Number(c.pricePerHour) / 2;
+    const { priceMap } = await buildDayPriceMap(c.id, date, def);
+    priceMaps.set(c.id, { def, map: priceMap });
+  }));
+  const slotPriceFor = (courtId: number, startTime: string): number => {
+    const pm = priceMaps.get(courtId)!;
+    return pm.map.get(startTime) ?? pm.def;
+  };
 
   // Fetch all bookings and blocked slots for all courts on this date in parallel
   const [allBookings, allBlocked] = await Promise.all([
@@ -602,8 +615,14 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
       const startTime = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
       const endMin = h * 60 + m + 30;
       const endTime = `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`;
-      const isAvailable = courtIds.some(id => !occupiedByCourtId.get(id)?.has(startTime));
-      slots.push({ startTime, endTime, isAvailable, price: minDefaultSlotPrice });
+      const freeCourtIds = courtIds.filter(id => !occupiedByCourtId.get(id)?.has(startTime));
+      const isAvailable = freeCourtIds.length > 0;
+      // Price of the cheapest court still free at this slot (allocation is
+      // cheapest-first, so this is what a single-slot booking would cost).
+      // Occupied slots fall back to the group-wide minimum for display.
+      const priceCourtIds = isAvailable ? freeCourtIds : courtIds;
+      const price = Math.min(...priceCourtIds.map(id => slotPriceFor(id, startTime)));
+      slots.push({ startTime, endTime, isAvailable, price });
     }
   }
 
@@ -687,10 +706,10 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     GROUP BY c.id, c.price_per_hour, c.rentable_items
     ORDER BY booking_count ASC, c.id ASC
   `);
-  const courts = (courtsRaw.rows as { id: number; pricePerHour: string; rentableItems: string | null; booking_count: string }[])
-    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, rentableItems: r.rentableItems }));
+  const courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; rentableItems: string | null; booking_count: string }[])
+    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, rentableItems: r.rentableItems, bookingCount: Number(r.booking_count) }));
 
-  if (courts.length === 0) {
+  if (courtRows.length === 0) {
     res.status(404).json({ error: "No active courts found for this group" });
     return;
   }
@@ -707,6 +726,21 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     }
     return result;
   }
+
+  // Cheapest court for the REQUESTED RANGE wins, so the charged price never
+  // exceeds what the availability grid displayed (it prices each slot off the
+  // cheapest free court). Wear-balancing (least 7-day usage, from the query's
+  // ORDER BY) breaks ties between equal-priced courts — the common case, since
+  // bulk-created groups share one price.
+  const rangeSlots = slotsBetween(startTime, endTime);
+  const courts = await Promise.all(courtRows.map(async (c) => {
+    const def = Number(c.pricePerHour) / 2;
+    const { priceMap } = await buildDayPriceMap(c.id, date, def);
+    let rangePrice = 0;
+    for (const s of rangeSlots) rangePrice += priceMap.get(s) ?? def;
+    return { ...c, rangePrice };
+  }));
+  courts.sort((a, b) => a.rangePrice - b.rangePrice || a.bookingCount - b.bookingCount || a.id - b.id);
 
   class ConflictError extends Error {
     constructor(public readonly body: unknown) { super("Conflict"); }

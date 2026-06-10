@@ -1132,10 +1132,23 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
     GROUP BY c.id, c.price_per_hour, c.facility_id
     ORDER BY booking_count ASC, c.id ASC
   `);
-  const courts = (courtsRaw.rows as { id: number; pricePerHour: string; facilityId: number; booking_count: string }[])
-    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, facilityId: r.facilityId }));
+  const courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; facilityId: number; booking_count: string }[])
+    .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, facilityId: r.facilityId, bookingCount: Number(r.booking_count) }));
 
-  if (courts.length === 0) { res.status(404).json({ error: "No active courts for this group" }); return; }
+  if (courtRows.length === 0) { res.status(404).json({ error: "No active courts for this group" }); return; }
+
+  // Cheapest court for the requested range first — matches the group /book
+  // allocator, so split prices line up with the availability grid. Wear
+  // balancing (least 7-day usage) breaks ties between equal-priced courts.
+  const rangeSlots = slotsBetween(startTime, endTime);
+  const courts = await Promise.all(courtRows.map(async (c) => {
+    const def = Number(c.pricePerHour) / 2;
+    const { priceMap } = await buildDayPriceMap(c.id, date, def);
+    let rangePrice = 0;
+    for (const s of rangeSlots) rangePrice += priceMap.get(s) ?? def;
+    return { ...c, rangePrice };
+  }));
+  courts.sort((a, b) => a.rangePrice - b.rangePrice || a.bookingCount - b.bookingCount || a.id - b.id);
 
   // ── Fetch facility once ────────────────────────────────────────────────────
   const [facilityRow] = await db.select().from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
