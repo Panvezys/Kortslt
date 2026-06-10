@@ -1462,31 +1462,23 @@ export async function sweepHostGuarantees(): Promise<number> {
         for (const p of allPaid) {
           // In-app notification (registered users only)
           if (p.userId) {
+            // Free-share participants paid nothing — don't claim a refund.
+            const isFreeShare = p.stripeSessionId?.startsWith("free_split") ?? false;
             sendNotification(
               p.userId,
               "split_guarantee_refunded",
               "Rezervacija atšaukta",
-              "Nesurinkus pilnos sumos, mačas atšauktas. Jūsų sumokėta dalis grąžinta.",
+              isFreeShare
+                ? "Nesurinkus pilnos sumos, mačas atšauktas."
+                : "Nesurinkus pilnos sumos, mačas atšauktas. Jūsų sumokėta dalis grąžinta.",
               booking.splitInviteToken ? `/join/${booking.splitInviteToken}` : undefined,
             ).catch(() => {});
           }
-          // Email stub (guests + registered users with email)
-          if (p.userEmail) {
-            sendSplitParticipantRefundedEmail({
-              playerName: p.userName ?? "Žaidėjas",
-              playerEmail: p.userEmail,
-              refundAmountEur: pricePerSlot,
-              courtName,
-              date: booking.date,
-              startTime: booking.startTime,
-              endTime: booking.endTime,
-              bookingId: booking.id,
-            }).catch((e) => logger.error({ e }, "sendSplitParticipantRefundedEmail failed"));
-          }
         }
 
-        // Issue Stripe refunds for participants with a session on record
-        const paidParticipants = allPaid.filter(p => p.stripeSessionId);
+        // Issue Stripe refunds for participants with a real charged session on record.
+        // Free-share sessions (free_split*) moved no money — exclude them entirely.
+        const paidParticipants = allPaid.filter(p => p.stripeSessionId && !p.stripeSessionId.startsWith("free_split"));
         for (const p of paidParticipants) {
           try {
             console.log(`[sweepHostGuarantees] Refunding participant=${p.id} sessionId=${p.stripeSessionId}`);
@@ -1494,6 +1486,19 @@ export async function sweepHostGuarantees(): Promise<number> {
             if (session.payment_intent) {
               await stripe.refunds.create({ payment_intent: session.payment_intent as string });
               console.log(`[sweepHostGuarantees] Refund issued for participant=${p.id}`);
+              // Email the actual amount refunded (per the charged session) — guests + registered users with email
+              if (p.userEmail) {
+                sendSplitParticipantRefundedEmail({
+                  playerName: p.userName ?? "Žaidėjas",
+                  playerEmail: p.userEmail,
+                  refundAmountEur: (session.amount_total ?? Math.round(pricePerSlot * 100)) / 100,
+                  courtName,
+                  date: booking.date,
+                  startTime: booking.startTime,
+                  endTime: booking.endTime,
+                  bookingId: booking.id,
+                }).catch((e) => logger.error({ e }, "sendSplitParticipantRefundedEmail failed"));
+              }
             }
           } catch (refundErr) {
             logger.error({ participantId: p.id, err: refundErr }, "guarantee refund failed");
