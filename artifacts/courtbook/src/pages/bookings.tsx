@@ -20,7 +20,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
-import { SportIcon, getSportColor } from "@/components/sport-icon";
+import { resolveCourtImage } from "@/lib/imageUrl";
 
 type SortKey = "dateAsc" | "dateDesc" | "createdDesc" | "createdAsc";
 
@@ -283,9 +283,11 @@ type BookingItem = {
   id: number;
   courtId: number;
   courtName?: string;
-  // Court sport slug (e.g. "tennis"). Appended by GET /bookings outside the
-  // OpenAPI schema; drives the sport icon on the card.
+  // Court sport slug + thumbnail. Appended by GET /bookings outside the
+  // OpenAPI schema; drive the court photo on the card (courtType picks the
+  // stock sport image when the court has no photo).
   courtType?: string | null;
+  courtImageUrl?: string | null;
   customerName: string;
   customerEmail: string;
   date: Date;
@@ -552,14 +554,17 @@ function BookingCard({
           a "Pamoka su X" lead line, with the court name demoted to a small
           subline. Plain court rentals keep the original single-line layout. */}
       <div className="flex items-start justify-between gap-2">
-        {booking.courtType && (
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: `${getSportColor(booking.courtType)}22` }}
-          >
-            <SportIcon sport={booking.courtType} size={18} strokeWidth={2} style={{ color: getSportColor(booking.courtType) }} />
-          </div>
-        )}
+        {(() => {
+          const img = resolveCourtImage(booking.courtImageUrl, booking.courtType ?? undefined);
+          return img ? (
+            <img
+              src={img}
+              alt={booking.courtName ?? ""}
+              loading="lazy"
+              className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border bg-muted"
+            />
+          ) : null;
+        })()}
         <div className="min-w-0 flex-1">
           {booking.coach ? (
             <>
@@ -945,6 +950,7 @@ export default function Bookings() {
                     date: new Date(booking.date),
                     refundAmount: Number((booking as any).refundAmount ?? 0),
                     courtType: (booking as any).courtType ?? null,
+                    courtImageUrl: (booking as any).courtImageUrl ?? null,
                   }}
                   isUpcoming={isUpcoming}
                   onRate={() => setRatingBooking({

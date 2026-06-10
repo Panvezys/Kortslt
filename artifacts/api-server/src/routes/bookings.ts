@@ -224,6 +224,13 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
       booking: bookingsTable,
       courtName: courtsTable.name,
       courtType: courtsTable.type,
+      // Court thumbnail for the bookings list: main image, else first gallery
+      // photo. The frontend falls back to a stock sport image via courtType.
+      courtImageUrl: sql<string | null>`COALESCE(${courtsTable.imageUrl}, (
+        SELECT cp.url FROM court_photos cp
+        WHERE cp.court_id = ${courtsTable.id}
+        ORDER BY cp.display_order LIMIT 1
+      ))`,
       // bookings.coachId stores the coach's Clerk userId (text), so we join
       // coaches.userId — not coaches.id. The select picks both: numeric coach
       // table id (used for /coach/:id deep links) and display name.
@@ -295,9 +302,13 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
       ? { id: r.courtReviewId, rating: r.courtReviewRating, comment: r.courtReviewComment ?? null }
       : null,
   )));
-  // courtType rides outside the OpenAPI schema (parse would strip it) so the
-  // bookings page can render a sport icon per card.
-  res.json(payload.map((b, i) => ({ ...b, courtType: rows[i].courtType ?? null })));
+  // courtType/courtImageUrl ride outside the OpenAPI schema (parse would strip
+  // them) so the bookings page can render a court thumbnail per card.
+  res.json(payload.map((b, i) => ({
+    ...b,
+    courtType: rows[i].courtType ?? null,
+    courtImageUrl: rows[i].courtImageUrl ?? null,
+  })));
 });
 
 // POST /bookings — supports both authenticated bookers and guests.
