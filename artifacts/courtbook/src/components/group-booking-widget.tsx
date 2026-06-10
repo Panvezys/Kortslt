@@ -22,7 +22,8 @@ import { customFetch } from "@workspace/api-client-react";
 interface GroupCourt { id: number; name: string; surface: string | null; }
 interface GroupEquipItem { name: string; pricePerSlot: number; available: number; stock: number; }
 interface GroupSlot  { startTime: string; endTime: string; isAvailable: boolean; price: number; }
-interface GroupAvailabilityResponse { facilityId: number; sport: string; date: string; slots: GroupSlot[]; courts: GroupCourt[]; }
+interface MembershipDiscountState { percent: number; weeklySlots: number | null; usedThisWeek: number; }
+interface GroupAvailabilityResponse { facilityId: number; sport: string; date: string; slots: GroupSlot[]; courts: GroupCourt[]; membershipDiscount?: MembershipDiscountState | null; }
 interface BookGroupResponse { id: number; courtId: number; date: string; startTime: string; endTime: string; totalPrice: number; status: string; managementToken?: string; }
 interface BookingResponse   { id: number; courtId: number; date: string; startTime: string; endTime: string; totalPrice: string | number; status: string; managementToken?: string; }
 
@@ -221,6 +222,15 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     });
     return total;
   }, [selectedEquipment, equipAvail, slotCount, equipmentApplies]);
+
+  // ── Membership discount preview (caller-aware, from availability payload) ──
+  const memberDiscount = availability?.membershipDiscount ?? null;
+  const discountCapped = memberDiscount != null && memberDiscount.weeklySlots != null && memberDiscount.usedThisWeek >= memberDiscount.weeklySlots;
+  const discountActive = memberDiscount != null && !discountCapped;
+  const memberCourtPrice = useMemo(() => {
+    if (!selectedSlotRange || !discountActive || !memberDiscount) return null;
+    return Math.round(selectedSlotRange.totalPrice * (100 - memberDiscount.percent)) / 100;
+  }, [selectedSlotRange, discountActive, memberDiscount]);
 
   // Fetch aggregated equipment availability for the selected slot (scoped to the
   // chosen court when one is picked). Skipped while split/recurring is active.
@@ -728,14 +738,36 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
             </div>
             {equipmentTotal > 0 && (
               <div className="space-y-0.5 text-xs text-muted-foreground border-b pb-1 mb-1">
-                <div className="flex items-center justify-between"><span>Aikštelė ({selectedSlotRange.durationLabel})</span><span>{fmtPrice(selectedSlotRange.totalPrice)} €</span></div>
+                <div className="flex items-center justify-between">
+                  <span>Aikštelė ({selectedSlotRange.durationLabel})</span>
+                  {memberCourtPrice != null ? (
+                    <span>
+                      <span className="line-through text-muted-foreground mr-1.5">{fmtPrice(selectedSlotRange.totalPrice)} €</span>
+                      <span className="font-semibold text-primary">{fmtPrice(memberCourtPrice)} €</span>
+                    </span>
+                  ) : (
+                    <span>{fmtPrice(selectedSlotRange.totalPrice)} €</span>
+                  )}
+                </div>
+                {memberCourtPrice != null && (
+                  <div className="text-xs text-primary">Nario kaina (−{memberDiscount!.percent}%)</div>
+                )}
+                {discountCapped && (
+                  <div className="text-xs text-muted-foreground">Šios savaitės narystės nuolaida išnaudota</div>
+                )}
                 <div className="flex items-center justify-between"><span>Įranga</span><span>+{fmtPrice(equipmentTotal)} €</span></div>
               </div>
             )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{equipmentTotal > 0 ? "Iš viso" : selectedSlotRange.durationLabel}</span>
-              <span className="text-lg font-bold text-foreground">{fmtPrice(selectedSlotRange.totalPrice + equipmentTotal)} €</span>
+              <span className="text-lg font-bold text-foreground">{fmtPrice((memberCourtPrice ?? selectedSlotRange.totalPrice) + equipmentTotal)} €</span>
             </div>
+            {equipmentTotal === 0 && memberCourtPrice != null && (
+              <div className="text-xs text-primary">Nario kaina (−{memberDiscount!.percent}%)</div>
+            )}
+            {equipmentTotal === 0 && discountCapped && (
+              <div className="text-xs text-muted-foreground">Šios savaitės narystės nuolaida išnaudota</div>
+            )}
             {splitEnabled && !recurringEnabled && (
               <p className="text-xs text-muted-foreground border-t pt-1 mt-1">
                 {splitCount} žaidėjai · po <span className="font-semibold text-foreground">{(selectedSlotRange.totalPrice / splitCount).toFixed(2)} €</span> kiekvienas
@@ -774,7 +806,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
           <Button className="w-full" size="lg" disabled={!selectedSlotRange || anyPending}
             onClick={handleReserve}>
             {anyPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {!selectedSlotRange ? "Pasirinkite laiką" : splitEnabled ? `Rezervuoti ir pakviesti (${splitCount} žaid.)` : recurringEnabled ? `Rezervuoti ${weekStatuses.filter(s => s === true).length || recurringWeeks} kartų` : `Rezervuoti · ${fmtPrice(selectedSlotRange.totalPrice + equipmentTotal)} €`}
+            {!selectedSlotRange ? "Pasirinkite laiką" : splitEnabled ? `Rezervuoti ir pakviesti (${splitCount} žaid.)` : recurringEnabled ? `Rezervuoti ${weekStatuses.filter(s => s === true).length || recurringWeeks} kartų` : `Rezervuoti · ${fmtPrice((memberCourtPrice ?? selectedSlotRange.totalPrice) + equipmentTotal)} €`}
           </Button>
         )}
 
