@@ -826,6 +826,25 @@ export default function CourtDetail() {
     };
   }, [selectedStart, selectedEnd, slots, equipmentTotal]);
 
+  // Caller's membership discount preview (appended to the availability payload
+  // server-side, outside the generated OpenAPI type). Same derivations as the
+  // group booking widget. Discount applies to the court price only — equipment
+  // and split shares stay full price (host share is discounted at checkout).
+  const memberDiscount = ((availability as unknown as {
+    membershipDiscount?: { percent: number; weeklySlots: number | null; usedThisWeek: number } | null;
+  })?.membershipDiscount) ?? null;
+  const discountCapped = memberDiscount != null && memberDiscount.weeklySlots != null && memberDiscount.usedThisWeek >= memberDiscount.weeklySlots;
+  const discountActive = memberDiscount != null && !discountCapped;
+  const memberCourtPrice = useMemo(() => {
+    if (!selectedSlotRange || !discountActive || !memberDiscount) return null;
+    // Integer-cents-first rounding — mirrors applyMembershipDiscount on the server.
+    return Math.round(Math.round(selectedSlotRange.courtPrice * 100) * (100 - memberDiscount.percent) / 100) / 100;
+  }, [selectedSlotRange, discountActive, memberDiscount]);
+  // Whole-booking total the server will charge for a standard (non-split) booking.
+  const memberTotalPrice = selectedSlotRange
+    ? (memberCourtPrice ?? selectedSlotRange.courtPrice) + equipmentTotal
+    : 0;
+
   const isLastMinute = useMemo(() => {
     if (!selectedSlotRange) return false;
     const gameStart = new Date(`${dateStr}T${selectedSlotRange.startTime}:00`);
@@ -2634,8 +2653,21 @@ export default function CourtDetail() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Aikštelės nuoma</span>
-                    <span className="font-medium">{selectedSlotRange.courtPrice.toFixed(2)} €</span>
+                    {memberCourtPrice != null && !splitEnabled ? (
+                      <span className="font-medium">
+                        <span className="line-through text-muted-foreground mr-1.5">{selectedSlotRange.courtPrice.toFixed(2)} €</span>
+                        <span className="text-primary">{memberCourtPrice.toFixed(2)} €</span>
+                      </span>
+                    ) : (
+                      <span className="font-medium">{selectedSlotRange.courtPrice.toFixed(2)} €</span>
+                    )}
                   </div>
+                  {memberCourtPrice != null && !splitEnabled && (
+                    <div className="text-xs text-primary text-right">Nario kaina (−{memberDiscount!.percent}%)</div>
+                  )}
+                  {discountCapped && !splitEnabled && (
+                    <div className="text-xs text-muted-foreground text-right">Šios savaitės narystės nuolaida išnaudota</div>
+                  )}
                   {equipmentTotal > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> Įranga</span>
@@ -2685,7 +2717,7 @@ export default function CourtDetail() {
                               <span className="text-muted-foreground animate-pulse text-xs">Tikrinama…</span>
                             ) : (
                               <span className="font-medium">
-                                {wksAvail} iš {recurringWeeks} · {selectedSlotRange.totalPrice.toFixed(2)} € × {wksAvail}
+                                {wksAvail} iš {recurringWeeks} · {memberTotalPrice.toFixed(2)} € × {wksAvail}
                               </span>
                             )}
                           </div>
@@ -2706,7 +2738,7 @@ export default function CourtDetail() {
                   ) : (
                     <div className="flex justify-between font-bold text-base">
                       <span>Iš viso</span>
-                      <span className="text-primary">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
+                      <span className="text-primary">{memberTotalPrice.toFixed(2)} €</span>
                     </div>
                   )}
                 </div>
@@ -2734,8 +2766,8 @@ export default function CourtDetail() {
                           : recurringEnabled
                             ? weekStatuses.length !== recurringWeeks || weekStatuses.some(s => s === null)
                               ? "…"
-                              : `${(selectedSlotRange.totalPrice * weekStatuses.filter(s => s === true).length).toFixed(2)} €`
-                            : `${selectedSlotRange.totalPrice.toFixed(2)} €`}
+                              : `${(memberTotalPrice * weekStatuses.filter(s => s === true).length).toFixed(2)} €`
+                            : `${memberTotalPrice.toFixed(2)} €`}
                       </p>
                     </div>
                     {!clerkLoaded ? (
@@ -2785,8 +2817,8 @@ export default function CourtDetail() {
                   : recurringEnabled
                     ? weekStatuses.length !== recurringWeeks || weekStatuses.some(s => s === null)
                       ? "…"
-                      : `${(selectedSlotRange.totalPrice * weekStatuses.filter(s => s === true).length).toFixed(2)} €`
-                    : `${selectedSlotRange.totalPrice.toFixed(2)} €`}
+                      : `${(memberTotalPrice * weekStatuses.filter(s => s === true).length).toFixed(2)} €`
+                    : `${memberTotalPrice.toFixed(2)} €`}
               </p>
             </div>
             {!clerkLoaded ? (
@@ -2910,7 +2942,7 @@ export default function CourtDetail() {
                       <span className={`flex-1 capitalize ${status === false ? "line-through text-muted-foreground/50" : ""}`}>{label}</span>
                       {status === false && <span className="text-[11px] text-destructive/70">užimta</span>}
                       {status === true && selectedSlotRange.totalPrice > 0 && (
-                        <span className="text-[11px] text-muted-foreground tabular-nums">{selectedSlotRange.totalPrice.toFixed(2)} €</span>
+                        <span className="text-[11px] text-muted-foreground tabular-nums">{memberTotalPrice.toFixed(2)} €</span>
                       )}
                     </div>
                   );
@@ -2922,7 +2954,7 @@ export default function CourtDetail() {
                 const loading = weekStatuses.length !== recurringWeeks || weekStatuses.some(s => s === null);
                 const avail = weekStatuses.filter(s => s === true).length;
                 const skipped = weekStatuses.filter(s => s === false).length;
-                const total = avail * selectedSlotRange.totalPrice;
+                const total = avail * memberTotalPrice;
                 return (
                   <div className="rounded-lg border bg-primary/5 p-3 space-y-1.5">
                     <div className="flex justify-between text-sm">

@@ -14,6 +14,7 @@ import {
   ListBookingsResponse,
 } from "@workspace/api-zod";
 import { requireAuth, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { applyMembershipDiscount } from "../lib/membership-pricing";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 import { z } from "zod";
@@ -493,7 +494,18 @@ router.post("/bookings", async (req, res): Promise<void> => {
         }
       }
 
-      const totalPrice = courtPrice + equipmentCost;
+      // Membership discount applies to the COURT price only — equipment is
+      // always full price. Must run inside this tx (FOR UPDATE cap check),
+      // after the advisory lock per the lock-ordering contract.
+      const discount = await applyMembershipDiscount(tx, {
+        userId: bookerUserId,
+        facilityId: court.facilityId,
+        sport: court.type,
+        playDate: dateStr0,
+        amountEur: courtPrice,
+      });
+
+      const totalPrice = Math.round((discount.discounted + equipmentCost) * 100) / 100;
 
       // ── Insert inside the same transaction ──
       // Guests (no Clerk session) get a management_token so they can later view & cancel
@@ -514,6 +526,7 @@ router.post("/bookings", async (req, res): Promise<void> => {
         status: "pending",
         managementToken,
         recurringGroupId,
+        appliedMembershipId: discount.membershipId,
       }).returning();
 
       return inserted;

@@ -22,6 +22,7 @@ import {
   SetCourtPricingResponse,
 } from "@workspace/api-zod";
 import { requireAuth, requireAdmin, isOwner, getCurrentUserId, getUserRole } from "../lib/auth";
+import { getMembershipDiscountState } from "../lib/membership-pricing";
 import { z } from "zod";
 import { sendAdminNotification } from "../lib/notify";
 
@@ -743,11 +744,26 @@ router.get("/courts/:id/availability", async (req, res): Promise<void> => {
     return { startTime, endTime, isAvailable: !isBooked && !isBlocked, price };
   });
 
-  res.json(GetCourtAvailabilityResponse.parse({
+  const payload = GetCourtAvailabilityResponse.parse({
     courtId: params.data.id,
     date,
     slots: allSlots,
-  }));
+  });
+
+  // Caller-aware membership discount preview (same pattern as the group
+  // availability route). Appended AFTER schema parse — the OpenAPI schema
+  // would strip the extra key. Degrades to null so a preview failure never
+  // breaks the availability grid.
+  let membershipDiscount: Awaited<ReturnType<typeof getMembershipDiscountState>> = null;
+  if (court.facilityId != null) {
+    try {
+      membershipDiscount = await getMembershipDiscountState(getCurrentUserId(req), court.facilityId, court.type, date);
+    } catch {
+      // fall through with null — UI simply shows standard prices
+    }
+  }
+
+  res.json({ ...payload, membershipDiscount });
 });
 
 router.get("/courts/:id/pricing", async (req, res): Promise<void> => {
