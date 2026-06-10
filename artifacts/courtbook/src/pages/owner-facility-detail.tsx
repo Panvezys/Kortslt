@@ -726,107 +726,6 @@ interface FacilityData {
   latitude?: number; longitude?: number; postcode?: string;
 }
 
-interface MembershipPlan {
-  id: number; courtId: number; name: string; description: string | null;
-  pricePerYear: number; weeklySlots: number; isActive: boolean;
-}
-
-export function MembershipPlanManager({ courtId }: { courtId: number }) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [pricePerYear, setPricePerYear] = useState("");
-  const [weeklySlots, setWeeklySlots] = useState("1");
-
-  const { data: plans = [], isLoading } = useQuery<MembershipPlan[]>({
-    queryKey: ["memberships", courtId],
-    queryFn: async () => {
-      const r = await fetch(`${API_URL}/courts/${courtId}/memberships`);
-      return r.json();
-    },
-  });
-
-  const createPlan = useMutation({
-    mutationFn: () => customFetch(`${API_URL}/courts/${courtId}/memberships`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description, pricePerYear: Number(pricePerYear), weeklySlots: Number(weeklySlots) }),
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["memberships", courtId] });
-      setName(""); setDescription(""); setPricePerYear(""); setWeeklySlots("1");
-      toast({ title: "Planas sukurtas!" });
-    },
-    onError: (e: any) => toast({ title: "Klaida", description: e?.message, variant: "destructive" }),
-  });
-
-  const deactivatePlan = useMutation({
-    mutationFn: (planId: number) => customFetch(`${API_URL}/courts/${courtId}/memberships/${planId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: false }),
-    }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memberships", courtId] }),
-  });
-
-  return (
-    <div className="space-y-4 py-2">
-      {isLoading ? (
-        <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
-      ) : plans.length === 0 ? (
-        <div className="py-8 flex flex-col items-center text-muted-foreground gap-2">
-          <Star className="w-8 h-8 opacity-20" />
-          <p className="text-sm">Nėra narystės planų</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {plans.map(plan => (
-            <div key={plan.id} className="flex items-start gap-3 p-3 rounded-xl border bg-muted/30">
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm">{plan.name}</div>
-                {plan.description && <div className="text-xs text-muted-foreground">{plan.description}</div>}
-                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                  <span className="font-bold text-primary">{plan.pricePerYear}€/metai</span>
-                  <span>· {plan.weeklySlots} slot/savaitė</span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0"
-                onClick={() => deactivatePlan.mutate(plan.id)}>
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="border rounded-xl p-4 space-y-3">
-        <div className="text-sm font-semibold">Naujas planas</div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="col-span-2 space-y-1">
-            <Label className="text-xs">Pavadinimas</Label>
-            <Input placeholder="pvz. Standartinė narystė" value={name} onChange={e => setName(e.target.value)} className="h-8 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Kaina (€/metus)</Label>
-            <Input type="number" placeholder="360" value={pricePerYear} onChange={e => setPricePerYear(e.target.value)} className="h-8 text-sm" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Slotai/savaitę</Label>
-            <Input type="number" placeholder="2" min="1" value={weeklySlots} onChange={e => setWeeklySlots(e.target.value)} className="h-8 text-sm" />
-          </div>
-          <div className="col-span-2 space-y-1">
-            <Label className="text-xs">Aprašymas (neprivaloma)</Label>
-            <Input placeholder="pvz. 2 valandos per savaitę" value={description} onChange={e => setDescription(e.target.value)} className="h-8 text-sm" />
-          </div>
-        </div>
-        <Button size="sm" disabled={!name || !pricePerYear || createPlan.isPending} onClick={() => createPlan.mutate()} className="w-full">
-          <Plus className="w-3.5 h-3.5 mr-1.5" /> Sukurti planą
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function OwnerFacilityDetail() {
@@ -843,7 +742,6 @@ export default function OwnerFacilityDetail() {
   const [blockedSlotsCourtId, setBlockedSlotsCourtId] = useState<number | null>(null);
   const [coachesCourtId, setCoachesCourtId] = useState<number | null>(null);
   const [freeBookingCourtId, setFreeBookingCourtId] = useState<number | null>(null);
-  const [membershipCourtId, setMembershipCourtId] = useState<number | null>(null);
   const [photosCourtId, setPhotosCourtId] = useState<number | null>(null);
   const [rentableItems, setRentableItems] = useState<RentableItem[]>([]);
   const [newItemName, setNewItemName] = useState("");

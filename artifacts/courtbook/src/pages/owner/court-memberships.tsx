@@ -10,13 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Star, Plus, X } from "lucide-react";
+import { getSportLabel } from "@/components/sport-icon";
 
 const BASE_URL = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API_URL = `${BASE_URL}/api`;
 
 interface MembershipPlan {
   id: number;
-  courtId: number;
+  courtId: number | null;
   name: string;
   description: string | null;
   pricePerYear: number;
@@ -49,16 +50,21 @@ export default function OwnerCourtMemberships() {
     enabled: !!facilityId,
   });
 
-  const { data: court } = useQuery<{ name?: string }>({
+  const { data: court } = useQuery<{ name?: string; type?: string }>({
     queryKey: ["court-detail", courtId],
     queryFn: () => customFetch(`${API_URL}/courts/${courtId}`),
     enabled: !!courtId,
   });
 
+  // Plans are scoped to (facility, sport) since Epic 2 — every court of this
+  // sport shares the same list, so each court's "Narystės" tab manages the
+  // whole group. The sport comes from the court we navigated in from.
+  const sport = court?.type ?? null;
+
   const { data: plans = [], isLoading } = useQuery<MembershipPlan[]>({
-    queryKey: ["memberships", courtId],
-    queryFn: () => customFetch<MembershipPlan[]>(`${API_URL}/courts/${courtId}/memberships`),
-    enabled: !!courtId,
+    queryKey: ["group-memberships", facilityId, sport],
+    queryFn: () => customFetch<MembershipPlan[]>(`${API_URL}/facilities/${facilityId}/${sport}/memberships`),
+    enabled: !!facilityId && !!sport,
   });
 
   const createPlan = useMutation({
@@ -67,7 +73,7 @@ export default function OwnerCourtMemberships() {
         const n = Number(s);
         return Number.isFinite(n) && s.trim() !== "" ? n : undefined;
       };
-      return customFetch(`${API_URL}/courts/${courtId}/memberships`, {
+      return customFetch(`${API_URL}/facilities/${facilityId}/${sport}/memberships`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,7 +88,7 @@ export default function OwnerCourtMemberships() {
       });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["memberships", courtId] });
+      qc.invalidateQueries({ queryKey: ["group-memberships", facilityId, sport] });
       setName(""); setDescription(""); setPricePerYear(""); setPricePerMonth("");
       setWeeklySlots("1"); setConditions(""); setDiscountPercent("");
       toast({ title: "Planas sukurtas!" });
@@ -91,12 +97,12 @@ export default function OwnerCourtMemberships() {
   });
 
   const deactivatePlan = useMutation({
-    mutationFn: (planId: number) => customFetch(`${API_URL}/courts/${courtId}/memberships/${planId}`, {
+    mutationFn: (planId: number) => customFetch(`${API_URL}/facilities/${facilityId}/${sport}/memberships/${planId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: false }),
     }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["memberships", courtId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["group-memberships", facilityId, sport] }),
   });
 
   return (
@@ -110,7 +116,11 @@ export default function OwnerCourtMemberships() {
           <Star className="w-6 h-6 text-cyan-500" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Narystės planai</h1>
-            {court?.name && <p className="text-sm text-muted-foreground">{court.name}</p>}
+            {sport && (
+              <p className="text-sm text-muted-foreground">
+                Galioja visoms įstaigos „{getSportLabel(sport)}“ aikštelėms
+              </p>
+            )}
           </div>
         </div>
 

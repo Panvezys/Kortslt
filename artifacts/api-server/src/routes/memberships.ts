@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, courtMembershipsTable, userMembershipsTable, courtsTable, facilitiesTable } from "@workspace/db";
 import { requireAuth, getCurrentUserId, isOwner } from "../lib/auth";
 
@@ -88,6 +88,56 @@ router.post("/courts/:id/memberships/:planId/subscribe", requireAuth, async (req
     status: "active", expiresAt,
   }).returning();
   res.status(201).json(membership);
+});
+
+// ── Group-level (facility + sport) plan list ─────────────────────────────────
+// Includes legacy court-scoped plans of the same facility+sport (they carry
+// facilityId/sport too), so the owner manages one list per group.
+
+router.get("/facilities/:facilityId/:sport/memberships", async (req, res): Promise<void> => {
+  const facilityId = parseInt(String(req.params.facilityId));
+  const sportNorm = String(req.params.sport).replace(/-/g, "_");
+  if (isNaN(facilityId) || !sportNorm) { res.status(400).json({ error: "Invalid parameters" }); return; }
+  const plans = await db.select().from(courtMembershipsTable)
+    .where(and(
+      eq(courtMembershipsTable.facilityId, facilityId),
+      sql`REPLACE(${courtMembershipsTable.sport}, '-', '_') = ${sportNorm}`,
+      eq(courtMembershipsTable.isActive, true),
+    ));
+  res.json(plans);
+});
+
+// ── Group-level (facility + sport) plan update / deactivate ──────────────────
+// Group plans have courtId NULL, so the court-scoped PATCH can never match
+// them — this is the only way to edit or deactivate them.
+
+router.patch("/facilities/:facilityId/:sport/memberships/:planId", requireAuth, async (req, res): Promise<void> => {
+  const facilityId = parseInt(String(req.params.facilityId));
+  const sportNorm = String(req.params.sport).replace(/-/g, "_");
+  const planId = parseInt(String(req.params.planId));
+  if (isNaN(facilityId) || isNaN(planId) || !sportNorm) { res.status(400).json({ error: "Invalid parameters" }); return; }
+  const [facility] = await db.select({ ownerUserId: facilitiesTable.ownerUserId }).from(facilitiesTable).where(eq(facilitiesTable.id, facilityId));
+  if (!facility) { res.status(404).json({ error: "Facility not found" }); return; }
+  if (!(await isOwner(req, facility.ownerUserId))) { res.status(403).json({ error: "Forbidden" }); return; }
+  const [plan] = await db.select().from(courtMembershipsTable)
+    .where(and(
+      eq(courtMembershipsTable.id, planId),
+      eq(courtMembershipsTable.facilityId, facilityId),
+      sql`REPLACE(${courtMembershipsTable.sport}, '-', '_') = ${sportNorm}`,
+    ));
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+  const { name, description, pricePerYear, pricePerMonth, weeklySlots, conditions, discountPercent, isActive } = req.body as any;
+  const update: Record<string, unknown> = {};
+  if (name !== undefined) update.name = name;
+  if (description !== undefined) update.description = description;
+  if (pricePerYear !== undefined) update.pricePerYear = Number(pricePerYear);
+  if (pricePerMonth !== undefined) update.pricePerMonth = pricePerMonth === null || pricePerMonth === "" ? null : Number(pricePerMonth);
+  if (weeklySlots !== undefined) update.weeklySlots = Number(weeklySlots);
+  if (conditions !== undefined) update.conditions = conditions;
+  if (discountPercent !== undefined) update.discountPercent = discountPercent === null || discountPercent === "" ? null : Number(discountPercent);
+  if (isActive !== undefined) update.isActive = Boolean(isActive);
+  const [updated] = await db.update(courtMembershipsTable).set(update).where(eq(courtMembershipsTable.id, planId)).returning();
+  res.json(updated);
 });
 
 // ── Group-level (facility + sport) plan creation ─────────────────────────────
