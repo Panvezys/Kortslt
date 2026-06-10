@@ -16,6 +16,7 @@ import { DateCalendar } from "@/components/ui/date-calendar";
 import { WaitlistModal } from "@/components/waitlist-modal";
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
+import type { GroupOpenGame } from "@/lib/search-groups-types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -92,9 +93,10 @@ interface Props {
   longitude?: number | null;
   isOutdoor?: boolean;
   lastBookedAt?: string | null;
+  openGames?: GroupOpenGame[];
 }
 
-export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt }: Props) {
+export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt, openGames }: Props) {
   const today = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
   const [date,          setDate]          = useState<Date>(today);
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
@@ -719,6 +721,27 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── LinkGame: join an existing public split game ── */}
+      {(openGames?.length ?? 0) > 0 && !splitEnabled && !recurringEnabled && (
+        <div className="space-y-1.5 pt-1">
+          <p className="text-xs font-medium text-muted-foreground">Prisijungti prie esamo žaidimo</p>
+          {openGames!.slice(0, 3).map(g => {
+            const dt = new Date(g.datetime);
+            const when = `${dt.toLocaleDateString("lt-LT", { month: "2-digit", day: "2-digit" })} ${g.datetime.slice(11, 16)}`;
+            return (
+              <a key={g.id} href={`${BASE}/join/${g.splitInviteToken}`}
+                 className="flex items-center justify-between rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors px-3 py-2">
+                <span className="text-xs">
+                  <span className="font-medium text-foreground">{when}</span>
+                  <span className="text-muted-foreground"> · {g.joinedCount}/{g.playersNeeded} žaid. · {g.creatorName}</span>
+                </span>
+                <span className="text-xs font-semibold text-primary">{g.pricePerSlot.toFixed(2)} €</span>
+              </a>
+            );
+          })}
         </div>
       )}
 

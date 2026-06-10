@@ -320,7 +320,7 @@ export default function FacilitySportPage() {
   const { facility, sport, mergedPhotos, mergedAmenities,
           surfacesAvailable, isIndoorAvailable, isOutdoorAvailable,
           availableSports, courtCount, startingPrice, groupRating,
-          memberships, lastBookedAt } = data;
+          memberships, lastBookedAt, openGames } = data;
 
   const allPhotos = mergedPhotos;
   const sportFallback = resolveCourtImage(null, sport);
@@ -788,6 +788,7 @@ export default function FacilitySportPage() {
                   longitude={facility.longitude}
                   isOutdoor={isOutdoorAvailable}
                   lastBookedAt={lastBookedAt}
+                  openGames={openGames}
                 />
               </div>
             </div>
