@@ -231,7 +231,8 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   const discountActive = memberDiscount != null && !discountCapped;
   const memberCourtPrice = useMemo(() => {
     if (!selectedSlotRange || !discountActive || !memberDiscount) return null;
-    return Math.round(selectedSlotRange.totalPrice * (100 - memberDiscount.percent)) / 100;
+    // Integer-cents first — mirrors the server's rounding in membership-pricing.ts
+    return Math.round(Math.round(selectedSlotRange.totalPrice * 100) * (100 - memberDiscount.percent) / 100) / 100;
   }, [selectedSlotRange, discountActive, memberDiscount]);
 
   // Fetch aggregated equipment availability for the selected slot (scoped to the

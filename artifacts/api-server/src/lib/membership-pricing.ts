@@ -61,6 +61,9 @@ async function countWeeklyUses(ex: DbOrTx, membershipId: number, weekStart: stri
       sql`SUBSTRING(${gamesTable.datetime} FROM 1 FOR 10) >= ${weekStart} AND SUBSTRING(${gamesTable.datetime} FROM 1 FOR 10) <= ${weekEnd}`,
       sql`(${gameParticipantsTable.paymentStatus} = 'paid'
            OR (${gameParticipantsTable.paymentStatus} = 'pending' AND ${gameParticipantsTable.joinedAt} > NOW() - INTERVAL '15 minutes'))`,
+      // Collapsed games don't consume cap — cancellation paths leave
+      // participant paymentStatus='paid', so exclude by game status here.
+      sql`${gamesTable.status} NOT IN ('cancelling', 'cancelled')`,
     ));
   return Number(bRow?.n ?? 0) + Number(pRow?.n ?? 0);
 }
