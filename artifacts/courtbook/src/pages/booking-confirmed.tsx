@@ -61,6 +61,9 @@ interface SplitConfirmInfo {
   courtId: number | null;
   courtName: string | null;
   courtImageUrl: string | null;
+  facilityId?: number | null;
+  /** The viewer's own share after their membership discount. */
+  yourShareEur?: number;
 }
 
 function formatBookingDate(value: string): string {
@@ -313,6 +316,7 @@ export default function BookingConfirmed() {
   }[] | null>(null);
   const [state, setState] = useState<"loading" | "success" | "error">("loading");
   const [courtOwner, setCourtOwner] = useState<{ userId: string; name: string; imageUrl?: string | null; address?: string | null; city?: string | null; phone?: string | null } | null>(null);
+  const [courtGroup, setCourtGroup] = useState<{ facilityId: number; sport: string } | null>(null);
   const [coach, setCoach] = useState<CoachLookup | null>(null);
 
   useEffect(() => {
@@ -375,6 +379,7 @@ export default function BookingConfirmed() {
       .then(r => r.ok ? r.json() : null)
       .then((c: any) => {
         if (c?.ownerUserId) setCourtOwner({ userId: c.ownerUserId, name: c.ownerName || "Savininkas", imageUrl: c.imageUrl ?? null, address: c.address ?? null, city: c.city ?? null, phone: c.phone ?? null });
+        if (c?.facilityId && c?.type) setCourtGroup({ facilityId: c.facilityId, sport: c.type });
       })
       .catch(() => {});
   }, [splitInfo?.courtId, booking?.courtId]);
@@ -394,11 +399,19 @@ export default function BookingConfirmed() {
     ? `${window.location.origin}${BASE}/join/${splitInfo.shareToken}`
     : null;
 
-  const courtPageUrl = splitInfo?.courtId
-    ? `${BASE}/courts/${splitInfo.courtId}`
-    : booking?.courtId
-      ? `${BASE}/courts/${booking.courtId}`
+  // Group page when we know the facility+sport (primary flow since the
+  // /explore transition); legacy court page stays the fallback.
+  const groupUrl = splitInfo?.facilityId && splitInfo?.sport
+    ? `${BASE}/facility/${splitInfo.facilityId}?sport=${splitInfo.sport.replace(/-/g, "_")}`
+    : courtGroup
+      ? `${BASE}/facility/${courtGroup.facilityId}?sport=${courtGroup.sport.replace(/-/g, "_")}`
       : null;
+  const courtPageUrl = groupUrl
+    ?? (splitInfo?.courtId
+      ? `${BASE}/courts/${splitInfo.courtId}`
+      : booking?.courtId
+        ? `${BASE}/courts/${booking.courtId}`
+        : null);
 
   return (
     <Layout>
@@ -450,7 +463,7 @@ export default function BookingConfirmed() {
                   <span className="text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5">Garantuota</span>
                 </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Sumokėjote savo dalį (€{splitInfo.pricePerSlot.toFixed(2)}). Pakviesk žaidėjus ir padalinkite kortą.
+                  Sumokėjote savo dalį (€{(splitInfo.yourShareEur ?? splitInfo.pricePerSlot).toFixed(2)}). Pakviesk žaidėjus ir padalinkite kortą.
                 </p>
                 {(() => {
                   const [gh, gm] = splitInfo.startTime.split(":").map(Number);
@@ -539,7 +552,7 @@ export default function BookingConfirmed() {
                     <CreditCard className="w-4 h-4" />
                     Jūsų dalis (1/{splitInfo.totalSlots})
                   </span>
-                  <span className="font-bold text-primary text-base">€{splitInfo.pricePerSlot.toFixed(2)}</span>
+                  <span className="font-bold text-primary text-base">€{(splitInfo.yourShareEur ?? splitInfo.pricePerSlot).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm border-t border-border pt-2">
                   <span className="text-muted-foreground">Visa rezervacijos kaina</span>

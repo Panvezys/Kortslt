@@ -70,6 +70,8 @@ interface SplitStatus {
   bookingStatus: string;
   totalSlots: number;
   pricePerSlot: number;
+  /** The viewer's own share after their membership discount. */
+  yourShareEur?: number;
   totalPrice: number;
   shareToken: string | null;
   participants: SplitParticipant[];
@@ -86,6 +88,7 @@ interface CourtDetail {
   ownerName?: string | null;
   imageUrl?: string | null;
   type: string;
+  facilityId?: number | null;
 }
 
 function formatDate(value: string): string {
@@ -179,6 +182,12 @@ export default function BookingDetail() {
     };
     load();
   }, [id]);
+
+  // Group page when we know the facility+sport (the primary flow since the
+  // /explore transition); the legacy court page remains the fallback.
+  const courtHref = court?.facilityId && court?.type
+    ? `/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}`
+    : `/courts/${booking?.courtId}`;
 
   const shareUrl = splitStatus?.shareToken
     ? `${window.location.origin}${BASE}/join/${splitStatus.shareToken}`
@@ -274,14 +283,14 @@ export default function BookingDetail() {
             )}
             <button
               className="flex-1 flex flex-col min-w-0 text-left"
-              onClick={() => setLocation(`/courts/${booking.courtId}`)}
+              onClick={() => setLocation(courtHref)}
             >
               <p className="text-xs text-muted-foreground">Aikštelė</p>
               <p className="text-sm font-medium text-primary truncate">{courtName}</p>
             </button>
             <ExternalLink
               className="w-3.5 h-3.5 text-muted-foreground shrink-0 cursor-pointer hover:text-primary transition-colors"
-              onClick={() => setLocation(`/courts/${booking.courtId}`)}
+              onClick={() => setLocation(courtHref)}
             />
             {isSignedIn && court?.ownerUserId && (
               <button
@@ -343,7 +352,10 @@ export default function BookingDetail() {
               </p>
               <p className="text-sm font-medium">
                 {booking.isSplit && booking.pricePerSlot != null
-                  ? (booking.pricePerSlot > 0 ? `€${Number(booking.pricePerSlot).toFixed(2)}` : "Nemokama")
+                  ? (() => {
+                      const share = splitStatus?.yourShareEur ?? Number(booking.pricePerSlot);
+                      return share > 0 ? `€${share.toFixed(2)}` : "Nemokama";
+                    })()
                   : (booking.totalPrice > 0 ? `€${Number(booking.totalPrice).toFixed(2)}` : "Nemokama")}
               </p>
               {booking.isSplit && booking.pricePerSlot != null && (

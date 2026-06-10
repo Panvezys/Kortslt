@@ -80,6 +80,10 @@ export default function GuestBooking() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Group-page link target (facility+sport) resolved from the public court
+  // endpoint; the legacy court page stays the fallback.
+  const [courtGroup, setCourtGroup] = useState<{ facilityId: number; sport: string } | null>(null);
+
   // Cancellation modal state
   const [cancelOpen, setCancelOpen] = useState(false);
   const [refundPreview, setRefundPreview] = useState<RefundPreview | null>(null);
@@ -93,6 +97,12 @@ export default function GuestBooking() {
       if (!r.ok) throw new Error("Nepavyko įkelti rezervacijos");
       const data = await r.json();
       setBooking(data);
+      if (data?.courtId) {
+        fetch(`${API}/courts/${data.courtId}`)
+          .then(cr => cr.ok ? cr.json() : null)
+          .then((c: any) => { if (c?.facilityId && c?.type) setCourtGroup({ facilityId: c.facilityId, sport: c.type }); })
+          .catch(() => {});
+      }
     } catch (err: any) {
       setError(err.message ?? "Klaida");
     } finally {
@@ -198,6 +208,9 @@ export default function GuestBooking() {
   }
 
   const courtName = booking.courtName ?? `Kortas #${booking.courtId}`;
+  const courtHref = courtGroup
+    ? `/facility/${courtGroup.facilityId}?sport=${courtGroup.sport.replace(/-/g, "_")}`
+    : `/courts/${booking.courtId}`;
   const address = booking.courtAddress && booking.courtCity ? `${booking.courtAddress}, ${booking.courtCity}` : null;
   const phone = booking.courtPhone ?? null;
   const duration = (() => {
@@ -310,7 +323,7 @@ export default function GuestBooking() {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => setLocation(`/courts/${booking.courtId}`)}
+            onClick={() => setLocation(courtHref)}
           >
             <ExternalLink className="w-4 h-4 mr-2" />
             Aikštelės puslapis

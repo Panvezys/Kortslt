@@ -18,6 +18,8 @@ import {
   userProfilesTable,
   userSportProfilesTable,
   courtBlockedSlotsTable,
+  userMembershipsTable,
+  courtMembershipsTable,
 } from "@workspace/db";
 import { buildDayPriceMap } from "../lib/pricing";
 import { vilniusLocalToUtcMs } from "./bookings";
@@ -609,6 +611,7 @@ router.post("/payments/confirm-split", requireAuth, async (req, res): Promise<vo
     gameId: game?.id ?? null,
     shareToken: booking.splitInviteToken ?? null,
     pricePerSlot: Number(booking.pricePerSlot ?? 0),
+    yourShareEur: await viewerShareEur(Number(booking.pricePerSlot ?? 0), participant?.appliedMembershipId),
     totalSlots: booking.totalSlots ?? 1,
     paidSlots,
     totalPrice: Number(booking.totalPrice),
@@ -620,6 +623,7 @@ router.post("/payments/confirm-split", requireAuth, async (req, res): Promise<vo
     courtId: booking.courtId,
     courtName: court?.name ?? null,
     courtImageUrl: court?.imageUrl ?? null,
+    facilityId: game?.facilityId ?? court?.facilityId ?? null,
   });
 });
 
@@ -1014,6 +1018,20 @@ router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> =
   res.json({ url: checkoutUrl });
 });
 
+// The viewer's actual share: the nominal per-slot price minus their own
+// membership discount (tracked on game_participants.appliedMembershipId).
+// Display-only — charging happened at checkout with the same formula.
+async function viewerShareEur(pricePerSlot: number, appliedMembershipId: number | null | undefined): Promise<number> {
+  if (!appliedMembershipId || pricePerSlot <= 0) return pricePerSlot;
+  const [row] = await db.select({ pct: courtMembershipsTable.discountPercent })
+    .from(userMembershipsTable)
+    .innerJoin(courtMembershipsTable, eq(userMembershipsTable.membershipPlanId, courtMembershipsTable.id))
+    .where(eq(userMembershipsTable.id, appliedMembershipId));
+  const pct = Number(row?.pct ?? 0);
+  if (pct <= 0) return pricePerSlot;
+  return Math.round(Math.round(pricePerSlot * 100) * (100 - pct) / 100) / 100;
+}
+
 // ─── GET /api/bookings/:bookingId/split-status ────────────────────────────────
 
 router.get("/bookings/:bookingId/split-status", requireAuth, async (req, res): Promise<void> => {
@@ -1047,12 +1065,16 @@ router.get("/bookings/:bookingId/split-status", requireAuth, async (req, res): P
         .where(and(eq(gameParticipantsTable.gameId, game.id), eq(gameParticipantsTable.status, "joined")))
     : [];
 
+  const me = participants.find(p => p.userId === userId);
+  const yourShareEur = await viewerShareEur(Number(booking.pricePerSlot ?? 0), me?.appliedMembershipId);
+
   res.json({
     bookingId,
     gameId: game?.id ?? null,
     bookingStatus: booking.status,
     totalSlots: booking.totalSlots ?? 1,
     pricePerSlot: Number(booking.pricePerSlot ?? 0),
+    yourShareEur,
     totalPrice: Number(booking.totalPrice),
     shareToken: booking.splitInviteToken,
     participants: participants.map(p => ({
