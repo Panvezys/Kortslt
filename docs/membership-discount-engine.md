@@ -47,6 +47,9 @@ own court cost, capped at `weeklySlots` uses per ISO week. Implemented in Epic 3
 | Availability `GET …/availability` (`search-groups.ts`) | No discount — returns `membershipDiscount` preview (degrades to `null` on error). |
 | `POST /search/groups/:fid/:sport/checkout-split` (`split-payments.ts`) | Host's own share only. Booking keeps FULL `totalPrice`/`pricePerSlot`; discount tracked on the host's `game_participants` row. |
 | `POST /bookings/share/:token/checkout` (`split-payments.ts`) | Joining invitee's own share only (guests never). |
+| `POST /bookings` (`bookings.ts`) | Legacy `/courts/:id` flow — same semantics as group `/book`: court cost only, discounted `totalPrice` + `appliedMembershipId` on the booking. |
+| `POST /games/checkout-split` (`split-payments.ts`) | Legacy split flow — host-share parity with the group checkout-split (booking keeps full price; host participant carries `appliedMembershipId`). Also wrapped in the same advisory-lock transaction. |
+| `GET /courts/:id/availability` (`courts.ts`) | No discount — `membershipDiscount` preview appended after the OpenAPI schema parse (the schema would strip it). |
 
 ## €0 settle paths
 
@@ -62,7 +65,8 @@ actual Stripe `amount_total`, not the nominal share.
 "Nario kaina (−X%)" member price in the summary, total/button/recurring-estimate
 use the discounted court price, and a "Šios savaitės narystės nuolaida
 išnaudota" notice when capped. Split per-player labels stay full price (shares
-are discounted per participant at payment time).
+are discounted per participant at payment time). `court-detail.tsx` (legacy
+page) mirrors the same conventions for its standard and recurring summaries.
 
 ## Relevant files
 
