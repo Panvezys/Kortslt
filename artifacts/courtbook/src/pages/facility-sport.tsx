@@ -175,6 +175,7 @@ export default function FacilitySportPage() {
   const isIndoorStr  = p.get("isIndoor");
   const surfaceParam = p.get("surface")   ?? undefined;
   const condParam    = p.get("condition") ?? undefined;
+  const dateParam    = p.get("date");     // carried over from /explore search
 
   const isIndoor = isIndoorStr === "true" ? true : isIndoorStr === "false" ? false : undefined;
 
@@ -789,6 +790,7 @@ export default function FacilitySportPage() {
                   isOutdoor={isOutdoorAvailable}
                   lastBookedAt={lastBookedAt}
                   openGames={openGames}
+                  initialDate={dateParam}
                 />
               </div>
             </div>

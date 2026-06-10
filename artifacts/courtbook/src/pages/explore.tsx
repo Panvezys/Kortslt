@@ -21,6 +21,31 @@ type ViewMode = "list" | "map";
 
 const NEARBY_KM = 30;
 
+// Availability-window helpers (slot grid runs 06:00–23:00 in 30-min steps)
+const TIME_OPTIONS: string[] = [];
+for (let h = 6; h < 23; h++) {
+  for (const m of [0, 30]) {
+    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
+  }
+}
+const DURATION_OPTIONS = [
+  { label: "30 min", value: 30 },
+  { label: "1 val.", value: 60 },
+  { label: "1,5 val.", value: 90 },
+  { label: "2 val.", value: 120 },
+  { label: "2,5 val.", value: 150 },
+  { label: "3 val.", value: 180 },
+];
+function addMinutes(t: string, mins: number): string {
+  const [h, m] = t.split(":").map(Number);
+  const total = Math.min(h * 60 + m + mins, 23 * 60); // grid ends at 23:00
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -35,6 +60,11 @@ async function fetchGroups(filters: SearchGroupFilters): Promise<SearchGroupResu
   const p = new URLSearchParams();
   if (filters.surface)   p.set("surface",   filters.surface);
   if (filters.isIndoor !== undefined) p.set("isIndoor", String(filters.isIndoor));
+  if (filters.date && filters.startTime && filters.endTime) {
+    p.set("date", filters.date);
+    p.set("startTime", filters.startTime);
+    p.set("endTime", filters.endTime);
+  }
   const qs = p.toString();
   const result = await customFetch<SearchGroupResult[]>(`/api/search/groups${qs ? `?${qs}` : ""}`, { responseType: "json" });
   return Array.isArray(result) ? result : [];
@@ -47,6 +77,11 @@ export default function ExplorePage() {
   // Server-side filters (trigger re-fetch)
   const [surface,  setSurface]  = useState<string>(sp.get("surface")  ?? "");
   const [isIndoor, setIsIndoor] = useState<string>(sp.get("isIndoor") ?? "");
+  // Availability window (date alone still flows into detail links so the
+  // booking widget opens on it; the list filters only when time is also set)
+  const [dateQ,     setDateQ]     = useState<string>(sp.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(sp.get("date")!) ? sp.get("date")! : "");
+  const [timeQ,     setTimeQ]     = useState<string>(sp.get("time") && /^\d{2}:\d{2}$/.test(sp.get("time")!) ? sp.get("time")! : "");
+  const [durationQ, setDurationQ] = useState<number>(Number(sp.get("duration")) || 60);
 
   // Client-side filters (instant, no re-fetch)
   const [activeSport, setActiveSport] = useState<string>(sp.get("sport") ?? "");
@@ -83,14 +118,23 @@ export default function ExplorePage() {
     setActiveSport(p.get("sport") ?? "");
     setCity(p.get("city") ?? "");
     setNameQ(p.get("name") ?? "");
+    const d = p.get("date");
+    const t = p.get("time");
+    setDateQ(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "");
+    setTimeQ(t && /^\d{2}:\d{2}$/.test(t) ? t : "");
+    setDurationQ(Number(p.get("duration")) || 60);
     setMinPrice("");
     setMaxPrice("");
   }, [search]);
 
+  const windowActive = dateQ !== "" && timeQ !== "";
   const apiFilters: SearchGroupFilters = useMemo(() => ({
     surface:  surface  || undefined,
     isIndoor: isIndoor === "true" ? true : isIndoor === "false" ? false : undefined,
-  }), [surface, isIndoor]);
+    date:      windowActive ? dateQ : undefined,
+    startTime: windowActive ? timeQ : undefined,
+    endTime:   windowActive ? addMinutes(timeQ, durationQ) : undefined,
+  }), [surface, isIndoor, windowActive, dateQ, timeQ, durationQ]);
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["search-groups", apiFilters],
@@ -149,11 +193,12 @@ export default function ExplorePage() {
     return result;
   }, [groups, activeSport, city, nameQ, minPrice, maxPrice, sortBy, nearbyMode, userLocation]);
 
-  const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice, nearbyMode].filter(Boolean).length;
+  const activeFilterCount = [activeSport, city, surface, isIndoor, minPrice, maxPrice, nearbyMode, dateQ, timeQ].filter(Boolean).length;
 
   function clearFilters() {
     setActiveSport(""); setCity(""); setSurface(""); setIsIndoor("");
     setMinPrice(""); setMaxPrice("");
+    setDateQ(""); setTimeQ(""); setDurationQ(60);
     setNearbyMode(false); setUserLocation(null); setNearbyError(null);
   }
 
@@ -186,6 +231,53 @@ export default function ExplorePage() {
           <span className="flex-1 text-left">{nearbyMode ? `Netoliese (${NEARBY_KM} km) ✕` : "Ieškoti netoliese"}</span>
         </button>
         {nearbyError && <p className="mt-1.5 text-xs text-destructive">{nearbyError}</p>}
+      </div>
+
+      {/* Availability window */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data ir laikas</Label>
+          {(dateQ || timeQ) && (
+            <button
+              onClick={() => { setDateQ(""); setTimeQ(""); setDurationQ(60); }}
+              className="text-[10px] font-medium text-primary hover:underline"
+            >
+              Valyti
+            </button>
+          )}
+        </div>
+        <div className="space-y-2">
+          <input
+            type="date"
+            value={dateQ}
+            min={todayStr()}
+            onChange={e => setDateQ(e.target.value)}
+            aria-label="Data"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring [color-scheme:light] dark:[color-scheme:dark]"
+          />
+          <div className="flex items-center gap-2">
+            <Select value={timeQ || "_any_"} onValueChange={v => setTimeQ(v === "_any_" ? "" : v)}>
+              <SelectTrigger className="flex-1" aria-label="Laikas">
+                <SelectValue placeholder="Laikas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_any_">Bet kada</SelectItem>
+                {TIME_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={String(durationQ)} onValueChange={v => setDurationQ(Number(v))}>
+              <SelectTrigger className="flex-1" aria-label="Trukmė" disabled={!timeQ}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DURATION_OPTIONS.map(d => <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {dateQ && !timeQ && (
+            <p className="text-[11px] text-muted-foreground">Pasirinkite laiką, kad matytumėte tik laisvas aikšteles.</p>
+          )}
+        </div>
       </div>
 
       {/* Sport filter */}
@@ -349,6 +441,7 @@ export default function ExplorePage() {
   const detailFilters: SearchGroupFilters = {
     isIndoor: isIndoor === "true" ? true : isIndoor === "false" ? false : undefined,
     surface:  surface || undefined,
+    date:     dateQ || undefined, // booking widget opens on the searched date
   };
 
   // Synthetic Court-shaped objects so the shared CourtMap can render venue pins.
@@ -388,6 +481,7 @@ export default function ExplorePage() {
     const p = new URLSearchParams({ sport: sportSlug });
     if (detailFilters.isIndoor !== undefined) p.set("isIndoor", String(detailFilters.isIndoor));
     if (detailFilters.surface) p.set("surface", detailFilters.surface);
+    if (detailFilters.date) p.set("date", detailFilters.date);
     const base = `/facility/${fid}?${p.toString()}`;
     return { detail: base, reserve: `${base}#reserve` };
   };

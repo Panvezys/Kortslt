@@ -94,11 +94,19 @@ interface Props {
   isOutdoor?: boolean;
   lastBookedAt?: string | null;
   openGames?: GroupOpenGame[];
+  /** YYYY-MM-DD to open the calendar on (e.g. carried over from /explore search). */
+  initialDate?: string | null;
 }
 
-export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt, openGames }: Props) {
+export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt, openGames, initialDate }: Props) {
   const today = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
-  const [date,          setDate]          = useState<Date>(today);
+  const [date,          setDate]          = useState<Date>(() => {
+    if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
+      const d = new Date(`${initialDate}T00:00:00`);
+      if (!isNaN(d.getTime()) && d.getTime() >= today.getTime()) return d;
+    }
+    return today;
+  });
   const [selectedStart, setSelectedStart] = useState<number | null>(null);
   const [selectedEnd,   setSelectedEnd]   = useState<number | null>(null);
   const [calendarOpen,  setCalendarOpen]  = useState(false);

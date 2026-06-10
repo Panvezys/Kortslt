@@ -154,6 +154,13 @@ router.get("/search/groups", async (req, res): Promise<void> => {
   const minPrice = typeof req.query.minPrice === "string" && req.query.minPrice.trim() !== "" && isFinite(Number(req.query.minPrice)) ? Number(req.query.minPrice) : null;
   const maxPrice = typeof req.query.maxPrice === "string" && req.query.maxPrice.trim() !== "" && isFinite(Number(req.query.maxPrice)) ? Number(req.query.maxPrice) : null;
 
+  // Optional availability window: only courts free on date in [startTime, endTime)
+  // count toward a group. All three must be present and well-formed.
+  const date      = typeof req.query.date      === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date) ? req.query.date : null;
+  const startTime = typeof req.query.startTime === "string" && /^\d{2}:\d{2}$/.test(req.query.startTime) ? req.query.startTime : null;
+  const endTime   = typeof req.query.endTime   === "string" && /^\d{2}:\d{2}$/.test(req.query.endTime) ? req.query.endTime : null;
+  const hasWindow = date != null && startTime != null && endTime != null && startTime < endTime;
+
   const sportFilter    = sport    != null ? sql`AND REPLACE(c.type, '-', '_') = ${sport}`    : sql``;
   const cityFilter     = city     != null ? sql`AND f.city = ${city}`                         : sql``;
   const surfaceFilter  = surface  != null ? sql`AND c.surface = ${surface}`                   : sql``;
@@ -161,6 +168,21 @@ router.get("/search/groups", async (req, res): Promise<void> => {
   const indoorFilter   = isIndoor != null ? sql`AND c.is_indoor = ${isIndoor}`               : sql``;
   const minPriceFilter = minPrice != null ? sql`AND eff_price >= ${minPrice}`                 : sql``;
   const maxPriceFilter = maxPrice != null ? sql`AND eff_price <= ${maxPrice}`                 : sql``;
+  // Same conflict semantics as /courts/available-for-slot and the /book allocator:
+  // confirmed/blocked/awaiting_players always conflict, pending only while fresh.
+  const availabilityFilter = hasWindow ? sql`
+        AND NOT EXISTS (
+          SELECT 1 FROM bookings b
+          WHERE b.court_id = c.id AND b.date = ${date}
+            AND b.start_time < ${endTime} AND b.end_time > ${startTime}
+            AND (b.status IN ('confirmed', 'blocked', 'awaiting_players')
+                 OR (b.status = 'pending' AND b.created_at > NOW() - INTERVAL '15 minutes'))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM court_blocked_slots bs
+          WHERE bs.court_id = c.id AND bs.date = ${date}
+            AND bs.start_time < ${endTime} AND bs.end_time > ${startTime}
+        )` : sql``;
 
   const query = sql`
     WITH matching_courts AS (
@@ -187,6 +209,7 @@ router.get("/search/groups", async (req, res): Promise<void> => {
         ${surfaceFilter}
         ${conditionFilter}
         ${indoorFilter}
+        ${availabilityFilter}
     ),
     filtered_courts AS (
       SELECT * FROM matching_courts

@@ -98,6 +98,10 @@ export interface SearchGroupFilters {
   isIndoor?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  /** Availability window — server filters only when all three are set. */
+  date?: string;      // YYYY-MM-DD
+  startTime?: string; // HH:MM
+  endTime?: string;   // HH:MM
 }
 
 export function buildDetailHref(group: SearchGroupResult, filters: SearchGroupFilters): string {
@@ -105,5 +109,6 @@ export function buildDetailHref(group: SearchGroupResult, filters: SearchGroupFi
   if (filters.isIndoor !== undefined) p.set("isIndoor", String(filters.isIndoor));
   if (filters.surface)   p.set("surface",   filters.surface);
   if (filters.condition) p.set("condition", filters.condition);
+  if (filters.date)      p.set("date",      filters.date); // widget opens on this date
   return `/facility/${group.facilityId}?${p.toString()}`;
 }
