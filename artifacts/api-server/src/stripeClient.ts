@@ -12,8 +12,10 @@ export function getStripe(): Stripe {
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
+    // "Stripe not configured" prefix is load-bearing: mock-checkout fallback
+    // guards in payments.ts / split-payments.ts match on this substring.
     throw new Error(
-      "STRIPE_SECRET_KEY is not set. Add it in Replit Secrets to enable Stripe.",
+      "Stripe not configured: STRIPE_SECRET_KEY is not set. Add it in Replit Secrets to enable Stripe.",
     );
   }
 
@@ -43,7 +45,7 @@ export async function getStripePublishableKey(): Promise<string> {
 export async function getStripeSecretKey(): Promise<string> {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) {
-    throw new Error("STRIPE_SECRET_KEY is not set.");
+    throw new Error("Stripe not configured: STRIPE_SECRET_KEY is not set.");
   }
   return key;
 }
