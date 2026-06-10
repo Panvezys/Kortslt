@@ -430,7 +430,7 @@ export default function BookingConfirmed() {
                 <h1 className="text-2xl font-bold mb-2">Mokėjimas nepavyko</h1>
                 <p className="text-muted-foreground text-sm">Bandykite dar kartą arba susisiekite su mumis.</p>
               </div>
-              <Button onClick={() => setLocation("/courts")} className="w-full">
+              <Button onClick={() => setLocation("/explore")} className="w-full">
                 Grįžti į aikštelių sąrašą
               </Button>
             </>
@@ -837,7 +837,7 @@ export default function BookingConfirmed() {
                     Grįžti į trenerio profilį
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => setLocation("/courts")} className="flex-1">
+                  <Button variant="outline" onClick={() => setLocation("/explore")} className="flex-1">
                     Ieškoti aikštelių
                   </Button>
                 )}

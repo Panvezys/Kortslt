@@ -51,7 +51,7 @@ export default function ExplorePage() {
   // Client-side filters (instant, no re-fetch)
   const [activeSport, setActiveSport] = useState<string>(sp.get("sport") ?? "");
   const [city,        setCity]        = useState<string>(sp.get("city")  ?? "");
-  const [nameQ,       setNameQ]       = useState<string>("");
+  const [nameQ,       setNameQ]       = useState<string>(sp.get("name")  ?? "");
   const [minPrice,    setMinPrice]    = useState<string>("");
   const [maxPrice,    setMaxPrice]    = useState<string>("");
   const [sortBy,      setSortBy]      = useState<SortKey>("default");
@@ -82,6 +82,7 @@ export default function ExplorePage() {
     setIsIndoor(p.get("isIndoor") ?? "");
     setActiveSport(p.get("sport") ?? "");
     setCity(p.get("city") ?? "");
+    setNameQ(p.get("name") ?? "");
     setMinPrice("");
     setMaxPrice("");
   }, [search]);

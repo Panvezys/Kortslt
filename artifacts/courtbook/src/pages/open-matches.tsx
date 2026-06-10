@@ -1011,7 +1011,7 @@ export default function UnifiedMatchesPage() {
                   </Button>
                 </Show>
                 <Button variant="outline" asChild>
-                  <Link href="/courts">Rasti aikštelę</Link>
+                  <Link href="/explore">Rasti aikštelę</Link>
                 </Button>
               </div>
             </div>

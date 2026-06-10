@@ -43,6 +43,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       id: courtsTable.id,
       name: courtsTable.name,
       type: courtsTable.type,
+      facilityId: courtsTable.facilityId,
       city: facilitiesTable.city,
       address: facilitiesTable.address,
       imageUrl: courtsTable.imageUrl,
@@ -60,6 +61,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
       courtsTable.id,
       courtsTable.name,
       courtsTable.type,
+      courtsTable.facilityId,
       facilitiesTable.city,
       facilitiesTable.address,
       courtsTable.imageUrl,
@@ -90,7 +92,7 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
     }
   }
 
-  res.json(GetPopularCourtsResponse.parse(rows.map(r => ({
+  const popular = GetPopularCourtsResponse.parse(rows.map(r => ({
     id: r.id,
     name: r.name,
     type: r.type,
@@ -104,7 +106,10 @@ router.get("/stats/popular-courts", async (_req, res): Promise<void> => {
     bookingCount: Number(r.bookingCount),
     revenue: Number(r.revenue),
     rating: r.rating ? Number(r.rating) : undefined,
-  }))));
+  })));
+  // facilityId rides outside the OpenAPI schema (parse would strip it) so the
+  // home page can deep-link to the facility+sport group page.
+  res.json(popular.map((p, i) => ({ ...p, facilityId: rows[i].facilityId })));
 });
 
 export default router;

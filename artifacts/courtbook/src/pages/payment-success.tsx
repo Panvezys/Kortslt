@@ -51,7 +51,7 @@ export default function PaymentSuccess() {
                 <Button onClick={() => setLocation("/bookings")} className="flex-1">
                   View Bookings
                 </Button>
-                <Button variant="outline" onClick={() => setLocation("/courts")} className="flex-1">
+                <Button variant="outline" onClick={() => setLocation("/explore")} className="flex-1">
                   Book Another
                 </Button>
               </div>

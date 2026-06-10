@@ -14,7 +14,7 @@ export default function PaymentCancel() {
             Your payment was cancelled. Your booking has not been confirmed and no charges were made.
           </p>
           <div className="flex gap-4">
-            <Link href="/courts" className="w-full block">
+            <Link href="/explore" className="w-full block">
               <Button className="w-full">Browse Courts</Button>
             </Link>
           </div>

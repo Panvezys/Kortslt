@@ -415,7 +415,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </nav>
             ) : (
               <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-foreground">
-                <NavLink href="/courts" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
+                <NavLink href="/explore" icon={<TennisCourtIcon className="w-3.5 h-3.5" />}>{t("nav.findCourts")}</NavLink>
                 <NavLink href="/coaches" icon={<Dumbbell className="w-3.5 h-3.5" />}>Treneriai</NavLink>
                 <NavLink href="/tournaments" icon={<Trophy className="w-3.5 h-3.5" />}>Turnyrai</NavLink>
                 <NavLink href="/matches" icon={<Gamepad2 className="w-3.5 h-3.5" />}>Mačai</NavLink>
@@ -463,7 +463,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Mobile always-visible nav row — only on consumer pages */}
           {!inBusinessMode && (
             <nav className="md:hidden border-t bg-background/98 backdrop-blur flex items-center justify-around px-2 py-1.5 text-xs font-medium text-foreground">
-              <Link href="/courts" className={mobileNavCls("/courts")}>
+              <Link href="/explore" className={mobileNavCls("/explore")}>
                 <TennisCourtIcon className="w-4 h-4" />
                 <span>{t("nav.findCourts")}</span>
               </Link>
@@ -538,7 +538,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Platforma</h4>
               <nav className="flex flex-col gap-2 text-sm">
                 {[
-                  { href: "/courts", label: "Rasti aikštelę" },
+                  { href: "/explore", label: "Rasti aikštelę" },
                   { href: "/coaches", label: "Treneriai" },
                   { href: "/tournaments", label: "Turnyrai" },
                   { href: "/matches", label: "Mačai" },
@@ -565,7 +565,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   { type: "badminton", label: "Badmintonas" },
                   { type: "squash", label: "Skvoše" },
                 ].map(s => (
-                  <Link key={s.type} href={`/courts?type=${s.type}`} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
+                  <Link key={s.type} href={`/explore?sport=${s.type}`} className="text-muted-foreground hover:text-foreground transition-colors w-fit">
                     {s.label}
                   </Link>
                 ))}

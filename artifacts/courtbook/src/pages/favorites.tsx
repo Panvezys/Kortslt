@@ -79,7 +79,7 @@ export default function FavoritesPage() {
               description="Paspauskite ❤ ant aikštelės, kad ją išsaugotumėte"
               action={
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/courts">{t("bookings.browseCourts")}</Link>
+                  <Link href="/explore">{t("bookings.browseCourts")}</Link>
                 </Button>
               }
             />

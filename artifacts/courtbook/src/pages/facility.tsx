@@ -106,7 +106,7 @@ export default function FacilityPage() {
       <Layout>
         <div className="container flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <p className="text-lg font-medium text-destructive">{error ?? "Objektas nerastas"}</p>
-          <BackButton to="/courts" label="Grįžti į aikšteles" />
+          <BackButton to="/explore" label="Grįžti į aikšteles" />
         </div>
       </Layout>
     );
@@ -115,7 +115,7 @@ export default function FacilityPage() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <BackButton to="/courts" label="Visos aikštelės" />
+        <BackButton to="/explore" label="Visos aikštelės" />
 
         {/* Facility header */}
         <div className="mb-8">

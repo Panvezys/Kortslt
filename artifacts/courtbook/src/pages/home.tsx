@@ -47,7 +47,14 @@ const HERO_IMAGES = [
   "courts/court_4_verkiai.webp",
 ];
 
-type PopularCourt = { id: number; name: string; type: string; city?: string | null; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null; minDisplayPrice?: number | null };
+type PopularCourt = { id: number; name: string; type: string; facilityId?: number | null; city?: string | null; address?: string | null; imageUrl?: string | null; isIndoor?: boolean | null; rating?: number | null; pricePerHour?: number | string | null; minDisplayPrice?: number | null };
+
+// Group-page href for a court (the facility+sport flow with membership pricing
+// and LinkGame). Falls back to the legacy court page when facilityId is absent.
+function groupHref(court: { id: number; type: string; facilityId?: number | null }): string {
+  const fid = (court as { facilityId?: number | null }).facilityId;
+  return fid ? `/facility/${fid}?sport=${court.type.replace(/-/g, "_")}` : `/courts/${court.id}`;
+}
 
 interface FeaturedTournament {
   id: number; name: string; sport: string; startDate: string; endDate: string;
@@ -270,7 +277,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
       </CardHeader>
 
       <CardFooter className="pt-0 mt-auto gap-2">
-        <Link href={`/courts/${court.id}`} aria-label={t("card.view")}>
+        <Link href={groupHref(court)} aria-label={t("card.view")}>
           <Button
             variant="outline"
             size="icon"
@@ -280,7 +287,7 @@ function PopularCourtCard({ court }: { court: PopularCourt }) {
             <Eye className="w-4 h-4" />
           </Button>
         </Link>
-        <Link href={`/courts/${court.id}#reserve`} className="flex-1">
+        <Link href={`${groupHref(court)}#reserve`} className="flex-1">
           <Button
             className="w-full transition-all duration-200 active:scale-[0.98] font-semibold"
             style={{ backgroundColor: color, borderColor: color, color: "#fff", ...(hovered ? { boxShadow: `0 4px 14px ${color}55` } : {}) }}
@@ -354,11 +361,12 @@ export default function Home() {
   function handleSearch() {
     const params = new URLSearchParams();
     if (searchName.trim()) params.set("name", searchName.trim());
-    if (searchSport) params.set("type", searchSport);
+    if (searchSport) params.set("sport", searchSport.replace(/-/g, "_"));
     if (searchCity) params.set("city", searchCity);
+    // date/time ride along for when /explore learns date-aware search
     if (searchDateObj) params.set("date", format(searchDateObj, "yyyy-MM-dd"));
     if (timeSlider !== null) params.set("time", `${String(timeSlider).padStart(2, "0")}:00`);
-    setLocation(`/courts${params.toString() ? "?" + params.toString() : ""}`);
+    setLocation(`/explore${params.toString() ? "?" + params.toString() : ""}`);
   }
 
   useEffect(() => {
@@ -413,11 +421,11 @@ export default function Home() {
   const statItems = useMemo(() => {
     if (!stats) return [];
     return [
-      { count: stats.totalCourts, label: t("home.stats.courtsAvailable"), sport: null as null | string, href: "/courts" },
-      { count: stats.tennisCourts, label: t("sports.tennis"), sport: "tennis", href: "/courts?type=tennis" },
-      { count: stats.basketballCourts ?? 0, label: t("sports.basketball"), sport: "basketball", href: "/courts?type=basketball" },
-      { count: stats.padelCourts ?? 0, label: t("sports.padel"), sport: "padel", href: "/courts?type=padel" },
-      { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0), label: t("home.stats.otherSports"), sport: "multi", href: "/courts" },
+      { count: stats.totalCourts, label: t("home.stats.courtsAvailable"), sport: null as null | string, href: "/explore" },
+      { count: stats.tennisCourts, label: t("sports.tennis"), sport: "tennis", href: "/explore?sport=tennis" },
+      { count: stats.basketballCourts ?? 0, label: t("sports.basketball"), sport: "basketball", href: "/explore?sport=basketball" },
+      { count: stats.padelCourts ?? 0, label: t("sports.padel"), sport: "padel", href: "/explore?sport=padel" },
+      { count: stats.totalCourts - stats.tennisCourts - (stats.basketballCourts ?? 0) - (stats.padelCourts ?? 0), label: t("home.stats.otherSports"), sport: "multi", href: "/explore" },
     ].sort((a, b) => {
       if (a.sport === "multi") return 1;
       if (b.sport === "multi") return -1;
@@ -492,7 +500,7 @@ export default function Home() {
                     {filteredCourts.map(court => (
                       <Link
                         key={court.id}
-                        href={`/courts/${court.id}`}
+                        href={groupHref(court)}
                         onClick={() => { setSearchName(""); setDropdownOpen(false); }}
                       >
                         <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted dark:hover:bg-white/10 transition-colors cursor-pointer border-b border-border dark:border-white/5 last:border-b-0">
@@ -951,7 +959,7 @@ export default function Home() {
                 })}
               </div>
             </div>
-            <Link href="/courts" className="inline-flex items-center text-primary font-medium hover:underline mt-auto">
+            <Link href="/explore" className="inline-flex items-center text-primary font-medium hover:underline mt-auto">
               {t("home.map.viewAll")} <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
@@ -1014,7 +1022,7 @@ export default function Home() {
             </div>
           </div>
           <div className="mt-2 flex justify-center">
-            <Link href="/courts" className="inline-flex items-center gap-1.5 text-primary font-medium text-sm hover:underline">
+            <Link href="/explore" className="inline-flex items-center gap-1.5 text-primary font-medium text-sm hover:underline">
               {t("home.map.viewAll")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -1033,7 +1041,7 @@ export default function Home() {
                 <h2 className="text-2xl font-bold tracking-tight">Mėgstamiausios aikštelės</h2>
                 <p className="text-sm text-muted-foreground">Jūsų išsaugotos aikštelės</p>
               </div>
-              <Link href="/courts" className="ml-auto">
+              <Link href="/explore" className="ml-auto">
                 <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
                   Visos aikštelės <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
