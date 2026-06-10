@@ -553,7 +553,9 @@ export default function CourtCreatePage() {
       if (isEdit && editingCourtId) {
         queryClient.invalidateQueries({ queryKey: getGetCourtQueryKey(editingCourtId) });
       }
-      toast({ title: isEdit ? "Aikštelė atnaujinta" : "Aikštelė sukurta — laukia patvirtinimo" });
+      // POST /courts saves status 'draft' — review starts only after the owner
+      // submits the facility for verification, so don't promise it here.
+      toast({ title: isEdit ? "Aikštelė atnaujinta" : "Aikštelė sukurta (juodraštis)" });
       navigate(`/owner/facility/${facilityId}`);
     } catch (err) {
       const anyErr = err as any;
