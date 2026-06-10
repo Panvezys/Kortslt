@@ -59,6 +59,19 @@ export interface GroupMembership {
   conditions: string | null;
 }
 
+export interface GroupOpenGame {
+  id: number;
+  datetime: string;
+  durationMinutes: number;
+  joinedCount: number;
+  playersNeeded: number;
+  pricePerSlot: number;
+  splitInviteToken: string;
+  minSkillLevel: number | null;
+  maxSkillLevel: number | null;
+  creatorName: string;
+}
+
 export interface GroupDetailResult {
   facility: GroupDetailFacility;
   sport: string;
@@ -74,6 +87,7 @@ export interface GroupDetailResult {
   courts: GroupDetailCourt[];
   memberships: GroupMembership[];
   lastBookedAt: string | null;
+  openGames: GroupOpenGame[];
 }
 
 export interface SearchGroupFilters {

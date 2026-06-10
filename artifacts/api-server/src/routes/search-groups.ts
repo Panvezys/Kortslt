@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { sql, eq, and, or, inArray, desc } from "drizzle-orm";
-import { db, bookingsTable, courtsTable, courtBlockedSlotsTable, reviewsTable, courtMembershipsTable } from "@workspace/db";
+import { db, bookingsTable, courtsTable, courtBlockedSlotsTable, reviewsTable, courtMembershipsTable, gamesTable } from "@workspace/db";
 import { buildDayPriceMap } from "../lib/pricing";
 import { generateManagementToken } from "./bookings";
 import { getCurrentUserId } from "../lib/auth";
@@ -55,6 +55,19 @@ export interface GroupMembership {
   conditions: string | null;
 }
 
+export interface GroupOpenGame {
+  id: number;
+  datetime: string;
+  durationMinutes: number;
+  joinedCount: number;
+  playersNeeded: number;
+  pricePerSlot: number;
+  splitInviteToken: string;
+  minSkillLevel: number | null;
+  maxSkillLevel: number | null;
+  creatorName: string;
+}
+
 export interface GroupDetailResult {
   facility: {
     id: number;
@@ -85,6 +98,7 @@ export interface GroupDetailResult {
   courts: GroupDetailCourt[];
   memberships: GroupMembership[];
   lastBookedAt: string | null;
+  openGames: GroupOpenGame[];
 }
 
 // Raw row shape returned by postgres driver (snake_case, bigint as string)
@@ -428,6 +442,49 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
       : (raw ? new Date(raw as string).toISOString() : null);
   }
 
+  // ── Joinable public split games (LinkGame) ────────────────────────────────
+  // Spec refinement: split games are joinable while their booking is
+  // awaiting_players — the game itself may be 'awaiting_players' or 'open'.
+  const openGameRows = await db.select({
+    id: gamesTable.id,
+    datetime: gamesTable.datetime,
+    durationMinutes: gamesTable.durationMinutes,
+    playersNeeded: gamesTable.playersNeeded,
+    minSkillLevel: gamesTable.minSkillLevel,
+    maxSkillLevel: gamesTable.maxSkillLevel,
+    creatorName: gamesTable.creatorName,
+    pricePerSlot: bookingsTable.pricePerSlot,
+    splitInviteToken: bookingsTable.splitInviteToken,
+    joinedCount: sql<number>`(SELECT COUNT(*) FROM game_participants gp WHERE gp.game_id = ${gamesTable.id} AND gp.status = 'joined')`,
+  })
+    .from(gamesTable)
+    .innerJoin(bookingsTable, eq(gamesTable.bookingId, bookingsTable.id))
+    .where(and(
+      eq(gamesTable.facilityId, facilityId),
+      sql`REPLACE(${gamesTable.sport}, '-', '_') = ${sport}`,
+      eq(gamesTable.visibility, "public"),
+      inArray(gamesTable.status, ["awaiting_players", "open"]),
+      eq(bookingsTable.isSplit, true),
+      eq(bookingsTable.status, "awaiting_players"),
+      sql`${gamesTable.datetime} > TO_CHAR(NOW() AT TIME ZONE 'Europe/Vilnius', 'YYYY-MM-DD"T"HH24:MI:SS')`,
+    ))
+    .orderBy(gamesTable.datetime);
+
+  const openGames: GroupOpenGame[] = openGameRows
+    .filter(g => Number(g.joinedCount) < g.playersNeeded && g.splitInviteToken != null)
+    .map(g => ({
+      id: g.id,
+      datetime: g.datetime,
+      durationMinutes: g.durationMinutes,
+      joinedCount: Number(g.joinedCount),
+      playersNeeded: g.playersNeeded,
+      pricePerSlot: Number(g.pricePerSlot ?? 0),
+      splitInviteToken: g.splitInviteToken!,
+      minSkillLevel: g.minSkillLevel,
+      maxSkillLevel: g.maxSkillLevel,
+      creatorName: g.creatorName,
+    }));
+
   const response: GroupDetailResult = {
     facility: {
       id: facilityRow.id,
@@ -458,6 +515,7 @@ router.get("/search/groups/:facilityId/:sport", async (req, res): Promise<void> 
     courts,
     memberships: membershipRows,
     lastBookedAt,
+    openGames,
   };
 
   res.json(response);
