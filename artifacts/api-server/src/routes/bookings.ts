@@ -223,6 +223,7 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
     .select({
       booking: bookingsTable,
       courtName: courtsTable.name,
+      courtType: courtsTable.type,
       // bookings.coachId stores the coach's Clerk userId (text), so we join
       // coaches.userId — not coaches.id. The select picks both: numeric coach
       // table id (used for /coach/:id deep links) and display name.
@@ -280,7 +281,7 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
       })
   );
 
-  res.json(ListBookingsResponse.parse(rows.map(r => formatBooking(
+  const payload = ListBookingsResponse.parse(rows.map(r => formatBooking(
     r.booking,
     r.courtName ?? undefined,
     paidSlotsMap.get(r.booking.id),
@@ -293,7 +294,10 @@ router.get("/bookings", requireAuth, async (req, res): Promise<void> => {
     r.courtReviewId != null && r.courtReviewRating != null
       ? { id: r.courtReviewId, rating: r.courtReviewRating, comment: r.courtReviewComment ?? null }
       : null,
-  ))));
+  )));
+  // courtType rides outside the OpenAPI schema (parse would strip it) so the
+  // bookings page can render a sport icon per card.
+  res.json(payload.map((b, i) => ({ ...b, courtType: rows[i].courtType ?? null })));
 });
 
 // POST /bookings — supports both authenticated bookers and guests.

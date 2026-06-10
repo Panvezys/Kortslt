@@ -20,6 +20,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/lib/i18n";
+import { SportIcon, getSportColor } from "@/components/sport-icon";
 
 type SortKey = "dateAsc" | "dateDesc" | "createdDesc" | "createdAsc";
 
@@ -282,6 +283,9 @@ type BookingItem = {
   id: number;
   courtId: number;
   courtName?: string;
+  // Court sport slug (e.g. "tennis"). Appended by GET /bookings outside the
+  // OpenAPI schema; drives the sport icon on the card.
+  courtType?: string | null;
   customerName: string;
   customerEmail: string;
   date: Date;
@@ -548,6 +552,14 @@ function BookingCard({
           a "Pamoka su X" lead line, with the court name demoted to a small
           subline. Plain court rentals keep the original single-line layout. */}
       <div className="flex items-start justify-between gap-2">
+        {booking.courtType && (
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: `${getSportColor(booking.courtType)}22` }}
+          >
+            <SportIcon sport={booking.courtType} size={18} strokeWidth={2} style={{ color: getSportColor(booking.courtType) }} />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           {booking.coach ? (
             <>
@@ -932,6 +944,7 @@ export default function Bookings() {
                     ...booking,
                     date: new Date(booking.date),
                     refundAmount: Number((booking as any).refundAmount ?? 0),
+                    courtType: (booking as any).courtType ?? null,
                   }}
                   isUpcoming={isUpcoming}
                   onRate={() => setRatingBooking({
