@@ -775,7 +775,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
             )}
             {recurringEnabled && (
               <p className="text-xs text-muted-foreground border-t pt-1 mt-1">
-                {weekStatuses.filter(s => s === true).length || recurringWeeks} kartų · ~<span className="font-semibold text-foreground">{fmtPrice(selectedSlotRange.totalPrice * recurringWeeks)} €</span> iš viso
+                {weekStatuses.filter(s => s === true).length || recurringWeeks} kartų · ~<span className="font-semibold text-foreground">{fmtPrice((memberCourtPrice ?? selectedSlotRange.totalPrice) * recurringWeeks)} €</span> iš viso
               </p>
             )}
           </div>
