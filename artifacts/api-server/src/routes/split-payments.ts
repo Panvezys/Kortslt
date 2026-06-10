@@ -777,8 +777,9 @@ router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> =
   // Atomic capacity check + insert inside a transaction to prevent TOCTOU race conditions.
   // The FOR UPDATE lock on the booking row serializes concurrent join requests.
   let participant: typeof gameParticipantsTable.$inferSelect;
+  let shareEur = pricePerSlot;
   try {
-    participant = await db.transaction(async (tx) => {
+    ({ participant, shareEur } = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM bookings WHERE id = ${booking.id} FOR UPDATE`);
 
       const freshParticipants = await tx
@@ -801,6 +802,15 @@ router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> =
         throw Object.assign(new Error("slots_full"), { txCode: "SLOTS_FULL" });
       }
 
+      // Joiner's own membership discounts their share. Guests never qualify.
+      const shareDiscount = await applyMembershipDiscount(tx, {
+        userId: isGuest ? null : userId,
+        facilityId: facility?.id ?? game.facilityId ?? 0,
+        sport: game.sport,
+        playDate: booking.date.split("T")[0],
+        amountEur: pricePerSlot,
+      });
+
       const [newParticipant] = await tx.insert(gameParticipantsTable).values({
         gameId: game.id,
         userId: isGuest ? null : userId,
@@ -809,10 +819,11 @@ router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> =
         status: "joined",
         source: "join_request",
         paymentStatus: "pending",
+        appliedMembershipId: shareDiscount.membershipId,
       }).returning();
 
-      return newParticipant;
-    });
+      return { participant: newParticipant, shareEur: shareDiscount.discounted };
+    }));
   } catch (err: any) {
     if (err?.txCode === "SLOTS_FULL") {
       res.status(409).json({ error: "Visos dalys jau užimtos" });
@@ -829,126 +840,138 @@ router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> =
     throw err;
   }
 
-  let checkoutUrl: string;
-  try {
-    const stripe = await getUncachableStripeClient();
-
-    let connectAccountId: string | null = null;
-    if (facility?.ownerUserId) {
-      const [ownerProfile] = await db
-        .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
-        .from(userProfilesTable)
-        .where(eq(userProfilesTable.userId, facility.ownerUserId));
-      if (ownerProfile?.stripeAccountId && ownerProfile.status === "active") {
-        connectAccountId = ownerProfile.stripeAccountId;
-      }
-    }
-
-    const amountCents = Math.round(pricePerSlot * 100);
-    const slotNumber = existingParticipants.length + 1;
-    const sessionParams: any = {
-      payment_method_types: ["card"],
-      line_items: [{
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `${court?.name ?? "Kortas"} – mokėjimo dalis (${slotNumber}/${booking.totalSlots})`,
-            description: `${booking.date} · ${booking.startTime}–${booking.endTime}`,
-          },
-          unit_amount: amountCents,
-        },
-        quantity: 1,
-      }],
-      mode: "payment",
-      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancelUrl,
-      metadata: {
-        bookingId: String(booking.id),
-        splitParticipantId: String(participant.id),
-      },
-      customer_email: userEmail || undefined,
-      locale: "lt",
-    };
-
-    if (connectAccountId) {
-      const feeAmount = Math.round(amountCents * 5 / 100);
-      sessionParams.payment_intent_data = {
-        application_fee_amount: feeAmount,
-        transfer_data: { destination: connectAccountId },
-      };
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionParams);
-
+  // Shared by the €0-share path and the Stripe-not-configured fallback:
+  // mark this participant paid, confirm the booking when all shares are in,
+  // and send the join/confirmation notifications.
+  async function settleShareWithoutStripe(sessionId: string): Promise<string> {
     await db.update(gameParticipantsTable)
-      .set({ stripeSessionId: session.id })
+      .set({ paymentStatus: "paid", stripeSessionId: sessionId })
       .where(eq(gameParticipantsTable.id, participant.id));
 
-    checkoutUrl = session.url!;
+    // Check if all paid
+    const allParticipants = await db
+      .select({ paymentStatus: gameParticipantsTable.paymentStatus })
+      .from(gameParticipantsTable)
+      .where(and(eq(gameParticipantsTable.gameId, game.id), eq(gameParticipantsTable.status, "joined")));
+    const paidCount = allParticipants.filter(p => p.paymentStatus === "paid").length;
 
-  } catch (err: any) {
-    if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
-      const mockId = `mock_split_join_${booking.id}_${Date.now()}`;
+    if (paidCount >= (booking.totalSlots ?? 1)) {
+      await db.update(bookingsTable).set({ status: "confirmed" }).where(eq(bookingsTable.id, booking.id));
+      await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, game.id));
+    }
+
+    // Notify host that someone joined
+    if (booking.bookerUserId) {
+      sendNotification(
+        booking.bookerUserId,
+        "split_player_joined",
+        `${userName} prisijungė prie jūsų žaidimo!`,
+        `Apmokėta: ${paidCount}/${booking.totalSlots ?? 1} vietų – ${court?.name ?? "kortas"}, ${booking.date}`,
+        `/bookings/${booking.id}`,
+      ).catch(() => {});
+
+      sendSplitPlayerJoinedEmail({
+        hostName: booking.customerName,
+        hostEmail: booking.customerEmail,
+        playerName: userName,
+        courtName: court?.name ?? "Kortas",
+        date: booking.date,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        paidSlots: paidCount,
+        totalSlots: booking.totalSlots ?? 1,
+        bookingId: booking.id,
+      }).catch((e) => logger.error({ e }, "sendSplitPlayerJoinedEmail failed"));
+    }
+
+    // Send confirmation to the invitee
+    if (userEmail) {
+      sendSplitParticipantConfirmationEmail({
+        playerName: userName,
+        playerEmail: userEmail,
+        courtName: court?.name ?? "Kortas",
+        courtId: booking.courtId ?? 0,
+        date: booking.date,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        pricePerSlot: shareEur,
+        bookingId: booking.id,
+      }).catch((e) => logger.error({ e }, "sendSplitParticipantConfirmationEmail failed"));
+    }
+
+    return `${successUrl}&session_id=${sessionId}`;
+  }
+
+  let checkoutUrl: string;
+  const amountCents = Math.round(shareEur * 100);
+
+  if (amountCents === 0) {
+    // Membership covered this share entirely — no payment session needed.
+    checkoutUrl = await settleShareWithoutStripe(`free_split_join_${booking.id}_${Date.now()}`);
+  } else {
+    try {
+      const stripe = await getUncachableStripeClient();
+
+      let connectAccountId: string | null = null;
+      if (facility?.ownerUserId) {
+        const [ownerProfile] = await db
+          .select({ stripeAccountId: userProfilesTable.stripeAccountId, status: userProfilesTable.stripeAccountStatus })
+          .from(userProfilesTable)
+          .where(eq(userProfilesTable.userId, facility.ownerUserId));
+        if (ownerProfile?.stripeAccountId && ownerProfile.status === "active") {
+          connectAccountId = ownerProfile.stripeAccountId;
+        }
+      }
+
+      const slotNumber = existingParticipants.length + 1;
+      const sessionParams: any = {
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: `${court?.name ?? "Kortas"} – mokėjimo dalis (${slotNumber}/${booking.totalSlots})`,
+              description: `${booking.date} · ${booking.startTime}–${booking.endTime}`,
+            },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        }],
+        mode: "payment",
+        success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: cancelUrl,
+        metadata: {
+          bookingId: String(booking.id),
+          splitParticipantId: String(participant.id),
+        },
+        customer_email: userEmail || undefined,
+        locale: "lt",
+      };
+
+      if (connectAccountId) {
+        const feeAmount = Math.round(amountCents * 5 / 100);
+        sessionParams.payment_intent_data = {
+          application_fee_amount: feeAmount,
+          transfer_data: { destination: connectAccountId },
+        };
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionParams);
+
       await db.update(gameParticipantsTable)
-        .set({ paymentStatus: "paid", stripeSessionId: mockId })
+        .set({ stripeSessionId: session.id })
         .where(eq(gameParticipantsTable.id, participant.id));
 
-      // Check if all paid
-      const allParticipants = await db
-        .select({ paymentStatus: gameParticipantsTable.paymentStatus })
-        .from(gameParticipantsTable)
-        .where(and(eq(gameParticipantsTable.gameId, game.id), eq(gameParticipantsTable.status, "joined")));
-      const paidCount = allParticipants.filter(p => p.paymentStatus === "paid").length;
+      checkoutUrl = session.url!;
 
-      if (paidCount >= (booking.totalSlots ?? 1)) {
-        await db.update(bookingsTable).set({ status: "confirmed" }).where(eq(bookingsTable.id, booking.id));
-        await db.update(gamesTable).set({ status: "open" }).where(eq(gamesTable.id, game.id));
+    } catch (err: any) {
+      if (err?.message?.includes("Stripe not configured") || err?.type === "StripeAuthenticationError") {
+        checkoutUrl = await settleShareWithoutStripe(`mock_split_join_${booking.id}_${Date.now()}`);
+      } else {
+        logger.error({ err }, "Failed to create Stripe session for split participant");
+        res.status(500).json({ error: "Failed to create payment session" });
+        return;
       }
-
-      // Notify host that someone joined
-      if (booking.bookerUserId) {
-        sendNotification(
-          booking.bookerUserId,
-          "split_player_joined",
-          `${userName} prisijungė prie jūsų žaidimo!`,
-          `Apmokėta: ${paidCount}/${booking.totalSlots ?? 1} vietų – ${court?.name ?? "kortas"}, ${booking.date}`,
-          `/bookings/${booking.id}`,
-        ).catch(() => {});
-
-        sendSplitPlayerJoinedEmail({
-          hostName: booking.customerName,
-          hostEmail: booking.customerEmail,
-          playerName: userName,
-          courtName: court?.name ?? "Kortas",
-          date: booking.date,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          paidSlots: paidCount,
-          totalSlots: booking.totalSlots ?? 1,
-          bookingId: booking.id,
-        }).catch((e) => logger.error({ e }, "sendSplitPlayerJoinedEmail failed"));
-      }
-
-      // Send confirmation to the invitee
-      if (userEmail) {
-        sendSplitParticipantConfirmationEmail({
-          playerName: userName,
-          playerEmail: userEmail,
-          courtName: court?.name ?? "Kortas",
-          courtId: booking.courtId ?? 0,
-          date: booking.date,
-          startTime: booking.startTime,
-          endTime: booking.endTime,
-          pricePerSlot: pricePerSlot,
-          bookingId: booking.id,
-        }).catch((e) => logger.error({ e }, "sendSplitParticipantConfirmationEmail failed"));
-      }
-
-      checkoutUrl = `${successUrl}&session_id=${mockId}`;
-    } else {
-      logger.error({ err }, "Failed to create Stripe session for split participant");
-      res.status(500).json({ error: "Failed to create payment session" });
-      return;
     }
   }
 
