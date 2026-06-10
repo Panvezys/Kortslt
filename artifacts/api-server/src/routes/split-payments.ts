@@ -23,7 +23,6 @@ import { buildDayPriceMap } from "../lib/pricing";
 import { vilniusLocalToUtcMs } from "./bookings";
 
 import { requireAuth, getCurrentUserId } from "../lib/auth";
-import { getAuth } from "@clerk/express";
 import { getUncachableStripeClient } from "../stripeClient";
 import { logger } from "../lib/logger";
 import {
@@ -666,7 +665,7 @@ router.get("/bookings/share/:token", async (req, res): Promise<void> => {
 // ─── POST /api/bookings/share/:token/checkout ─────────────────────────────────
 
 router.post("/bookings/share/:token/checkout", async (req, res): Promise<void> => {
-  const { userId } = getAuth(req); // null for unauthenticated guests
+  const userId = getCurrentUserId(req); // null for unauthenticated guests
   const token = String(req.params.token);
 
   // Guests must supply name + email
