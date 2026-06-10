@@ -1121,8 +1121,8 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
             .where(and(
               eq(bookingsTable.courtId, courtCandidate.id),
               eq(bookingsTable.date, date),
-              sql`${bookingsTable.status} IN ('confirmed','blocked','awaiting_players')
-                  OR (${bookingsTable.status} = 'pending' AND ${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes')`,
+              sql`(${bookingsTable.status} IN ('confirmed','blocked','awaiting_players')
+                  OR (${bookingsTable.status} = 'pending' AND ${bookingsTable.createdAt} > NOW() - INTERVAL '15 minutes'))`,
             )),
           tx.select({ s: courtBlockedSlotsTable.startTime, e: courtBlockedSlotsTable.endTime })
             .from(courtBlockedSlotsTable)
