@@ -15,19 +15,14 @@ import { CourtMap, type CourtHrefBuilder } from "@/components/court-map";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
 import { SPORT_LABELS, SportIcon, sportColor } from "@/components/sport-icon";
 import { customFetch, type Court } from "@workspace/api-client-react";
+import { DateField, TimeField } from "@/components/ui/date-time-field";
 
 type SortKey = "default" | "price_asc" | "price_desc" | "rating_desc";
 type ViewMode = "list" | "map";
 
 const NEARBY_KM = 30;
 
-// Availability-window helpers (slot grid runs 06:00–23:00 in 30-min steps)
-const TIME_OPTIONS: string[] = [];
-for (let h = 6; h < 23; h++) {
-  for (const m of [0, 30]) {
-    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${m === 0 ? "00" : "30"}`);
-  }
-}
+// Availability-window helpers (slot grid runs 06:00–23:00)
 const DURATION_OPTIONS = [
   { label: "30 min", value: 30 },
   { label: "1 val.", value: 60 },
@@ -41,8 +36,17 @@ function addMinutes(t: string, mins: number): string {
   const total = Math.min(h * 60 + m + mins, 23 * 60); // grid ends at 23:00
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
-function todayStr(): string {
-  const d = new Date();
+// Normalize a ?time= URL value to the hourly steps the site-standard
+// TimeField supports ("10:30" -> "10:00").
+function normTime(t: string | null): string {
+  return t && /^\d{2}:\d{2}$/.test(t) ? `${t.slice(0, 2)}:00` : "";
+}
+function toDateObj(ymd: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return undefined;
+  const d = new Date(`${ymd}T00:00:00`);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+function toYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -80,7 +84,7 @@ export default function ExplorePage() {
   // Availability window (date alone still flows into detail links so the
   // booking widget opens on it; the list filters only when time is also set)
   const [dateQ,     setDateQ]     = useState<string>(sp.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(sp.get("date")!) ? sp.get("date")! : "");
-  const [timeQ,     setTimeQ]     = useState<string>(sp.get("time") && /^\d{2}:\d{2}$/.test(sp.get("time")!) ? sp.get("time")! : "");
+  const [timeQ,     setTimeQ]     = useState<string>(normTime(sp.get("time")));
   const [durationQ, setDurationQ] = useState<number>(Number(sp.get("duration")) || 60);
 
   // Client-side filters (instant, no re-fetch)
@@ -119,9 +123,8 @@ export default function ExplorePage() {
     setCity(p.get("city") ?? "");
     setNameQ(p.get("name") ?? "");
     const d = p.get("date");
-    const t = p.get("time");
     setDateQ(d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "");
-    setTimeQ(t && /^\d{2}:\d{2}$/.test(t) ? t : "");
+    setTimeQ(normTime(p.get("time")));
     setDurationQ(Number(p.get("duration")) || 60);
     setMinPrice("");
     setMaxPrice("");
@@ -247,33 +250,27 @@ export default function ExplorePage() {
           )}
         </div>
         <div className="space-y-2">
-          <input
-            type="date"
-            value={dateQ}
-            min={todayStr()}
-            onChange={e => setDateQ(e.target.value)}
-            aria-label="Data"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring [color-scheme:light] dark:[color-scheme:dark]"
-          />
-          <div className="flex items-center gap-2">
-            <Select value={timeQ || "_any_"} onValueChange={v => setTimeQ(v === "_any_" ? "" : v)}>
-              <SelectTrigger className="flex-1" aria-label="Laikas">
-                <SelectValue placeholder="Laikas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_any_">Bet kada</SelectItem>
-                {TIME_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          {/* Site-standard pickers (same as the home-page hero search) */}
+          <div className="grid grid-cols-2 gap-2">
+            <DateField
+              value={toDateObj(dateQ)}
+              onChange={d => setDateQ(d ? toYmd(d) : "")}
+            />
+            <TimeField
+              value={timeQ || null}
+              onChange={t => setTimeQ(t ?? "")}
+            />
+          </div>
+          {timeQ && (
             <Select value={String(durationQ)} onValueChange={v => setDurationQ(Number(v))}>
-              <SelectTrigger className="flex-1" aria-label="Trukmė" disabled={!timeQ}>
+              <SelectTrigger className="w-full" aria-label="Trukmė">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {DURATION_OPTIONS.map(d => <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>)}
               </SelectContent>
             </Select>
-          </div>
+          )}
           {dateQ && !timeQ && (
             <p className="text-[11px] text-muted-foreground">Pasirinkite laiką, kad matytumėte tik laisvas aikšteles.</p>
           )}

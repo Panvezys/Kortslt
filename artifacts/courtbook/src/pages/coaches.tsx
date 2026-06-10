@@ -22,7 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { SportIcon, sportColor, SPORT_LABELS, SportPill, getSportColor } from "@/components/sport-icon";
 import { format } from "date-fns";
-import { DateCalendar } from "@/components/ui/date-calendar";
+import { DateField, TimeField } from "@/components/ui/date-time-field";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 import { useI18n } from "@/lib/i18n";
 import { centsToEuroString } from "@/lib/money";
@@ -288,18 +288,14 @@ export default function CoachesPage() {
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [showMoreCities, setShowMoreCities] = useState(false);
   const cityRef = useRef<HTMLDivElement>(null);
-  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
   const [searchDate, setSearchDate] = useState("");
-  const dateRef = useRef<HTMLDivElement>(null);
 
   // Time + duration — required by the availability matrix. When all three of
   // (date, time, duration) are present we pipe them to the /coaches endpoint
   // and the server filters by getCoachAvailability continuous coverage.
   const [searchTime, setSearchTime] = useState("");          // "HH:MM"
   const [searchDurationMin, setSearchDurationMin] = useState(60); // 30 | 60 | 90 | 120
-  const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
-  const timeRef = useRef<HTMLDivElement>(null);
 
   // Filters — Strike-onboarding/marketplace
   const [activeAudiences, setActiveAudiences] = useState<Set<string>>(new Set());
@@ -341,8 +337,6 @@ export default function CoachesPage() {
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (cityRef.current && !cityRef.current.contains(e.target as Node)) setCityDropdownOpen(false);
-      if (dateRef.current && !dateRef.current.contains(e.target as Node)) setDateDropdownOpen(false);
-      if (timeRef.current && !timeRef.current.contains(e.target as Node)) setTimeDropdownOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -863,162 +857,26 @@ export default function CoachesPage() {
               )}
             </div>
 
-            {/* Date calendar popover */}
-            <div className="relative" ref={dateRef}>
-              <button
-                onClick={() => setDateDropdownOpen(v => !v)}
-                className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                style={{ borderColor: dateDropdownOpen ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
-              >
-                <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: dateDropdownOpen || searchDateObj ? accentColor : "rgba(255,255,255,0.5)" }} />
-                <span className="text-sm text-white/80">
-                  {searchDateObj ? format(searchDateObj, "d MMM") : "Data"}
-                </span>
-                {searchDateObj && (
-                  <span
-                    onClick={e => { e.stopPropagation(); setSearchDateObj(undefined); setSearchDate(""); }}
-                    className="text-white/40 hover:text-white/70 text-lg leading-none ml-1"
-                  >×</span>
-                )}
-              </button>
+            {/* Date — site-standard picker (see ui/date-time-field.tsx) */}
+            <DateField
+              value={searchDateObj}
+              onChange={(d) => { setSearchDateObj(d); setSearchDate(d ? format(d, "yyyy-MM-dd") : ""); }}
+              accentColor={accentColor}
+              accentFg={accentFg}
+              locale={locale}
+              variant="on-dark"
+            />
 
-              {dateDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 w-[252px]">
-                  <DateCalendar
-                    selected={searchDateObj}
-                    onSelect={(d) => { setSearchDateObj(d); setSearchDate(format(d, "yyyy-MM-dd")); setDateDropdownOpen(false); }}
-                    onClose={() => setDateDropdownOpen(false)}
-                    accentColor={accentColor}
-                    accentFg={accentFg}
-                    locale={locale}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Time slider popover — 30-min increments, mirrors home.tsx but
-                with finer granularity. Encodes value as total minutes since
-                midnight (e.g. 1110 = 18:30) and writes "HH:MM" back into
-                searchTime to keep the availability-matrix piping unchanged. */}
-            {(() => {
-              const TIME_MIN = 6 * 60;       // 06:00
-              const TIME_MAX = 23 * 60;      // 23:00
-              const TIME_STEP = 30;          // 30-min slots
-              const TIME_RANGE = TIME_MAX - TIME_MIN;
-              const formatMinutes = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-              const parseTimeMinutes = (s: string): number | null => {
-                const [h, m] = s.split(":").map(Number);
-                if (Number.isNaN(h) || Number.isNaN(m)) return null;
-                return h * 60 + m;
-              };
-              const timeMinutes = searchTime ? parseTimeMinutes(searchTime) : null;
-              const sliderValue = timeMinutes ?? 9 * 60;
-              const pct = ((sliderValue - TIME_MIN) / TIME_RANGE) * 100;
-              return (
-                <div className="relative" ref={timeRef}>
-                  <button
-                    onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex items-center gap-2 bg-white/10 backdrop-blur-md border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap"
-                    style={{ borderColor: (timeDropdownOpen || searchTime) ? accentColor + "99" : "rgba(255,255,255,0.2)" }}
-                  >
-                    <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: (timeDropdownOpen || searchTime) ? accentColor : "rgba(255,255,255,0.5)" }} />
-                    <span className="text-sm text-white/80">
-                      {searchTime ? searchTime : "Laikas"}
-                    </span>
-                    {searchTime && (
-                      <span
-                        onClick={e => { e.stopPropagation(); setSearchTime(""); }}
-                        className="text-white/40 hover:text-white/70 text-lg leading-none ml-1"
-                      >×</span>
-                    )}
-                  </button>
-
-                  {timeDropdownOpen && (
-                    <>
-                      {/* Mobile backdrop */}
-                      <div
-                        className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                        onClick={() => setTimeDropdownOpen(false)}
-                      />
-                      <div className="
-                        fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
-                        sm:absolute sm:top-full sm:left-0 sm:right-auto sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-56
-                        bg-popover text-popover-foreground border border-border rounded-xl p-3 shadow-2xl
-                      ">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Pradžios laikas</span>
-                          <div className="flex items-center gap-1.5">
-                            {searchTime && (
-                              <button
-                                onClick={() => setSearchTime("")}
-                                className="text-[10px] hover:underline"
-                                style={{ color: accentColor }}
-                              >Išvalyti</button>
-                            )}
-                            <button
-                              onClick={() => setTimeDropdownOpen(false)}
-                              className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="text-center mb-2">
-                          <span className="text-2xl font-bold tabular-nums">
-                            {searchTime ? searchTime : "--:--"}
-                          </span>
-                        </div>
-
-                        <div className="relative px-0.5">
-                          <input
-                            type="range"
-                            min={TIME_MIN}
-                            max={TIME_MAX}
-                            step={TIME_STEP}
-                            value={sliderValue}
-                            onChange={e => setSearchTime(formatMinutes(Number(e.target.value)))}
-                            onMouseDown={() => { if (!searchTime) setSearchTime(formatMinutes(9 * 60)); }}
-                            onTouchStart={() => { if (!searchTime) setSearchTime(formatMinutes(9 * 60)); }}
-                            className="time-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                            style={{
-                              background: searchTime
-                                ? `linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${pct.toFixed(1)}%, hsl(var(--muted)) ${pct.toFixed(1)}%, hsl(var(--muted)) 100%)`
-                                : "hsl(var(--muted))",
-                            }}
-                          />
-                          <div className="flex justify-between mt-1.5">
-                            {[6, 10, 14, 18, 22].map(h => {
-                              const minutes = h * 60;
-                              const label = `${String(h).padStart(2, "0")}:00`;
-                              const active = timeMinutes === minutes;
-                              return (
-                                <button
-                                  key={h}
-                                  onClick={() => setSearchTime(formatMinutes(minutes))}
-                                  className="text-[9px] tabular-nums transition-colors text-muted-foreground"
-                                  style={{ color: active ? accentColor : undefined, fontWeight: active ? "700" : "400" }}
-                                >
-                                  {label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => setTimeDropdownOpen(false)}
-                          className="mt-3 w-full py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                          style={{ background: accentColor, color: accentFg }}
-                        >
-                          Patvirtinti
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            {/* Time — site-standard picker, 30-min steps feed the matrix window */}
+            <TimeField
+              value={searchTime || null}
+              onChange={(t) => setSearchTime(t ?? "")}
+              stepMinutes={30}
+              accentColor={accentColor}
+              accentFg={accentFg}
+              align="left"
+              variant="on-dark"
+            />
 
             {/* Duration — 30-min increments, gates the matrix window. */}
             <Select
@@ -1044,7 +902,6 @@ export default function CoachesPage() {
               onClick={() => {
                 setPage(1);
                 setCityDropdownOpen(false);
-                setDateDropdownOpen(false);
               }}
               className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-md"
               style={{ background: accentColor, color: accentFg }}

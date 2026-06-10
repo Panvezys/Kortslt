@@ -21,7 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { SPORT_IMAGES } from "@/lib/sport-images";
 import { format } from "date-fns";
-import { DateCalendar } from "@/components/ui/date-calendar";
+import { DateField, TimeField } from "@/components/ui/date-time-field";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const ALL_SPORTS = Object.keys(SPORT_LABELS);
@@ -330,12 +330,8 @@ export default function Home() {
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [cityInput, setCityInput] = useState("");
   const cityRef = useRef<HTMLDivElement>(null);
-  const [timeDropdownOpen, setTimeDropdownOpen] = useState(false);
   const [timeSlider, setTimeSlider] = useState<number | null>(null);
-  const timeRef = useRef<HTMLDivElement>(null);
-  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [searchDateObj, setSearchDateObj] = useState<Date | undefined>(undefined);
-  const dateRef = useRef<HTMLDivElement>(null);
   const [showMoreCities, setShowMoreCities] = useState(false);
   const { locale } = useI18n();
 
@@ -376,12 +372,6 @@ export default function Home() {
       }
       if (cityRef.current && !cityRef.current.contains(e.target as Node)) {
         setCityDropdownOpen(false);
-      }
-      if (timeRef.current && !timeRef.current.contains(e.target as Node)) {
-        setTimeDropdownOpen(false);
-      }
-      if (dateRef.current && !dateRef.current.contains(e.target as Node)) {
-        setDateDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -675,119 +665,12 @@ export default function Home() {
 
               {/* Row 3: Date + Time */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="relative w-full min-w-0" ref={dateRef}>
-                  <button
-                    onClick={() => setDateDropdownOpen(v => !v)}
-                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
-                    style={{ borderColor: dateDropdownOpen ? accentColor : undefined }}
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (dateDropdownOpen || searchDateObj) ? accentColor : undefined }} />
-                      <span className="text-sm text-foreground dark:text-white truncate">
-                        {searchDateObj ? format(searchDateObj, "d MMM", { locale: locale === "lt" ? ltLocale : locale === "ru" ? ruLocale : enUS }) : "Data"}
-                      </span>
-                    </span>
-                    {searchDateObj && (
-                      <button
-                        onClick={e => { e.stopPropagation(); setSearchDateObj(undefined); }}
-                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1 shrink-0"
-                      >×</button>
-                    )}
-                  </button>
-
-                  {dateDropdownOpen && (
-                    <>
-                      <div className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setDateDropdownOpen(false)} />
-                      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))] sm:absolute sm:top-full sm:left-0 sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-[252px]">
-                        <DateCalendar
-                          selected={searchDateObj}
-                          onSelect={(d) => { setSearchDateObj(d); setDateDropdownOpen(false); }}
-                          onClose={() => setDateDropdownOpen(false)}
-                          accentColor={accentColor}
-                          accentFg={accentFg}
-                          locale={locale}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="relative w-full min-w-0" ref={timeRef}>
-                  <button
-                    onClick={() => setTimeDropdownOpen(v => !v)}
-                    className="flex w-full items-center gap-2 bg-muted/70 dark:bg-white/20 dark:backdrop-blur-md border border-border rounded-xl px-3 py-2.5 transition-colors whitespace-nowrap justify-between"
-                    style={{ borderColor: timeDropdownOpen ? accentColor : undefined }}
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground dark:text-white/75" style={{ color: (timeDropdownOpen || timeSlider !== null) ? accentColor : undefined }} />
-                      <span className="text-sm text-foreground dark:text-white truncate">
-                        {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "Laikas"}
-                      </span>
-                    </span>
-                    {timeSlider !== null && (
-                      <button
-                        onClick={e => { e.stopPropagation(); setTimeSlider(null); }}
-                        className="text-muted-foreground/60 hover:text-muted-foreground dark:text-white/40 dark:hover:text-white/70 text-lg leading-none ml-1 shrink-0"
-                      >×</button>
-                    )}
-                  </button>
-
-                  {timeDropdownOpen && (
-                    <>
-                      {/* Mobile backdrop */}
-                      <div
-                        className="sm:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                        onClick={() => setTimeDropdownOpen(false)}
-                      />
-                      <div className="
-                        fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(280px,calc(100vw-1.5rem))]
-                        sm:absolute sm:top-full sm:right-0 sm:left-auto sm:translate-x-0 sm:translate-y-0 sm:mt-1 sm:w-56
-                        bg-popover text-popover-foreground border border-border rounded-xl p-3 shadow-2xl
-                      ">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Pradžios laikas</span>
-                        <div className="flex items-center gap-1.5">
-                          {timeSlider !== null && (
-                            <button onClick={() => setTimeSlider(null)} className="text-[10px] hover:underline" style={{ color: accentColor }}>Išvalyti</button>
-                          )}
-                          <button onClick={() => setTimeDropdownOpen(false)} className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="text-center mb-2">
-                        <span className="text-2xl font-bold tabular-nums">
-                          {timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : "--:--"}
-                        </span>
-                      </div>
-
-                      <div className="relative px-0.5">
-                        <input
-                          type="range" min={6} max={23} step={1} value={timeSlider ?? 9}
-                          onChange={e => { const h = Number(e.target.value); setTimeSlider(h); }}
-                          onMouseDown={() => { if (timeSlider === null) setTimeSlider(9); }}
-                          className="time-slider w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                          style={{ background: timeSlider !== null ? `linear-gradient(to right, ${accentColor} 0%, ${accentColor} ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, hsl(var(--muted)) ${(((timeSlider - 6) / 17) * 100).toFixed(1)}%, hsl(var(--muted)) 100%)` : "hsl(var(--muted))" }}
-                        />
-                        <div className="flex justify-between mt-1.5">
-                          {[6, 10, 14, 18, 22].map(h => (
-                            <button key={h} onClick={() => setTimeSlider(h)}
-                              className="text-[9px] tabular-nums transition-colors text-muted-foreground"
-                              style={{ color: timeSlider === h ? accentColor : undefined, fontWeight: timeSlider === h ? "700" : "400" }}
-                            >{h}:00</button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <button onClick={() => setTimeDropdownOpen(false)} className="mt-3 w-full py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                        style={{ background: accentColor, color: accentFg }}>
-                        Patvirtinti
-                      </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                <DateField value={searchDateObj} onChange={setSearchDateObj} accentColor={accentColor} accentFg={accentFg} locale={locale} />
+                <TimeField
+                  value={timeSlider !== null ? `${String(timeSlider).padStart(2, "0")}:00` : null}
+                  onChange={t => setTimeSlider(t ? parseInt(t, 10) : null)}
+                  accentColor={accentColor} accentFg={accentFg}
+                />
               </div>
 
               {/* Row 4: Search */}
