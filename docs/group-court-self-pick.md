@@ -61,9 +61,19 @@ comparison), but remaining references now point at group pages:
   info-windows), favorites. `facility.tsx` venue page links its court cards to
   group pages directly.
 
-Still pointing at `/courts/:id` (need backend payload additions —
-facilityId/type missing from their API responses — before the page can be
-deleted): my-matches, open-matches, game-detail, join-booking,
-tournament-detail, chat context links (`chat-bubble.tsx`, `messages.tsx`),
-admin court preview, owner QR code, plus the frozen /courts pages themselves
-(`courts.tsx`, `court-detail.tsx`, `court-card.tsx`, `related-courts-carousel.tsx`).
+All remaining player/owner/admin surfaces now link to group pages too:
+my-matches, open-matches, game-detail, join-booking, tournament-detail, chat
+context links (`chat-bubble.tsx`, `messages.tsx` — facility contexts go to
+`/facilities/:id`), owner reviews, admin review moderation + approved-court
+preview, owner QR codes, owner court previews (`owner-facility-detail.tsx`,
+`court-dashboard.tsx`, `court-create.tsx`), and the shared `CourtCard`
+(active/approved courts only — pending courts in admin approvals keep
+`/courts/:id`, since group pages only surface active courts). Backend payloads
+gained `courtType`/`facilityId` where missing: `/games/my`, `/matches/open`,
+`/owner/court-reviews`, `/court-reviews` (admin feed).
+
+Only the frozen /courts pages themselves still reference `/courts/:id`
+(`courts.tsx`, `court-detail.tsx`, `related-courts-carousel.tsx`,
+`court-map.tsx` default href builder), plus `courtGroupHref`'s legacy fallback
+for courts without facility data. Deleting /courts later means removing those
+pages and the fallback in `court-links.ts`.

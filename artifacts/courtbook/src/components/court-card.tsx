@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { MapPin, Users, Star, Heart, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { courtGroupHref } from "@/lib/court-links";
 import { useT } from "@/lib/i18n";
 import { useFavoritesContext } from "@/lib/FavoritesContext";
 import { useUser } from "@clerk/react";
@@ -42,6 +43,13 @@ export function CourtCard({ court }: { court: Court }) {
   const [btnHovered, setBtnHovered] = useState(false);
   const [photoIdx, setPhotoIdx] = useState(0);
   const sport = { color: getSportColor(court.type) };
+  // Live courts link to their facility+sport group page (the booking front
+  // door); pending/draft courts (admin approvals) keep the legacy detail page,
+  // since group pages only surface active courts.
+  const isLive = court.status === "active" || court.status === "approved";
+  const cardHref = isLive
+    ? courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null })
+    : `/courts/${court.id}`;
   const surfaceTKey = `surfaces.${court.surface}` as never;
   const surfaceTranslated = court.surface ? t(surfaceTKey) : null;
   const surfaceLabel = court.surface
@@ -181,7 +189,7 @@ export function CourtCard({ court }: { court: Court }) {
           className="transition-colors duration-200 line-clamp-1 text-base flex items-center gap-1"
           style={{ color: hovered ? sport.color : undefined }}
         >
-          <Link href={`/courts/${court.id}`} className="hover:underline truncate">
+          <Link href={cardHref} className="hover:underline truncate">
             {court.name}
           </Link>
           {(court as any).facilityVerified && (
@@ -207,7 +215,7 @@ export function CourtCard({ court }: { court: Court }) {
 
       <CardFooter className="pt-0">
         <Link
-          href={`/courts/${court.id}#reserve`}
+          href={`${cardHref}#reserve`}
           className="w-full"
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}

@@ -811,7 +811,7 @@ export default function OwnerCourtDashboard() {
             </Button>
             <Button
               size="sm" variant="outline" className="gap-1.5 text-xs h-8"
-              onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}
+              onClick={() => window.open(`${BASE_URL}/facility/${facilityIdNum}?sport=${court.type.replace(/-/g, "_")}`, "_blank")}
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Viešas</span>

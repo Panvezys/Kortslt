@@ -1063,7 +1063,7 @@ export default function OwnerFacilityDetail() {
                           <DropdownMenuItem onClick={() => setQrCourt({ id: court.id, name: court.name, type: court.type })}>
                             <QrCode className="w-3.5 h-3.5 mr-2" /> QR kodas
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => window.open(`${BASE_URL}/courts/${court.id}`, "_blank")}>
+                          <DropdownMenuItem onClick={() => window.open(`${BASE_URL}/facility/${id}?sport=${court.type.replace(/-/g, "_")}`, "_blank")}>
                             <ExternalLink className="w-3.5 h-3.5 mr-2" /> Viešas puslapis
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -1245,7 +1245,7 @@ export default function OwnerFacilityDetail() {
 
 
         {qrCourt && (() => {
-          const courtUrl = `${window.location.origin}${BASE_URL}/courts/${qrCourt.id}`;
+          const courtUrl = `${window.location.origin}${BASE_URL}/facility/${id}?sport=${qrCourt.type.replace(/-/g, "_")}`;
           return (
             <Dialog open={!!qrCourt} onOpenChange={(open) => { if (!open) setQrCourt(null); }}>
               <DialogContent className="max-w-sm">

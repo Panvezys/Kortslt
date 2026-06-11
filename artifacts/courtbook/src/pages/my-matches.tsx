@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SportPill, SPORT_LABELS } from "@/components/sport-icon";
+import { courtGroupHref } from "@/lib/court-links";
 import { customFetch } from "@workspace/api-client-react";
 import {
   Calendar, Clock, MapPin, Users, Trophy, Swords,
@@ -36,6 +37,8 @@ interface MyGame {
   bookingId: number | null;
   courtId: number | null;
   courtName: string | null;
+  courtType: string | null;
+  facilityId: number | null;
   facilityName: string | null;
   facilityCity: string | null;
   courtImageUrl: string | null;
@@ -140,7 +143,7 @@ function GameCard({ g }: { g: MyGame }) {
               {isBooked ? (
                 g.courtId ? (
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${g.courtId}`); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(courtGroupHref({ id: g.courtId!, facilityId: g.facilityId, type: g.courtType })); }}
                     className="font-semibold text-sm truncate block hover:text-primary hover:underline transition-colors text-left"
                   >
                     {g.courtName}
@@ -156,7 +159,7 @@ function GameCard({ g }: { g: MyGame }) {
               {isBooked && (g.facilityName || g.facilityCity) && (
                 g.courtId ? (
                   <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${g.courtId}`); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(courtGroupHref({ id: g.courtId!, facilityId: g.facilityId, type: g.courtType })); }}
                     className="text-xs text-muted-foreground flex items-center gap-1 hover:text-primary transition-colors text-left"
                   >
                     <MapPin className="w-3 h-3 shrink-0" />

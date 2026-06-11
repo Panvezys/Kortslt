@@ -811,7 +811,7 @@ export default function CourtCreatePage() {
                 variant="outline"
                 size="icon"
                 title="Peržiūrėti kaip žaidėjas"
-                onClick={() => navigate(`/courts/${editingCourtId}`)}
+                onClick={() => navigate(`/facility/${facilityId}?sport=${String((editingCourt as any)?.type ?? "").replace(/-/g, "_")}`)}
               >
                 <Eye className="w-4 h-4" />
               </Button>

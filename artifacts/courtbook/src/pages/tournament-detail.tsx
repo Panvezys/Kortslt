@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
+import { courtGroupHref } from "@/lib/court-links";
 import { useUser, useAuth } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,7 @@ interface HybridData {
 
 type BracketData = SingleEliminationData | RoundRobinData | HybridData;
 
-interface Court { id: number; name: string; city: string; address: string; phone: string | null; }
+interface Court { id: number; name: string; city: string; address: string; phone: string | null; facilityId?: number | null; type?: string | null; }
 
 /** Render a single match's score, sport-aware, with a legacy string fallback. */
 function renderScoreSides(m: BracketMatch, sport: string): { a: string; b: string } {
@@ -729,7 +730,7 @@ export default function TournamentDetail() {
                       <MapPin className="w-3 h-3" />{court.city} · {court.address}
                     </div>
                   </div>
-                  <Link href={`/courts/${court.id}`}>
+                  <Link href={courtGroupHref(court)}>
                     <Button variant="outline" size="sm">Peržiūrėti aikštelę</Button>
                   </Link>
                 </div>

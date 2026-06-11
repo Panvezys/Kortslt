@@ -191,6 +191,8 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
     bookingId: number;
     courtId: number | null;
     courtName: string | null;
+    courtType: string | null;
+    facilityId: number | null;
     facilityName: string | null;
     facilityCity: string | null;
     courtImageUrl: string | null;
@@ -208,6 +210,8 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
         bookingId: bookingsTable.id,
         courtId: courtsTable.id,
         courtName: courtsTable.name,
+        courtType: courtsTable.type,
+        facilityId: courtsTable.facilityId,
         facilityName: facilitiesTable.name,
         facilityCity: facilitiesTable.city,
         courtImageUrl: courtsTable.imageUrl,
@@ -262,6 +266,8 @@ router.get("/games/my", requireAuth, async (req, res): Promise<void> => {
       bookingId: booking?.bookingId ?? null,
       courtId: booking?.courtId ?? null,
       courtName: booking?.courtName ?? null,
+      courtType: booking?.courtType ?? null,
+      facilityId: booking?.facilityId ?? null,
       facilityName: booking?.facilityName ?? null,
       facilityCity: booking?.facilityCity ?? null,
       courtImageUrl: booking?.courtImageUrl ?? null,

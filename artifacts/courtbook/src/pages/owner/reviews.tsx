@@ -10,6 +10,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { customFetch } from "@workspace/api-client-react";
 import { Link } from "wouter";
+import { courtGroupHref } from "@/lib/court-links";
 import { Star, MessageSquare, Loader2 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -21,6 +22,8 @@ interface OwnerReviewItem {
   id: number;
   courtId: number;
   courtName: string;
+  courtType?: string | null;
+  facilityId?: number | null;
   rating: number;
   comment: string | null;
   reviewerName: string;
@@ -181,7 +184,7 @@ function ReviewRow({ r, onReply }: { r: OwnerReviewItem; onReply: () => void }) 
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            <Link href={`/courts/${r.courtId}`} className="hover:underline">
+            <Link href={courtGroupHref({ id: r.courtId, facilityId: r.facilityId, type: r.courtType })} className="hover:underline">
               {r.courtName}
             </Link>
             {" · "}

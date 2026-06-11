@@ -406,6 +406,8 @@ router.get("/admin/court-reviews", requireAdmin, async (req, res): Promise<void>
       id: reviewsTable.id,
       courtId: reviewsTable.courtId,
       courtName: courtsTable.name,
+      courtType: courtsTable.type,
+      facilityId: courtsTable.facilityId,
       reviewerUserId: reviewsTable.reviewerUserId,
       rating: reviewsTable.rating,
       comment: reviewsTable.comment,
@@ -427,6 +429,8 @@ router.get("/admin/court-reviews", requireAdmin, async (req, res): Promise<void>
       id: r.id,
       courtId: r.courtId,
       courtName: r.courtName,
+      courtType: r.courtType ?? null,
+      facilityId: r.facilityId ?? null,
       reviewerUserId: r.reviewerUserId,
       rating: r.rating,
       comment: r.comment ?? null,
@@ -447,7 +451,7 @@ router.get("/owner/court-reviews", requireAuth, async (req, res): Promise<void> 
   const userId = getCurrentUserId(req)!;
   // First resolve every court id owned by the signed-in user, via facility.
   const owned = await db
-    .select({ id: courtsTable.id, name: courtsTable.name })
+    .select({ id: courtsTable.id, name: courtsTable.name, type: courtsTable.type, facilityId: courtsTable.facilityId })
     .from(courtsTable)
     .innerJoin(facilitiesTable, eq(courtsTable.facilityId, facilitiesTable.id))
     .where(eq(facilitiesTable.ownerUserId, userId));
@@ -457,6 +461,7 @@ router.get("/owner/court-reviews", requireAuth, async (req, res): Promise<void> 
   }
   const courtIds = owned.map((c) => c.id);
   const courtNameById = new Map(owned.map((c) => [c.id, c.name]));
+  const courtMetaById = new Map(owned.map((c) => [c.id, { type: c.type, facilityId: c.facilityId }]));
 
   const rawLimit = Number(req.query.limit ?? 50);
   const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 50;
@@ -512,6 +517,8 @@ router.get("/owner/court-reviews", requireAuth, async (req, res): Promise<void> 
       id: r.id,
       courtId: r.courtId,
       courtName: courtNameById.get(r.courtId) ?? "—",
+      courtType: courtMetaById.get(r.courtId)?.type ?? null,
+      facilityId: courtMetaById.get(r.courtId)?.facilityId ?? null,
       rating: r.rating,
       comment: r.comment ?? null,
       reviewerName: nameByUserId.get(r.reviewerUserId) ?? "Vartotojas",

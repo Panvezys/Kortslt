@@ -15,6 +15,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { SportIcon, sportColor, SPORT_LABELS } from "@/components/sport-icon";
 import { MessageCircle, Send, ArrowLeft, X, MessageSquare, Trophy, MapPin, Users as UsersIcon, Building2, ExternalLink, CalendarDays, GraduationCap } from "lucide-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { courtGroupHref } from "@/lib/court-links";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -191,13 +192,13 @@ function useContextInfo(ctxType?: string, ctxId?: number): CtxInfo | null {
   if (ctxType === "court") {
     return {
       label: data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`,
-      href: `/courts/${ctxId}`,
+      href: courtGroupHref({ id: ctxId!, facilityId: data?.facilityId, type: data?.type }),
       Icon: MapPin,
       imageUrl: data?.imageUrl ? resolveCourtImage(data.imageUrl, data.type) : null,
     };
   }
   if (ctxType === "facility") {
-    return { label: data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`, href: `/courts?facility=${ctxId}`, Icon: Building2 };
+    return { label: data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`, href: `/facilities/${ctxId}`, Icon: Building2 };
   }
   if (ctxType === "tournament") {
     return { label: data?.name ? `Turnyras · ${data.name}` : `Turnyras #${ctxId}`, href: `/tournaments/${ctxId}`, Icon: Trophy };

@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { courtGroupHref } from "@/lib/court-links";
 import { customFetch } from "@workspace/api-client-react";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { Send, MessageSquare, ArrowLeft, Users as UsersIcon, MapPin, Building2, Trophy, CalendarDays, GraduationCap } from "lucide-react";
@@ -82,8 +83,8 @@ function useCtxLabel(ctxType?: string, ctxId?: number) {
   let label = "";
   let href = "";
   if (ctxType === "game") { label = data?.city ? `Žaidimas · ${data.city}` : `Žaidimas #${ctxId}`; href = `/matches/${ctxId}`; }
-  else if (ctxType === "court") { label = data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`; href = `/courts/${ctxId}`; }
-  else if (ctxType === "facility") { label = data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`; href = `/courts?facility=${ctxId}`; }
+  else if (ctxType === "court") { label = data?.name ? `Aikštelė · ${data.name}` : `Aikštelė #${ctxId}`; href = courtGroupHref({ id: ctxId!, facilityId: data?.facilityId, type: data?.type }); }
+  else if (ctxType === "facility") { label = data?.name ? `Centras · ${data.name}` : `Centras #${ctxId}`; href = `/facilities/${ctxId}`; }
   else if (ctxType === "tournament") { label = data?.name ? `Turnyras · ${data.name}` : `Turnyras #${ctxId}`; href = `/tournaments/${ctxId}`; }
   else if (ctxType === "booking") {
     href = `/bookings/${ctxId}`;

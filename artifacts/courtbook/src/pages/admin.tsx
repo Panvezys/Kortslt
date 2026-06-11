@@ -13,6 +13,7 @@ import { customFetch, type Court } from "@workspace/api-client-react";
 import type { AdminDashboardMetricsResponse, AdminDashboardReservation } from "@workspace/api-zod";
 import { extractApiError } from "@/lib/api-errors";
 import { Link, useLocation } from "wouter";
+import { courtGroupHref } from "@/lib/court-links";
 import {
   Check, X, Eye, ShieldAlert, FileText, RefreshCw,
   Users, Building2, ShieldCheck, User, Gavel, Database,
@@ -773,7 +774,7 @@ function CourtReviewDialog({
                   <X className="w-4 h-4" /> Atmesti aikštelę
                 </Button>
               )}
-              {isApproved && <Button variant="ghost" size="sm" onClick={() => window.open(`/courts/${court.id}`, "_blank")} className="w-full gap-2"><Eye className="w-4 h-4" /> Peržiūrėti puslapyje</Button>}
+              {isApproved && <Button variant="ghost" size="sm" onClick={() => window.open(courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null }), "_blank")} className="w-full gap-2"><Eye className="w-4 h-4" /> Peržiūrėti puslapyje</Button>}
             </div>
           ) : (
             <div className="space-y-3">
@@ -2103,6 +2104,8 @@ interface AdminCourtReviewItem {
   id: number;
   courtId: number;
   courtName: string;
+  courtType?: string | null;
+  facilityId?: number | null;
   reviewerUserId: string;
   rating: number;
   comment: string | null;
@@ -2226,7 +2229,7 @@ function CourtReviewsSubPanel() {
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-center gap-2 flex-wrap text-sm">
-                <Link href={`/courts/${r.courtId}`} className="font-medium hover:underline truncate">{r.courtName}</Link>
+                <Link href={courtGroupHref({ id: r.courtId, facilityId: r.facilityId, type: r.courtType })} className="font-medium hover:underline truncate">{r.courtName}</Link>
                 <span className="inline-flex items-center gap-0.5">
                   {Array.from({ length: 5 }, (_, i) => (
                     <Star key={i} className={`w-3.5 h-3.5 ${i < r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />

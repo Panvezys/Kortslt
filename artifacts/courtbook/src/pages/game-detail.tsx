@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { SportIcon, SportPill, SPORT_LABELS, getSportEmoji } from "@/components/sport-icon";
 import { SportScoreInput } from "@/components/sport-score-input";
 import { useToast } from "@/hooks/use-toast";
+import { courtGroupHref } from "@/lib/court-links";
 import { customFetch } from "@workspace/api-client-react";
 import { openChat } from "@/components/chat-bubble";
 import {
@@ -776,7 +777,7 @@ export default function GameDetailPage() {
               <div>
                 <div className="text-xs text-muted-foreground">Kur</div>
                 {data.courtId ? (
-                  <Link href={`/courts/${data.courtId}`} className="font-semibold hover:text-primary hover:underline transition-colors">
+                  <Link href={courtGroupHref({ id: data.courtId, facilityId: data.facilityId, type: data.sport })} className="font-semibold hover:text-primary hover:underline transition-colors">
                     {data.city}{data.placeName ? ` · ${data.placeName}` : ""}
                   </Link>
                 ) : (

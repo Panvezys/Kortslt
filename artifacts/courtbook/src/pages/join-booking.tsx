@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
+import { courtGroupHref } from "@/lib/court-links";
 import { useUser, useClerk, SignUp } from "@clerk/react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -220,7 +221,7 @@ export default function JoinBookingPage() {
   const { toast } = useToast();
 
   const [info, setInfo] = useState<SplitBookingInfo | null>(null);
-  const [courtAddress, setCourtAddress] = useState<{ address: string | null; city: string | null } | null>(null);
+  const [courtAddress, setCourtAddress] = useState<{ address: string | null; city: string | null; facilityId: number | null; type: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
@@ -249,7 +250,7 @@ export default function JoinBookingPage() {
           const courtRes = await fetch(`${API}/courts/${data.courtId}`).catch(() => null);
           if (courtRes?.ok) {
             const c = await courtRes.json();
-            setCourtAddress({ address: c.address ?? null, city: c.city ?? null });
+            setCourtAddress({ address: c.address ?? null, city: c.city ?? null, facilityId: c.facilityId ?? null, type: c.type ?? null });
           }
         }
       })
@@ -374,7 +375,7 @@ export default function JoinBookingPage() {
           <button
             type="button"
             className="shrink-0"
-            onClick={() => info.courtId && navigate(`/courts/${info.courtId}`)}
+            onClick={() => info.courtId && navigate(courtGroupHref({ id: info.courtId, facilityId: courtAddress?.facilityId, type: courtAddress?.type }))}
           >
             {info.courtImageUrl ? (
               <img
@@ -390,7 +391,7 @@ export default function JoinBookingPage() {
             <button
               type="button"
               className="font-semibold text-sm truncate block w-full text-left hover:text-primary transition-colors"
-              onClick={() => info.courtId && navigate(`/courts/${info.courtId}`)}
+              onClick={() => info.courtId && navigate(courtGroupHref({ id: info.courtId, facilityId: courtAddress?.facilityId, type: courtAddress?.type }))}
             >
               {info.courtName}
             </button>

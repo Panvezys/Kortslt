@@ -21,6 +21,7 @@ import { format } from "date-fns";
 import { lt as ltLocale } from "date-fns/locale";
 import { UserProfileCard } from "@/components/user-profile-card";
 import { useToast } from "@/hooks/use-toast";
+import { courtGroupHref } from "@/lib/court-links";
 import { customFetch } from "@workspace/api-client-react";
 import {
   Calendar, Clock, MapPin, Plus, Trophy, Lock, Swords,
@@ -56,6 +57,8 @@ interface FeedItem {
   token: string | null;
   courtName: string | null;
   courtId: number | null;
+  courtType: string | null;
+  facilityId: number | null;
   facilityName: string | null;
   facilityCity: string | null;
   courtImageUrl: string | null;
@@ -150,7 +153,7 @@ function MatchCard({ m, isOwn }: { m: FeedItem; isOwn?: boolean }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [, navigate] = useLocation();
   const openProfile = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setProfileOpen(true); }, []);
-  const openCourt = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); navigate(`/courts/${m.courtId}`); }, [m.courtId, navigate]);
+  const openCourt = useCallback((e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); if (m.courtId) navigate(courtGroupHref({ id: m.courtId, facilityId: m.facilityId, type: m.courtType })); }, [m.courtId, m.facilityId, m.courtType, navigate]);
 
   const joined = isCasual ? (m.joinedCount ?? 0) : (m.paidSlots ?? 0);
   const total = isCasual ? (m.playersNeeded ?? 2) : (m.totalSlots ?? 1);
