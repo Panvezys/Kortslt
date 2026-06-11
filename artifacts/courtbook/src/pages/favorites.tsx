@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SportIcon, getSportColor } from "@/components/sport-icon";
+import { courtGroupHref } from "@/lib/court-links";
 import { useT } from "@/lib/i18n";
 
 export default function FavoritesPage() {
@@ -88,7 +89,7 @@ export default function FavoritesPage() {
               {favorites.map((court) => {
                 const color = getSportColor(court.type);
                 return (
-                  <Link key={court.id} href={`/courts/${court.id}`}>
+                  <Link key={court.id} href={courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null })}>
                     <div className="bg-card border rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group">
                       <div
                         className="h-32 bg-muted relative overflow-hidden"

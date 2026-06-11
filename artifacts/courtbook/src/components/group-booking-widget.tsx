@@ -40,8 +40,9 @@ function fmtDuration(s: string, e: string) {
   return m === 0 ? `${h} val` : h > 0 ? `${h} val ${m} min` : `${mins} min`;
 }
 
-async function fetchGroupAvailability(facilityId: number, sport: string, date: string): Promise<GroupAvailabilityResponse> {
-  return customFetch<GroupAvailabilityResponse>(`/api/search/groups/${facilityId}/${sport}/availability?date=${date}`, { responseType: "json" });
+async function fetchGroupAvailability(facilityId: number, sport: string, date: string, courtId?: string): Promise<GroupAvailabilityResponse> {
+  const courtParam = courtId && courtId !== "auto" ? `&courtId=${courtId}` : "";
+  return customFetch<GroupAvailabilityResponse>(`/api/search/groups/${facilityId}/${sport}/availability?date=${date}${courtParam}`, { responseType: "json" });
 }
 
 async function goToCheckout(booking: BookingResponse | BookGroupResponse, facilityId: number, sport: string) {
@@ -176,7 +177,8 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
       await Promise.all(Array.from({ length: recurringWeeks }, (_, i) => {
         const d  = addDays(date, i * 7);
         const ds = format(d, "yyyy-MM-dd");
-        return fetch(`${API}/search/groups/${facilityId}/${sport}/availability?date=${ds}`, { signal: ctrl.signal })
+        const courtParam = selectedCourtId !== "auto" ? `&courtId=${selectedCourtId}` : "";
+        return fetch(`${API}/search/groups/${facilityId}/${sport}/availability?date=${ds}${courtParam}`, { signal: ctrl.signal })
           .then(r => r.ok ? r.json() : null)
           .then((data: GroupAvailabilityResponse | null) => {
             if (!data?.slots) { results[i] = false; return; }
@@ -189,11 +191,11 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     })();
     return () => ctrl.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recurringEnabled, recurringWeeks, dateStr, facilityId, sport]);
+  }, [recurringEnabled, recurringWeeks, dateStr, facilityId, sport, selectedCourtId]);
 
   const { data: availability, isLoading } = useQuery({
-    queryKey: ["group-availability", facilityId, sport, dateStr],
-    queryFn: () => fetchGroupAvailability(facilityId, sport, dateStr),
+    queryKey: ["group-availability", facilityId, sport, dateStr, selectedCourtId],
+    queryFn: () => fetchGroupAvailability(facilityId, sport, dateStr, selectedCourtId),
     staleTime: 30_000,
   });
 
@@ -271,7 +273,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     if (!slot) return;
     if (!slot.isAvailable) {
       const endMin = toMin(slot.startTime) + 30;
-      setWaitlistSlot({ startTime: slot.startTime, endTime: `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`, courtId: firstCourtId });
+      setWaitlistSlot({ startTime: slot.startTime, endTime: `${String(Math.floor(endMin / 60)).padStart(2, "0")}:${String(endMin % 60).padStart(2, "0")}`, courtId: selectedCourtId !== "auto" ? parseInt(selectedCourtId, 10) : firstCourtId });
       setWaitlistOpen(true);
       return;
     }
@@ -300,9 +302,17 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
       : [];
     const rentedItems = equipPayload.length > 0 ? JSON.stringify(equipPayload) : undefined;
     try {
-      const booking = selectedCourtId === "auto"
-        ? await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, { method: "POST", body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail, rentedItems }), responseType: "json" })
-        : await customFetch<BookingResponse>(`/api/bookings`, { method: "POST", body: JSON.stringify({ courtId: parseInt(selectedCourtId, 10), date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail, rentedItems }), responseType: "json" });
+      // Group allocator handles both modes: courtId pins the chosen court,
+      // otherwise it auto-picks (cheapest, then least-used).
+      const booking = await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, {
+        method: "POST",
+        body: JSON.stringify({
+          date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime,
+          customerName, customerEmail, rentedItems,
+          ...(selectedCourtId !== "auto" ? { courtId: parseInt(selectedCourtId, 10) } : {}),
+        }),
+        responseType: "json",
+      });
       await goToCheckout(booking, facilityId, sport);
     } catch (err) {
       toast({ title: "Rezervacija nepavyko", description: err instanceof Error ? err.message : "Klaida", variant: "destructive" });
@@ -316,7 +326,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     try {
       const r = await fetch(`${API}/search/groups/${facilityId}/${sport}/checkout-split`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, totalSlots: splitCount, sport, customerName, customerEmail, matchType: splitMatchType, isPublic: isPublicMatch, ...(isPublicMatch ? { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill } : {}) }),
+        body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, totalSlots: splitCount, sport, customerName, customerEmail, matchType: splitMatchType, isPublic: isPublicMatch, ...(selectedCourtId !== "auto" ? { courtId: parseInt(selectedCourtId, 10) } : {}), ...(isPublicMatch ? { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill } : {}) }),
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error((d as any).error ?? "Nepavyko"); }
       const { url, shareToken } = await r.json();
@@ -331,7 +341,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     if (!selectedSlotRange) return;
     setRecurringPending(true);
     try {
-      // 1. Create a pending booking for each available week (auto court allocation).
+      // 1. Create a pending booking for each available week (picked court, or auto allocation).
       const createdIds: number[] = [];
       let totalPrice = 0;
       for (let i = 0; i < recurringWeeks; i++) {
@@ -339,7 +349,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
         try {
           const booking = await customFetch<BookGroupResponse>(`/api/search/groups/${facilityId}/${sport}/book`, {
             method: "POST",
-            body: JSON.stringify({ date: format(addDays(date, i * 7), "yyyy-MM-dd"), startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail }),
+            body: JSON.stringify({ date: format(addDays(date, i * 7), "yyyy-MM-dd"), startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, customerName, customerEmail, ...(selectedCourtId !== "auto" ? { courtId: parseInt(selectedCourtId, 10) } : {}) }),
             responseType: "json",
           });
           createdIds.push(booking.id);

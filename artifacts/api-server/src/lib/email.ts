@@ -1,4 +1,6 @@
 import { Resend } from "resend";
+import { eq } from "drizzle-orm";
+import { db, courtsTable } from "@workspace/db";
 import { logger } from "./logger";
 
 function getResend(): Resend | null {
@@ -8,6 +10,22 @@ function getResend(): Resend | null {
 }
 
 const SITE_URL = process.env.SITE_URL || "https://korts.lt";
+
+// Court links in emails point to the facility+sport group page (the booking
+// front door). Falls back to the legacy /courts/:id page if the lookup fails,
+// so an email always carries a working link.
+async function courtPageUrl(courtId: number): Promise<string> {
+  try {
+    const [court] = await db
+      .select({ facilityId: courtsTable.facilityId, type: courtsTable.type })
+      .from(courtsTable)
+      .where(eq(courtsTable.id, courtId));
+    if (court?.facilityId != null && court.type) {
+      return `${SITE_URL}/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}`;
+    }
+  } catch { /* fall through to legacy URL */ }
+  return `${SITE_URL}/courts/${courtId}`;
+}
 
 const LT_MONTHS = [
   "sausio", "vasario", "kovo", "balandžio", "gegužės", "birželio",
@@ -208,7 +226,7 @@ export async function sendBookingConfirmationEmail(data: BookingEmailData): Prom
   const start = formatTime(data.startTime);
   const end = formatTime(data.endTime);
 
-  const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
+  const courtUrl = await courtPageUrl(data.courtId);
   const icsUrl = `${SITE_URL}/api/bookings/${data.bookingId}/ics`;
   const mapsUrl = googleMapsUrl(data.courtAddress, data.courtCity);
   const manageUrl = data.managementToken ? `${SITE_URL}/guest/booking/${data.managementToken}` : null;
@@ -914,7 +932,7 @@ export async function sendWaitlistNotificationEmail(data: WaitlistNotificationDa
   const dateFormatted = formatDate(data.date);
   const start = formatTime(data.startTime);
   const end = formatTime(data.endTime);
-  const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
+  const courtUrl = await courtPageUrl(data.courtId);
 
   const html = `
 <!DOCTYPE html>
@@ -1058,7 +1076,7 @@ export async function sendSplitBookingCreatedEmail(data: {
   const dateFormatted = formatDate(data.date);
   const start = formatTime(data.startTime);
   const end = formatTime(data.endTime);
-  const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
+  const courtUrl = await courtPageUrl(data.courtId);
   const bookingUrl = `${SITE_URL}/bookings/${data.bookingId}`;
 
   const html = `
@@ -1255,7 +1273,7 @@ export async function sendSplitParticipantConfirmationEmail(data: {
   const dateFormatted = formatDate(data.date);
   const start = formatTime(data.startTime);
   const end = formatTime(data.endTime);
-  const courtUrl = `${SITE_URL}/courts/${data.courtId}`;
+  const courtUrl = await courtPageUrl(data.courtId);
 
   const html = `
 <!DOCTYPE html>

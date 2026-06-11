@@ -160,7 +160,7 @@ export default function FacilityPage() {
                   <div
                     key={court.id}
                     className="rounded-xl border bg-card overflow-hidden cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-                    onClick={() => setLocation(`/courts/${court.id}`)}
+                    onClick={() => setLocation(`/facility/${facility.id}?sport=${court.type.replace(/-/g, "_")}`)}
                   >
                     <div className="overflow-hidden relative">
                       <CourtPhoto court={court} />
@@ -198,7 +198,7 @@ export default function FacilityPage() {
                         size="sm"
                         className="w-full mt-1 text-xs font-semibold"
                         style={{ backgroundColor: sportColor, borderColor: sportColor, color: "#fff" }}
-                        onClick={e => { e.stopPropagation(); setLocation(`/courts/${court.id}#reserve`); }}
+                        onClick={e => { e.stopPropagation(); setLocation(`/facility/${facility.id}?sport=${court.type.replace(/-/g, "_")}#reserve`); }}
                       >
                         Rezervuoti
                       </Button>

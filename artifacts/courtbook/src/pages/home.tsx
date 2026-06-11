@@ -17,11 +17,13 @@ import { SportIcon, sportColor, SportPill, getSportColor, SPORT_LABELS } from "@
 
 // Lazy-loaded: Google Maps SDK is heavy and the map is below the fold.
 const CourtMap = lazy(() => import("@/components/court-map").then(m => ({ default: m.CourtMap })));
+import type { CourtHrefBuilder } from "@/components/court-map";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { resolveCourtImage } from "@/lib/imageUrl";
 import { SPORT_IMAGES } from "@/lib/sport-images";
 import { format } from "date-fns";
 import { DateField, TimeField } from "@/components/ui/date-time-field";
+import { courtGroupHref } from "@/lib/court-links";
 import { lt as ltLocale, enUS, ru as ruLocale } from "date-fns/locale";
 
 const ALL_SPORTS = Object.keys(SPORT_LABELS);
@@ -51,10 +53,13 @@ type PopularCourt = { id: number; name: string; type: string; facilityId?: numbe
 
 // Group-page href for a court (the facility+sport flow with membership pricing
 // and LinkGame). Falls back to the legacy court page when facilityId is absent.
-function groupHref(court: { id: number; type: string; facilityId?: number | null }): string {
-  const fid = (court as { facilityId?: number | null }).facilityId;
-  return fid ? `/facility/${fid}?sport=${court.type.replace(/-/g, "_")}` : `/courts/${court.id}`;
-}
+const groupHref = courtGroupHref;
+
+// Map info-window CTAs point to the same group pages as the cards.
+const mapHref: CourtHrefBuilder = (court) => {
+  const base = courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null });
+  return { detail: base, reserve: `${base}#reserve` };
+};
 
 interface FeaturedTournament {
   id: number; name: string; sport: string; startDate: string; endDate: string;
@@ -851,7 +856,7 @@ export default function Home() {
               <Skeleton className="w-full h-full rounded-xl" />
             ) : courts ? (
               <Suspense fallback={<Skeleton className="w-full h-full rounded-xl" />}>
-                <CourtMap courts={courts} activeSports={activeSports} />
+                <CourtMap courts={courts} activeSports={activeSports} getHref={mapHref} />
               </Suspense>
             ) : null}
           </div>
@@ -868,7 +873,7 @@ export default function Home() {
               <Skeleton className="w-full h-full" />
             ) : courts ? (
               <Suspense fallback={<Skeleton className="w-full h-full" />}>
-                <CourtMap courts={courts} activeSports={activeSports} />
+                <CourtMap courts={courts} activeSports={activeSports} getHref={mapHref} />
               </Suspense>
             ) : null}
             {/* Floating chip filter bar */}

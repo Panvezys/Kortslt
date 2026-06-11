@@ -552,6 +552,9 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
   const facilityId = parseInt(req.params.facilityId, 10);
   const sport = (req.params.sport ?? "").replace(/-/g, "_");
   const date = typeof req.query.date === "string" ? req.query.date.trim() : "";
+  // Optional: scope the grid to one specific court the player picked. The
+  // response still lists all group courts so the picker stays populated.
+  const courtIdParam = req.query.courtId ? parseInt(String(req.query.courtId), 10) : null;
 
   if (isNaN(facilityId) || !sport || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     res.status(400).json({ error: "Invalid parameters" });
@@ -573,13 +576,21 @@ router.get("/search/groups/:facilityId/:sport/availability", async (req, res): P
     return;
   }
 
-  const courtIds = courts.map(c => c.id);
+  if (courtIdParam != null && !courts.some(c => c.id === courtIdParam)) {
+    res.status(404).json({ error: "Court not found in this group" });
+    return;
+  }
+
+  // Slot availability + pricing are computed over the picked court only (when
+  // one is picked) so the grid shows exactly what that court would cost.
+  const gridCourts = courtIdParam != null ? courts.filter(c => c.id === courtIdParam) : courts;
+  const courtIds = gridCourts.map(c => c.id);
 
   // Effective per-slot prices per court (court_pricing overrides + base-price
   // fallback) — the same waterfall /book charges with, so the grid never
   // shows a price lower than what the allocated court would actually cost.
   const priceMaps = new Map<number, { def: number; map: Map<string, number> }>();
-  await Promise.all(courts.map(async c => {
+  await Promise.all(gridCourts.map(async c => {
     const def = Number(c.pricePerHour) / 2;
     const { priceMap } = await buildDayPriceMap(c.id, date, def);
     priceMaps.set(c.id, { def, map: priceMap });
@@ -679,13 +690,17 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
   }
 
   const { date, startTime, endTime, customerName, customerEmail, customerPhone } = req.body ?? {};
+  // Optional: the player picked a specific court — allocation is pinned to it
+  // instead of cheapest-first across the group.
+  const requestedCourtId = (req.body as any)?.courtId != null ? parseInt(String((req.body as any).courtId), 10) : null;
 
   if (
     typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
     typeof startTime !== "string" || !/^\d{2}:\d{2}$/.test(startTime) ||
     typeof endTime !== "string" || !/^\d{2}:\d{2}$/.test(endTime) ||
     typeof customerName !== "string" || customerName.trim() === "" ||
-    typeof customerEmail !== "string" || customerEmail.trim() === ""
+    typeof customerEmail !== "string" || customerEmail.trim() === "" ||
+    (requestedCourtId != null && isNaN(requestedCourtId))
   ) {
     res.status(400).json({ error: "Missing or invalid required fields" });
     return;
@@ -729,12 +744,22 @@ router.post("/search/groups/:facilityId/:sport/book", async (req, res): Promise<
     GROUP BY c.id, c.price_per_hour, c.rentable_items
     ORDER BY booking_count ASC, c.id ASC
   `);
-  const courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; rentableItems: string | null; booking_count: string }[])
+  let courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; rentableItems: string | null; booking_count: string }[])
     .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, rentableItems: r.rentableItems, bookingCount: Number(r.booking_count) }));
 
   if (courtRows.length === 0) {
     res.status(404).json({ error: "No active courts found for this group" });
     return;
+  }
+
+  // The query above already scopes to facility+sport+active, so filtering by id
+  // doubles as the membership check for the requested court.
+  if (requestedCourtId != null) {
+    courtRows = courtRows.filter(c => c.id === requestedCourtId);
+    if (courtRows.length === 0) {
+      res.status(404).json({ error: "Court not found in this group" });
+      return;
+    }
   }
 
   function toMin(t: string) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }

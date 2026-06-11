@@ -309,7 +309,11 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
   const base = process.env.BASE_PATH ?? "";
   const successUrl = `${origin}${base}/booking-confirmed?id=${booking.id}&split=1`;
-  const cancelUrl = `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`;
+  // Cancel lands on the facility+sport group page (booking front door); legacy
+  // /courts/:id only when the court has no facility.
+  const cancelUrl = court.facilityId != null && court.type
+    ? `${origin}${base}/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}&booking_cancelled=1&bookingId=${booking.id}`
+    : `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`;
 
   let checkoutUrl: string;
   const amountCents = Math.round(hostShareEur * 100);
@@ -1105,6 +1109,8 @@ const GroupSplitCheckoutBody = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  // Player picked a specific court — allocation is pinned to it.
+  courtId: z.number().int().positive().optional(),
   totalSlots: z.number().int().min(2).max(8),
   skillLevel: z.string().optional().default("any"),
   description: z.string().optional(),
@@ -1131,6 +1137,7 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
     date, startTime, endTime, totalSlots, skillLevel, description,
     customerName, customerEmail, customerPhone,
     isPublic, minSkillLevel, maxSkillLevel, matchType,
+    courtId: requestedCourtId,
   } = parsed.data;
 
   const reqStartMin = toMin(startTime);
@@ -1154,10 +1161,17 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
     GROUP BY c.id, c.price_per_hour, c.facility_id
     ORDER BY booking_count ASC, c.id ASC
   `);
-  const courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; facilityId: number; booking_count: string }[])
+  let courtRows = (courtsRaw.rows as { id: number; pricePerHour: string; facilityId: number; booking_count: string }[])
     .map(r => ({ id: r.id, pricePerHour: r.pricePerHour, facilityId: r.facilityId, bookingCount: Number(r.booking_count) }));
 
   if (courtRows.length === 0) { res.status(404).json({ error: "No active courts for this group" }); return; }
+
+  // The query above already scopes to facility+sport+active, so filtering by id
+  // doubles as the membership check for the requested court.
+  if (requestedCourtId != null) {
+    courtRows = courtRows.filter(c => c.id === requestedCourtId);
+    if (courtRows.length === 0) { res.status(404).json({ error: "Court not found in this group" }); return; }
+  }
 
   // Cheapest court for the requested range first — matches the group /book
   // allocator, so split prices line up with the availability grid. Wear
