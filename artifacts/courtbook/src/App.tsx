@@ -24,10 +24,32 @@ function lazyPage(fn: () => Promise<{ default: ComponentType }>) {
   return Page;
 }
 
+// The /courts pages were removed; old links (printed QR codes, sent emails)
+// resolve the court's facility+sport and land on the group page instead.
+function LegacyCourtRedirect({ params }: { params: { id: string } }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    let cancelled = false;
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    fetch(`${base}/api/courts/${params.id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((c: { facilityId?: number | null; type?: string | null } | null) => {
+        if (cancelled) return;
+        navigate(
+          c?.facilityId != null && c?.type
+            ? `/facility/${c.facilityId}?sport=${c.type.replace(/-/g, "_")}`
+            : "/explore",
+          { replace: true },
+        );
+      })
+      .catch(() => { if (!cancelled) navigate("/explore", { replace: true }); });
+    return () => { cancelled = true; };
+  }, [params.id, navigate]);
+  return null;
+}
+
 // Consumer pages — excluded from the initial bundle
-const Courts             = lazyPage(() => import("@/pages/courts"));
 const FacilityPage       = lazyPage(() => import("@/pages/facility"));
-const CourtDetail        = lazyPage(() => import("@/pages/court-detail"));
 const Bookings           = lazyPage(() => import("@/pages/bookings"));
 const BookingDetail      = lazyPage(() => import("@/pages/booking-detail"));
 const GuestBooking       = lazyPage(() => import("@/pages/guest-booking"));
@@ -244,9 +266,10 @@ function Router() {
     <ScrollToTop />
     <Switch>
       <Route path="/" component={HomeRoute} />
-      <Route path="/courts" component={Courts} />
-      <Route path="/courts/:id" component={CourtDetail} />
       <Route path="/explore" component={ExplorePage} />
+      {/* Legacy /courts links (old QR codes, emails) → group pages */}
+      <Route path="/courts/:id">{(params) => <LegacyCourtRedirect params={params as { id: string }} />}</Route>
+      <Route path="/courts"><Redirect to="/explore" /></Route>
       <Route path="/facility/:facilityId" component={FacilitySportPage} />
       <Route path="/facilities/:id" component={FacilityPage} />
       <Route path="/bookings/:id" component={BookingDetail} />

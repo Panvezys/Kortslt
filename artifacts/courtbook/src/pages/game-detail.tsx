@@ -861,7 +861,7 @@ export default function GameDetailPage() {
                       className="gap-1.5"
                       onClick={() => {
                         const date = data.datetime ? data.datetime.split("T")[0] : "";
-                        setLocation(`/courts?linkGameId=${data.id}${date ? `&date=${date}` : ""}`);
+                        setLocation(`/explore?linkGameId=${data.id}&sport=${encodeURIComponent(data.sport)}${date ? `&date=${date}` : ""}`);
                       }}
                     >
                       <MapPin className="w-4 h-4" />

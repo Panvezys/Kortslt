@@ -102,6 +102,8 @@ export interface SearchGroupFilters {
   date?: string;      // YYYY-MM-DD
   startTime?: string; // HH:MM
   endTime?: string;   // HH:MM
+  /** Upgrade flow: casual game being linked to the booking (rides along into the widget). */
+  linkGameId?: number;
 }
 
 export function buildDetailHref(group: SearchGroupResult, filters: SearchGroupFilters): string {
@@ -110,5 +112,6 @@ export function buildDetailHref(group: SearchGroupResult, filters: SearchGroupFi
   if (filters.surface)   p.set("surface",   filters.surface);
   if (filters.condition) p.set("condition", filters.condition);
   if (filters.date)      p.set("date",      filters.date); // widget opens on this date
+  if (filters.linkGameId) p.set("linkGameId", String(filters.linkGameId));
   return `/facility/${group.facilityId}?${p.toString()}`;
 }

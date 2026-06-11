@@ -45,7 +45,7 @@ async function fetchGroupAvailability(facilityId: number, sport: string, date: s
   return customFetch<GroupAvailabilityResponse>(`/api/search/groups/${facilityId}/${sport}/availability?date=${date}${courtParam}`, { responseType: "json" });
 }
 
-async function goToCheckout(booking: BookingResponse | BookGroupResponse, facilityId: number, sport: string) {
+async function goToCheckout(booking: BookingResponse | BookGroupResponse, facilityId: number, sport: string, linkGameId?: number | null) {
   const mgmt   = booking.managementToken ?? null;
   const isGuest = !!mgmt;
   const origin  = window.location.origin;
@@ -53,7 +53,7 @@ async function goToCheckout(booking: BookingResponse | BookGroupResponse, facili
   const ok  = isGuest ? `${origin}${BASE}/guest/booking/${mgmt}?paid=1`     : `${origin}${BASE}/booking-confirmed?id=${booking.id}`;
   const cancel = `${origin}${BASE}/facility/${facilityId}?sport=${sport}`;
   if (total > 0) {
-    const r = await fetch(`${API}/payments/create-checkout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: booking.id, ...(isGuest ? { managementToken: mgmt } : {}), successUrl: ok, cancelUrl: cancel }) });
+    const r = await fetch(`${API}/payments/create-checkout`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingId: booking.id, ...(isGuest ? { managementToken: mgmt } : {}), ...(linkGameId ? { linkGameId } : {}), successUrl: ok, cancelUrl: cancel }) });
     if (!r.ok) throw new Error("Checkout session failed");
     const { url } = await r.json();
     sessionStorage.setItem("stripeCancel_pending", JSON.stringify({ bookingId: booking.id, facilityId, ts: Date.now(), ...(isGuest ? { managementToken: mgmt } : {}) }));
@@ -97,9 +97,11 @@ interface Props {
   openGames?: GroupOpenGame[];
   /** YYYY-MM-DD to open the calendar on (e.g. carried over from /explore search). */
   initialDate?: string | null;
+  /** Upgrade flow: existing casual game to link this booking to (split preset). */
+  linkGame?: { id: number; playersNeeded?: number | null } | null;
 }
 
-export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt, openGames, initialDate }: Props) {
+export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourtIdChange, latitude, longitude, isOutdoor, lastBookedAt, openGames, initialDate, linkGame }: Props) {
   const today = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), []);
   const [date,          setDate]          = useState<Date>(() => {
     if (initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)) {
@@ -133,7 +135,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
   const [recurringPending, setRecurringPending] = useState(false);
 
   // Split payment
-  const [splitEnabled,   setSplitEnabled]   = useState(false);
+  const [splitEnabled,   setSplitEnabled]   = useState(() => !!linkGame);
   const [splitCount,     setSplitCount]     = useState(4);
   const [splitMatchType, setSplitMatchType] = useState<"casual" | "competitive">("casual");
   const [isPublicMatch,  setIsPublicMatch]  = useState(false);
@@ -151,6 +153,11 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
 
   // Reset on date/context change
   useEffect(() => { setSelectedStart(null); setSelectedEnd(null); setSelectedEquipment(new Map()); }, [dateStr, facilityId, sport]);
+
+  // Upgrade flow: preset split size from the linked game's player count
+  useEffect(() => {
+    if (linkGame?.playersNeeded) setSplitCount(Math.min(8, Math.max(2, linkGame.playersNeeded)));
+  }, [linkGame?.playersNeeded]);
 
   // Mutual exclusion
   useEffect(() => { if (splitEnabled)     setRecurringEnabled(false); }, [splitEnabled]);
@@ -313,7 +320,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
         }),
         responseType: "json",
       });
-      await goToCheckout(booking, facilityId, sport);
+      await goToCheckout(booking, facilityId, sport, linkGame?.id ?? null);
     } catch (err) {
       toast({ title: "Rezervacija nepavyko", description: err instanceof Error ? err.message : "Klaida", variant: "destructive" });
       setIsBooking(false);
@@ -326,7 +333,7 @@ export function GroupBookingWidget({ facilityId, sport, selectedCourtId, onCourt
     try {
       const r = await fetch(`${API}/search/groups/${facilityId}/${sport}/checkout-split`, {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-        body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, totalSlots: splitCount, sport, customerName, customerEmail, matchType: splitMatchType, isPublic: isPublicMatch, ...(selectedCourtId !== "auto" ? { courtId: parseInt(selectedCourtId, 10) } : {}), ...(isPublicMatch ? { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill } : {}) }),
+        body: JSON.stringify({ date: dateStr, startTime: selectedSlotRange.startTime, endTime: selectedSlotRange.endTime, totalSlots: splitCount, sport, customerName, customerEmail, matchType: splitMatchType, isPublic: isPublicMatch, ...(linkGame ? { linkGameId: linkGame.id } : {}), ...(selectedCourtId !== "auto" ? { courtId: parseInt(selectedCourtId, 10) } : {}), ...(isPublicMatch ? { minSkillLevel: splitMinSkill, maxSkillLevel: splitMaxSkill } : {}) }),
       });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error((d as any).error ?? "Nepavyko"); }
       const { url, shareToken } = await r.json();

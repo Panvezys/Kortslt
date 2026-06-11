@@ -3,6 +3,7 @@ import { GoogleMap, useJsApiLoader, InfoWindowF } from "@react-google-maps/api";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Court } from "@workspace/api-client-react";
 import { resolveCourtImage } from "@/lib/imageUrl";
+import { courtGroupHref } from "@/lib/court-links";
 import { MapPin } from "lucide-react";
 import { SportIcon, sportColor as SPORT_COLOR, getSportColor } from "@/components/sport-icon";
 import { useTheme } from "./theme-provider";
@@ -165,10 +166,10 @@ function buildIconCache(): Record<string, { normal: google.maps.Icon; selected: 
 /** Builds the detail + reserve URLs for a court's info-window CTAs. */
 export type CourtHrefBuilder = (court: Court) => { detail: string; reserve: string };
 
-const defaultHrefBuilder: CourtHrefBuilder = (court) => ({
-  detail: `/courts/${court.id}`,
-  reserve: `/courts/${court.id}#reserve`,
-});
+const defaultHrefBuilder: CourtHrefBuilder = (court) => {
+  const base = courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null });
+  return { detail: base, reserve: `${base}#reserve` };
+};
 
 interface CourtInfoWindowProps {
   court: Court;

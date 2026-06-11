@@ -210,7 +210,7 @@ export default function GuestBooking() {
   const courtName = booking.courtName ?? `Kortas #${booking.courtId}`;
   const courtHref = courtGroup
     ? `/facility/${courtGroup.facilityId}?sport=${courtGroup.sport.replace(/-/g, "_")}`
-    : `/courts/${booking.courtId}`;
+    : "/explore";
   const address = booking.courtAddress && booking.courtCity ? `${booking.courtAddress}, ${booking.courtCity}` : null;
   const phone = booking.courtPhone ?? null;
   const duration = (() => {

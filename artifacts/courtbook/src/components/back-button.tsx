@@ -17,7 +17,7 @@ export function BackButton({ label, className, ...rest }: BackButtonProps) {
   const sharedClass = cn("mb-4 -ml-2 text-muted-foreground hover:text-foreground", className);
 
   if ("historyBack" in rest && rest.historyBack) {
-    const fallback = rest.fallbackTo ?? "/courts";
+    const fallback = rest.fallbackTo ?? "/explore";
     function handleBack() {
       if (window.history.length > 1) {
         window.history.back();

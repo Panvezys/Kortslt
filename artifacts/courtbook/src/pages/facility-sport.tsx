@@ -176,6 +176,9 @@ export default function FacilitySportPage() {
   const surfaceParam = p.get("surface")   ?? undefined;
   const condParam    = p.get("condition") ?? undefined;
   const dateParam    = p.get("date");     // carried over from /explore search
+  // Upgrade flow: casual game being linked to this booking (from game-detail via /explore)
+  const linkGameIdRaw = parseInt(p.get("linkGameId") ?? "", 10);
+  const linkGameId = Number.isInteger(linkGameIdRaw) && linkGameIdRaw > 0 ? linkGameIdRaw : null;
 
   const isIndoor = isIndoorStr === "true" ? true : isIndoorStr === "false" ? false : undefined;
 
@@ -214,6 +217,14 @@ export default function FacilitySportPage() {
   }, [facilityId, sportParam, setLocation]);
 
   const filters = { isIndoor, surface: surfaceParam, condition: condParam };
+
+  // Upgrade flow: fetch the casual game so the widget can preset split size.
+  const { data: linkedGame } = useQuery<{ id: number; playersNeeded?: number | null }>({
+    queryKey: ["game-for-link", linkGameId],
+    queryFn: () => customFetch<{ id: number; playersNeeded?: number | null }>(`/api/games/${linkGameId}`, { responseType: "json" }),
+    enabled: !!linkGameId,
+    staleTime: 60_000,
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["group-detail", facilityId, sportParam, isIndoor, surfaceParam, condParam],
@@ -791,6 +802,7 @@ export default function FacilitySportPage() {
                   lastBookedAt={lastBookedAt}
                   openGames={openGames}
                   initialDate={dateParam}
+                  linkGame={linkGameId ? { id: linkGameId, playersNeeded: linkedGame?.playersNeeded ?? null } : null}
                 />
               </div>
             </div>

@@ -406,12 +406,7 @@ export default function BookingConfirmed() {
     : courtGroup
       ? `${BASE}/facility/${courtGroup.facilityId}?sport=${courtGroup.sport.replace(/-/g, "_")}`
       : null;
-  const courtPageUrl = groupUrl
-    ?? (splitInfo?.courtId
-      ? `${BASE}/courts/${splitInfo.courtId}`
-      : booking?.courtId
-        ? `${BASE}/courts/${booking.courtId}`
-        : null);
+  const courtPageUrl = groupUrl ?? `${BASE}/explore`;
 
   return (
     <Layout>

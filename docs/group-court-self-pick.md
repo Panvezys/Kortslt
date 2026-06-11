@@ -47,10 +47,25 @@ facility+sport+active status, so filtering by id doubles as the
   pass `courtId` when picked.
 - Waitlist entries use the picked court instead of the group's first court.
 
-## Legacy /courts link retirement (prep)
+## Legacy /courts retirement (complete)
 
-`/courts` and `/courts/:id` remain routable (kept intentionally for
-comparison), but remaining references now point at group pages:
+The `/courts` listing and `/courts/:id` detail pages have been **deleted**
+(`courts.tsx`, `court-detail.tsx`, `related-courts-carousel.tsx`, plus the
+backend `/courts/:id/related` route). Old links survive via redirect routes in
+`App.tsx`: `/courts` → `/explore`, and `/courts/:id` resolves the court's
+facility+sport (public API) and lands on the group page — this keeps printed
+QR codes and previously sent emails working.
+
+The **linkGame upgrade flow** ("Užsakyti aikštelę šiam žaidimui" on a casual
+game) was ported off the legacy pages: game-detail → `/explore?linkGameId=…`
+(banner + threading via `buildDetailHref`) → facility-sport fetches the game →
+`GroupBookingWidget` gets `linkGame={id, playersNeeded}`, presets split mode +
+player count, and sends `linkGameId` to the group `checkout-split` (now
+Zod-accepted: creator-only 403 check, reuses the existing game instead of
+creating one, attaches booking/court on settle — mock, €0, and Stripe-metadata
+paths all covered) or to `payments/create-checkout` for a standard booking.
+
+All references point at group pages:
 
 - `src/lib/email.ts` — `courtPageUrl(courtId)` resolves facility+sport and
   links emails to `/facility/:id?sport=…`, falling back to `/courts/:id` if the
@@ -72,8 +87,6 @@ preview, owner QR codes, owner court previews (`owner-facility-detail.tsx`,
 gained `courtType`/`facilityId` where missing: `/games/my`, `/matches/open`,
 `/owner/court-reviews`, `/court-reviews` (admin feed).
 
-Only the frozen /courts pages themselves still reference `/courts/:id`
-(`courts.tsx`, `court-detail.tsx`, `related-courts-carousel.tsx`,
-`court-map.tsx` default href builder), plus `courtGroupHref`'s legacy fallback
-for courts without facility data. Deleting /courts later means removing those
-pages and the fallback in `court-links.ts`.
+`courtGroupHref` (and every other fallback — back-button, email links, split
+cancel URLs, booking surfaces) now degrades to `/explore` when facility data is
+missing; no code path emits a `/courts` URL anymore.

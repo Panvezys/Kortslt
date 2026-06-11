@@ -43,13 +43,7 @@ export function CourtCard({ court }: { court: Court }) {
   const [btnHovered, setBtnHovered] = useState(false);
   const [photoIdx, setPhotoIdx] = useState(0);
   const sport = { color: getSportColor(court.type) };
-  // Live courts link to their facility+sport group page (the booking front
-  // door); pending/draft courts (admin approvals) keep the legacy detail page,
-  // since group pages only surface active courts.
-  const isLive = court.status === "active" || court.status === "approved";
-  const cardHref = isLive
-    ? courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null })
-    : `/courts/${court.id}`;
+  const cardHref = courtGroupHref(court as unknown as { id: number; facilityId?: number | null; type?: string | null });
   const surfaceTKey = `surfaces.${court.surface}` as never;
   const surfaceTranslated = court.surface ? t(surfaceTKey) : null;
   const surfaceLabel = court.surface

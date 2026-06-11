@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui/sheet";
-import { Search, SlidersHorizontal, X, ArrowUpDown, Map as MapIcon, List, Navigation } from "lucide-react";
+import { Search, SlidersHorizontal, X, ArrowUpDown, Map as MapIcon, List, Navigation, ArrowLeft } from "lucide-react";
 import { FacilitySportCard } from "@/components/facility-sport-card";
 import { CourtMap, type CourtHrefBuilder } from "@/components/court-map";
 import { buildDetailHref, type SearchGroupResult, type SearchGroupFilters } from "@/lib/search-groups-types";
@@ -91,6 +91,11 @@ export default function ExplorePage() {
   const [activeSport, setActiveSport] = useState<string>(sp.get("sport") ?? "");
   const [city,        setCity]        = useState<string>(sp.get("city")  ?? "");
   const [nameQ,       setNameQ]       = useState<string>(sp.get("name")  ?? "");
+  // Upgrade flow: picking a court for an existing casual game (from game-detail)
+  const [linkGameId, setLinkGameId] = useState<number | null>(() => {
+    const v = parseInt(sp.get("linkGameId") ?? "", 10);
+    return Number.isInteger(v) && v > 0 ? v : null;
+  });
   const [minPrice,    setMinPrice]    = useState<string>("");
   const [maxPrice,    setMaxPrice]    = useState<string>("");
   const [sortBy,      setSortBy]      = useState<SortKey>("default");
@@ -128,6 +133,8 @@ export default function ExplorePage() {
     setDurationQ(Number(p.get("duration")) || 60);
     setMinPrice("");
     setMaxPrice("");
+    const lg = parseInt(p.get("linkGameId") ?? "", 10);
+    setLinkGameId(Number.isInteger(lg) && lg > 0 ? lg : null);
   }, [search]);
 
   const windowActive = dateQ !== "" && timeQ !== "";
@@ -439,6 +446,7 @@ export default function ExplorePage() {
     isIndoor: isIndoor === "true" ? true : isIndoor === "false" ? false : undefined,
     surface:  surface || undefined,
     date:     dateQ || undefined, // booking widget opens on the searched date
+    linkGameId: linkGameId ?? undefined,
   };
 
   // Synthetic Court-shaped objects so the shared CourtMap can render venue pins.
@@ -479,6 +487,7 @@ export default function ExplorePage() {
     if (detailFilters.isIndoor !== undefined) p.set("isIndoor", String(detailFilters.isIndoor));
     if (detailFilters.surface) p.set("surface", detailFilters.surface);
     if (detailFilters.date) p.set("date", detailFilters.date);
+    if (detailFilters.linkGameId) p.set("linkGameId", String(detailFilters.linkGameId));
     const base = `/facility/${fid}?${p.toString()}`;
     return { detail: base, reserve: `${base}#reserve` };
   };
@@ -518,6 +527,19 @@ export default function ExplorePage() {
 
   return (
     <Layout>
+      {/* Upgrade flow: picking a court for an existing match */}
+      {linkGameId && (
+        <div className="container mx-auto px-4 pt-4">
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 flex items-center gap-2 flex-wrap">
+            <Link href={`/matches/${linkGameId}`} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="w-3.5 h-3.5" />Grįžti į mačą
+            </Link>
+            <span className="text-muted-foreground/40">·</span>
+            <span className="text-sm font-semibold text-foreground">Rezervuokite aikštelę šiam mačui</span>
+            <span className="text-xs text-muted-foreground">Pasirinkite areną — rezervacija bus susieta su jūsų mačiu.</span>
+          </div>
+        </div>
+      )}
       {/* Mobile: sticky top bar */}
       <div className="md:hidden sticky top-[7rem] z-30 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-2 px-3 py-2">

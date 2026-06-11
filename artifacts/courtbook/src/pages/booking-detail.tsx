@@ -183,11 +183,11 @@ export default function BookingDetail() {
     load();
   }, [id]);
 
-  // Group page when we know the facility+sport (the primary flow since the
-  // /explore transition); the legacy court page remains the fallback.
+  // Group page when we know the facility+sport; /explore otherwise (the
+  // legacy court page has been removed).
   const courtHref = court?.facilityId && court?.type
     ? `/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}`
-    : `/courts/${booking?.courtId}`;
+    : "/explore";
 
   const shareUrl = splitStatus?.shareToken
     ? `${window.location.origin}${BASE}/join/${splitStatus.shareToken}`

@@ -309,11 +309,11 @@ router.post("/games/checkout-split", requireAuth, async (req, res): Promise<void
   const origin = req.get("origin") ?? req.get("host") ?? "https://korts.lt";
   const base = process.env.BASE_PATH ?? "";
   const successUrl = `${origin}${base}/booking-confirmed?id=${booking.id}&split=1`;
-  // Cancel lands on the facility+sport group page (booking front door); legacy
-  // /courts/:id only when the court has no facility.
+  // Cancel lands on the facility+sport group page (booking front door);
+  // /explore when the court has no facility (legacy /courts/:id is gone).
   const cancelUrl = court.facilityId != null && court.type
     ? `${origin}${base}/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}&booking_cancelled=1&bookingId=${booking.id}`
-    : `${origin}${base}/courts/${courtId}?booking_cancelled=1&bookingId=${booking.id}`;
+    : `${origin}${base}/explore`;
 
   let checkoutUrl: string;
   const amountCents = Math.round(hostShareEur * 100);
@@ -1111,6 +1111,9 @@ const GroupSplitCheckoutBody = z.object({
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   // Player picked a specific court — allocation is pinned to it.
   courtId: z.number().int().positive().optional(),
+  // Upgrade flow: link an existing casual game to this split booking instead
+  // of creating a new game. Only the game's creator may do this.
+  linkGameId: z.number().int().positive().optional(),
   totalSlots: z.number().int().min(2).max(8),
   skillLevel: z.string().optional().default("any"),
   description: z.string().optional(),
@@ -1138,7 +1141,15 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
     customerName, customerEmail, customerPhone,
     isPublic, minSkillLevel, maxSkillLevel, matchType,
     courtId: requestedCourtId,
+    linkGameId,
   } = parsed.data;
+
+  // ── linkGame upgrade flow: verify ownership before creating anything ───────
+  if (linkGameId) {
+    const [targetGame] = await db.select().from(gamesTable).where(eq(gamesTable.id, linkGameId));
+    if (!targetGame) { res.status(404).json({ error: "Linked game not found" }); return; }
+    if (targetGame.creatorUserId !== userId) { res.status(403).json({ error: "Forbidden" }); return; }
+  }
 
   const reqStartMin = toMin(startTime);
   const reqEndMin   = toMin(endTime);
@@ -1249,43 +1260,76 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
           splitInviteToken,
         }).returning();
 
-        const [game] = await tx.insert(gamesTable).values({
-          creatorUserId: userId,
-          creatorName: customerName,
-          creatorEmail: customerEmail,
-          sport,
-          city: facilityRow.city ?? "",
-          placeName: facilityRow.name,
-          facilityId,
-          courtId: courtCandidate.id,
-          bookingId: booking.id,
-          playersNeeded: totalSlots,
-          skillLevel: skillLevel ?? "any",
-          datetime,
-          durationMinutes,
-          description: description ?? null,
-          status: "pending_payment",
-          matchType: matchType ?? "casual",
-          isPrivate: !isPublic,
-          visibility: isPublic ? "public" : "private",
-          minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
-          maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
-          requiresApproval: false,
-          teamCount: 2,
-        }).returning();
+        // ── Create or reuse linked game ──
+        let gameId: number;
+        if (linkGameId) {
+          gameId = linkGameId;
+        } else {
+          const [game] = await tx.insert(gamesTable).values({
+            creatorUserId: userId,
+            creatorName: customerName,
+            creatorEmail: customerEmail,
+            sport,
+            city: facilityRow.city ?? "",
+            placeName: facilityRow.name,
+            facilityId,
+            courtId: courtCandidate.id,
+            bookingId: booking.id,
+            playersNeeded: totalSlots,
+            skillLevel: skillLevel ?? "any",
+            datetime,
+            durationMinutes,
+            description: description ?? null,
+            status: "pending_payment",
+            matchType: matchType ?? "casual",
+            isPrivate: !isPublic,
+            visibility: isPublic ? "public" : "private",
+            minSkillLevel: isPublic ? (minSkillLevel ?? null) : null,
+            maxSkillLevel: isPublic ? (maxSkillLevel ?? null) : null,
+            requiresApproval: false,
+            teamCount: 2,
+          }).returning();
+          gameId = game.id;
+        }
 
-        const [hostParticipant] = await tx.insert(gameParticipantsTable).values({
-          gameId: game.id,
-          userId,
-          userName: customerName,
-          userEmail: customerEmail,
-          status: "joined",
-          source: "join_request",
-          paymentStatus: "pending",
-          appliedMembershipId: hostDiscount.membershipId,
-        }).returning();
+        // For the upgrade flow, update the existing host participant to track
+        // payment; for the normal flow, insert a fresh record. (Same tolerated
+        // post-membership-lock UPDATE as the legacy checkout-split.)
+        let hostParticipant: typeof gameParticipantsTable.$inferSelect;
+        if (linkGameId) {
+          const [existing] = await tx.select().from(gameParticipantsTable)
+            .where(and(eq(gameParticipantsTable.gameId, linkGameId), eq(gameParticipantsTable.userId, userId)));
+          if (existing) {
+            [hostParticipant] = await tx.update(gameParticipantsTable)
+              .set({ paymentStatus: "pending", appliedMembershipId: hostDiscount.membershipId })
+              .where(eq(gameParticipantsTable.id, existing.id))
+              .returning();
+          } else {
+            [hostParticipant] = await tx.insert(gameParticipantsTable).values({
+              gameId: linkGameId,
+              userId,
+              userName: customerName,
+              userEmail: customerEmail,
+              status: "joined",
+              source: "join_request",
+              paymentStatus: "pending",
+              appliedMembershipId: hostDiscount.membershipId,
+            }).returning();
+          }
+        } else {
+          [hostParticipant] = await tx.insert(gameParticipantsTable).values({
+            gameId,
+            userId,
+            userName: customerName,
+            userEmail: customerEmail,
+            status: "joined",
+            source: "join_request",
+            paymentStatus: "pending",
+            appliedMembershipId: hostDiscount.membershipId,
+          }).returning();
+        }
 
-        return { booking, game, hostParticipant, courtPrice, pricePerSlot, splitInviteToken, durationMinutes, hostShareEur: hostDiscount.discounted };
+        return { booking, gameId, hostParticipant, courtPrice, pricePerSlot, splitInviteToken, durationMinutes, hostShareEur: hostDiscount.discounted };
       });
 
       // ── Stripe ──────────────────────────────────────────────────────────────
@@ -1302,7 +1346,21 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
       async function settleHostShareWithoutStripe(sessionId: string): Promise<string> {
         await db.update(bookingsTable).set({ stripeSessionId: sessionId, status: "awaiting_players" }).where(eq(bookingsTable.id, result.booking.id));
         await db.update(gameParticipantsTable).set({ stripeSessionId: sessionId, paymentStatus: "paid" }).where(eq(gameParticipantsTable.id, result.hostParticipant.id));
-        await db.update(gamesTable).set({ status: "awaiting_players" }).where(eq(gamesTable.id, result.game.id));
+        if (linkGameId) {
+          // Upgrade flow: attach the booking + allocated court to the existing game.
+          await db.update(gamesTable)
+            .set({
+              bookingId: result.booking.id,
+              facilityId,
+              courtId: courtCandidate.id,
+              status: "awaiting_players",
+              datetime: `${result.booking.date}T${result.booking.startTime}:00`,
+              durationMinutes: result.durationMinutes,
+            })
+            .where(eq(gamesTable.id, linkGameId));
+        } else {
+          await db.update(gamesTable).set({ status: "awaiting_players" }).where(eq(gamesTable.id, result.gameId));
+        }
         return `${successUrl}&session_id=${sessionId}`;
       }
 
@@ -1325,7 +1383,7 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
             mode: "payment",
             success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: cancelUrl,
-            metadata: { bookingId: String(result.booking.id), splitParticipantId: String(result.hostParticipant.id) },
+            metadata: { bookingId: String(result.booking.id), splitParticipantId: String(result.hostParticipant.id), ...(linkGameId ? { linkGameId: String(linkGameId) } : {}) },
             customer_email: customerEmail,
             customer_creation: "always",
             locale: "lt",
@@ -1345,13 +1403,14 @@ router.post("/search/groups/:facilityId/:sport/checkout-split", requireAuth, asy
           } else {
             logger.error({ err }, "Group split: Stripe session failed");
             await db.update(bookingsTable).set({ status: "cancelled" }).where(eq(bookingsTable.id, result.booking.id));
-            await db.delete(gamesTable).where(eq(gamesTable.id, result.game.id));
+            // Only delete a game this request created — never the linked one.
+            if (!linkGameId) await db.delete(gamesTable).where(eq(gamesTable.id, result.gameId));
             res.status(500).json({ error: "Failed to create payment session" }); return;
           }
         }
       }
 
-      res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.game.id, shareToken: result.splitInviteToken, pricePerSlot: result.hostShareEur });
+      res.status(201).json({ url: checkoutUrl, bookingId: result.booking.id, gameId: result.gameId, shareToken: result.splitInviteToken, pricePerSlot: result.hostShareEur });
       return;
 
     } catch (err) {

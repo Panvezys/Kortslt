@@ -12,8 +12,8 @@ function getResend(): Resend | null {
 const SITE_URL = process.env.SITE_URL || "https://korts.lt";
 
 // Court links in emails point to the facility+sport group page (the booking
-// front door). Falls back to the legacy /courts/:id page if the lookup fails,
-// so an email always carries a working link.
+// front door). Falls back to /explore if the lookup fails, so an email always
+// carries a working link. (The legacy /courts/:id page has been removed.)
 async function courtPageUrl(courtId: number): Promise<string> {
   try {
     const [court] = await db
@@ -23,8 +23,8 @@ async function courtPageUrl(courtId: number): Promise<string> {
     if (court?.facilityId != null && court.type) {
       return `${SITE_URL}/facility/${court.facilityId}?sport=${court.type.replace(/-/g, "_")}`;
     }
-  } catch { /* fall through to legacy URL */ }
-  return `${SITE_URL}/courts/${courtId}`;
+  } catch { /* fall through */ }
+  return `${SITE_URL}/explore`;
 }
 
 const LT_MONTHS = [
